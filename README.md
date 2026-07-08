@@ -53,6 +53,9 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 | `/sdlc:status` | Dashboard: active runs + backlog snapshot |
 | `/sdlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
 | `/sdlc:release` | Cut a release: semver from commits, changelog, tag, notes (publish is approval-gated) |
+| `/sdlc:sprint N` | Run N independent items in parallel worktrees with a live board |
+| `/sdlc:promote` | PR a proven project-local skill/agent into the shared plugin |
+| `/sdlc:sync` | Reconcile local extensions after plugin updates (kill drift) |
 
 ## Design principles
 
@@ -63,9 +66,16 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 - **High autonomy, hard guardrails** — everything on the story→PR path is allowed; destructive or
   production-touching operations are denied or gated (see `docs/permissions-rationale.md`).
 
-## Roadmap
+## Self-extension
 
-Phase 5 (self-extension: scaffold + promote project-born skills into the plugin; `/sdlc:sprint`
-worktree parallelism) is designed and documented in `docs/architecture.md`.
-Shipped: Phase 3 (Jira, Azure DevOps, Azure Repos, grooming — v0.3.0), Phase 4 (architect,
-security, devops, docwriter, researcher agents + the web stack pack — v0.4.0).
+When the pipeline hits a capability gap it can't cover, it scaffolds a project-local skill (or
+agent, behind a justification bar) in `.claude/`, tracks its reuse in `.sdlc/extensions.json`,
+and — once proven — `/sdlc:promote` PRs it into this repo for platform-team review
+(`docs/promotion-policy.md`). `/sdlc:sync` closes the loop after merge. The framework grows
+itself, curated.
+
+## Status
+
+All five design phases are implemented (v0.5.0): core pipeline + quality gates, Jira/ADO/
+markdown trackers, GitHub + Azure Repos, 9 specialist agents, the web stack pack, parallel
+sprints and the self-extension/promotion workflow. Full design: `docs/architecture.md`.

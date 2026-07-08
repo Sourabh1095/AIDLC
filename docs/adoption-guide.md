@@ -100,5 +100,14 @@ Edit `.claude/sdlc.config.json`:
 - `pipeline.gates.ambiguousRequirements`: `assume-and-log` (default) | `ask-human`
   — flip to `ask-human` on lower-trust projects to pause when acceptance criteria are ambiguous.
 
-Project-specific expertise belongs in `.claude/skills/` (landing zone already scaffolded);
-genuinely reusable skills get promoted into this plugin (Phase 5 workflow).
+Project-specific expertise belongs in `.claude/skills/` (landing zone already scaffolded) —
+the pipeline scaffolds these itself when it hits a capability gap, and tracks reuse in
+`.sdlc/extensions.json`. Once a skill proves out (used ≥2×), `/sdlc:promote <name>` PRs it
+into the shared plugin for platform review; after it merges, `/plugin marketplace update` +
+`/sdlc:sync` removes your local copy. See `docs/promotion-policy.md` for the acceptance bar.
+
+## 7. Working several items at once
+
+`/sdlc:sprint 3` picks the top independent ready items (an analyst checks they don't touch the
+same code), runs each in its own git worktree via a headless pipeline, and shows a live board.
+Conflicting items queue automatically. Blocked runs keep their worktree for resumption.

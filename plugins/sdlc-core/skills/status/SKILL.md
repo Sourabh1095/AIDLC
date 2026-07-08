@@ -28,7 +28,14 @@ Load the `work-items` skill routing and query the active adapter (from `.claude/
 
 If the source is `markdown`, this is just frontmatter parsing over `backlog/items/*.md` — do not spawn a subagent for this.
 
-## Step 3 — Suggestions
+## Step 3 — Local extensions (when `.sdlc/extensions.json` has entries)
+
+One line per noteworthy entry:
+- `promotion: candidate` with `reuseCount >= 2` → "promotion-ready: <name> (used <n>×) — `/sdlc:promote <name>`"
+- `promotion: pr-open` → show the PR URL and its state if cheaply checkable.
+- Count of `local-only` extensions (no action needed).
+
+## Step 4 — Suggestions
 
 End with one actionable line, e.g.:
 - runs blocked → "PROJ-123 is blocked at verify (2 unresolved findings) — review `.sdlc/runs/PROJ-123.md`"

@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude SDLC
 
-**Status:** Phases 0–4 implemented (v0.4.0) · Phase 5 designed, pending
+**Status:** All phases (0–5) implemented · v0.5.0
 
 ## 1. Core design decisions
 
@@ -97,29 +97,24 @@ the verify batch, spikes → researcher, infra plans → devops), and the `sdlc-
 (8 stack skills). Separate plugin so other stacks (e.g. `sdlc-stack-python`) can slot in
 without touching core — stack skills are namespaced `sdlc-stack-web:*`.
 
-## 3. Roadmap
+### Phase 5 — Self-extension & scale ✅ (v0.5.0)
 
-### Phase 5 — Self-extension & scale
-- **Capability-gap protocol** in the orchestrator: search plugin skills → local `.claude/` →
-  `extensions.json` registry; create only as last resort; skill by default (agents require an
-  `agentJustification`).
-- `scaffold-skill` / `scaffold-agent`: instantiate the templates (with `x-sdlc` metadata:
-  origin, createdDuring, promotion status, reuseCount), register in `.sdlc/extensions.json`.
-  The orchestrator bumps `reuseCount` on each reuse; `/sdlc:status` surfaces candidates with
-  reuseCount ≥ 2.
-- `/sdlc:promote <name>`: validate (no secrets/absolute paths) → generalize (project specifics
-  → config placeholders) → clone marketplace repo, branch `promote/<name>`, copy into the
-  right plugin, bump version, CHANGELOG → PR with origin metadata and reviewer checklist.
-  Platform team owns merges (CODEOWNERS on `plugins/**`).
-- `/sdlc:sync`: post-merge, detect local skills shadowed by newer plugin versions, delete the
-  local copy, mark registry entry `promoted` — prevents silent drift between local forks and
-  the promoted version.
-- `/sdlc:sprint N`: adapter returns top-N ready items → analyst checks independence
-  (file-overlap heuristic, shared parents) → one git worktree + headless run per item
-  (`claude -p "/sdlc:run <ID>"`), parent session aggregates run-file phases into a board;
-  colliding items serialize.
-- **Exit criteria:** two stories land as parallel PRs; a project-born skill round-trips
-  through promotion into the plugin.
+Implemented: capability-gap protocol in the orchestrator (search plugins → local →
+`extensions.json` registry; create as last resort; skill by default, agents behind the
+agent-test justification); `scaffold-skill`/`scaffold-agent` with mandatory `x-sdlc` metadata
+and reuse tracking (`/sdlc:status` surfaces candidates at reuseCount ≥ 2); `/sdlc:promote`
+(validate → secret-scan → generalize with shown diff → package into the right plugin on
+`promote/<name>` → user-confirmed PR with the reviewer checklist); `/sdlc:sync` (deletes local
+forks shadowed by promoted versions, resolves shadowing conflicts); `/sdlc:sprint N` (analyst
+independence check → worktree + headless run per item → live board from run-file polling →
+cleanup); governance via `docs/promotion-policy.md` + CODEOWNERS (`plugins/**` platform-owned).
+
+## 3. Post-v1 candidates (not committed)
+
+- Additional stack packs (`sdlc-stack-python`, `sdlc-stack-dotnet`) as demand appears.
+- More adapters via the same 7-op contract (Linear, GitHub Issues).
+- Sentry-fed bug intake: production error → draft bug item with stack trace context.
+- Metrics: cycle-time and fix-cycle stats aggregated from archived run files.
 
 ## 4. Extension points (for adopting teams)
 

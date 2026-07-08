@@ -121,6 +121,20 @@ Phase → `done`. Final checkpoint + `## Log` summary (phases run, fix cycles, P
 Report to the user in ≤6 lines: item, branch, PR URL, assumptions count, findings resolved,
 anything needing human eyes. **Humans review and merge the PR — never merge it yourself.**
 
+## Capability gaps (self-extension protocol)
+
+When you or a dispatched agent conclude "no skill/agent covers X" (an unfamiliar integration,
+a recurring procedure):
+1. **Search first**: installed plugin skills (core + stack packs) → project `.claude/skills|agents/`
+   → `.sdlc/extensions.json`. Most gaps are an existing skill you didn't load.
+2. Still missing AND plausibly reusable → follow `sdlc:scaffold-skill` (or
+   `sdlc:scaffold-agent` only if the agent test passes) mid-run; the new capability is used
+   immediately and committed with the branch.
+3. One-off knowledge → just handle it inline; don't mint a skill nobody will load twice.
+4. **Reuse tracking**: whenever a run loads a registered local extension, increment its
+   `reuseCount` in `.sdlc/extensions.json` (commit with the branch). `/sdlc:status` surfaces
+   promotion candidates at `reuseCount >= 2`.
+
 ## Orchestrator invariants
 
 - Checkpoint the run file BEFORE dispatching any agent and AFTER it returns.

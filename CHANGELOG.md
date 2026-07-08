@@ -2,6 +2,26 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.5.0] — 2026-07-08
+
+### Added — `sdlc` plugin (Phase 5: self-extension & scale)
+
+- `scaffold-skill` / `scaffold-agent`: create project-local capabilities from the templates,
+  with mandatory `x-sdlc` metadata and the agent-test justification; registered in
+  `.sdlc/extensions.json` with reuse tracking.
+- Capability-gap protocol in the orchestrator: search plugins → local → registry before
+  creating; reuseCount bumped on every reuse; `/sdlc:status` surfaces promotion candidates.
+- `/sdlc:promote`: validate (secret scan, lint) → generalize (project specifics → config
+  references, with a shown diff) → package into the right plugin on a `promote/<name>` branch
+  → PR with the reviewer checklist. PR opening is user-confirmed.
+- `/sdlc:sync`: post-merge reconciliation — deletes local forks shadowed by promoted plugin
+  versions, resolves shadowing conflicts, reports promotion-ready candidates.
+- `/sdlc:sprint N`: parallel independent items — analyst independence check, one git worktree
+  + headless pipeline run per item, live board from run-file polling, queued conflicts,
+  worktree cleanup on completion.
+- Governance: `docs/promotion-policy.md` (acceptance bar + reviewer checklist), CODEOWNERS
+  making `plugins/**` platform-team owned.
+
 ## [0.4.0] — 2026-07-08
 
 ### Added — `sdlc` plugin (Phase 4: depth agents)
