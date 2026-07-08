@@ -37,11 +37,24 @@ gh pr create --title "[<ID>] <imperative summary>" --body-file <tmp-body.md> --b
 - Capture the PR URL from stdout → run-file frontmatter `pr:` + `adapter.link(id, {pr})`.
 - If `gh` is not authenticated, report the exact error and tell the user to run `gh auth login`; do not retry blindly.
 
-### Azure Repos (`host: azure-repos`) — Phase 3
+### Azure Repos (`host: azure-repos`)
 
-`az repos pr create --title ... --description @<tmp-body.md> --source-branch <branch> --target-branch <defaultBranch>`
-If the `az` path is not yet configured for this project, say so and fall back to pushing the
-branch + printing manual PR-creation instructions. Never silently skip the PR step.
+Prereqs: `az` CLI with the `azure-devops` extension, logged in; set session defaults once:
+`az devops configure --defaults organization=https://dev.azure.com/{org} project={project}`
+(org/project from `sdlc.config.json → workItems.ado`, or ask the user if source ≠ ado).
+
+```
+az repos pr create --repository <repo> --source-branch <branch> --target-branch <defaultBranch> \
+  --title "[<ID>] <imperative summary>" --description "<line1>" "<line2>" ... -o json
+```
+- `--description` takes one argument PER PARAGRAPH — split the filled pr-body template on blank
+  lines and pass each block as a separate quoted argument (markdown renders fine in ADO).
+- Capture `.url` (or build `.../{project}/_git/{repo}/pullrequest/{pullRequestId}`) from the JSON
+  output → run-file `pr:` + `adapter.link(id, {pr})`.
+- Link the work item to the PR: `az repos pr work-item add --id <prId> --work-items <numeric-id>`
+  (strip the key prefix — ADO IDs are bare integers).
+- If `az` is not installed/authenticated, report the exact error and print manual PR-creation
+  instructions with the pushed branch name. Never silently skip the PR step.
 
 ## Failure handling
 

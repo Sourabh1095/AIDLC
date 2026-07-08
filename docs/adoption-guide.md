@@ -53,11 +53,25 @@ The plugin ships MCP servers pre-wired; you provide credentials:
 | `context7` | None required (free tier) |
 | `github` | Set `GITHUB_PERSONAL_ACCESS_TOKEN` env var (repo + PR scopes) |
 | `playwright` | None (drives a local browser) |
-| Jira (Phase 3) | Atlassian MCP OAuth on first use |
-| Azure DevOps (Phase 3) | `az login` / PAT |
+| `atlassian` (Jira) | Remote server — OAuth browser prompt on first use |
+| `azure-devops` | Set `ADO_MCP_ORG` env var to your org name; sign-in via `az login` |
 
 If a server fails to start, `claude --debug` shows why; the pipeline degrades gracefully
-(e.g. GitHub operations fall back to the `gh` CLI).
+(GitHub operations fall back to the `gh` CLI, Azure Boards falls back to `az boards`).
+Servers you don't use just sit idle — disable them via `/mcp` if the noise bothers you.
+
+**Optional project-scoped servers** (databases, Sentry, Notion, Figma): the template ships
+`.mcp.json.example` — copy the entries you need into a `.mcp.json` at the repo root and fill
+the env vars. Database servers must use **read-only** users; pipeline writes go through migrations.
+
+### Connecting Jira or Azure Boards as the tracker
+
+1. `.claude/sdlc.config.json → workItems.source`: `"jira"` or `"ado"`.
+2. Fill `workItems.jira` (`site`, `project`) or `workItems.ado` (`org`, `project`).
+3. If your workflow's status names differ from the defaults documented in the adapter skills,
+   add a `statusMap` (canonical → your status), e.g.
+   `"statusMap": { "in_review": "Code Review", "blocked": "On Hold" }`.
+4. For Azure Repos as the git host too: `git.host = "azure-repos"`.
 
 ## 5. Daily workflow
 

@@ -1,0 +1,23 @@
+{
+  "$comment": "Optional project-scoped MCP servers. Copy the entries you need into a `.mcp.json` at the repo root, fill the env vars, and remove this comment key. Auth/credentials are per-user — never commit real connection strings. Use READ-ONLY database users: pipeline writes go through migrations, not ad-hoc queries.",
+  "postgres": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_URL_RO}"]
+  },
+  "mongodb": {
+    "command": "npx",
+    "args": ["-y", "mongodb-mcp-server", "--readOnly"],
+    "env": {
+      "MDB_MCP_CONNECTION_STRING": "${MONGODB_URL_RO}"
+    }
+  },
+  "sentry": {
+    "url": "https://mcp.sentry.dev/mcp"
+  },
+  "notion": {
+    "url": "https://mcp.notion.com/mcp"
+  },
+  "figma": {
+    "url": "https://mcp.figma.com/mcp"
+  }
+}

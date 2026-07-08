@@ -13,5 +13,12 @@
   "playwright": {
     "command": "npx",
     "args": ["-y", "@playwright/mcp@latest"]
+  },
+  "atlassian": {
+    "url": "https://mcp.atlassian.com/v1/sse"
+  },
+  "azure-devops": {
+    "command": "npx",
+    "args": ["-y", "@azure-devops/mcp", "${ADO_MCP_ORG}"]
   }
 }

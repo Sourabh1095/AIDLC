@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude SDLC
 
-**Status:** Phases 0–2 implemented (v0.2.0) · Phases 3–5 designed, pending
+**Status:** Phases 0–3 implemented (v0.3.0) · Phases 4–5 designed, pending
 
 ## 1. Core design decisions
 
@@ -70,15 +70,16 @@ Commands: `run`, `next`, `status`, `init`. Infrastructure: `run-state`, `work-it
 `guard.mjs` (PreToolUse Bash) · `protect-paths.mjs` (PreToolUse Edit/Write) · `format.mjs`
 (PostToolUse) · `session-context.mjs` (SessionStart) · `checkpoint.mjs` (PreCompact + Stop).
 
-## 3. Roadmap
+### Phase 3 — Real trackers + Azure ✅ (v0.3.0)
 
-### Phase 3 — Real trackers + Azure
-- `wi-jira` (Atlassian MCP; JQL for query; per-project `statusMap` for transitions).
-- `wi-ado` (ADO MCP, `az boards` fallback; WIQL; User Story/PBI type mapping).
-- Azure Repos PR path in `git-workflow` (`az repos pr create`).
-- `/sdlc:groom` — analyst sweeps the backlog: fix AC, size, flag blockers, re-prioritize.
-- Extend bundled `.mcp.json`: Atlassian, Azure DevOps, Postgres (read-only), MongoDB (read-only), Sentry, Figma, Notion.
-- **Exit criterion:** the same pipeline runs unchanged against a Jira project and an ADO project.
+Implemented: `wi-jira` (Atlassian MCP; JQL; transition-by-target-status; statusMap),
+`wi-ado` (ADO MCP + `az boards` fallback; WIQL; Agile/Scrum process detection; state-stepping
+with tag fallbacks), Azure Repos PR path in `git-workflow`, `/sdlc:groom` (autonomy
+boundaries: AC/sizing applied, decompositions/priorities proposed only), bundled `atlassian` +
+`azure-devops` MCP servers, project `.mcp.json.example` (read-only Postgres/MongoDB, Sentry,
+Notion, Figma). Adapter contract unchanged — the pipeline runs identically over all three sources.
+
+## 3. Roadmap
 
 ### Phase 4 — Depth agents + stack pack
 - Agents: `sdlc-architect` (opus-class; plans items ≥ `architectThreshold`, writes ADRs),

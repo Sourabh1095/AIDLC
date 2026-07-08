@@ -49,6 +49,7 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 | `/sdlc:run <ID>` | Run one work item end-to-end (resumable) |
 | `/sdlc:next` | Pick the highest-priority ready item and run it |
 | `/sdlc:status` | Dashboard: active runs + backlog snapshot |
+| `/sdlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
 
 ## Design principles
 
@@ -61,6 +62,6 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 
 ## Roadmap
 
-Phases 3–5 (Jira/ADO adapters, architect/security/devops/docs/research agents, the
-Next.js/NestJS/Postgres/MongoDB stack pack, parallel sprints, and the self-extension +
-promotion workflow) are designed and documented in `docs/architecture.md`.
+Phases 4–5 (architect/security/devops/docs/research agents, the Next.js/NestJS/Postgres/MongoDB
+stack pack, parallel sprints, and the self-extension + promotion workflow) are designed and
+documented in `docs/architecture.md`. Phase 3 (Jira, Azure DevOps, Azure Repos, grooming) shipped in v0.3.0.

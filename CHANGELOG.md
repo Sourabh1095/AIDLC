@@ -2,6 +2,21 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.3.0] — 2026-07-08
+
+### Added — `sdlc` plugin (Phase 3: real trackers + Azure)
+
+- `wi-jira` adapter: Jira via Atlassian MCP — JQL queries, transition-by-target-status,
+  AC field/section detection, dev-panel linking, per-project `statusMap`.
+- `wi-ado` adapter: Azure Boards via ADO MCP with `az boards` CLI fallback — WIQL queries,
+  Agile/Scrum process detection, state-stepping with tag fallbacks, HTML field mapping.
+- Azure Repos PR path in `git-workflow` (`az repos pr create` + work-item linking).
+- `/sdlc:groom` — analyst-driven backlog refinement with autonomy boundaries
+  (AC/sizing applied; decompositions and priority changes proposed only).
+- Bundled MCP: `atlassian` (remote, OAuth) and `azure-devops` servers.
+- Project template: `.mcp.json.example` with optional read-only Postgres/MongoDB, Sentry,
+  Notion, Figma servers.
+
 ## [0.2.0] — 2026-07-08
 
 ### Added — `sdlc` plugin (Phases 0–2)

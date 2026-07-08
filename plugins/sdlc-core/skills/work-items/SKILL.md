@@ -14,8 +14,8 @@ contract; a per-source adapter skill implements them. This is what makes tracker
 1. Read `.claude/sdlc.config.json` → `workItems.source`.
 2. Load exactly one adapter skill:
    - `markdown` → `sdlc:wi-markdown`
-   - `jira` → `sdlc:wi-jira` (Phase 3 — if missing, tell the user and stop)
-   - `ado` → `sdlc:wi-ado` (Phase 3 — if missing, tell the user and stop)
+   - `jira` → `sdlc:wi-jira` (Atlassian MCP; OAuth on first use)
+   - `ado` → `sdlc:wi-ado` (ADO MCP or `az boards` CLI)
 3. Perform all operations through that adapter for the rest of the session.
 
 ## Canonical WorkItem schema
