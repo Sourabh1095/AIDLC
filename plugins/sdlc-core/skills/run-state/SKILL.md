@@ -66,6 +66,12 @@ updated: 2026-07-08T10:03Z
 agent appends to, and the instruction to return only a short verdict + pointer to what it wrote.
 Agents append; they never rewrite other sections.
 
+**Scope changes** — the item snapshot is versioned, never overwritten: re-fetches that differ
+append `### Snapshot v2/v3 … (re-fetched <UTC>)` sections. Plan tasks affected by a scope
+change are marked `[needs-rework]` or struck through `~~…~~ (descoped)` — history stays
+readable; completed work that still stands is never redone. (Reconciliation itself is the
+orchestrator's job — see `sdlc:run` §1.)
+
 **Archive** — after PR merge + item transitioned to done, move the file to `.sdlc/runs/archive/`.
 
 ## Invariants

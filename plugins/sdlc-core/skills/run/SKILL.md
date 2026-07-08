@@ -24,6 +24,19 @@ Load these skills before starting: `sdlc:work-items` (+ the active adapter), `sd
 If `.sdlc/runs/{ID}.md` exists, follow the resume protocol in `sdlc:run-state` — jump straight
 to the recorded phase (§ below), never redo completed phases.
 
+**Scope-change reconciliation** (on every resume, and once more just before PR): compare the
+freshly fetched item's title/description/AC against the run file's `## Item snapshot`.
+If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
+1. Append the new snapshot under `### Snapshot v2 (re-fetched <UTC>)` — keep v1 for the audit trail.
+2. Dispatch **sdlc-analyst** to reconcile: classify each change as *additive* (new AC/tasks →
+   append to `## Plan`), *modifying* (completed plan tasks affected → mark them `[needs-rework]`
+   with a note, add rework tasks), or *removing* (obsolete tasks struck through `~~…~~ (descoped <UTC>)`).
+   Completed work that still stands is NEVER redone.
+3. Log the reconciliation, `adapter.comment` a one-line summary, resume at the earliest phase
+   with open work (usually `implement`; `requirements` only if the change is ambiguous).
+4. If the change invalidates the branch's core approach (analyst verdict), stop and tell the
+   user: finish-as-scoped / rework-in-place / close-and-split are their call.
+
 ## 2 · CLASSIFY → pipeline variant
 
 | type | variant |
