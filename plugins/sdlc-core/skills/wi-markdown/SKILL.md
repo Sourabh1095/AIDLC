@@ -50,6 +50,15 @@ Set the `branch:` / `pr:` frontmatter fields (null → value; overwrite only if 
 Replace the `## Acceptance Criteria` checkbox list. Preserve `[x]` state for criteria whose
 text is unchanged; new criteria start `[ ]`. Append an Activity line noting AC were refined.
 
+## Branch visibility (inherent to an in-repo backlog)
+
+Status/AC updates made during a run are committed on the RUN'S branch — the default branch
+shows the pre-run state until the PR merges. When reading backlog state, prefer the current
+checkout and say which branch you read from if it matters. New items created outside a run
+(intake, grooming, humans) are committed straight to the default branch — item creation is
+backlog data, not code change, so the never-commit-to-main rule does not apply to it.
+(Jira/ADO sources have no such divergence.)
+
 ## Concurrency & safety
 
 - Read-modify-write each file in one step; do not cache item state across pipeline phases — re-read before writing.

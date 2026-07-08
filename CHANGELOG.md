@@ -2,6 +2,19 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.6.0] — 2026-07-09
+
+### Added — `sdlc` plugin (requirement intake)
+
+- `/sdlc:intake <text>`: the pipeline's front door for requirements that exist only in the
+  user's head — analyst grounds the requirement in the codebase, sweeps the existing backlog
+  (skip covered / delta-only for partial overlap / flag in-flight conflicts), proposes the
+  item set (epic+stories or single story/bug/task) with AC, creates on approval in the active
+  tracker (Jira/ADO/markdown).
+- `/sdlc:run <free text>`: non-ID arguments route through intake, then the pipeline runs the
+  first created item — "describe it and it gets built".
+- Analyst agent: intake mode (propose-only; the orchestrator creates after approval).
+
 ## [0.5.0] — 2026-07-08
 
 ### Added — `sdlc` plugin (Phase 5: self-extension & scale)

@@ -17,7 +17,12 @@ Load these skills before starting: `sdlc:work-items` (+ the active adapter), `sd
 
 1. Read `.claude/sdlc.config.json`. Missing → tell the user to run `/sdlc:init`, stop.
 2. Route to the active work-item adapter (per `sdlc:work-items`).
-3. `fetch($ARGUMENTS)` → WorkItem. Not found → report and stop.
+3. **If `$ARGUMENTS` is not a work-item ID** (doesn't match `{PROJECT_KEY}-{number}`), the user
+   handed you a raw requirement — follow `sdlc:intake` first (analyze against codebase +
+   existing backlog, propose, create on approval), then continue this pipeline with the first
+   ready item it created. This is the "describe it and it gets built" path.
+4. `fetch(<ID>)` → WorkItem. Not found → suggest `/sdlc:intake` if it looks like a
+   requirement was meant; otherwise report and stop.
 
 ## 1 · RESUME check
 

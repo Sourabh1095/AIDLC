@@ -48,7 +48,8 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 | Command | Purpose |
 |---------|---------|
 | `/sdlc:init` | Scaffold the SDLC template into a project |
-| `/sdlc:run <ID>` | Run one work item end-to-end (resumable) |
+| `/sdlc:intake <text>` | Turn a plain-language requirement into backlog items (deduped against existing ones) |
+| `/sdlc:run <ID \| text>` | Run one work item end-to-end (resumable); free text = intake + run |
 | `/sdlc:next` | Pick the highest-priority ready item and run it |
 | `/sdlc:status` | Dashboard: active runs + backlog snapshot |
 | `/sdlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |

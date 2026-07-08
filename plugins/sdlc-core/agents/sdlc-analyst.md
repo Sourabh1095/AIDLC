@@ -30,6 +30,14 @@ Split the epic into 3–8 INVEST-compliant child stories, each independently shi
 own AC, sized, with dependencies noted (`parent` = the epic). Create them via the active
 work-item adapter; comment the child IDs on the epic.
 
+## Intake mode (raw requirement → proposed items)
+
+Brief contains a plain-language requirement instead of an item. Per `sdlc:intake` §2:
+ground it in the codebase, sweep the existing backlog for full/partial coverage and in-flight
+overlaps, then shape NEW/SKIP/NOTE proposals (single item vs epic+children) with full AC,
+type, priority, estimate. Return the proposal set — do NOT create items in this mode; the
+orchestrator creates them after user approval.
+
 ## Report back
 
 Update the run file (`## Assumptions`, refined AC noted in `## Log`). Final message: verdict

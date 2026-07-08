@@ -20,6 +20,8 @@ resuming works, and how the framework remembers everything. (Setup/installation 
 | Situation | Command |
 |---|---|
 | New project, first time | `/sdlc:init` |
+| **"I want X" — requirement in your head, not in the backlog yet** | `/sdlc:intake add avatar upload, max 5MB` |
+| Describe it AND build it in one go | `/sdlc:run add avatar upload, max 5MB` (free text → items → pipeline) |
 | "Just work on the next most important thing" | `/sdlc:next` |
 | Work a specific item | `/sdlc:run PROJ-123` |
 | Yesterday's run stopped / new session / anything interrupted | `/sdlc:run PROJ-123` (same command — it resumes) |
@@ -30,8 +32,21 @@ resuming works, and how the framework remembers everything. (Setup/installation 
 | A local skill proved reusable | `/sdlc:promote <name>` |
 | After `/plugin marketplace update` | `/sdlc:sync` |
 
-Writing a new backlog item (markdown source): copy the format from `backlog/README.md` into
-`backlog/items/` — or just tell Claude what you want; the analyst will draft it via the adapter.
+### Getting requirements INTO the backlog
+
+Three equally valid routes — mix them freely:
+
+1. **Items already exist** (Jira/ADO/markdown, written by anyone) → `/sdlc:next` or `/sdlc:run <ID>` directly.
+2. **You describe a requirement** → `/sdlc:intake <plain language>`. The analyst grounds it in
+   the codebase, **sweeps the existing backlog first** — fully covered parts are skipped,
+   partial overlaps produce only the delta (linked to the existing items), in-flight conflicts
+   get flagged — then proposes the item set (epic+stories or a single story/bug/task) with
+   acceptance criteria for your approval before anything is created.
+3. **Both at once**: a sprint's items exist but your new ask isn't among them → same
+   `/sdlc:intake`; the dedup pass is exactly what keeps the two sources from colliding.
+
+`/sdlc:run <free text>` does route 2 and then immediately runs the first created item.
+Hand-writing markdown items (per `backlog/README.md`) always works too.
 
 ## 3. The lifecycle of one item (what you'll see)
 
