@@ -37,21 +37,30 @@ function currentBranch() {
 }
 
 // --- 1. Push protection (branch-aware; static deny rules are layer 1) ---
-if (/\bgit\b[^|;&]*\bpush\b/.test(cmd)) {
-  const hasForce = /(\s--force\b(?!-with-lease))|(\s-f\b)|(\s['"]?\+\S+)/.test(cmd);
-  const hasForceWithLease = /--force-with-lease/.test(cmd);
+// Evaluated per shell segment so flags from OTHER commands in a compound line
+// (`rm -f x && git push`) don't leak into the push check.
+// PROTECTED requires end-of-word (branch "develop-feature" must not match "develop").
+const PROTECTED = String.raw`(?:main|master|develop)(?![\w\/-])`;
+const pushSegments = cmd.split(/[|;&]+/).filter((s) => /\bgit\b[^]*\bpush\b/.test(s));
+if (pushSegments.length) {
   const branch = currentBranch();
   const onProtected = /^(main|master|develop|release\/.+)$/.test(branch);
-  // explicit refspec targeting a protected branch: `push origin main`, `push origin HEAD:main`
-  const targetsProtected = /\bpush\b[^|;&]*\s(?:\S+\s+)?(?:\S+:)?(main|master|develop)\b/.test(cmd);
+  for (const seg of pushSegments) {
+    const hasForce = /(\s--force\b(?!-with-lease))|(\s-f\b)|(\s['"]?\+\S+)/.test(seg);
+    const hasForceWithLease = /--force-with-lease/.test(seg);
+    // `push origin main`, `push origin HEAD:main`, delete forms `push origin :main` / `--delete main`
+    const targetsProtected =
+      new RegExp(String.raw`\bpush\b[^]*\s(?:\S+\s+)?(?:\S*:)?${PROTECTED}`).test(seg) ||
+      new RegExp(String.raw`--delete\s+${PROTECTED}`).test(seg);
 
-  if (hasForce) block("force-push is never allowed by the SDLC pipeline.");
-  if (hasForceWithLease && (onProtected || targetsProtected))
-    block(`force-with-lease to a protected branch ('${branch || "target"}') is not allowed.`);
-  if (onProtected)
-    block(`push while on protected branch '${branch}' — work on a {type}/{id}-{slug} branch and open a PR.`);
-  if (targetsProtected)
-    block("push explicitly targeting a protected branch — all changes reach it through PRs.");
+    if (hasForce) block("force-push is never allowed by the SDLC pipeline.");
+    if (hasForceWithLease && (onProtected || targetsProtected))
+      block(`force-with-lease to a protected branch ('${branch || "target"}') is not allowed.`);
+    if (onProtected)
+      block(`push while on protected branch '${branch}' — work on a {type}/{id}-{slug} branch and open a PR.`);
+    if (targetsProtected)
+      block("push explicitly targeting a protected branch — all changes reach it through PRs.");
+  }
 }
 
 // --- 2. Destructive DB operations outside localhost ---

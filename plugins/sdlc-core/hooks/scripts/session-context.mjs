@@ -31,6 +31,7 @@ function frontmatter(file) {
 
 const lines = [];
 
+try {
 // Active runs
 const runsDir = join(cwd, ".sdlc", "runs");
 if (existsSync(runsDir)) {
@@ -66,5 +67,8 @@ if (existsSync(itemsDir)) {
 if (lines.length) {
   lines.push("Use /sdlc:status for the full board, /sdlc:run <ID> to resume or start a run.");
   process.stdout.write(lines.join("\n"));
+}
+} catch {
+  // a context snapshot is never worth breaking a session over
 }
 process.exit(0);

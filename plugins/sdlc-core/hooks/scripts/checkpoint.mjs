@@ -17,8 +17,13 @@ try {
 }
 const cwd = data.cwd || process.cwd();
 
-const runsDir = join(cwd, ".sdlc", "runs");
-if (!existsSync(runsDir)) process.exit(0);
+let runsDir;
+try {
+  runsDir = join(cwd, ".sdlc", "runs");
+  if (!existsSync(runsDir)) process.exit(0);
+} catch {
+  process.exit(0);
+}
 
 function frontmatter(file) {
   try {
@@ -35,11 +40,16 @@ function frontmatter(file) {
   }
 }
 
-const inflight = readdirSync(runsDir)
-  .filter((f) => f.endsWith(".md"))
-  .map((f) => frontmatter(join(runsDir, f)))
-  .filter(Boolean)
-  .filter((r) => r.phase && !["done", "blocked"].includes(r.phase));
+let inflight = [];
+try {
+  inflight = readdirSync(runsDir)
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => frontmatter(join(runsDir, f)))
+    .filter(Boolean)
+    .filter((r) => r.phase && !["done", "blocked"].includes(r.phase));
+} catch {
+  process.exit(0);
+}
 
 if (!inflight.length) process.exit(0);
 
