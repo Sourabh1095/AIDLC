@@ -22,8 +22,9 @@ function block(reason) {
 }
 
 function currentBranch() {
+  // symbolic-ref works even on an unborn branch (fresh repo, no commits)
   try {
-    return execSync("git rev-parse --abbrev-ref HEAD", {
+    return execSync("git symbolic-ref --short HEAD", {
       cwd,
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 5000,
@@ -41,13 +42,16 @@ if (/\bgit\b[^|;&]*\bpush\b/.test(cmd)) {
   const hasForceWithLease = /--force-with-lease/.test(cmd);
   const branch = currentBranch();
   const onProtected = /^(main|master|develop|release\/.+)$/.test(branch);
-  const targetsProtected = /\bpush\b[^|;&]*[\s:](main|master|develop)\b/.test(cmd);
+  // explicit refspec targeting a protected branch: `push origin main`, `push origin HEAD:main`
+  const targetsProtected = /\bpush\b[^|;&]*\s(?:\S+\s+)?(?:\S+:)?(main|master|develop)\b/.test(cmd);
 
   if (hasForce) block("force-push is never allowed by the SDLC pipeline.");
   if (hasForceWithLease && (onProtected || targetsProtected))
     block(`force-with-lease to a protected branch ('${branch || "target"}') is not allowed.`);
   if (onProtected)
     block(`push while on protected branch '${branch}' — work on a {type}/{id}-{slug} branch and open a PR.`);
+  if (targetsProtected)
+    block("push explicitly targeting a protected branch — all changes reach it through PRs.");
 }
 
 // --- 2. Destructive DB operations outside localhost ---
