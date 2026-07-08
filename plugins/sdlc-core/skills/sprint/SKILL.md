@@ -30,6 +30,11 @@ cd ../{repo}-wt-{ID}
 claude -p "/sdlc:run {ID}" --permission-mode acceptEdits   # background process, capture PID + log file
 ```
 
+- **Trust each worktree first** — a worktree is a new workspace path, and Claude Code ignores
+  `.claude/settings.json` allow rules in untrusted workspaces (every git/npm command would be
+  denied). Before launching, add `projects["<worktree-path>"].hasTrustDialogAccepted: true`
+  to `~/.claude.json` for each worktree (both slash styles on Windows), and remove those
+  entries during WRAP cleanup.
 - Launch as background processes; record `{item, worktree, pid, logfile}` in
   `.sdlc/sprint-{date}.json` in the MAIN repo.
 - Each headless run is a full pipeline: its run file lives in ITS worktree at

@@ -134,3 +134,4 @@ in-flight work.
 | Pipeline blocked a command you actually wanted | That's the guard hook; run it yourself in a terminal if you're sure — the pipeline can't, by design |
 | Two runs touched the same file | Shouldn't happen via `/sdlc:sprint` (independence check); if manual runs collided, merge the first PR, then rerun the second item — verify will catch conflicts |
 | Skill/agent seems missing after plugin update | `/sdlc:sync` reconciles local vs plugin |
+| Headless run: "Ignoring N permissions.allow entries … workspace has not been trusted" | Open Claude Code interactively in that folder once and accept the trust dialog (or set `projects["<path>"].hasTrustDialogAccepted: true` in `~/.claude.json`), then rerun — the run resumes where it stopped |

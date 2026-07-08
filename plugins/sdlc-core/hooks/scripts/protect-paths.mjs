@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // PreToolUse[Edit|Write] guard — the pipeline must not modify its own guardrails.
-// Blocks: .claude/settings*.json, hook scripts, .git internals.
+// Blocks: changes to an EXISTING .claude/settings*.json (creation is allowed — /sdlc:init
+// legitimately scaffolds it), hook scripts, .git internals.
 // Flags for confirmation: CI workflow files (legitimate for devops items, worth a human glance).
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 
 let data;
 try {
@@ -20,9 +21,17 @@ function block(reason) {
   process.exit(2);
 }
 
-// Guardrail self-modification
-if (/\/\.claude\/settings(\.local)?\.json$/.test(p) || /^\.claude\/settings(\.local)?\.json$/.test(p))
-  block(`editing ${p} is not allowed — permission settings are human-managed.`);
+// Guardrail self-modification — block only when the file already exists; first-time
+// creation is the /sdlc:init bootstrap and is allowed.
+if (/\/\.claude\/settings(\.local)?\.json$/.test(p) || /^\.claude\/settings(\.local)?\.json$/.test(p)) {
+  let exists = true;
+  try {
+    exists = existsSync(raw);
+  } catch {
+    /* treat as existing → block conservatively */
+  }
+  if (exists) block(`editing ${p} is not allowed — permission settings are human-managed.`);
+}
 if (/\/hooks\/(hooks\.json|scripts\/)/.test(p) && /(sdlc-core|\/\.claude\/)/.test(p))
   block(`editing hook configuration or scripts (${p}) is not allowed.`);
 

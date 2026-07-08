@@ -31,7 +31,14 @@ claude
 ```
 
 Answer the Q&A (project key, name, work-item source, git host, stack, commands).
-Review the scaffold with `git status`, then commit it.
+**Approve the `.claude/settings.json` write when prompted** — Claude Code guards permission
+files at the harness level, so this one file always asks. Review the scaffold with
+`git status`, then commit it.
+
+**Trust the workspace.** Claude Code ignores a project's `permissions.allow` rules until the
+workspace is trusted — an untrusted headless run has every git/npm command denied. Opening
+Claude Code interactively in the repo once (accepting the trust dialog) fixes it permanently.
+This matters for CI/headless usage and for `/sdlc:sprint` worktrees.
 
 ### What lands in your repo
 

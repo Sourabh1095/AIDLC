@@ -8,11 +8,23 @@ disable-model-invocation: true
 
 Scaffold the project template into the current working directory, then configure it interactively.
 
-## Step 1 — Locate the template
+> Run this in an INTERACTIVE session: Claude Code gates writes to `.claude/settings.json` at
+> the harness level, so scaffolding it needs the user's approval prompt. In a headless session
+> that write is auto-denied — stage the `.claude/` files elsewhere (e.g. `.sdlc/staged-claude/`)
+> and leave a small finisher script + clear instructions instead of skipping them.
 
-The template ships inside this plugin at `${CLAUDE_PLUGIN_ROOT}/templates/project/`.
-If `$CLAUDE_PLUGIN_ROOT` is not set in your shell context, resolve the plugin install
-directory (e.g. `~/.claude/plugins/` or the `--plugin-dir` path) and find `templates/project/` under the `sdlc` plugin.
+## Step 1 — Locate the template (do NOT reconstruct it from memory)
+
+The template ships inside this plugin at `<plugin-root>/templates/project/`. Resolve
+`<plugin-root>` in this order:
+1. This SKILL.md's own path (visible where the skill was loaded): the plugin root is two
+   levels up from the `skills/init/` directory.
+2. The `$CLAUDE_PLUGIN_ROOT` environment variable, if set in your shell.
+3. Glob the standard install locations for `**/templates/project/CLAUDE.md` under
+   `~/.claude/plugins/` and any `--plugin-dir` path.
+Verify the directory contains `CLAUDE.md`, `.claude/settings.json` and `backlog/README.md`
+before copying. If you cannot find it, STOP and ask the user for the plugin path — never
+improvise replacement files: the permission posture and rules must be the reviewed originals.
 
 ## Step 2 — Pre-flight checks
 
