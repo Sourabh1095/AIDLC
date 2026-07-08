@@ -42,6 +42,8 @@ For local development of this repo: `claude --plugin-dir D:\SDLC\plugins\sdlc-co
 4. Run `/sdlc:next` — the pipeline takes it from there.
 
 See `docs/adoption-guide.md` for the full walkthrough, including MCP authentication.
+**New to the framework?** Start with `docs/example-walkthrough.md` — empty folder → typed
+requirement → working full-stack app, every command included.
 
 ## Commands
 
