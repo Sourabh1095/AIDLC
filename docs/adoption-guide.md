@@ -14,6 +14,7 @@ How to use the Bee-Logical Claude SDLC in any project — new or existing.
 ```
 /plugin marketplace add bee-logical/claude-sdlc
 /plugin install sdlc@bee-logical
+/plugin install sdlc-stack-web@bee-logical   # if the project is on the Next.js/NestJS/PG/Mongo stack
 ```
 
 > Working from a local clone instead: `/plugin marketplace add D:\path\to\claude-sdlc`

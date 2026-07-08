@@ -2,6 +2,26 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.4.0] — 2026-07-08
+
+### Added — `sdlc` plugin (Phase 4: depth agents)
+
+- `sdlc-architect` (opus): explores the codebase, plans items ≥ `architectThreshold`, writes ADRs.
+- `sdlc-security` (opus): deep security pass — input→sink tracing, authz, dependency audit —
+  auto-triggered by `securityReviewPaths` overlap, manifest changes, or `security` label.
+- `sdlc-devops`: docker/CI/release items and red-PR-check diagnosis.
+- `sdlc-docwriter` (haiku): docs phase; amends the PR with `docs(...)` commits.
+- `sdlc-researcher`: spike items → cited decision reports in `docs/research/`.
+- Skills: `architecture` (ADR discipline), `security`, `ci-cd`, `release` (`/sdlc:release`),
+  `docs-writing`, `research`, `maintenance`; ADR template.
+- Orchestrator wiring: security agent joins the verify batch conditionally; spikes route to the
+  researcher; infra-only plans route to devops; red CI checks get a diagnosis pass.
+
+### Added — `sdlc-stack-web` plugin (new)
+
+- Stack expertise skills: `coding-standards-ts`, `nextjs` (App Router), `nestjs`, `postgres`,
+  `mongodb`, `db-migrations` (expand-contract), `docker`, `api-design`.
+
 ## [0.3.0] — 2026-07-08
 
 ### Added — `sdlc` plugin (Phase 3: real trackers + Azure)

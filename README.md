@@ -18,7 +18,8 @@ Humans stay in the loop where it matters: **reviewing and merging PRs**.
 | Path | What it is |
 |------|-----------|
 | `.claude-plugin/marketplace.json` | The company plugin marketplace manifest |
-| `plugins/sdlc-core/` | The `sdlc` plugin: orchestrator, agents, skills, hooks, MCP config |
+| `plugins/sdlc-core/` | The `sdlc` plugin: orchestrator, 9 agents, skills, hooks, MCP config |
+| `plugins/sdlc-stack-web/` | Stack pack: TS standards, Next.js, NestJS, Postgres, MongoDB, migrations, Docker, API design |
 | `plugins/sdlc-core/templates/project/` | The project template scaffolded by `/sdlc:init` |
 | `docs/` | Adoption guide, architecture, permissions rationale |
 
@@ -27,6 +28,7 @@ Humans stay in the loop where it matters: **reviewing and merging PRs**.
 ```
 /plugin marketplace add bee-logical/claude-sdlc     # or a local path / Azure Repos URL
 /plugin install sdlc@bee-logical
+/plugin install sdlc-stack-web@bee-logical          # Next.js/NestJS/PG/Mongo expertise (optional per stack)
 ```
 
 For local development of this repo: `claude --plugin-dir D:\SDLC\plugins\sdlc-core`
@@ -50,6 +52,7 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 | `/sdlc:next` | Pick the highest-priority ready item and run it |
 | `/sdlc:status` | Dashboard: active runs + backlog snapshot |
 | `/sdlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
+| `/sdlc:release` | Cut a release: semver from commits, changelog, tag, notes (publish is approval-gated) |
 
 ## Design principles
 
@@ -62,6 +65,7 @@ See `docs/adoption-guide.md` for the full walkthrough, including MCP authenticat
 
 ## Roadmap
 
-Phases 4–5 (architect/security/devops/docs/research agents, the Next.js/NestJS/Postgres/MongoDB
-stack pack, parallel sprints, and the self-extension + promotion workflow) are designed and
-documented in `docs/architecture.md`. Phase 3 (Jira, Azure DevOps, Azure Repos, grooming) shipped in v0.3.0.
+Phase 5 (self-extension: scaffold + promote project-born skills into the plugin; `/sdlc:sprint`
+worktree parallelism) is designed and documented in `docs/architecture.md`.
+Shipped: Phase 3 (Jira, Azure DevOps, Azure Repos, grooming — v0.3.0), Phase 4 (architect,
+security, devops, docwriter, researcher agents + the web stack pack — v0.4.0).

@@ -18,8 +18,8 @@ make the plan real.
    - tick the task's checkbox in the run file's `## Plan`.
 3. Write tests alongside code for new behavior (the QA agent extends coverage later — you still
    ship the obvious unit tests).
-4. If loaded skills for the stack exist (`sdlc:nextjs`, `sdlc:nestjs`, `sdlc:postgres`,
-   `sdlc:mongodb`, coding standards), follow them. Use Context7 for current library APIs instead
+4. If loaded skills for the stack exist (`sdlc-stack-web:nextjs`, `sdlc-stack-web:nestjs`, `sdlc-stack-web:postgres`,
+   `sdlc-stack-web:mongodb`, coding standards), follow them. Use Context7 for current library APIs instead
    of guessing.
 
 ## Fix-cycle mode

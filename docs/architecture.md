@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude SDLC
 
-**Status:** Phases 0–3 implemented (v0.3.0) · Phases 4–5 designed, pending
+**Status:** Phases 0–4 implemented (v0.4.0) · Phase 5 designed, pending
 
 ## 1. Core design decisions
 
@@ -50,20 +50,28 @@ protected paths). Humans keep exactly one mandatory gate: PR review + merge.
 verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) → BLOCKED if exhausted
 ```
 
-### Agents (4)
+### Agents (9)
 
-| Agent | Role | Isolation reason |
-|-------|------|------------------|
-| `sdlc-analyst` | AC validation/refinement, sizing, epic decomposition, assumption logging | own judgment loop over item + codebase |
-| `sdlc-implementer` | code per plan, conventional commits, fix cycles | large working context |
-| `sdlc-reviewer` | adversarial diff review vs AC/standards (read-only tools) | must not share implementer context |
-| `sdlc-qa` | run suite, author missing tests, failing-repro-first for bugs | independent evidence gathering |
+| Agent | Role | Isolation reason | Model tier |
+|-------|------|------------------|-----------|
+| `sdlc-analyst` | AC validation/refinement, sizing, epic decomposition, assumption logging | own judgment loop over item + codebase | sonnet |
+| `sdlc-architect` | explores codebase, plans items ≥ threshold, writes ADRs | large exploration context, deep judgment | opus |
+| `sdlc-implementer` | code per plan, conventional commits, fix cycles | large working context | sonnet |
+| `sdlc-reviewer` | adversarial diff review vs AC/standards (read-only tools) | must not share implementer context | sonnet |
+| `sdlc-qa` | run suite, author missing tests, failing-repro-first for bugs | independent evidence gathering | sonnet |
+| `sdlc-security` | input→sink tracing, authz, dependency audit (conditional trigger) | adversarial depth, read-only surface | opus |
+| `sdlc-devops` | docker/CI/release items, red-check diagnosis | different tool domain | sonnet |
+| `sdlc-docwriter` | README/CHANGELOG/API docs on the PR branch | mechanical, cheap | haiku |
+| `sdlc-researcher` | spikes → cited decision reports | web-heavy exploration context | sonnet |
 
-### Skills (14)
+### Skills
 
-Commands: `run`, `next`, `status`, `init`. Infrastructure: `run-state`, `work-items`,
-`wi-markdown`, `git-workflow`. Playbooks: `requirements`, `planning`, `code-review`,
-`testing`, `debugging`. (`x-sdlc`-templated scaffolds ship in `templates/`.)
+Commands: `run`, `next`, `status`, `init`, `groom`, `release`. Infrastructure: `run-state`,
+`work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`. Playbooks: `requirements`,
+`planning`, `architecture`, `code-review`, `testing`, `debugging`, `security`, `ci-cd`,
+`docs-writing`, `research`, `maintenance`. Stack pack (`sdlc-stack-web` plugin):
+`coding-standards-ts`, `nextjs`, `nestjs`, `postgres`, `mongodb`, `db-migrations`, `docker`,
+`api-design`. (`x-sdlc`-templated scaffolds ship in `templates/`.)
 
 ### Hooks (Node, cross-platform)
 
@@ -79,19 +87,17 @@ boundaries: AC/sizing applied, decompositions/priorities proposed only), bundled
 `azure-devops` MCP servers, project `.mcp.json.example` (read-only Postgres/MongoDB, Sentry,
 Notion, Figma). Adapter contract unchanged — the pipeline runs identically over all three sources.
 
-## 3. Roadmap
+### Phase 4 — Depth agents + stack pack ✅ (v0.4.0)
 
-### Phase 4 — Depth agents + stack pack
-- Agents: `sdlc-architect` (opus-class; plans items ≥ `architectThreshold`, writes ADRs),
-  `sdlc-security` (opus-class; triggered by `securityReviewPaths` overlap or dependency
-  changes), `sdlc-devops` (docker/CI/release), `sdlc-docwriter` (haiku-class),
-  `sdlc-researcher` (spikes, cited decision reports).
-- New plugin `sdlc-stack-web`: `coding-standards-ts`, `nextjs`, `nestjs`, `postgres`,
-  `mongodb`, `db-migrations` (expand-contract, rollback safety), `docker`, `api-design`.
-  Separate plugin so other stacks (e.g. `sdlc-stack-python`) can slot in without touching core.
-- Skills: `architecture` (ADR triggers/format), `security` (OWASP diff pass, dependency
-  audit), `ci-cd`, `release`, `docs-writing`, `research`, `maintenance`.
-- **Exit criterion:** full-SDLC pipeline over a reference Next.js/NestJS/PG/Mongo project.
+Implemented: the five depth agents (`sdlc-architect` opus + ADRs, `sdlc-security` opus with
+conditional trigger, `sdlc-devops` incl. red-check diagnosis, `sdlc-docwriter` haiku,
+`sdlc-researcher`), the seven phase skills (`architecture`, `security`, `ci-cd`, `release`,
+`docs-writing`, `research`, `maintenance`) + ADR template, orchestrator wiring (security in
+the verify batch, spikes → researcher, infra plans → devops), and the `sdlc-stack-web` plugin
+(8 stack skills). Separate plugin so other stacks (e.g. `sdlc-stack-python`) can slot in
+without touching core — stack skills are namespaced `sdlc-stack-web:*`.
+
+## 3. Roadmap
 
 ### Phase 5 — Self-extension & scale
 - **Capability-gap protocol** in the orchestrator: search plugin skills → local `.claude/` →

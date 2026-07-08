@@ -31,7 +31,7 @@ to the recorded phase (§ below), never redo completed phases.
 | story | full: requirements → plan → implement → verify → PR |
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
-| spike | research only: no branch/PR unless the spike says otherwise; output = decision report in `docs/` (Phase 4 expands this) |
+| spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
 | epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)`, comment the child IDs on the epic, then STOP — children run individually |
 
 ## 3 · START
@@ -59,9 +59,12 @@ Phase → `design`. Checkpoint.
 ## 5 · PLAN
 
 Estimate size (item's `estimate`, else analyst's sizing). If size ≥ config
-`pipeline.architectThreshold` and the `sdlc-architect` agent exists, dispatch it to explore the
-codebase and write `## Plan`. Otherwise YOU write a short ordered plan (3–8 checkbox tasks) into
-`## Plan` — grounded in a quick look at the relevant code, not guesswork.
+`pipeline.architectThreshold` OR the item is labeled `architecture`: dispatch
+**Agent → sdlc-architect** to explore the codebase and write `## Plan` (+ ADR when the
+decision is hard to reverse). It reports `MIS-SCOPED` → treat as blocked: comment, notify, stop.
+Otherwise YOU write a short ordered plan (3–8 checkbox tasks) into `## Plan` — grounded in a
+quick look at the relevant code, not guesswork. Items whose plan touches infra/CI/Docker only →
+route the implement phase to **sdlc-devops** instead of the implementer.
 
 Phase → `implement`. Checkpoint.
 
@@ -84,6 +87,9 @@ Phase → `verify`. Checkpoint.
 Dispatch in ONE parallel batch:
 - **Agent → sdlc-reviewer**: adversarial diff review vs AC + standards (per `sdlc:code-review`), append findings to `## Findings`.
 - **Agent → sdlc-qa**: run full suite, add missing tests per `sdlc:testing`, append findings.
+- **Agent → sdlc-security** — ONLY when: the diff overlaps config `pipeline.securityReviewPaths`,
+  OR package manifests/lockfiles changed, OR the item is labeled `security`. Deep pass per
+  `sdlc:security`; its BLOCKER/MAJOR findings join the same fix-cycle loop.
 
 Then:
 1. No `BLOCKER`/`MAJOR` findings open → phase `pr`, go to §8.
@@ -103,10 +109,11 @@ Phase → `docs`. Checkpoint.
 
 ## 9 · DOCS
 
-If the change affects README/API/user-facing behavior and the `sdlc-docwriter` agent exists,
-dispatch it on the same branch (docs commit amends the PR). Otherwise update CHANGELOG/README
-yourself only if the project has them and the change is user-visible. Skip silently for
-internal-only changes.
+If the change affects README/API/user-facing behavior, dispatch **Agent → sdlc-docwriter** on
+the same branch (its `docs(...)` commit amends the PR; push the update). It reports
+`NO-DOCS-NEEDED` for internal-only changes — that's a fine outcome, move on.
+If the PR's CI checks are red at this point, dispatch **Agent → sdlc-devops** in diagnosis
+mode; branch-caused failures feed one extra fix cycle (respect `maxFixCycles` overall).
 
 ## 10 · WRAP
 
