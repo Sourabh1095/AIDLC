@@ -1,0 +1,4 @@
+{
+  "$comment": "Registry of locally created agents/skills (self-extension). Managed by scaffold-skill / scaffold-agent / promote skills. Do not edit by hand.",
+  "extensions": []
+}

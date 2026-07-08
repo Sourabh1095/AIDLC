@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/bee-logical/claude-sdlc/main/docs/sdlc.config.schema.json",
+  "project": {
+    "key": "{{PROJECT_KEY}}",
+    "name": "{{PROJECT_NAME}}"
+  },
+  "workItems": {
+    "source": "markdown",
+    "jira": { "site": "", "project": "", "statusMap": {} },
+    "ado": { "org": "", "project": "", "statusMap": {} }
+  },
+  "git": {
+    "host": "github",
+    "defaultBranch": "main",
+    "remote": "origin",
+    "branchPattern": "{type}/{id}-{slug}"
+  },
+  "stack": {
+    "frontend": "nextjs",
+    "backend": "nestjs",
+    "databases": ["postgres", "mongodb"]
+  },
+  "pipeline": {
+    "autonomy": "high",
+    "maxFixCycles": 3,
+    "architectThreshold": "M",
+    "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
+    "gates": {
+      "ambiguousRequirements": "assume-and-log"
+    }
+  },
+  "marketplace": {
+    "repo": "bee-logical/claude-sdlc",
+    "promotionBranchPrefix": "promote/"
+  }
+}
