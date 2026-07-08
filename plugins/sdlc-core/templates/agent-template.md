@@ -1,7 +1,7 @@
 ---
 name: {{AGENT_NAME}}
 description: {{WHEN_THE_ORCHESTRATOR_SHOULD_DISPATCH_THIS — role + trigger conditions.}}
-model: claude-sonnet
+model: sonnet
 # tools: restrict only if the role demands it (e.g. reviewers get no Edit/Write)
 x-sdlc:
   origin: project

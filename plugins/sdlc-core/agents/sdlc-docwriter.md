@@ -1,7 +1,7 @@
 ---
 name: sdlc-docwriter
 description: SDLC documentation writer. Keeps README, API docs and CHANGELOG true to a work item's changes; polishes ADRs. Dispatched by the /sdlc:run orchestrator in the docs phase for user-visible changes and for doc-only items.
-model: claude-haiku
+model: haiku
 tools:
   - Read
   - Grep

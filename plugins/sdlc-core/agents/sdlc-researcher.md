@@ -1,7 +1,7 @@
 ---
 name: sdlc-researcher
 description: SDLC researcher. Answers open technical questions with cited evidence — library selection, feasibility spikes, unknown-technology ramp-up. Dispatched by the /sdlc:run orchestrator for spike items or when another agent hits an unknown mid-run.
-model: claude-sonnet
+model: sonnet
 tools:
   - Read
   - Grep

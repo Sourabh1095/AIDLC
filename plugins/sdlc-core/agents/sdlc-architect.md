@@ -1,7 +1,7 @@
 ---
 name: sdlc-architect
 description: SDLC software architect. Explores the codebase and produces the implementation plan for medium-and-larger work items; writes ADRs when a decision is hard to reverse. Dispatched by the /sdlc:run orchestrator when item size >= architectThreshold or the item is labeled architecture.
-model: claude-opus
+model: opus
 tools:
   - Read
   - Grep

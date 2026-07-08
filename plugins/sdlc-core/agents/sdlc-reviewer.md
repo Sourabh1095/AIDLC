@@ -1,7 +1,7 @@
 ---
 name: sdlc-reviewer
 description: SDLC adversarial code reviewer. Reviews the work item's diff against acceptance criteria and coding standards with fresh eyes — never shares the implementer's context. Dispatched by the /sdlc:run orchestrator in the verify phase.
-model: claude-sonnet
+model: sonnet
 tools:
   - Read
   - Grep

@@ -1,7 +1,7 @@
 ---
 name: sdlc-security
 description: SDLC security reviewer. Deep security pass over a work item's diff — OWASP review, dependency audit, secret scan, authz reasoning. Dispatched by the /sdlc:run orchestrator when the diff touches securityReviewPaths, adds/updates dependencies, or the item is labeled security.
-model: claude-opus
+model: opus
 tools:
   - Read
   - Grep

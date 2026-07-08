@@ -155,6 +155,11 @@ a recurring procedure):
 
 ## Orchestrator invariants
 
+- **Never escalate an agent to a larger model to work around a failure.** Each agent's tier is
+  deliberate (haiku docwriter, sonnet workhorses, opus architect/security). If a subagent dies
+  with a model/API error, do NOT retry it on a bigger model — report the exact error and stop
+  the phase; a model that won't load is an environment problem to fix, not a reason to burn a
+  higher tier. (Overriding a tier is a human decision, never an automatic recovery.)
 - Checkpoint the run file BEFORE dispatching any agent and AFTER it returns.
 - Agent briefs always include: run-file path, the section(s) they may append to, and
   "return a short verdict + pointer, not a transcript".

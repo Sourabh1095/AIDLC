@@ -2,6 +2,17 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.6.1] — 2026-07-09
+
+### Fixed
+
+- **Agent model identifiers**: all agents pinned invalid model ids (`claude-sonnet`,
+  `claude-opus`, `claude-haiku`) which Claude Code could not resolve — subagents died with an
+  API error and the orchestrator fell back to the session's (larger) model. Corrected to the
+  valid tier aliases (`sonnet` / `opus` / `haiku`), so each agent runs on its intended tier.
+- Orchestrator invariant added: a subagent model/API failure must be reported, never worked
+  around by escalating to a larger model.
+
 ## [0.6.0] — 2026-07-09
 
 ### Added — `sdlc` plugin (requirement intake)
