@@ -37,6 +37,28 @@ production / secret / self-modification operations; ask on ambiguous blast radiu
 static permission rules + context-aware hooks (branch-aware push guard, exfil patterns,
 protected paths). Humans keep exactly one mandatory gate: PR review + merge.
 
+**D7 — Parallelize independent work; serialize anything that mutates a shared tree.** The rule
+is *isolation, not just similarity* — two units run concurrently only when they cannot collide on
+files or on each other's outputs. This applies at three levels:
+
+- **Item level (`/sdlc:sprint`).** Independent backlog items each get their own **git worktree** and
+  a headless `claude -p "/sdlc:run <ID>"` background process, aggregated into one board. An
+  `sdlc-analyst` **independence check** (file/subsystem overlap, cross-referencing AC, parent-epic
+  ordering — the same detection `sdlc:planning` uses) selects a conflict-free set; conflicting items
+  queue behind their counterpart. Worktrees are what make this safe: separate working trees mean no
+  mid-flight collisions on the index or files.
+- **Phase level (`/sdlc:run` §verify).** The reviewer, QA and (conditional) security agents are
+  dispatched in **one parallel batch** — they only read the diff, so there's nothing to collide on.
+  Fix cycles that follow are serial (one implementer mutates the branch).
+- **Design pod (`sdlc-ux:design`).** The jury panel (`ux.juryPanelSize` jurors) and the
+  design-system / motion / implementer fix agents each run as a batch when their work is independent.
+
+The deliberate **non-parallel** point is IMPLEMENT inside a single run: one `sdlc-implementer` works
+the plan sequentially on one branch. Splitting mutating work across agents on the same working tree
+invites merge conflicts and interleaved half-states; cross-item concurrency is delivered by worktree
+isolation in `sprint` instead. As `sprint` puts it: *parallelism multiplies mistakes too* — so the
+default is serial, and concurrency is opt-in exactly where isolation removes the risk.
+
 ## 2. Implemented (Phases 0–2)
 
 ### Pipeline
