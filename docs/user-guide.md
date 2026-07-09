@@ -68,6 +68,8 @@ start → requirements → design → implement → verify → pr → docs → d
 4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green.
 5. **verify** — reviewer + QA in parallel (+ security when auth paths/dependencies are
    touched). Blocker/major findings loop back to the implementer, up to `maxFixCycles`.
+   **This phase's cadence is yours to set** — every item, once per epic, or off (you review the
+   PRs yourself). See §3b.
 6. **pr** — branch pushed, PR opened with AC checklist, assumptions, test evidence. Item → In Review.
 7. **docs** — README/CHANGELOG/API docs amended onto the PR if the change is user-visible.
 8. **done** — summary report. **You review and merge the PR.** After merge, `/sdlc:status`
@@ -110,6 +112,33 @@ honored exactly). Two ways: drop assets in `design/brand/`, or set `ux.brand` in
 `renderBaseUrl`, `target` (`desktop-web`). All artifacts land in `design/` (narrative, inspiration,
 design-system, motion-spec, audit, brand, and per-round jury reports) and are committed to the
 branch — so the reasoning and every score are auditable in the PR.
+
+### 3b. Who verifies, and how often (controlling the review/QA cost)
+
+The reviewer + QA agents are the pipeline's biggest recurring token/time cost. Whether SDLC spends
+that on every item, or you review the work yourself, is a setting — `pipeline.verification` in
+`.claude/sdlc.config.json` (you're also asked at `/sdlc:init`):
+
+| `mode` / `scope` | What happens | Cost |
+|---|---|---|
+| `auto` / `per-item` (default) | reviewer + QA run before every PR; blocker/major findings loop back | highest, thorough |
+| `auto` / `per-epic` | child items skip per-item review; one consolidated pass when the epic's children are all done (run `/sdlc:run <EPIC-ID>`) | medium |
+| `manual` | SDLC skips the review/QA agents, builds, and **opens the PR for you to review**; the run ends at `review-pending` | lowest |
+| `ask` | the pipeline asks you per item which to do | — |
+
+Fine-grained toggles in the same block: `reviewer` (adversarial code review), `qa` (full suite +
+missing tests), `security` (`risk-based` deep pass on auth/dep changes, or `off`). So you can, e.g.,
+keep the fast code review on but turn the heavier QA test-authoring off: `"reviewer": true,
+"qa": false`.
+
+**Important:** regardless of mode, the implementer still runs the project's own lint + tests to green
+before any PR — `manual` skips the *extra agent* review, not basic build health. And in every mode
+**you remain the merge gate**; `manual` just means no bot pre-reviewed the PR (it's flagged as such,
+so you know to look closely).
+
+**Feeding back your own review (manual mode):** after the PR opens, if you want changes, run
+`/sdlc:run <ID>` and describe the issues (or add them under `## Findings` in the run file) — the
+implementer fixes them, pushes to the same PR, and returns to `review-pending`. Merge when happy.
 
 ## 4. Stopping and resuming (end of day → next morning)
 

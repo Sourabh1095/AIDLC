@@ -2,6 +2,28 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.7.3] — 2026-07-09
+
+### Added — user-controlled verification cadence (`sdlc` → 0.7.2)
+
+- New `pipeline.verification` config block puts the review/QA cost — the pipeline's biggest
+  recurring spend — in the user's hands:
+  - `mode`: `auto` (SDLC runs reviewer + QA, current behavior), `manual` (SDLC skips the agents and
+    opens the PR for the human to review; run ends at a new `review-pending` phase; issues fed back
+    by rerunning `/sdlc:run <ID>`), or `ask` (pipeline prompts per item).
+  - `scope`: `per-item` (verify every item, default) or `per-epic` (children skip per-item review;
+    one consolidated pass when the epic's children are all implemented).
+  - `reviewer` / `qa` / `security` toggles for fine control (e.g. keep the fast code review, drop
+    the heavier QA test-authoring).
+- `/sdlc:init` now asks for the verification cadence up front.
+- Safety preserved: in every mode the implementer still runs lint + tests to green before a PR, and
+  the human merge of the PR remains the final gate — `manual` just skips the *extra* bot pre-review
+  (and flags the PR as un-reviewed by bots). `security: off` on a risky diff leaves a visible note.
+- Default is unchanged (`auto` / `per-item`) so existing projects behave exactly as before until
+  they opt into a cheaper cadence.
+- Docs: user guide §3b (cadence table + manual feedback loop), example walkthrough (init option),
+  architecture (extension point).
+
 ## [0.7.2] — 2026-07-09
 
 ### Changed

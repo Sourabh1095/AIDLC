@@ -43,6 +43,18 @@ Collect:
 4. **Git host**: `github` (default) | `azure-repos`. Default branch name (default `main`).
 5. **Stack** (defaults: frontend `nextjs`, backend `nestjs`, databases `postgres, mongodb`) — accept "none" for any.
 6. **Commands**: install / dev / test / lint commands (detect from package.json scripts first and propose them).
+7. **Verification cadence** — who runs code review + QA, and how often (this is the pipeline's
+   biggest recurring cost, so make it a conscious choice). Present these options and write the
+   answer to `pipeline.verification`:
+   - **Auto, every item** (`mode: auto`, `scope: per-item`) — thorough; reviewer + QA run before
+     every PR. Default, highest quality, highest cost.
+   - **Auto, once per epic** (`mode: auto`, `scope: per-epic`) — child items skip per-item review;
+     one consolidated pass when the epic's children are all done. Cheaper for large features.
+   - **Manual — I review the PRs** (`mode: manual`) — SDLC skips the review/QA agents and opens the
+     PR for you to review yourself; you feed back any issues by rerunning `/sdlc:run <ID>`. Cheapest.
+   - **Ask me each time** (`mode: ask`) — the pipeline prompts per item.
+   Also mention they can fine-tune `reviewer` / `qa` / `security` booleans in the config later
+   (e.g. keep the fast code review but drop the full QA test pass).
 
 ## Step 4 — Scaffold
 

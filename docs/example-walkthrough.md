@@ -75,6 +75,7 @@ Answer the Q&A. For this example:
 | Default branch | `main` |
 | Stack | frontend `nextjs`, backend `nestjs`, databases `postgres` |
 | Commands | accept the proposals (they'll be refined once the app skeleton exists) |
+| Verification cadence | pick one: **auto/per-item** (review + QA every item, default), **auto/per-epic** (once per feature), **manual** (you review the PRs), or **ask each time** — you can change it anytime in `pipeline.verification` |
 
 **Approve the `.claude/settings.json` write when prompted** — that one file always asks, by
 design. Then review and commit:

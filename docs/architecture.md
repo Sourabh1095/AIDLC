@@ -136,4 +136,7 @@ is present and `ux.enabled` — no hard dependency, so core still runs standalon
 - **New tracker** → write a `wi-*` skill implementing the 7-operation contract; add a `source` value.
 - **New stack** → new `sdlc-stack-*` plugin; core degrades gracefully without one.
 - **Different autonomy** → per-project `settings.json` + `pipeline.gates`; the pipeline reads, never hardcodes.
+- **Verification cost/cadence** → `pipeline.verification` (`mode`: auto/manual/ask, `scope`:
+  per-item/per-epic, plus `reviewer`/`qa`/`security` toggles); the human review of the PR is always
+  the final gate, so `manual` degrades safely rather than skipping oversight.
 - **Project-specific expertise** → `.claude/skills/` landing zone, `x-sdlc` metadata, promotion path when it proves reusable.

@@ -27,6 +27,13 @@
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
     "gates": {
       "ambiguousRequirements": "assume-and-log"
+    },
+    "verification": {
+      "mode": "auto",
+      "scope": "per-item",
+      "reviewer": true,
+      "qa": true,
+      "security": "risk-based"
     }
   },
   "ux": {

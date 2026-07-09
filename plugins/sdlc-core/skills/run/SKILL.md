@@ -50,7 +50,7 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)`, comment the child IDs on the epic, then STOP — children run individually |
+| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)`, comment the child IDs on the epic, then STOP — children run individually. **Exception — `verification.scope: per-epic`:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated auto-verify pass (reviewer + QA per the toggles) over the epic's combined changes, then report — this is where deferred per-item verification is paid, once, for the whole feature. |
 
 ### UI detection (decide here, not later)
 
@@ -129,20 +129,47 @@ same as reviewer/QA findings.
 
 Phase → `verify`. Checkpoint.
 
-## 7 · VERIFY (parallel) + fix cycles
+## 7 · VERIFY (user controls the cadence)
 
-Dispatch in ONE parallel batch:
-- **Agent → sdlc-reviewer**: adversarial diff review vs AC + standards (per `sdlc:code-review`), append findings to `## Findings`.
-- **Agent → sdlc-qa**: run full suite, add missing tests per `sdlc:testing`, append findings.
-- **Agent → sdlc-security** — ONLY when: the diff overlaps config `pipeline.securityReviewPaths`,
-  OR package manifests/lockfiles changed, OR the item is labeled `security`. Deep pass per
-  `sdlc:security`; its BLOCKER/MAJOR findings join the same fix-cycle loop.
+Read `pipeline.verification` (defaults: `mode` `auto`, `scope` `per-item`, `reviewer` true,
+`qa` true, `security` `risk-based`). The implementer has already run the project's lint + tests
+green before finishing — this phase is the *extra* agent-driven review/QA on top of that, and it's
+the biggest recurring cost, so who pays for it is the user's choice.
 
-Then:
+**Resolve the effective mode first:**
+- `ask` → present the choice to the user for THIS item (AskUserQuestion where available): run full
+  auto verification, run only one of reviewer/QA, or hand it to them (manual). Use their answer as
+  the mode below; record it in `## Log`. (Only `ask` mode ever interrupts — `auto`/`manual` run
+  unattended.)
+- `scope: per-epic` AND this item has a `parent` epic → **defer**: skip the agent passes here, add
+  `- verify deferred to epic {parent}` to `## Log`, and go to §8. The consolidated pass runs when
+  the epic itself is run (see §2 epic note). (`per-item` verifies every item — the default.)
+
+**Mode = `manual`** (the user reviews it themselves):
+Skip all verify agents. Add `[NOTE] verification: manual — no automated review/QA ran; human review
+is the gate` to `## Findings`. Go to §8 (PR), then §9 (docs), then set phase `review-pending` and
+STOP with a ≤6-line message: item, branch, PR URL, and "review the PR; to have issues fixed, run
+`/sdlc:run {ID}` and describe them (or add them under `## Findings`); merge when satisfied." On a
+later resume with user-supplied findings, run them through the fix-cycle loop below (implementer →
+push update → back to `review-pending`). Never auto-merge.
+
+**Mode = `auto`** (SDLC verifies): dispatch in ONE parallel batch, honoring the toggles:
+- **Agent → sdlc-reviewer** — only if `verification.reviewer` (adversarial diff review vs AC +
+  standards per `sdlc:code-review`; findings to `## Findings`).
+- **Agent → sdlc-qa** — only if `verification.qa` (run full suite, add missing tests per
+  `sdlc:testing`; findings appended).
+- **Agent → sdlc-security** — only if `verification.security` is `risk-based` AND (diff overlaps
+  `pipeline.securityReviewPaths` OR manifests/lockfiles changed OR item labeled `security`). Deep
+  pass per `sdlc:security`. (Set `security: off` to disable — but if a risky diff ships without it,
+  add a `[NOTE] security review skipped on a risky change` to `## Findings` so a human sees it.)
+- If BOTH `reviewer` and `qa` are false and security doesn't trigger, there's nothing to run —
+  treat as manual (note it) and go to §8.
+
+Then (auto mode):
 1. No `BLOCKER`/`MAJOR` findings open → phase `pr`, go to §8.
 2. Open blockers/majors AND `fixCycles < pipeline.maxFixCycles` → increment `fixCycles`,
    dispatch **sdlc-implementer** with ONLY the open findings, then re-run this VERIFY phase
-   (re-dispatch reviewer+qa scoped to the fixes).
+   (re-dispatch only the enabled agents, scoped to the fixes).
 3. Still failing at max cycles → phase `blocked`, `adapter.comment` with open findings summary,
    notify the user, STOP. (Do not thrash — this is a hard stop.)
 
