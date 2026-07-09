@@ -98,6 +98,15 @@ logical unit, run the project's test/lint commands before finishing, append a su
 If implementer reports a hard blocker (missing dependency/credentials/contradictory AC) →
 phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STOP.
 
+**UI items → design pod** (only if the `sdlc-ux` plugin is installed AND config `ux.enabled`
+is true AND the plan touches `ux.uiPaths` or the item is labeled `ui`/`ux`/`design`/`frontend`):
+after backend/structure is in place, hand the frontend off by following `sdlc-ux:design` for this
+item's run file — it runs narrative → research → design system → motion and then the **jury loop to
+`ux.juryThreshold` (default 9), capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join
+`## Findings` and gate PR the same as reviewer/QA findings. If `sdlc-ux` is not installed, build the
+UI with the implementer as usual and note that the design gate was unavailable. Backend-only items
+skip this entirely.
+
 Phase → `verify`. Checkpoint.
 
 ## 7 · VERIFY (parallel) + fix cycles

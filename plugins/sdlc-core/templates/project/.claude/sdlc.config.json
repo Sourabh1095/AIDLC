@@ -29,6 +29,15 @@
       "ambiguousRequirements": "assume-and-log"
     }
   },
+  "ux": {
+    "enabled": true,
+    "target": "desktop-web",
+    "juryThreshold": 9,
+    "maxJuryRounds": 3,
+    "juryPanelSize": 1,
+    "renderBaseUrl": "http://localhost:3000",
+    "uiPaths": ["app/**", "src/app/**", "components/**", "src/components/**", "**/*.tsx", "**/*.css"]
+  },
   "marketplace": {
     "repo": "bee-logical/claude-sdlc",
     "promotionBranchPrefix": "promote/"

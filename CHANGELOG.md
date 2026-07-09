@@ -2,6 +2,37 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.7.0] — 2026-07-09
+
+### Added — `sdlc-ux` plugin (new, opt-in): the UI/UX design pod
+
+- A five-role pod for award-tier, uniform desktop-web UI:
+  - `sdlc-ux-writer` (sonnet) — writes `design/narrative.md`: the experience story (vision, tone,
+    journey, one signature moment) that every downstream decision must trace back to.
+  - `sdlc-ux-researcher` (sonnet) — mines Awwwards/FWA and current best-in-class work (WebSearch/
+    WebFetch) for cited, transferable techniques → `design/inspiration.md`.
+  - `sdlc-design-system` (sonnet) — the **uniformity anchor**: color/type/spacing/radius/elevation
+    tokens emitted to code as the single source of truth, WCAG-AA contrast verified.
+  - `sdlc-motion` (sonnet) — animation, micro-interactions, scroll/parallax, GSAP, sequencing —
+    within a 60fps + `prefers-reduced-motion` budget; realizes the signature moment.
+  - `sdlc-ux-jury` (opus) — strict, **unbiased** Awwwards-style judge. Renders the built UI with
+    Playwright, screenshots it, scores a weighted rubric /10 with mandatory visual evidence, blind
+    to the makers' reasoning. A 9 is rare and must be earned.
+- `/sdlc-ux:design <item|path|description>` — the pod pipeline: narrative → research → design system
+  → build + motion → **jury loop until composite ≥ `ux.juryThreshold` (default 9)**, capped at
+  `ux.maxJuryRounds` (default 3). At the cap it ships the best-scoring round, attaches the jury's
+  remaining critique, and flags for human — never loops forever, never escalates models.
+- Skills: `design` (orchestration), `ux-narrative`, `design-research`, `design-system`, `motion`,
+  `design-jury` (rubric + anti-bias + render protocol). Templates for all five `design/*` artifacts.
+
+### Changed — `sdlc` plugin
+
+- Orchestrator (`/sdlc:run`): UI-touching items now route the frontend through `sdlc-ux:design`
+  (jury gate included) when `sdlc-ux` is installed and `ux.enabled` — no hard dependency; core still
+  runs standalone.
+- Project `sdlc.config.json` gains a `ux` block (`enabled`, `target: desktop-web`, `juryThreshold`,
+  `maxJuryRounds`, `juryPanelSize`, `renderBaseUrl`, `uiPaths`).
+
 ## [0.6.1] — 2026-07-09
 
 ### Fixed
