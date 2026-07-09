@@ -17,6 +17,11 @@ How to use the Bee-Logical Claude SDLC in any project — new or existing.
 /plugin install sdlc-stack-web@bee-logical   # if the project is on the Next.js/NestJS/PG/Mongo stack
 ```
 
+The `sdlc-ux` design pod is **enabled by default** when you add the marketplace — no install line
+needed. It only activates on UI work (backend/infra items never invoke it), so leaving it on costs
+nothing on non-UI projects. To turn it off for a project, set `ux.enabled: false` in
+`.claude/sdlc.config.json`.
+
 > Working from a local clone instead: `/plugin marketplace add D:\path\to\claude-sdlc`
 > or launch with `claude --plugin-dir <clone>\plugins\sdlc-core`.
 

@@ -52,6 +52,25 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
 | epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)`, comment the child IDs on the epic, then STOP — children run individually |
 
+### UI detection (decide here, not later)
+
+Determine **now** whether this item renders a user-facing surface, and record `ui: true|false` on
+the run file. It's a UI item when the `sdlc-ux` plugin is available AND `ux.enabled` is true AND
+**any** of these hold:
+- the item is labeled `ui` / `ux` / `design` / `frontend`; OR
+- its title/description/AC mention a screen, page, view, component, layout, styling, visual, motion,
+  or a redesign; OR
+- the stack has a frontend (`stack.frontend` set) and delivering the item clearly means rendering
+  something (not a pure API/DB/infra change).
+When true, also resolve and record on the run file:
+- **scope** — a specific page/route/component named by the item, else the whole app;
+- **mode** — `greenfield` if no `design/design-system.md` exists yet, else `retrofit` for a scoped
+  surface or `redesign` if the item asks to redo the whole app;
+- **brand** — whether `ux.brand` config or `design/brand/` holds anchors to honor.
+If none of the signals fire, `ui: false` — never force the design pod onto backend/infra work.
+(This is a judgment call; when genuinely unsure whether a frontend item warrants the design pod,
+default `ui: true` — an over-invoked jury is cheap insurance; a missed one ships un-judged UI.)
+
 ## 3 · START
 
 1. Create the run file from `${CLAUDE_PLUGIN_ROOT}/templates/run-file.md` (fill frontmatter + item snapshot).
@@ -98,14 +117,15 @@ logical unit, run the project's test/lint commands before finishing, append a su
 If implementer reports a hard blocker (missing dependency/credentials/contradictory AC) →
 phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STOP.
 
-**UI items → design pod** (only if the `sdlc-ux` plugin is installed AND config `ux.enabled`
-is true AND the plan touches `ux.uiPaths` or the item is labeled `ui`/`ux`/`design`/`frontend`):
-after backend/structure is in place, hand the frontend off by following `sdlc-ux:design` for this
-item's run file — it runs narrative → research → design system → motion and then the **jury loop to
-`ux.juryThreshold` (default 9), capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join
-`## Findings` and gate PR the same as reviewer/QA findings. If `sdlc-ux` is not installed, build the
-UI with the implementer as usual and note that the design gate was unavailable. Backend-only items
-skip this entirely.
+**UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
+backend/structure is in place, hand the frontend off by following `sdlc-ux:design` for this item's
+run file, passing the **scope, mode and brand** you recorded at §2. It runs narrative → research →
+design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
+capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
+same as reviewer/QA findings.
+- If `ui: true` but `sdlc-ux` is not installed, build the UI with the implementer as usual and note
+  in `## Findings` that the design gate was unavailable (so a human knows it shipped un-judged).
+- `ui: false` items skip the pod entirely.
 
 Phase → `verify`. Checkpoint.
 

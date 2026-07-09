@@ -28,6 +28,8 @@ resuming works, and how the framework remembers everything. (Setup/installation 
 | "Where is everything?" | `/sdlc:status` |
 | Backlog is messy / items missing AC / before sprint planning | `/sdlc:groom` |
 | Work several items at once | `/sdlc:sprint 3` |
+| **Make a screen or the whole app award-grade** (new or existing) | `/sdlc-ux:design /dashboard` · `/sdlc-ux:design "redesign the landing page"` |
+| Same, anchored to your brand | drop a logo/font/screenshot in `design/brand/` (or set `ux.brand`), then run `/sdlc-ux:design …` |
 | Cut a version | `/sdlc:release` |
 | A local skill proved reusable | `/sdlc:promote <name>` |
 | After `/plugin marketplace update` | `/sdlc:sync` |
@@ -74,6 +76,40 @@ start → requirements → design → implement → verify → pr → docs → d
 Bugs differ in one way: QA writes a *failing reproduction test first*, then the fix must make
 it pass. Spikes produce a cited decision report in `docs/research/` instead of a PR. Epics get
 decomposed into child stories and stop.
+
+### 3a. UI items → the design pod (Awwwards-grade UI)
+
+The `sdlc-ux` plugin ships **enabled by default** and only wakes up on UI work — backend/infra
+items never touch it. You don't flip a switch to use it.
+
+**When it triggers automatically.** During `/sdlc:run`, the orchestrator decides at the *classify*
+step whether an item is UI (`ui: true` on the run file) — if the item is labeled
+`ui`/`ux`/`design`/`frontend`, OR its title/description/AC mention a screen/page/component/layout/
+visual/motion/redesign, OR the project has a frontend and the item clearly renders something. When
+it's UI, the frontend is built and then run through the pod's **jury loop**: narrative → inspiration
+research → design system → build + motion → a strict, unbiased jury that *renders the actual UI*
+(Playwright screenshots) and scores it /10 against an Awwwards-style rubric. It iterates until the
+score is **≥ `ux.juryThreshold` (default 9)**, capped at `ux.maxJuryRounds` (default 3). Jury
+findings gate the PR exactly like reviewer/QA findings; at the cap it ships the best round and flags
+the rest for you — it never loops forever or jumps to a bigger model.
+
+**When you invoke it directly.** `/sdlc-ux:design <target>` runs the same pod on demand:
+- a **new** project → establishes one design system that every later UI item then follows;
+- an **existing** page/screen → *retrofit*: it audits the current UI, adopts the existing system, and
+  redesigns just that surface so it stays consistent with the rest;
+- the **whole** existing app → *redesign*: it may replace the system and propagate it everywhere.
+
+**Anchoring to your brand (new or existing).** Give it a logo, colors, fonts, or a reference
+screenshot and they become hard constraints (palette pulled from the logo, fonts matched, values
+honored exactly). Two ways: drop assets in `design/brand/`, or set `ux.brand` in
+`sdlc.config.json` (`logo`, `palette`, `fonts`, `guidelines`). You can also pass them inline:
+`/sdlc-ux:design "redesign the header, match design/brand/logo.svg and use Söhne for headings"`.
+
+**Tuning it** (`.claude/sdlc.config.json` → `ux`): `enabled` (default true), `juryThreshold`,
+`maxJuryRounds` (cost cap), `juryPanelSize` (set 3 for a 3-juror panel whose scores are averaged),
+`renderBaseUrl`, `target` (`desktop-web`). All artifacts land in `design/` (narrative, inspiration,
+design-system, motion-spec, audit, brand, and per-round jury reports) and are committed to the
+branch — so the reasoning and every score are auditable in the PR.
 
 ## 4. Stopping and resuming (end of day → next morning)
 
@@ -130,6 +166,7 @@ its own run file and branch.
 | Completed-run history | `.sdlc/runs/archive/` | forever (committed) | cycle-time review, forensics |
 | Architecture decisions | `docs/adr/` | forever | "why is it like this?" in a year |
 | Research/spike outcomes | `docs/research/` | forever | decisions with evidence + dates |
+| Design system & UX artifacts | `design/` (+ `design/brand/`, jury reports) | forever (committed) | one uniform system every UI item follows; auditable scores |
 | Project conventions | `CLAUDE.md` + `.claude/rules/` | every session (always loaded) | invariants: branch names, safety |
 | Project configuration | `.claude/sdlc.config.json` | forever | tracker, git host, autonomy gates |
 | Locally grown capabilities | `.claude/skills|agents/` + `.sdlc/extensions.json` | forever; promotable to all projects | self-extension with reuse tracking |
@@ -149,4 +186,7 @@ in-flight work.
 | Pipeline blocked a command you actually wanted | That's the guard hook; run it yourself in a terminal if you're sure — the pipeline can't, by design |
 | Two runs touched the same file | Shouldn't happen via `/sdlc:sprint` (independence check); if manual runs collided, merge the first PR, then rerun the second item — verify will catch conflicts |
 | Skill/agent seems missing after plugin update | `/sdlc:sync` reconciles local vs plugin |
+| Jury never reaches 9 / loops a lot | It stops at `ux.maxJuryRounds` and ships the best round with the critique attached — read the latest `design/jury-report-r*.md`; lower `juryThreshold` or raise `maxJuryRounds` if the bar/effort is genuinely off |
+| Design pod ran on a non-UI item (or skipped a UI one) | Set the item's `ui`/`backend` intent explicitly with a label; or set `ux.enabled: false` to disable the pod for the whole project |
+| Jury reports "app not rendering" | It needs the dev server reachable at `ux.renderBaseUrl` — make sure the project's run command starts there (check `CLAUDE.md`), then rerun |
 | Headless run: "Ignoring N permissions.allow entries … workspace has not been trusted" | Open Claude Code interactively in that folder once and accept the trust dialog (or set `projects["<path>"].hasTrustDialogAccepted: true` in `~/.claude.json`), then rerun — the run resumes where it stopped |

@@ -54,6 +54,10 @@ The second plugin is the web stack pack — since this project is Next.js/NestJS
 want its conventions active. Verify: type `/sdlc:` and you should see `init`, `intake`, `run`,
 `next`, `status`, `groom`, `sprint`, `release`…
 
+The **UI/UX design pod** (`sdlc-ux`) is **enabled by default** — no install step needed. It stays
+dormant on backend/infra work and wakes up only on UI items, so you'll see it in action at step 6.
+Type `/sdlc-ux:` to confirm the `design` command is present.
+
 ## 3. Scaffold the SDLC into the project
 
 ```
@@ -140,6 +144,43 @@ That's the only human gate. After merging:
 Repeat until the epic's children are done. Prefer parallel? Once the skeleton story is merged,
 `/sdlc:sprint 2` runs independent stories in separate worktrees simultaneously.
 
+### 6a. The UI story goes through the design pod automatically
+
+When `/sdlc:next` reaches the **todos UI** story, the orchestrator detects it's a UI item and — after
+the screens are built — routes it through the design pod before the PR. You'll see extra phases:
+narrative → inspiration research → design system → motion → **jury**. The jury starts the dev
+server, screenshots the actual rendered UI, and scores it /10 against an Awwwards-style rubric; if
+it's below 9 it hands specific fixes back and the design-system/motion agents iterate (up to 3
+rounds by default), then it re-judges. All of it lands in `design/` and is visible in the PR:
+
+```
+design/narrative.md          # the experience story
+design/inspiration.md        # cited award-winning references
+design/design-system.md      # the tokens every component uses (+ tokens in code)
+design/motion-spec.md        # animation/interaction spec
+design/jury-report-r1.md …   # each round's score + evidence
+```
+
+The design system it establishes here becomes the project standard — every later UI story adopts it,
+so the app stays uniform instead of drifting page to page.
+
+### 6b. Polish or rebrand a specific screen on demand
+
+Beyond the automatic pass, you can point the pod at any screen yourself — new or already built:
+
+```
+# elevate one existing page to award-grade (audits it, keeps it consistent with the rest)
+/sdlc-ux:design app/todos/page.tsx
+
+# redesign it, anchored to your brand — drop assets in design/brand/ first
+#   design/brand/logo.svg, design/brand/brand-colors.txt, a screenshot of your typeface
+/sdlc-ux:design "redesign the todos page, match design/brand/logo.svg and our brand colors"
+```
+
+It extracts a palette from the logo, matches your fonts, honors those as hard constraints, and the
+jury checks brand adherence and that the page still fits alongside your other screens. Tune the bar
+in `.claude/sdlc.config.json` → `ux` (`juryThreshold`, `maxJuryRounds`, `juryPanelSize`, `brand`).
+
 ## 7. Stopping, resuming, changing your mind
 
 - **End of day**: just close the terminal. Nothing to save — state lives in the run files.
@@ -160,6 +201,7 @@ D:\todo-app\
 ├── backlog/                # your items: epic + stories, statuses, activity logs
 ├── .sdlc/runs/             # one auditable run file per item (archived when done)
 ├── docs/adr/               # architecture decisions (e.g. "Prisma vs TypeORM")
+├── design/                 # one design system + UX narrative, motion spec, jury reports (brand/ if used)
 ├── apps or src/…           # the actual Next.js + NestJS + Postgres app, built story by story
 └── (a PR per story, each with AC checklist, assumptions, test evidence)
 ```

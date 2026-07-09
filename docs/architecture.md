@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude SDLC
 
-**Status:** All phases (0–5) implemented · v0.5.0
+**Status:** All phases (0–5) implemented · core v0.7.x · `sdlc-ux` design pod v0.2.x
 
 ## 1. Core design decisions
 
@@ -108,6 +108,21 @@ and reuse tracking (`/sdlc:status` surfaces candidates at reuseCount ≥ 2); `/s
 forks shadowed by promoted versions, resolves shadowing conflicts); `/sdlc:sprint N` (analyst
 independence check → worktree + headless run per item → live board from run-file polling →
 cleanup); governance via `docs/promotion-policy.md` + CODEOWNERS (`plugins/**` platform-owned).
+
+### Design pod ✅ (`sdlc-ux` plugin, v0.1–0.2)
+
+A separate, default-enabled plugin for award-grade UI. Five roles: `sdlc-ux-writer` (narrative),
+`sdlc-ux-researcher` (cited Awwwards inspiration), `sdlc-design-system` (the tokenized uniformity
+anchor — also audits existing UIs and honors brand anchors), `sdlc-motion` (animation within a
+perf+a11y budget), and `sdlc-ux-jury` (opus; renders via Playwright and scores a weighted rubric
+/10, blind to the makers). `/sdlc-ux:design` runs narrative → research → design system →
+build/redesign + motion → a jury loop that iterates until composite ≥ `ux.juryThreshold` (default 9),
+capped at `ux.maxJuryRounds`. Works greenfield (establish the project standard), retrofit (adopt the
+existing system, redesign a scoped surface) and full redesign; brand references (logo/colors/fonts)
+are hard constraints. **Design decision:** the jury is the only opus tier and is deliberately blind
+to reasoning to keep scoring unbiased; the loop is capped (never model-escalates) to respect cost.
+The core orchestrator detects UI items at classify (`ui:` flag) and routes them here when the plugin
+is present and `ux.enabled` — no hard dependency, so core still runs standalone.
 
 ## 3. Post-v1 candidates (not committed)
 

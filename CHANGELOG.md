@@ -2,6 +2,26 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.7.2] — 2026-07-09
+
+### Changed
+
+- **`sdlc-ux` enabled by default.** The design pod now ships `defaultEnabled: true` in the
+  marketplace — no manual install/enable step. It stays dormant on backend/infra items, so
+  non-UI projects are unaffected; turn it off per project with `ux.enabled: false`.
+- **Hardened UI detection in the orchestrator (`sdlc` → 0.7.1).** The decision to invoke the
+  design pod moved from a soft path-glob check during implement to an explicit determination at
+  the **classify** step, recorded as `ui:` on the run file. Signals: a `ui`/`ux`/`design`/`frontend`
+  label, OR the title/description/AC mentioning a screen/page/component/layout/visual/motion/
+  redesign, OR a frontend stack with an item that clearly renders something. When unsure on a
+  frontend item it defaults `ui: true` (an over-invoked jury is cheap; a missed one ships un-judged
+  UI). The auto-invocation now also passes the resolved **scope, mode and brand** through, so the
+  autopilot behaves the same as running `/sdlc-ux:design` by hand. Run-file template gains
+  `ui` / `uxScope` / `uxMode`.
+- Docs updated: user guide (§3a design-pod section + cheat-sheet + troubleshooting), example
+  walkthrough (§6a/§6b showing the pod on the todo UI + a brand-anchored redesign), adoption guide
+  and architecture.
+
 ## [0.7.1] — 2026-07-09
 
 ### Added — `sdlc-ux` plugin (v0.2.0): existing projects, scope targeting & brand references

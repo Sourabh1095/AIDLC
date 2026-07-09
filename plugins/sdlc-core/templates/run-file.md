@@ -5,6 +5,9 @@ type: {{TYPE}}
 branch: {{BRANCH}}
 phase: start
 fixCycles: 0
+ui: false
+uxScope: null
+uxMode: null
 pr: null
 started: {{NOW_UTC}}
 updated: {{NOW_UTC}}
