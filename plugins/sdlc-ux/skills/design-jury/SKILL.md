@@ -26,6 +26,8 @@ The score is only worth something if it's unbiased and evidence-backed.
 2. Drive it with the Playwright MCP at the configured desktop viewport (`target: desktop-web`).
 3. Capture the key screens AND states: default, hover, focus-visible, empty, loading, error where
    they exist — plus the narrative's **signature moment** (scroll/interact to trigger it, then shoot).
+   On a scoped redesign, also review the supplied sibling-page shots so you can judge whether the
+   target stays consistent with the rest of the app.
 4. Save screenshots; list their paths as the evidence set in the report.
 
 ## Rubric (score each /10; composite = weighted sum, one decimal)
@@ -36,7 +38,7 @@ The score is only worth something if it's unbiased and evidence-backed.
 | **Usability / UX** | 20% | Obvious primary action; legible; predictable; graceful empty/loading/error; nothing sacrificed to style. |
 | **Creativity / originality** | 15% | A memorable idea executed with restraint; not a template; the signature moment lands. |
 | **Motion & interaction craft** | 20% | Purposeful, smooth (60fps, no jank); coherent easing; tasteful sequencing; `prefers-reduced-motion` respected; no over-animation. |
-| **Consistency / uniformity** | 12% | One-system feel; tokens honored across all screens; no off-system color/spacing; repeated components identical. |
+| **Consistency / uniformity** | 12% | One-system feel; tokens honored across all screens; no off-system color/spacing; repeated components identical. **When brand anchors were supplied, they're honored exactly. On a scoped redesign, the target is consistent with the sibling screens — not a lone island in a different style.** |
 | **Polish & states** | 8% | Pixel precision; every interactive state designed; AA contrast; no visual bugs at the edges. |
 
 Composite is out of 10. Gate = `juryThreshold` (default 9).

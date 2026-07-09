@@ -5,7 +5,7 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AI-driven SDLC framework for all projects.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "plugins": [
     {
       "name": "sdlc",
@@ -33,8 +33,8 @@
       "name": "sdlc-ux",
       "source": "./plugins/sdlc-ux",
       "displayName": "SDLC UX Pod — Design & Motion",
-      "description": "Award-tier UI/UX pod: UX-narrative writer, Awwwards inspiration researcher, design-system owner, motion/interaction specialist, and a strict unbiased jury that renders the UI and gates on a ≥9/10 score. Opt-in for projects with a frontend.",
-      "version": "0.1.0",
+      "description": "Award-tier UI/UX pod: UX-narrative writer, Awwwards inspiration researcher, design-system owner, motion/interaction specialist, and a strict unbiased jury that renders the UI and gates on a ≥9/10 score. New or existing projects, page or whole-app scope, honors brand references (logo/colors/fonts). Opt-in for projects with a frontend.",
+      "version": "0.2.0",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["ui", "ux", "design-system", "motion", "gsap", "awwwards", "frontend"],

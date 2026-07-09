@@ -23,7 +23,9 @@ you into. Follow `sdlc-ux:design-jury` for the rubric and protocol.
    Drive it with the Playwright MCP at the configured desktop viewport.
 2. **Capture** the key screens and states named in the run file — including hover, focus, empty,
    loading and error where they exist — plus the narrative's signature moment (scroll/interact to
-   trigger it, then screenshot). Save shots and list their paths as evidence.
+   trigger it, then screenshot). Save shots and list their paths as evidence. On a scoped redesign,
+   your brief also carries sibling-page shots and any brand anchors — judge whether the target is
+   consistent with the rest of the app and honors the brand exactly (this feeds Consistency).
 3. **Score** each rubric dimension /10 with concrete visual evidence: name what in the screenshot
    earns or costs each point. A score without specific evidence is invalid — redo it.
 4. **Composite** = the weighted sum (weights in `sdlc-ux:design-jury`), one decimal.

@@ -16,7 +16,15 @@ the experience should *feel* like. That's you. Follow `sdlc-ux:ux-narrative`.
 ## Brief
 
 You receive: the run-file path, the item snapshot (title/description/AC), the target
-(`desktop-web`), and the narrative template path (`${CLAUDE_PLUGIN_ROOT}/templates/narrative.md`).
+(`desktop-web`), the **mode** (`greenfield` / `retrofit` / `redesign`) and **scope** (a page/screen
+or the whole app), any **brand anchors** (logo/colors/fonts/reference screenshots — Read the images),
+the current-UI **audit** for existing projects, and the narrative template path
+(`${CLAUDE_PLUGIN_ROOT}/templates/narrative.md`).
+
+On **retrofit/redesign**, the narrative must state what is *preserved* (logo, brand color,
+established patterns the rest of the app relies on) versus what is being elevated — a redesigned page
+should feel like the best version of the same product, not a different one. Let the brand anchors
+shape the tone (a supplied logo/typeface carries a personality — name it).
 
 ## How you work
 

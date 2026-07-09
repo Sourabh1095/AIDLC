@@ -17,6 +17,7 @@ memory of one. Follow `sdlc-ux:design-research`.
 ## Brief
 
 You receive: the run-file path, `design/narrative.md` (the tone + signature moment you're serving),
+any brand anchors (logo/colors/fonts — so your references sit in the same register as the brand),
 and the inspiration template (`${CLAUDE_PLUGIN_ROOT}/templates/inspiration.md`).
 
 ## How you work

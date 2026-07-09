@@ -10,6 +10,31 @@ A UI reads as "one system" only when every visual value comes from a shared toke
 system is a contract the rest of the build is held to: after it exists, an ad-hoc hex or off-scale
 pixel in a component is a defect, not a shortcut.
 
+## One system per project (adopt before invent)
+
+- **Greenfield** (no system yet): establish it, and leave `design/design-system.md` + token files
+  at the project root as the standard every future UI item adopts.
+- **Existing project**: a system already exists in code even if undocumented — audit it first (see
+  below), then **conform** (retrofit a page/screen to it), **elevate-in-place** (extend it), or
+  **replace** it (redesign). Never create a second, divergent system beside the current one.
+
+## Auditing an existing UI
+
+Given rendered screenshots + the code: catalog the colors, type families/scale, spacing, radius and
+shadows actually in use and where they live (Tailwind config / CSS vars / inline literals). Flag
+inconsistencies (same role → different values, off-scale spacing, hardcoded hex). Output the current
+system + a conform/elevate/replace recommendation before touching anything.
+
+## Brand anchors are hard constraints
+
+When a logo, brand colors, fonts or guidelines are supplied, build the token system *around* them —
+they are not "inspiration":
+- **Logo** → extract dominant + accent colors into the palette; if the exact brand hex fails AA on
+  text, keep it for surfaces/accents and derive an accessible on-brand text shade (record why).
+- **Font reference** (name or screenshot) → identify or best-effort match the closest web-available
+  font; flag an ambiguous screenshot match for user confirmation rather than guessing silently.
+- **Supplied hex / guidelines** → honored exactly.
+
 ## Foundations (define all, tokenize all)
 
 - **Color by role, not by hue.** `bg / surface / fg / muted / accent / accent-2 / border` (+ states).

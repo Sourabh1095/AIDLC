@@ -2,6 +2,29 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.7.1] — 2026-07-09
+
+### Added — `sdlc-ux` plugin (v0.2.0): existing projects, scope targeting & brand references
+
+- **Works on existing projects, not just greenfield.** `/sdlc-ux:design` now resolves a **scope**
+  (a page/route/screen, a path/glob, or the whole app) and a **mode**:
+  - `greenfield` — establish the design system; it becomes the project standard every later UI item
+    adopts (implemented and followed throughout).
+  - `retrofit` — redesign a specific page/screen while **adopting the project's established system**
+    first, so the target stays uniform with the rest of the app.
+  - `redesign` — whole-app redesign that may replace and re-propagate the system.
+- **UI audit step** for existing surfaces: renders the current UI (Playwright) + sibling screens,
+  and `sdlc-design-system` (new **audit mode**) extracts the current design language, flags
+  inconsistencies, and recommends conform / elevate-in-place / replace → `design/audit.md`.
+- **Brand references** (new + existing): pass a logo, colors, fonts, or reference screenshots (in
+  `$ARGUMENTS`, in `ux.brand.referenceDir` = `design/brand/`, or via the `ux.brand` config). They're
+  treated as **hard constraints** — the design-system extracts a palette from the logo, matches
+  fonts (best-effort, flags ambiguous screenshot matches for confirmation), and honors supplied
+  values exactly. Catalogued in `design/brand.md`.
+- Jury now scores **cross-page consistency + brand adherence** on scoped redesigns (target must not
+  be a lone island in a different style), using sibling-page shots.
+- New `ux.brand` config block; new `audit.md` and `brand.md` templates.
+
 ## [0.7.0] — 2026-07-09
 
 ### Added — `sdlc-ux` plugin (new, opt-in): the UI/UX design pod
