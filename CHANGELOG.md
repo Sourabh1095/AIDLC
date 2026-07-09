@@ -2,6 +2,16 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.7.4] — 2026-07-09
+
+### Fixed
+
+- **Duplicate hooks-file load error (`sdlc` → 0.7.3).** Current Claude Code auto-loads a plugin's
+  standard `hooks/hooks.json`, so the manifest must not also point at it. Removed
+  `"hooks": "./hooks/hooks.json"` from `plugins/sdlc-core/.claude-plugin/plugin.json`; the hooks
+  still load automatically from the standard path. Fixes: *"Failed to load hooks … Duplicate hooks
+  file detected … manifest.hooks should only reference additional hook files."*
+
 ## [0.7.3] — 2026-07-09
 
 ### Added — user-controlled verification cadence (`sdlc` → 0.7.2)
