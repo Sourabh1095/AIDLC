@@ -2,6 +2,26 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.11.0] — 2026-07-11
+
+### Added — enterprise project structure, scaffolded + boundary-gated (`sdlc-stack-web`, `sdlc`)
+
+- New `sdlc-stack-web:project-structure` skill — the canonical enterprise folder trees: NestJS
+  backend (`modules/<feature>` + `common/{filters,guards,interceptors,pipes,decorators,constants}`,
+  thin controller → service → repository) and **two frontend flavors** — `next-app` (App-Router-first,
+  server components own data, RTK for client state) and `rtk-spa` (RTK Query as the primary data
+  layer) — with layering rules, RTK/RTK Query conventions, `components/{ui,features}` + custom-hooks
+  taxonomy, and a centralized `common/constants/{http-status,messages}` module (no inline strings).
+- Ships `templates/structure/`: three `dependency-cruiser` boundary configs (backend / next-app /
+  rtk-spa) and canonical reference files (NestJS exception filter mapping to the api-design error
+  shape + constants; RTK `store/{index,hooks,api/base-api}`).
+- `/sdlc:init` asks the frontend flavor and scaffolds the matching skeleton per TS repo (per-repo in
+  poly, merge-aware, skips non-TS); `sdlc:ci-cd` runs `depcruise` in the PR gate so layering
+  violations (feature→feature internals, controller→repository, `ui`→`store`) fail the build
+  regardless of `verification.mode`. `nestjs`/`nextjs` skills cross-link the structure; Next adopts
+  the RTK/RTK Query state stance.
+- Version bumps: `sdlc-stack-web` 0.6.0 → **0.7.0**, `sdlc` 0.10.0 → **0.11.0**, marketplace → **0.11.0**.
+
 ## [0.10.0] — 2026-07-11
 
 ### Added — strict web-stack tooling baseline (`sdlc-stack-web`, `sdlc`)
