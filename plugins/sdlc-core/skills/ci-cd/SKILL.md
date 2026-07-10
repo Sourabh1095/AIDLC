@@ -14,14 +14,17 @@ github → `.github/workflows/*.yml`, azure-repos → `azure-pipelines.yml`, wri
 
 Trigger on PRs to the default branch: checkout → setup runtime pinned to the project's version
 file (`.nvmrc`/`engines`) → install with lockfile (`npm ci`) + dependency caching →
-**typecheck (`tsc --noEmit`) → lint (`eslint`) → format check (`prettier --check`)** → build →
-test. Fail fast; total target <10 min.
+**typecheck (`tsc --noEmit`) → lint (`eslint`) → format check (`prettier --check`) → boundaries
+(`depcruise src`)** → build → test. Fail fast; total target <10 min.
 
-The typecheck/lint/format steps are the **hard quality gate** for the web-stack tooling baseline
-(`sdlc-stack-web` → `templates/tooling`, scaffolded by `/sdlc:init`): they run on every PR
-regardless of `pipeline.verification.mode`, so standards hold even when the LLM reviewer is toggled
-off. Skip a step only if the repo genuinely lacks that script (e.g. no `typecheck` script) — don't
-invent one silently; note its absence. Poly: run the gate per repo, in that repo's checkout.
+Those steps are the **hard quality gate** for the web-stack baselines scaffolded by `/sdlc:init`:
+the tooling baseline (`sdlc-stack-web` → `templates/tooling`) covers typecheck/lint/format; the
+**boundary check** (`depcruise`, config from `templates/structure/dependency-cruiser`) enforces the
+`sdlc-stack-web:project-structure` layering (no feature→feature internals, no controller→repository,
+`ui`↛`store`, …). They run on every PR regardless of `pipeline.verification.mode`, so standards and
+structure hold even when the LLM reviewer is toggled off. Skip a step only if the repo genuinely
+lacks that script — don't invent one silently; note its absence. Poly: run the gate per repo, in
+that repo's checkout.
 
 ## Conventions (both hosts)
 

@@ -186,10 +186,13 @@ is present and `ux.enabled` — no hard dependency, so core still runs standalon
 ## 4. Extension points (for adopting teams)
 
 - **New tracker** → write a `wi-*` skill implementing the 7-operation contract; add a `source` value.
-- **New stack** → new `sdlc-stack-*` plugin, carrying a `coding-standards-<lang>` skill **and** a
-  strict tooling baseline in `templates/tooling/` (linter/formatter/type-checker configs) that
-  `/sdlc:init` scaffolds and CI enforces — deterministic tooling owns the mechanical rules so the
-  reviewer spends its judgment on what tools can't check. Core degrades gracefully without a pack.
+- **New stack** → new `sdlc-stack-*` plugin, carrying a `coding-standards-<lang>` skill, a strict
+  tooling baseline in `templates/tooling/` (linter/formatter/type-checker configs), and a
+  `project-structure` skill + skeleton/boundary configs in `templates/structure/` — all scaffolded by
+  `/sdlc:init` and enforced by CI (lint/format/typecheck + a `dependency-cruiser` layering gate).
+  Deterministic tooling owns the mechanical rules **and the architectural boundaries** (feature
+  encapsulation, layering) so the reviewer spends its judgment on what tools can't check. Core
+  degrades gracefully without a pack.
 - **Different autonomy** → per-project `settings.json` + `pipeline.gates`; the pipeline reads, never hardcodes.
 - **Verification cost/cadence** → `pipeline.verification` (`mode`: auto/manual/ask, `scope`:
   per-item/per-epic, plus `reviewer`/`qa`/`security` toggles); the human review of the PR is always

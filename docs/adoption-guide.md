@@ -57,6 +57,7 @@ This matters for CI/headless usage and for `/sdlc:sprint` worktrees.
 | `.sdlc/runs/` | Pipeline run state — one file per in-flight item |
 | `docs/adr/` | Architecture Decision Records |
 | `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`, `.npmrc` | Strict web-stack tooling baseline (TypeScript repos only, from `sdlc-stack-web`; merge-aware — skipped if you already have configs). Makes the coding standards a machine-enforced CI gate. Run the printed `npm i -D …` to activate. |
+| Enterprise skeleton + `.dependency-cruiser.cjs` | Canonical folder structure (NestJS backend; Next.js App-Router or RTK-Query SPA frontend — you pick at init) with `store/`, `common/constants`, feature modules, plus a boundary-lint config that fails CI on layering violations. From `sdlc-stack-web:project-structure`; merge-aware. |
 
 ## 4. MCP authentication (per user, per machine)
 

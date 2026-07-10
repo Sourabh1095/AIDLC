@@ -8,7 +8,12 @@ user-invocable: false
 
 ## Module structure
 
-- Feature modules own their domain: `users/` = `users.module.ts`, controller, service,
+The canonical folder tree, layering rules and the centralized `common/constants/{http-status,
+messages}` module live in **`sdlc-stack-web:project-structure`** (`backend-nestjs`) — and a
+`dependency-cruiser` gate enforces the layering in CI. This section is the *why*; that skill is the
+*where*.
+
+- Feature modules own their domain: `users/` = `users.module.ts`, controller, service, repository,
   DTOs (`dto/`), entities/schemas. Cross-feature access ONLY through an exported service —
   never import another module's repository/entity directly.
 - `imports` what you use, `exports` only what others need. Circular deps are a design smell —

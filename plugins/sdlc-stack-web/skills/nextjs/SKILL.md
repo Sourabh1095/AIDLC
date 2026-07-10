@@ -9,6 +9,13 @@ user-invocable: false
 Assumes App Router (`app/`). Verify the project's Next major version in package.json and use
 Context7 for API specifics — caching semantics have shifted across majors; don't trust memory.
 
+**Structure & state.** Folder tree, component taxonomy (`components/{ui,features}`), custom-hooks
+and store layout live in **`sdlc-stack-web:project-structure`** (`frontend-next-app`), enforced by a
+`dependency-cruiser` gate. State/data split: **Server Components own server data** (fetch in RSC);
+**Redux Toolkit** holds client/UI state; **RTK Query** is the client-side data layer for genuinely
+dynamic post-load data — not a replacement for RSC fetching. (The `rtk-spa` flavor is for
+client-rendered SPAs where RTK Query *is* the primary data layer.)
+
 ## Server/client split (the default decision)
 
 - Server Components by default. `"use client"` ONLY for interactivity (state, effects,

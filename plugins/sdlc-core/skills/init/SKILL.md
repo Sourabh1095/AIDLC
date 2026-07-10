@@ -58,6 +58,11 @@ Collect:
      `stack`. Frontend repos also get a `ux.renderBaseUrl` + `uiPaths`. Mark one repo `default: true`.
      Write these to `repos[]` and set `workspace.layout: "poly"`; the top-level `git`/`stack` blocks are
      unused in poly (leave them or drop them).
+   - **Frontend structure flavor (any repo with a `stack.frontend`):** ask which enterprise structure
+     it follows — `next-app` (App-Router-first: server components own data, RTK for client state) or
+     `rtk-spa` (client SPA: RTK Query is the primary data layer). See `sdlc-stack-web:project-structure`.
+     Record it (mono: note it; poly: `structure: "next-app"|"rtk-spa"` on the repo entry). Drives the
+     skeleton scaffolded in Step 4.
 5. **Commands**: install / dev / test / lint commands (detect from package.json scripts first and propose
    them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.
 6. **Verification cadence** — who runs code review + QA, and how often (this is the pipeline's
@@ -103,6 +108,23 @@ Collect:
    - Framework layer (don't replace): Next.js repos also install `eslint-config-next` and keep their
      own tsconfig `module` settings, layering the baseline's strictness on top.
    If `sdlc-stack-web` is absent or the repo isn't TS, skip silently — the baseline is stack-specific.
+6. **Enterprise project structure (TypeScript repos, when `sdlc-stack-web` is present).** After the
+   tooling baseline, scaffold the canonical skeleton per `sdlc-stack-web:project-structure` for each
+   repo's role — `backend-nestjs` for a Nest backend, or the frontend flavor chosen in Step 3
+   (`next-app` / `rtk-spa`). Locate the templates by glob (`**/sdlc-stack-web/templates/structure/`).
+   Per repo:
+   - Create the directory tree from the skill (backend: `common/{filters,interceptors,guards,pipes,
+     decorators,constants}` + `modules/<example>` + `config/`; frontend: `components/{ui,features}`,
+     `hooks/`, `store/{slices,api}`, `lib/`, `types/`, `constants/`).
+   - Copy the canonical reference files from `templates/structure/reference/{backend,frontend}/`
+     (backend exception filter + `common/constants/{http-status,messages}`; frontend
+     `store/{index,hooks,api/base-api}`) into place, and generate ONE example feature/module as a
+     copy-me pattern.
+   - Drop the matching `templates/structure/dependency-cruiser/.dependency-cruiser.<flavor>.cjs` as
+     `.dependency-cruiser.cjs`; add `dependency-cruiser` to devDeps and a `depcruise` script
+     (`"depcruise": "depcruise src"`). RTK flavors also need `@reduxjs/toolkit` + `react-redux`.
+   - **Merge-aware:** never overwrite an existing structure — if the repo already has a layout, adopt
+     it, skip the skeleton, and note the difference. Skip non-TS repos entirely.
 
 ## Step 5 — Report
 
@@ -110,8 +132,8 @@ Print a summary: files created, config chosen, and next steps:
 - "Create your first item in `backlog/items/` (see `backlog/README.md`) or connect your tracker."
 - "Run `/sdlc:next` to pick up the first item, or `/sdlc:run <ID>` for a specific one."
 - "Auth for MCP servers (GitHub token, Jira/ADO) is per-user — see the adoption guide."
-- If a tooling baseline was scaffolded: "Installed the strict web-stack tooling baseline in
-  `<repo(s)>` — run the printed `npm i -D …` to pull the devDeps, then `npm run lint && npm run
-  typecheck` to confirm a clean start."
+- If a tooling baseline / structure was scaffolded: "Installed the strict web-stack tooling baseline
+  + enterprise skeleton (`<flavor>`) in `<repo(s)>` — run the printed `npm i -D …` to pull the
+  devDeps, then `npm run lint && npm run typecheck && npm run depcruise` to confirm a clean start."
 
 Do NOT commit automatically — show `git status` and let the user commit the scaffold.
