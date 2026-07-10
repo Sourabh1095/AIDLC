@@ -15,7 +15,10 @@ Load these skills before starting: `sdlc:work-items` (+ the active adapter), `sd
 
 ## 0 · LOAD & FETCH
 
-1. Read `.claude/sdlc.config.json`. Missing → tell the user to run `/sdlc:init`, stop.
+1. Read `.claude/sdlc.config.json`. Missing → tell the user to run `/sdlc:init`, stop. **Build the
+   repo registry** per `sdlc:work-items` → *Repos & routing*: poly if `repos[]` is non-empty, else
+   synthesize the single mono entry. The session cwd is the **workspace control plane** (holds
+   `.claude/`, `backlog/`, `.sdlc/`); each repo lives at `workspace.root`/`<repo.path>`.
 2. Route to the active work-item adapter (per `sdlc:work-items`).
 3. **If `$ARGUMENTS` is not a work-item ID** (doesn't match `{PROJECT_KEY}-{number}`), the user
    handed you a raw requirement — follow `sdlc:intake` first (analyze against codebase +
@@ -50,12 +53,15 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)`, comment the child IDs on the epic, then STOP — children run individually. **Exception — `verification.scope: per-epic`:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated auto-verify pass (reviewer + QA per the toggles) over the epic's combined changes, then report — this is where deferred per-item verification is paid, once, for the whole feature. |
+| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5); comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — `verification.scope: per-epic`:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated auto-verify pass (reviewer + QA per the toggles) over the epic's combined changes, then report — this is where deferred per-item verification is paid, once, for the whole feature. |
 
 ### UI detection (decide here, not later)
 
 Determine **now** whether this item renders a user-facing surface, and record `ui: true|false` on
-the run file. It's a UI item when the `sdlc-ux` plugin is available AND `ux.enabled` is true AND
+the run file. In **poly**, read `stack`/`ux` from the item's **resolved repo entry** (§2.5) — a
+backend repo has no frontend, and each frontend repo carries its own `ux.renderBaseUrl`/`uiPaths`;
+the design pod (§6) runs in that repo's checkout. It's a UI item when the `sdlc-ux` plugin is
+available AND `ux.enabled` is true AND
 **any** of these hold:
 - the item is labeled `ui` / `ux` / `design` / `frontend`; OR
 - its title/description/AC mention a screen, page, view, component, layout, styling, visual, motion,
@@ -71,10 +77,37 @@ If none of the signals fire, `ui: false` — never force the design pod onto bac
 (This is a judgment call; when genuinely unsure whether a frontend item warrants the design pod,
 default `ui: true` — an over-invoked jury is cheap insurance; a missed one ships un-judged UI.)
 
+## 2.5 · ROUTE TO REPO (poly; a no-op in mono)
+
+With one repo in the registry (mono), skip this — the single entry is the target; leave `repo:`
+unset on the run file. With several:
+
+**Non-epic item** — resolve its target repo via the chain in `sdlc:work-items` → *Repos & routing*
+(explicit `repo` → label match → single default → analyst grounding → ask). Record the resolved repo
+on the run file's `repo:` and write it back via `adapter.link`/`adapter.updateAC` where the source
+supports it. From here **every git/branch/commit/push/PR/verify step for this run runs with cwd =
+`workspace.root`/`<repo.path>`**, using THAT repo entry's `host`/`remote`/`defaultBranch`/
+`branchPattern`. The run file lives at `<repo.path>/.sdlc/runs/{ID}.md` and is committed to the
+branch (so the PR still carries the full audit trail).
+
+**Epic / cross-repo requirement** — the feature may span repos. Dispatch **sdlc-analyst** to ground
+it against the candidate repos and decompose into **one child story per affected repo**, setting each
+child's `repo`, `parent` (the epic), and `dependsOn` (cross-repo order — e.g. the frontend child
+`dependsOn` the backend child). Create the children (`adapter.create`), then:
+- Write a **coordination file** at the control plane `.sdlc/runs/{EPIC-ID}.md` (from the run-file
+  template; `repo:` left null) tracking the child IDs, their repos, `dependsOn` order and a status
+  rollup. This one is NOT committed to any product branch — it is cross-cutting workspace state.
+- Run the children in `dependsOn` order (independent children may be handed to `/sdlc:sprint`);
+  each child is its own atomic run per the rules above. Update the rollup as each child's PR opens.
+- Comment the child IDs + repos on the epic, then proceed child-by-child (or STOP and let the user
+  pick them up via `/sdlc:next`, per autonomy).
+
 ## 3 · START
 
-1. Create the run file from `${CLAUDE_PLUGIN_ROOT}/templates/run-file.md` (fill frontmatter + item snapshot).
-2. Branch per `sdlc:git-workflow` (`feature/{ID}-{slug}` etc.). Record branch in run file.
+1. Create the run file from `${CLAUDE_PLUGIN_ROOT}/templates/run-file.md` (fill frontmatter incl.
+   `repo:` from §2.5 + item snapshot). In poly it lives at `<repo.path>/.sdlc/runs/{ID}.md`.
+2. Branch per `sdlc:git-workflow` for the **resolved repo** (cwd = `<repo.path>`), using its
+   `host`/`remote`/`defaultBranch`/`branchPattern`. Record branch in run file.
 3. `adapter.transition(ID, in_progress)` · `adapter.link(ID, {branch})` ·
    `adapter.comment(ID, "SDLC run started on <branch>")`.
 4. Phase → `requirements`. Checkpoint.
@@ -175,8 +208,9 @@ Then (auto mode):
 
 ## 8 · PR
 
-Per `sdlc:git-workflow`: commit any remaining state (incl. run file), push, create the PR with
-the filled pr-body template. Then: run-file `pr:` ← URL · `adapter.link(ID, {pr})` ·
+Per `sdlc:git-workflow` for the **resolved repo** (cwd = `<repo.path>`; its `host`/`remote`/
+`defaultBranch`): commit any remaining state (incl. run file), push, create the PR with the filled
+pr-body template. Then: run-file `pr:` ← URL · `adapter.link(ID, {pr})` ·
 `adapter.transition(ID, in_review)` · `adapter.comment(ID, "PR open: <url>")`.
 
 Phase → `docs`. Checkpoint.

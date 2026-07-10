@@ -10,6 +10,13 @@ One run = one work item flowing through the pipeline = one file: `.sdlc/runs/{ID
 It is committed to the feature branch, so the PR carries a full audit trail of what the
 pipeline did, assumed, found and fixed.
 
+**Location (mono vs poly).** In mono the run file is `.sdlc/runs/{ID}.md` at the repo root. In
+poly a per-item run file lives in ITS target repo at `<repo.path>/.sdlc/runs/{ID}.md` (still
+committed to that repo's branch — the PR trail is preserved), and its frontmatter carries `repo:`.
+An **epic coordination file** (cross-repo feature) lives at the **control plane**
+`.sdlc/runs/{EPIC-ID}.md` with `repo: null`; it tracks child IDs, their repos, `dependsOn` order and
+a status rollup, and is NOT committed to any product branch. `/sdlc:status` aggregates both places.
+
 ## Format (template: `${CLAUDE_PLUGIN_ROOT}/templates/run-file.md`)
 
 ```markdown
