@@ -15,6 +15,17 @@ Config: read `.claude/sdlc.config.json` → `ux` block (`juryThreshold` default 
 default 3, `juryPanelSize` default 1, `renderBaseUrl`, `target` `desktop-web`, `uiPaths`, and
 `brand`). Missing block → use defaults and note it.
 
+**Mono vs poly — which `ux` block, which working dir.** In **mono** the settings above are the
+top-level `ux` block and the working dir is the repo root. In **poly** the top-level `ux` block is
+empty — each frontend repo carries its own `ux` under its `repos[]` entry (see `sdlc:work-items` →
+*Repos & routing*). When `/sdlc:run` invokes the pod for a UI item it passes the **resolved frontend
+repo** (from `sdlc:run` §2.5): operate with **cwd = `workspace.root`/`<repo.path>`** and read
+`renderBaseUrl` / `uiPaths` / `target` / `brand` (and the jury settings) from **that repo entry's
+`ux`**, not the top-level block — every `renderBaseUrl` reference below means that repo's. All
+`design/*` artifacts and the dev server live in that repo's checkout. Standalone in a poly workspace
+with no repo passed → resolve the target repo from `$ARGUMENTS` (a path under a repo) or ask which
+repo, before anything else.
+
 ## 0 · Scope, mode & brand intake (do this first)
 
 **Resolve the target scope** from `$ARGUMENTS`:
