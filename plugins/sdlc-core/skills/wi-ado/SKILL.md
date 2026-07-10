@@ -36,6 +36,8 @@ or via artifact links (below).
 | `priority` | Microsoft.VSTS.Common.Priority: 1→P1 … 4→P4 |
 | `estimate` | StoryPoints/Effort: ≤2→S, 3–5→M, 8→L, ≥13→XL |
 | `parent` | parent link (System.LinkTypes.Hierarchy-Reverse) |
+| `repo` | a `repo:<name>` tag (default, no schema change) — or System.AreaPath if the project maps repos to area paths; detect the convention from an existing item before writing |
+| `dependsOn` | Successor/Predecessor links (System.LinkTypes.Dependency); `dependsOn` = this item is the **successor** of each referenced id |
 | `labels` | System.Tags (semicolon-separated) |
 | `links.url` | `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}` |
 
@@ -60,7 +62,7 @@ legal intermediate state; if still rejected, apply the tag fallback and comment 
 - **query(filter)** — WIQL:
   `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ('New','To Do','Approved') AND [System.WorkItemType] <> 'Epic' ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
   via `az boards query --wiql "..."`, then fetch + map the first `limit + few` and apply the "ready" rule client-side.
-- **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`.
+- **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
 - **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above).
 - **comment(id, markdown)** — `az boards work-item update --id {n} --discussion "SDLC: ..."` (HTML allowed; keep it simple).
 - **link(id, {branch, pr})** — best effort artifact link (`az repos` / MCP); reliable fallback that ALWAYS runs: a discussion comment with the branch name and PR URL. Commits referencing `#<id>` also auto-link.

@@ -27,6 +27,8 @@ unavailable, tell the user to check `/mcp` and authenticate — do not fall back
 | `priority` | Highest→P1, High→P2, Medium→P3, Low/Lowest→P4 |
 | `estimate` | story points if present: ≤2→S, 3–5→M, 8→L, ≥13→XL |
 | `parent` | parent/epic link key |
+| `repo` | a `repo:<name>` label (default, no custom field needed) — or a Component if the project maps repos to components; detect which convention an existing issue uses before writing |
+| `dependsOn` | issue links of type **"Depends on"** (inward) — read the outward "Blocks" side too |
 | `labels` / `assignee` | labels / assignee displayName |
 | `links.url` | `https://{site}/browse/{key}` |
 
@@ -48,7 +50,7 @@ Canonical → Jira defaults (override per project in `workItems.jira.statusMap`)
 - **query(filter)** — JQL:
   `project = {project} AND statusCategory = "To Do" AND issuetype IN (Story, Task, Bug, Spike) ORDER BY priority DESC, rank ASC`
   (+ `AND labels = {label}` when filtered). Apply the "ready" rule (≥1 AC except task/spike; parent not blocked) client-side after mapping. Respect `limit`.
-- **create(item)** — create with mapped type/summary/description (AC embedded per the project's detected convention); set parent/epic link when given. Return the new key.
+- **create(item)** — create with mapped type/summary/description (AC embedded per the project's detected convention); set parent/epic link when given; add the `repo:<name>` label (or Component) when `repo` is set, and create "Depends on" issue links for each `dependsOn` ID (skip links to not-yet-created siblings and add them once all children exist). Return the new key.
 - **transition(id, status)** — Jira transitions are by ID, not name: first get available transitions, pick the one whose TARGET status matches the mapped name (case-insensitive); if none matches, apply the documented fallback and comment what happened. Never guess transition IDs.
 - **comment(id, markdown)** — add comment, prefixed `SDLC:` so pipeline comments are filterable.
 - **link(id, {branch, pr})** — Jira's dev panel links automatically when branch/commit messages contain the issue key (they do — `Refs: PROJ-123`). Additionally comment the branch/PR URL so it's visible without the dev panel.

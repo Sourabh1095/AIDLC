@@ -6,8 +6,14 @@ user-invocable: false
 
 # Git workflow — branch → commit → push → PR
 
-Read `.claude/sdlc.config.json → git` for: `host` (github | azure-repos), `defaultBranch`,
-`remote`, `branchPattern`.
+Operate on the **resolved repo entry** for this run (see `sdlc:work-items` → *Repos & routing*),
+not a hardcoded repo. Read from it: `host` (github | azure-repos), `defaultBranch`, `remote`,
+`branchPattern`, and `path`. In **mono** this is the single synthesized entry (`path: "."`); in
+**poly** it is the repo the orchestrator routed the item to (§2.5 of `sdlc:run`).
+
+**Run every git command below with cwd = `workspace.root`/`<repo.path>`.** `git` and `gh` act on the
+cwd's repo; `az repos` takes an explicit `--repository`. Never assume the control-plane cwd is a repo
+in poly — always `cd` into the target repo first.
 
 ## Branching
 

@@ -20,6 +20,7 @@ Format spec lives in the project's `backlog/README.md`.
 Glob `backlog/{items,epics}/{id}-*.md`, parse frontmatter + sections into a WorkItem:
 - `acceptanceCriteria` ← the `## Acceptance Criteria` checkbox lines (keep `[x]`/`[ ]` prefixes)
 - `description` ← `## Description` body · `links.url` ← the file path
+- `repo` ← the `repo:` field (null/empty when unrouted) · `dependsOn` ← the `dependsOn:` list
 
 ### query(filter)
 Glob all item files, parse frontmatter only. Apply filter, drop non-ready items
@@ -30,7 +31,8 @@ files when `parent` is set). Sort by priority (P1 first), then by numeric id asc
 1. Read `backlog/.sequence` → n. Write back n+1 immediately (before creating the file).
 2. Id = `{PROJECT_KEY}-{n}` (key from `.claude/sdlc.config.json`).
 3. Instantiate `${CLAUDE_PLUGIN_ROOT}/templates/backlog-item.md` with the item's fields,
-   slugify the title (lowercase, hyphens, ≤5 words) for the filename.
+   slugify the title (lowercase, hyphens, ≤5 words) for the filename. Fill `repo:` (the routed
+   repo name, or blank for epics/unrouted) and `dependsOn:` (comma-separated IDs, or blank).
 4. Epics go to `backlog/epics/`, everything else to `backlog/items/`.
 
 ### transition(id, status)
