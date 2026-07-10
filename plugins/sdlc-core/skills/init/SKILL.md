@@ -86,6 +86,23 @@ Collect:
 3. If source is not markdown, you may delete `backlog/` (or keep it — it is harmless; ask the user).
 4. Ensure `.gitignore` contains `.claude/settings.local.json` (append if missing). In poly, also ignore the
    product-repo checkouts if the control plane is its own git repo, or leave each repo self-managed.
+5. **Tooling baseline (TypeScript repos only).** If the `sdlc-stack-web` plugin is installed AND a
+   repo's stack is TypeScript-based (`stack.frontend`/`stack.backend` is `nextjs`/`nestjs`/another TS
+   framework), scaffold its strict baseline so quality is machine-enforced from day one, not left to
+   the reviewer. Locate it like the project template — glob `**/sdlc-stack-web/templates/tooling/`
+   under the install locations. Per repo (per-repo in poly; **skip non-TS repos**, e.g. a Postgres-only
+   or mobile repo):
+   - Copy `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`, `.npmrc`
+     into the repo root — **merge-aware**: if the repo already has an ESLint / tsconfig / Prettier
+     config, do NOT overwrite; show the delta and ask whether to adopt the baseline, merge, or skip
+     (a repo already linting strictly needs nothing). Point its `tsconfig.json` at the baseline via
+     `"extends": "./tsconfig.base.json"`.
+   - Add the devDependencies and `lint`/`typecheck`/`format` scripts from the tooling `README.md` to
+     `package.json` (or, if you can't edit it safely, print the exact `npm i -D …` + scripts for the
+     user to run).
+   - Framework layer (don't replace): Next.js repos also install `eslint-config-next` and keep their
+     own tsconfig `module` settings, layering the baseline's strictness on top.
+   If `sdlc-stack-web` is absent or the repo isn't TS, skip silently — the baseline is stack-specific.
 
 ## Step 5 — Report
 
@@ -93,5 +110,8 @@ Print a summary: files created, config chosen, and next steps:
 - "Create your first item in `backlog/items/` (see `backlog/README.md`) or connect your tracker."
 - "Run `/sdlc:next` to pick up the first item, or `/sdlc:run <ID>` for a specific one."
 - "Auth for MCP servers (GitHub token, Jira/ADO) is per-user — see the adoption guide."
+- If a tooling baseline was scaffolded: "Installed the strict web-stack tooling baseline in
+  `<repo(s)>` — run the printed `npm i -D …` to pull the devDeps, then `npm run lint && npm run
+  typecheck` to confirm a clean start."
 
 Do NOT commit automatically — show `git status` and let the user commit the scaffold.

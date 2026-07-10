@@ -9,6 +9,24 @@ user-invocable: false
 Enforced at write time (implementer) and check time (reviewer). Where the project's ESLint
 config disagrees with this file, the project config wins — these are the defaults.
 
+## Tooling baseline (deterministic first)
+
+Most of the rules below are **machine-enforced**, not left to the reviewer's eye. The stack pack
+ships a strict baseline in `${CLAUDE_PLUGIN_ROOT}/templates/tooling/` (`tsconfig.base.json`,
+`eslint.config.mjs` = `typescript-eslint` strict-type-checked + stylistic + Prettier, `.prettierrc`,
+`.editorconfig`, `.npmrc`) that `/sdlc:init` scaffolds into a TS repo and the `sdlc:ci-cd` baseline
+runs as a **hard PR gate** (`typecheck` + `lint` + `format` + `test`). The division of labour:
+
+- **Tools own the mechanical rules** — `no-any`, no floating promises, no non-null assertions,
+  unused code, formatting, import hygiene, `eqeqeq`, `strict`/`noUncheckedIndexedAccess`. If it can
+  be a lint/tsc rule, it belongs there, not in a human's head. The implementer runs `lint`+
+  `typecheck` green before finishing; CI re-checks so a disabled reviewer can't let them through.
+- **The reviewer owns judgment** — the sections below that a linter can't decide: validate-at-the-
+  edge, modelling states over booleans, error-handling *meaning*, naming *intent*, module boundaries,
+  dependency choice. Cite these in review; don't re-flag what the linter already caught.
+
+A repo with no baseline yet → note it and prefer scaffolding the baseline over hand-policing style.
+
 ## Typing
 
 - `strict: true` assumed. No `any` — use `unknown` + narrowing; a justified `any` needs a

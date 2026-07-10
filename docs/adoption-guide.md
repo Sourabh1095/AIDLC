@@ -56,6 +56,7 @@ This matters for CI/headless usage and for `/sdlc:sprint` worktrees.
 | `backlog/` | Markdown work-item tracker (if source = markdown) |
 | `.sdlc/runs/` | Pipeline run state — one file per in-flight item |
 | `docs/adr/` | Architecture Decision Records |
+| `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`, `.npmrc` | Strict web-stack tooling baseline (TypeScript repos only, from `sdlc-stack-web`; merge-aware — skipped if you already have configs). Makes the coding standards a machine-enforced CI gate. Run the printed `npm i -D …` to activate. |
 
 ## 4. MCP authentication (per user, per machine)
 

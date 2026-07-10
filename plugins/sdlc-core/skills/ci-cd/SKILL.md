@@ -13,8 +13,15 @@ github → `.github/workflows/*.yml`, azure-repos → `azure-pipelines.yml`, wri
 ## Baseline PR pipeline (create if the project has none)
 
 Trigger on PRs to the default branch: checkout → setup runtime pinned to the project's version
-file (`.nvmrc`/`engines`) → install with lockfile (`npm ci`) + dependency caching → lint →
-build → test. Fail fast; total target <10 min.
+file (`.nvmrc`/`engines`) → install with lockfile (`npm ci`) + dependency caching →
+**typecheck (`tsc --noEmit`) → lint (`eslint`) → format check (`prettier --check`)** → build →
+test. Fail fast; total target <10 min.
+
+The typecheck/lint/format steps are the **hard quality gate** for the web-stack tooling baseline
+(`sdlc-stack-web` → `templates/tooling`, scaffolded by `/sdlc:init`): they run on every PR
+regardless of `pipeline.verification.mode`, so standards hold even when the LLM reviewer is toggled
+off. Skip a step only if the repo genuinely lacks that script (e.g. no `typecheck` script) — don't
+invent one silently; note its absence. Poly: run the gate per repo, in that repo's checkout.
 
 ## Conventions (both hosts)
 
