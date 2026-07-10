@@ -46,10 +46,14 @@ Collect:
 4. **Workspace layout**: `mono` (default — one repo for everything) | `poly` (several git repos in this
    workspace, e.g. backend/frontend/website/mobile). Auto-detect a likely poly setup by scanning the cwd
    for multiple subfolders that are each git repos (`<sub>/.git`), and propose it.
-   - **mono** → collect **Git host** (`github` default | `azure-repos`) and **default branch** (`main`),
-     and the **stack** (defaults: frontend `nextjs`, backend `nestjs`, databases `postgres, mongodb`;
-     accept "none").
-   - **poly** → for EACH repo collect: `name`, `path` (relative to the workspace root), `host`, `remote`
+   - **mono** → collect **Git host** (`github` default | `azure-repos`), **default branch** (`main`),
+     the **git mode**, and the **stack** (defaults: frontend `nextjs`, backend `nestjs`, databases
+     `postgres, mongodb`; accept "none"). **Git mode:** default `remote` (push + PR). Check
+     `git remote` — if no remote is configured, propose **`local`** (`git.mode: "local"`): no push, no
+     PR; the pipeline integrates each item via a user-confirmed local `--no-ff` merge after verify.
+     Tell the user they can flip to `remote` later once they add an origin.
+   - **poly** → for EACH repo collect: `name`, `path` (relative to the workspace root), `host`, `mode`
+     (`remote` default | `local` — detect per repo: no remote configured → propose `local`), `remote`
      (`origin`), `defaultBranch`, `role` (one-line description), `labels` (routing hints), and per-repo
      `stack`. Frontend repos also get a `ux.renderBaseUrl` + `uiPaths`. Mark one repo `default: true`.
      Write these to `repos[]` and set `workspace.layout: "poly"`; the top-level `git`/`stack` blocks are

@@ -16,7 +16,8 @@ the orchestrator routes each item to the repo it belongs in, and a cross-repo fe
 epic whose child stories each ship as their own repo → branch → PR. Mono is the default and
 unchanged — existing projects need zero migration.
 
-Humans stay in the loop where it matters: **reviewing and merging PRs**.
+Humans stay in the loop where it matters: **reviewing and merging PRs** — or, for a project with no
+remote yet (`git.mode: local`), **approving the local merge** the pipeline proposes after verify.
 
 ## Repository layout
 

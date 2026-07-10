@@ -21,6 +21,10 @@ Render a table (drop the Repo column in mono):
 
 Ordering: `blocked` first (flag with ⛔), then in-flight phases (start → requirements → design → implement → verify → pr → docs), then `done`.
 
+The **PR** column shows the PR URL in remote mode; in **local mode** (`git.mode: local`) it shows
+`local-merge:<sha>` once integrated, or `ready — local merge pending` for a run parked at
+`review-pending`.
+
 For BLOCKED runs, also read the run file's `## Findings` section and summarize the unresolved blockers in one line each.
 
 **Epic rollup (poly):** for each epic coordination file, show its children grouped under it with
@@ -50,8 +54,12 @@ End with one actionable line, e.g.:
 
 ## Post-merge cleanup (only when the user confirms)
 
-For any run in phase `done` whose PR is merged (`gh pr view --json state` / `az repos pr show`):
-1. `adapter.transition(id, done)` and `adapter.comment(id, "PR merged: <url>")`.
+For any run in phase `done` that is integrated — **remote mode:** its PR is merged
+(`gh pr view --json state` / `az repos pr show`); **local mode:** `pr:` is a `local-merge:<sha>`
+(the merge already happened at §8, so it's integrated by definition):
+1. `adapter.transition(id, done)` and `adapter.comment(id, "PR merged: <url>")` (remote) /
+   `adapter.comment(id, "Integrated locally: <sha>")` (local).
 2. Move the run file to `archive/` **in its own location** — `<repo.path>/.sdlc/runs/archive/<ID>.md`
    for a poly per-repo run, else `.sdlc/runs/archive/<ID>.md`.
-3. Delete the local feature branch if fully merged (in that repo).
+3. Delete the local feature branch if fully merged (in that repo). In local mode §8 usually deleted
+   it already — skip if gone.

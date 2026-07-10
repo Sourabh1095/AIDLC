@@ -37,6 +37,10 @@ date; bump `package.json` version (and lockfile via `npm install --package-lock-
 
 - GitHub: `gh release create v{X.Y.Z} --title "v{X.Y.Z}" --notes-file <section>` (add `--generate-notes` only if the repo has no changelog discipline).
 - Azure: push the tag; if a release pipeline exists, `az pipelines run` (approval-gated).
+- **Local mode** (`git.mode: local`, no remote): there is nothing to publish to. Create the
+  annotated tag locally (`git tag -a v{X.Y.Z} -m "<changelog section>"`) and STOP there — report the
+  tag and note that a hosted release/`gh release create` will run once a remote is configured. Never
+  push or invent a remote.
 - Never `npm publish` / `docker push` without explicit instruction — they're separate approvals.
 
 ## Release notes style

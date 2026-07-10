@@ -35,7 +35,11 @@ tokens until a task triggers it.
 **D6 — High autonomy, hard guardrails.** Allow the full story→PR path; deny irreversible /
 production / secret / self-modification operations; ask on ambiguous blast radius. Two layers:
 static permission rules + context-aware hooks (branch-aware push guard, exfil patterns,
-protected paths). Humans keep exactly one mandatory gate: PR review + merge.
+protected paths). Humans keep exactly one mandatory gate: PR review + merge. When a repo has no
+remote (`git.mode: local`, per-repo) there is no PR — the gate is *relocated, not removed*: the
+pipeline integrates via a **user-confirmed local `--no-ff` merge** into the default branch after
+green verify, and never merges unattended. Default is `remote` (push + PR), so nothing changes for
+projects with an origin.
 
 **D7 — Parallelize independent work; serialize anything that mutates a shared tree.** The rule
 is *isolation, not just similarity* — two units run concurrently only when they cannot collide on

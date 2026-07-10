@@ -130,6 +130,10 @@ Edit `.claude/sdlc.config.json`:
 
 - `workItems.source`: `markdown` | `jira` | `ado`
 - `git.host`: `github` | `azure-repos`; `git.branchPattern` (mono)
+- `git.mode`: `remote` (default — push + open a PR; you merge it) | `local` (**no remote yet** —
+  the pipeline skips push/PR and, after green verify, proposes a local `--no-ff` merge into the
+  default branch that it makes only once you confirm; flip back to `remote` when you add an origin).
+  In poly this is per-repo on each `repos[]` entry, so one repo can be local while another has a remote.
 - `workspace.layout` + `repos[]`: switch to **polyrepo** (see §4 · *Polyrepo* above)
 - `pipeline.maxFixCycles`, `pipeline.architectThreshold`
 - `pipeline.gates.ambiguousRequirements`: `assume-and-log` (default) | `ask-human`

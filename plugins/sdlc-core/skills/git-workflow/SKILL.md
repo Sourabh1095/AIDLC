@@ -7,9 +7,17 @@ user-invocable: false
 # Git workflow — branch → commit → push → PR
 
 Operate on the **resolved repo entry** for this run (see `sdlc:work-items` → *Repos & routing*),
-not a hardcoded repo. Read from it: `host` (github | azure-repos), `defaultBranch`, `remote`,
-`branchPattern`, and `path`. In **mono** this is the single synthesized entry (`path: "."`); in
-**poly** it is the repo the orchestrator routed the item to (§2.5 of `sdlc:run`).
+not a hardcoded repo. Read from it: `host` (github | azure-repos), `mode` (remote | local; default
+`remote`), `defaultBranch`, `remote`, `branchPattern`, and `path`. In **mono** this is the single
+synthesized entry (`path: "."`); in **poly** it is the repo the orchestrator routed the item to
+(§2.5 of `sdlc:run`). `mode` is resolved per-repo, so one repo can push+PR while another integrates
+locally.
+
+**Integration depends on `mode`.** `remote` (default) → push the branch and open a PR; a human
+merges it (the mandatory gate). `local` → the repo has no usable remote, so there is nothing to
+push to and no PR: after green verify the pipeline integrates by a **confirmed local `--no-ff`
+merge** into the default branch (see *Local mode* below). Branching and commit rules are identical
+in both modes — only the final integration step differs.
 
 **Run every git command below with cwd = `workspace.root`/`<repo.path>`.** `git` and `gh` act on the
 cwd's repo; `az repos` takes an explicit `--repository`. Never assume the control-plane cwd is a repo
@@ -30,7 +38,7 @@ in poly — always `cd` into the target repo first.
 - One logical change per commit; the build/tests must pass at every commit.
 - The run file (`.sdlc/runs/<ID>.md`) is committed along with the work it describes.
 
-## Push + PR
+## Push + PR (remote mode)
 
 Push: `git push -u <remote> <branch>` (never `--force`; `--force-with-lease` requires user approval).
 
@@ -62,8 +70,45 @@ az repos pr create --repository <repo> --source-branch <branch> --target-branch 
 - If `az` is not installed/authenticated, report the exact error and print manual PR-creation
   instructions with the pushed branch name. Never silently skip the PR step.
 
+## Local mode (no remote)
+
+Used when the resolved repo's `mode` is `local` — a project with no usable remote yet (e.g. before
+the team has created the origin). Nothing is pushed and no PR is opened; the branch is integrated on
+the local default branch instead. **The human gate is preserved — it moves from "review + merge the
+PR" to "approve the local merge".** Never merge into the default branch unattended.
+
+After green verify (the orchestrator calls this at `sdlc:run` §8), from the repo's checkout
+(cwd = `workspace.root`/`<repo.path>`):
+
+1. **Show what will land**: the item, branch, commit list (`git log --oneline <defaultBranch>..<branch>`),
+   and a diffstat (`git diff --stat <defaultBranch>...<branch>`). Any open BLOCKER/MAJOR finding →
+   do NOT offer the merge; it goes back through the fix cycle first.
+2. **Gate — get explicit approval** (this replaces PR review):
+   - Interactive session → ask the user to confirm the local merge (AskUserQuestion where available).
+   - Non-interactive (headless/sprint) or the user declines → do NOT merge. Leave the branch as-is,
+     set phase `review-pending`, and report: `git diff <defaultBranch>...<branch>` to review, then
+     re-run `/sdlc:run <ID>` to integrate (or merge it yourself). This mirrors `manual` verification.
+3. **Merge** (only after approval), preserving the feature as a distinct merge commit:
+   ```
+   git checkout <defaultBranch>
+   git merge --no-ff <branch> -m "Merge <branch> ([<ID>] <imperative summary>)"
+   ```
+   Record the merge commit on the run file (`pr: local-merge:<short-sha>`) and via
+   `adapter.link(id, {pr: "local-merge:<sha>"})`. Then delete the merged branch
+   (`git branch -d <branch>`) unless the user wants it kept.
+4. **Never** push, force-anything, or touch a remote in local mode. If a `remote` is in fact
+   configured and reachable, tell the user they can switch this repo to `mode: remote` for the
+   PR flow — don't silently start pushing.
+
+Merge conflict on step 3 (default branch moved under a long-running item): stop, report the
+conflicting paths, and hand back to the implementer for a `git merge`-style resolution on the
+branch first — never resolve conflicts blind on the default branch.
+
 ## Failure handling
 
 - Push rejected (non-fast-forward): `git pull --rebase <remote> <branch>` requires approval — ask; never force.
 - PR already exists for the branch: reuse it (`gh pr view --json url`), update the body if stale.
 - Detached HEAD or dirty default branch: stop and report; never stash-and-hope on the default branch.
+- Remote mode but no remote is configured (`git remote` is empty): stop and report — either add the
+  remote, or set the repo's `mode: local` in `sdlc.config.json` to use the local-merge flow. Never
+  invent a remote.

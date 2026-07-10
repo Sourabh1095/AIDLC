@@ -50,6 +50,7 @@
           "path": { "type": "string", "description": "Repo checkout path relative to workspace.root." },
           "role": { "type": "string", "description": "Free-text description used as a routing hint by the orchestrator." },
           "host": { "enum": ["github", "azure-repos"], "default": "github" },
+          "mode": { "enum": ["remote", "local"], "default": "remote", "description": "remote (default): push the branch and open a PR; a human merges it. local: no remote — after green verify the pipeline integrates via a confirmed local --no-ff merge into the default branch." },
           "remote": { "type": "string", "default": "origin" },
           "defaultBranch": { "type": "string", "default": "main" },
           "branchPattern": { "type": "string", "default": "{type}/{id}-{slug}" },
@@ -85,6 +86,7 @@
       "description": "Mono-mode single-repo git settings. Ignored when repos[] is non-empty (poly).",
       "properties": {
         "host": { "enum": ["github", "azure-repos"] },
+        "mode": { "enum": ["remote", "local"], "default": "remote", "description": "remote (default): push the branch and open a PR; a human merges it. local: no remote — after green verify the pipeline integrates via a confirmed local --no-ff merge into the default branch." },
         "defaultBranch": { "type": "string" },
         "remote": { "type": "string" },
         "branchPattern": { "type": "string" }

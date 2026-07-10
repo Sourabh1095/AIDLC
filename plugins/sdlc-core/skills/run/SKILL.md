@@ -181,11 +181,14 @@ the biggest recurring cost, so who pays for it is the user's choice.
 
 **Mode = `manual`** (the user reviews it themselves):
 Skip all verify agents. Add `[NOTE] verification: manual — no automated review/QA ran; human review
-is the gate` to `## Findings`. Go to §8 (PR), then §9 (docs), then set phase `review-pending` and
-STOP with a ≤6-line message: item, branch, PR URL, and "review the PR; to have issues fixed, run
-`/sdlc:run {ID}` and describe them (or add them under `## Findings`); merge when satisfied." On a
-later resume with user-supplied findings, run them through the fix-cycle loop below (implementer →
-push update → back to `review-pending`). Never auto-merge.
+is the gate` to `## Findings`. Go to §8, then §9 (docs), then set phase `review-pending` and
+STOP with a ≤6-line message: item, branch, and — **remote mode:** PR URL + "review the PR … merge
+when satisfied"; **local mode:** "review the branch (`git diff <default>...<branch>`), then re-run
+`/sdlc:run {ID}` to integrate it locally (or merge yourself)". In both: "to have issues fixed, run
+`/sdlc:run {ID}` and describe them (or add them under `## Findings`)." On a later resume with
+user-supplied findings, run them through the fix-cycle loop below (implementer → push update, or the
+local re-verify, → back to `review-pending`). Never auto-merge (remote) / never merge without
+confirmation (local).
 
 **Mode = `auto`** (SDLC verifies): dispatch in ONE parallel batch, honoring the toggles:
 - **Agent → sdlc-reviewer** — only if `verification.reviewer` (adversarial diff review vs AC +
@@ -207,12 +210,22 @@ Then (auto mode):
 3. Still failing at max cycles → phase `blocked`, `adapter.comment` with open findings summary,
    notify the user, STOP. (Do not thrash — this is a hard stop.)
 
-## 8 · PR
+## 8 · INTEGRATE (PR in remote mode; local merge in local mode)
 
-Per `sdlc:git-workflow` for the **resolved repo** (cwd = `<repo.path>`; its `host`/`remote`/
-`defaultBranch`): commit any remaining state (incl. run file), push, create the PR with the filled
-pr-body template. Then: run-file `pr:` ← URL · `adapter.link(ID, {pr})` ·
-`adapter.transition(ID, in_review)` · `adapter.comment(ID, "PR open: <url>")`.
+Per `sdlc:git-workflow` for the **resolved repo** (cwd = `<repo.path>`; its `mode`/`host`/`remote`/
+`defaultBranch`): commit any remaining state (incl. run file), then integrate per the repo's `mode`.
+
+- **`mode: remote`** (default): push, create the PR with the filled pr-body template. Then: run-file
+  `pr:` ← URL · `adapter.link(ID, {pr})` · `adapter.transition(ID, in_review)` ·
+  `adapter.comment(ID, "PR open: <url>")`.
+- **`mode: local`** (no remote): follow `sdlc:git-workflow` → *Local mode* — show the commit list +
+  diffstat, get **explicit user confirmation** (this is the relocated human merge gate), then
+  `--no-ff` merge into the default branch. On merge: run-file `pr:` ← `local-merge:<sha>` ·
+  `adapter.link(ID, {pr: "local-merge:<sha>"})` · `adapter.comment(ID, "Merged locally: <sha>")`;
+  the local merge completes integration, so this run will reach `done` at §10 (no separate human
+  merge step remains). If confirmation isn't available (non-interactive) or the user declines: leave
+  the branch, `adapter.transition(ID, in_review)`, phase `review-pending`, and STOP with the ≤6-line
+  message (how to review the branch + re-run `/sdlc:run {ID}` to integrate). Never merge unattended.
 
 Phase → `docs`. Checkpoint.
 
@@ -226,9 +239,12 @@ mode; branch-caused failures feed one extra fix cycle (respect `maxFixCycles` ov
 
 ## 10 · WRAP
 
-Phase → `done`. Final checkpoint + `## Log` summary (phases run, fix cycles, PR URL).
-Report to the user in ≤6 lines: item, branch, PR URL, assumptions count, findings resolved,
-anything needing human eyes. **Humans review and merge the PR — never merge it yourself.**
+Phase → `done`. Final checkpoint + `## Log` summary (phases run, fix cycles, PR URL or local-merge sha).
+Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
+resolved, anything needing human eyes.
+- **Remote mode:** **Humans review and merge the PR — never merge it yourself.**
+- **Local mode:** the default-branch merge only happened because the user confirmed it at §8 —
+  **never merge into the default branch without that explicit confirmation.**
 
 ## Capability gaps (self-extension protocol)
 

@@ -2,6 +2,21 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [Unreleased]
+
+### Added — local git mode (no remote required) (`sdlc`)
+
+- New `git.mode` (`remote` default | `local`) — per-repo in poly, top-level in mono. Lets a project
+  run the full pipeline **before it has a git remote**: no push, no PR. After green verify the
+  pipeline shows the commits + diffstat and integrates via a **user-confirmed local `--no-ff` merge**
+  into the default branch — the framework's one mandatory human gate is relocated (PR review →
+  merge approval), never removed. Non-interactive/declined → parks at `review-pending` with
+  instructions, never merges unattended. Default `remote` = existing push+PR behavior, unchanged.
+- Repo-aware across `git-workflow` (new *Local mode* section), `run` §8 (integrate = PR or local
+  merge), `init` (detects a missing remote and proposes `local`), `status` (PR column shows
+  `local-merge:<sha>`), `release` (tags locally, skips publish), the always-on git-workflow rule,
+  the config schema + scaffolded template. Flip `git.mode: remote` once an origin exists.
+
 ## [0.8.0] — 2026-07-11
 
 ### Added — polyrepo (multi-repo) support (`sdlc`)
