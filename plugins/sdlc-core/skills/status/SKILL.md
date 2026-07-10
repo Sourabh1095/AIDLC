@@ -9,16 +9,22 @@ Render a compact status board for this project. Read-only — never mutate state
 
 ## Step 1 — Active runs
 
-Glob `.sdlc/runs/*.md`. For each file, read ONLY the frontmatter (`item`, `type`, `branch`, `phase`, `fixCycles`, `pr`, `started`).
+Build the repo registry (`sdlc:work-items` → *Repos & routing*). Glob run files from **every**
+location: the control-plane `.sdlc/runs/*.md` (mono runs + poly epic coordination files) **and**,
+in poly, each declared repo's `<repo.path>/.sdlc/runs/*.md`. For each file, read ONLY the
+frontmatter (`item`, `type`, `repo`, `branch`, `phase`, `fixCycles`, `pr`, `started`).
 
-Render a table:
+Render a table (drop the Repo column in mono):
 
-| Item | Type | Phase | Fix cycles | Branch | PR |
-|------|------|-------|-----------|--------|----|
+| Item | Type | Repo | Phase | Fix cycles | Branch | PR |
+|------|------|------|-------|-----------|--------|----|
 
 Ordering: `blocked` first (flag with ⛔), then in-flight phases (start → requirements → design → implement → verify → pr → docs), then `done`.
 
 For BLOCKED runs, also read the run file's `## Findings` section and summarize the unresolved blockers in one line each.
+
+**Epic rollup (poly):** for each epic coordination file, show its children grouped under it with
+each child's repo, phase and PR state, so a cross-repo feature reads as one block.
 
 ## Step 2 — Backlog snapshot
 
@@ -46,5 +52,6 @@ End with one actionable line, e.g.:
 
 For any run in phase `done` whose PR is merged (`gh pr view --json state` / `az repos pr show`):
 1. `adapter.transition(id, done)` and `adapter.comment(id, "PR merged: <url>")`.
-2. Move `.sdlc/runs/<ID>.md` to `.sdlc/runs/archive/<ID>.md`.
-3. Delete the local feature branch if fully merged.
+2. Move the run file to `archive/` **in its own location** — `<repo.path>/.sdlc/runs/archive/<ID>.md`
+   for a poly per-repo run, else `.sdlc/runs/archive/<ID>.md`.
+3. Delete the local feature branch if fully merged (in that repo).

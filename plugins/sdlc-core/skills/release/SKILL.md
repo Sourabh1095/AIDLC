@@ -1,12 +1,20 @@
 ---
 name: release
 description: Release mechanics — semver decision from conventional commits, changelog generation, tagging and release notes for GitHub or Azure DevOps. Use for release work items or when asked to cut, prepare or tag a release.
+argument-hint: "[repo — required in poly, implied in mono]"
 ---
 
 # /sdlc:release — cut a release
 
 Releases are prepared autonomously but EXECUTED behind approval: `gh release create` /
 `az pipelines run` sit in the `ask` permission list by design.
+
+**Releases are per-repo.** Each repo versions, tags and publishes on its own cadence from its own
+history. `$ARGUMENTS` names the target repo (`/sdlc:release <repo>`); with a single repo (mono)
+it's implied. A coordinated workspace release = run the steps below **once per repo** (sequentially,
+respecting `dependsOn`: a consuming repo releases after the API it depends on), each with its own
+tag and notes — there is no shared cross-repo version. Every git/gh/az command runs with cwd =
+`workspace.root`/`<repo.path>` and that repo's `host`/`remote`/`defaultBranch`.
 
 ## 1 · Version decision (semver from conventional commits)
 

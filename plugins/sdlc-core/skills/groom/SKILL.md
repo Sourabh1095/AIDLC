@@ -20,12 +20,17 @@ priority order:
 2. **Size** unsized items (S/M/L/XL, grounded in a quick codebase look). **XL items are a
    finding**: propose a split into 2–4 children (do not create them yet — see report).
 3. **Epics** with no open children → propose decomposition (list the child stories with
-   one-line AC summaries; create only on human approval in the report step).
+   one-line AC summaries; **in poly, propose the repo for each child** and any `dependsOn`
+   ordering; create only on human approval in the report step). For epics that already have
+   children, flag any cross-repo children missing `dependsOn` sequencing.
 4. **Flags**: items blocked by a dependency (note what unblocks them), duplicates
    (near-identical titles/descriptions), stale in-progress items with no run file, bugs with
    no reproduction steps (comment asking the reporter for steps).
 5. **Priority sanity**: note mismatches (e.g. a bug in the auth path at P4) — **suggest, never
    change**: priorities are the product owner's call.
+6. **Repo routing** (poly only): items whose `repo` is unset and can't be inferred from labels →
+   propose a repo (grounded in a quick look at the candidate repos); apply on approval. An item
+   whose labels point at two repos is a split candidate — flag it.
 
 ## Autonomy boundaries
 

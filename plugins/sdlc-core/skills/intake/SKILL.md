@@ -18,9 +18,12 @@ details later; you only need enough to scope items.
 
 ## 2 · ANALYZE (dispatch Agent → sdlc-analyst, intake mode)
 
-Brief the analyst with the requirement text. It must:
+Brief the analyst with the requirement text (and, in poly, the repo registry from
+`sdlc:work-items` → *Repos & routing*). It must:
 1. **Read the codebase** enough to ground the requirement (which modules are affected, what
-   exists already, feasibility signals).
+   exists already, feasibility signals). **In poly, ground across ALL declared repos** — a single
+   requirement often spans several (an API change in `backend`, its UI in `frontend`, a
+   marketing note on `website`). Determine which repo each piece of work belongs in.
 2. **Sweep the existing backlog** — `adapter.query` across open items (all statuses except
    done) and compare against the requirement:
    - Already fully covered by an existing item → report it; nothing to create.
@@ -29,10 +32,13 @@ Brief the analyst with the requirement text. It must:
    - Overlaps an in-flight run → flag it (the new work may conflict with an open branch;
      recommend sequencing after that item lands).
 3. **Shape the work** per `sdlc:requirements` + `sdlc:planning`:
-   - One outcome, ≤ size L → a single story (or `bug`/`task`/`spike` when that's what it is).
-   - Multiple independent outcomes or > L → an epic + 2–8 INVEST child stories.
+   - One outcome, ≤ size L, in ONE repo → a single story (or `bug`/`task`/`spike`).
+   - Multiple independent outcomes, > L, **or work that spans repos** → an epic + 2–8 INVEST child
+     stories. In poly, **each child targets exactly one repo** (`repo` set) with `dependsOn`
+     capturing cross-repo order (e.g. the frontend child depends on the backend child).
    - Every story/bug gets testable AC; every item gets type, priority (ask if not inferable),
-     estimate, labels.
+     estimate, labels, and — in poly — a resolved `repo` (or, if genuinely undecidable, left null
+     for the run to resolve).
 
 ## 3 · PROPOSE (always — creation is externally visible)
 
@@ -41,12 +47,14 @@ Show the user the proposed set BEFORE creating anything:
 ```
 From your requirement I propose:
   NEW  epic  "User avatars"
-  NEW  story "Upload avatar (5MB, png/jpeg)"  [P2, M]  — 4 AC
-  NEW  story "Show avatar on profile"          [P2, S]  — 3 AC
+  NEW  story "Upload avatar (5MB, png/jpeg)"  [P2, M]  repo=backend   — 4 AC
+  NEW  story "Show avatar on profile"          [P2, S]  repo=frontend  — 3 AC  (dependsOn ↑)
   SKIP — "Image storage bucket" already covered by PROJ-87 (todo); linked as dependency
   NOTE — overlaps in-flight PROJ-91 (profile page rework): sequence after it
 Create these? [all / pick / adjust]
 ```
+
+(The `repo=` column appears only in poly; in mono it's omitted.)
 
 Apply adjustments; on approval → `adapter.create(...)` for each (epics first, then children
 with `parent` set), and `adapter.comment` on related EXISTING items about the new links.
