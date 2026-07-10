@@ -2,7 +2,7 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
-## [Unreleased]
+## [0.9.0] — 2026-07-11
 
 ### Added — local git mode (no remote required) (`sdlc`)
 
@@ -16,6 +16,8 @@ All notable changes to the Bee-Logical Claude SDLC marketplace.
   merge), `init` (detects a missing remote and proposes `local`), `status` (PR column shows
   `local-merge:<sha>`), `release` (tags locally, skips publish), the always-on git-workflow rule,
   the config schema + scaffolded template. Flip `git.mode: remote` once an origin exists.
+- Version bumps: `sdlc` 0.8.0 → **0.9.0** (minor — new feature), marketplace 0.8.0 → **0.9.0**.
+  `sdlc-ux` (0.2.1) and `sdlc-stack-web` (0.5.0) unchanged.
 
 ## [0.8.0] — 2026-07-11
 
