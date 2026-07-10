@@ -152,7 +152,8 @@ phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STO
 
 **UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
 backend/structure is in place, hand the frontend off by following `sdlc-ux:design` for this item's
-run file, passing the **scope, mode and brand** you recorded at §2. It runs narrative → research →
+run file, passing the **scope, mode and brand** you recorded at §2 — and, in poly, the **resolved
+frontend repo** (its `path` as the working dir and its `ux.renderBaseUrl` for the jury). It runs narrative → research →
 design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
 capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
 same as reviewer/QA findings.

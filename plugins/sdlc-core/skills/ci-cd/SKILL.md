@@ -6,8 +6,9 @@ user-invocable: false
 
 # CI/CD — pipelines
 
-Host from `sdlc.config.json → git.host`: github → `.github/workflows/*.yml`,
-azure-repos → `azure-pipelines.yml`. Editing these prompts a confirmation hook — expected.
+Host from the **resolved repo entry** for this run (`host`; in mono, `sdlc.config.json → git.host`):
+github → `.github/workflows/*.yml`, azure-repos → `azure-pipelines.yml`, written inside that repo
+(cwd = its path). Editing these prompts a confirmation hook — expected.
 
 ## Baseline PR pipeline (create if the project has none)
 
