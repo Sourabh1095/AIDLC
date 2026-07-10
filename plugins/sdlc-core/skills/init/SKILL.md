@@ -28,7 +28,10 @@ improvise replacement files: the permission posture and rules must be the review
 
 ## Step 2 — Pre-flight checks
 
-1. Confirm cwd is a git repository (`git rev-parse --is-inside-work-tree`). If not, ask the user whether to `git init`.
+1. Confirm cwd is a git repository (`git rev-parse --is-inside-work-tree`). If not, ask the user whether to
+   `git init`. (In **poly** the workspace-root control plane may or may not be its own git repo — that's
+   fine; what matters is that each declared repo path in Step 3 is a git repo. Verify each after Step 3 and
+   flag any that need cloning.)
 2. Check for collisions: `CLAUDE.md`, `.claude/settings.json`, `.claude/sdlc.config.json`, `backlog/`, `.sdlc/`.
    - If `CLAUDE.md` exists: do NOT overwrite. Merge — append the template's "SDLC workflow" and "Configuration" sections to the existing file.
    - If `.claude/settings.json` exists: do NOT overwrite. Show the user the template's permission posture and ask whether to merge `allow`/`deny`/`ask` arrays (union, dedupe) or skip.
@@ -40,10 +43,20 @@ Collect:
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
 2. **Project name** (human-readable).
 3. **Work-item source**: `markdown` (default) | `jira` | `ado`. If jira/ado, also collect site/org + project.
-4. **Git host**: `github` (default) | `azure-repos`. Default branch name (default `main`).
-5. **Stack** (defaults: frontend `nextjs`, backend `nestjs`, databases `postgres, mongodb`) — accept "none" for any.
-6. **Commands**: install / dev / test / lint commands (detect from package.json scripts first and propose them).
-7. **Verification cadence** — who runs code review + QA, and how often (this is the pipeline's
+4. **Workspace layout**: `mono` (default — one repo for everything) | `poly` (several git repos in this
+   workspace, e.g. backend/frontend/website/mobile). Auto-detect a likely poly setup by scanning the cwd
+   for multiple subfolders that are each git repos (`<sub>/.git`), and propose it.
+   - **mono** → collect **Git host** (`github` default | `azure-repos`) and **default branch** (`main`),
+     and the **stack** (defaults: frontend `nextjs`, backend `nestjs`, databases `postgres, mongodb`;
+     accept "none").
+   - **poly** → for EACH repo collect: `name`, `path` (relative to the workspace root), `host`, `remote`
+     (`origin`), `defaultBranch`, `role` (one-line description), `labels` (routing hints), and per-repo
+     `stack`. Frontend repos also get a `ux.renderBaseUrl` + `uiPaths`. Mark one repo `default: true`.
+     Write these to `repos[]` and set `workspace.layout: "poly"`; the top-level `git`/`stack` blocks are
+     unused in poly (leave them or drop them).
+5. **Commands**: install / dev / test / lint commands (detect from package.json scripts first and propose
+   them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.
+6. **Verification cadence** — who runs code review + QA, and how often (this is the pipeline's
    biggest recurring cost, so make it a conscious choice). Present these options and write the
    answer to `pipeline.verification`:
    - **Auto, every item** (`mode: auto`, `scope: per-item`) — thorough; reviewer + QA run before
@@ -58,12 +71,17 @@ Collect:
 
 ## Step 4 — Scaffold
 
-1. Copy the template tree into cwd (respecting the collision decisions from Step 2).
+1. Copy the template tree into cwd (the **workspace control plane**), respecting the collision decisions
+   from Step 2. In poly the control plane is the workspace root; the product repos are its subfolders.
 2. Replace placeholders in `CLAUDE.md` and `.claude/sdlc.config.json`:
    `{{PROJECT_KEY}}`, `{{PROJECT_NAME}}`, `{{STACK_SUMMARY}}`, `{{DEFAULT_BRANCH}}`,
    `{{INSTALL_CMD}}`, `{{DEV_CMD}}`, `{{TEST_CMD}}`, `{{LINT_CMD}}` — with collected values.
+   - **poly**: fill `{{WORKSPACE_FACT}}` in `CLAUDE.md` with a short repos list (name → path + role) and
+     populate `repos[]` in `sdlc.config.json` from Step 3 (the `sdlc.config.poly.example.json` shipped in
+     the template is a filled reference). **mono**: set `{{WORKSPACE_FACT}}` to empty and leave `repos: []`.
 3. If source is not markdown, you may delete `backlog/` (or keep it — it is harmless; ask the user).
-4. Ensure `.gitignore` contains `.claude/settings.local.json` (append if missing).
+4. Ensure `.gitignore` contains `.claude/settings.local.json` (append if missing). In poly, also ignore the
+   product-repo checkouts if the control plane is its own git repo, or leave each repo self-managed.
 
 ## Step 5 — Report
 

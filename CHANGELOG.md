@@ -2,6 +2,29 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [Unreleased]
+
+### Added — polyrepo (multi-repo) support (`sdlc`)
+
+- A workspace can now hold **many git repos** (e.g. `backend/`, `frontend/`, `website/`, `mobile/`),
+  not just one. **Mono is unchanged and remains the default** — an empty `repos[]` behaves exactly as
+  before, so existing projects need zero migration.
+- New config: `workspace.layout` (`mono` | `poly`) + `repos[]` (per-repo `name`, `path`, `host`,
+  `remote`, `defaultBranch`, `branchPattern`, `stack`, `labels`, optional per-repo `ux`, `default`).
+  The control plane (`.claude/`, `backlog/`, `.sdlc/`) lives at the workspace root; product repos are
+  subfolders. Ships `.claude/sdlc.config.poly.example.json` and the previously-missing
+  `docs/sdlc.config.schema.json` (validates both shapes).
+- **Orchestrator-driven routing.** You describe a requirement in plain language; the orchestrator
+  grounds it against the actual repos and routes each item to one repo (explicit `repo` → label →
+  default → ground → ask). Cross-repo features become an **epic** whose child stories each target one
+  repo, sequenced by a new `dependsOn` field; a control-plane coordination file rolls them up.
+- **Invariant: 1 run = 1 item = 1 repo = 1 branch = 1 PR** — every PR stays small and independently
+  reviewable, and each child run is atomic and resumable.
+- Repo-aware across the pipeline: `run`, `git-workflow`, `work-items` schema + all three adapters
+  (markdown/Jira/ADO map `repo` + `dependsOn`), `intake`, `groom`, `status` (unified board + Repo
+  column + epic rollup), `sprint` (worktrees per target repo), `release` (per-repo), `init` (poly
+  setup), and the `session-context` / `checkpoint` hooks (scan every repo's run dir).
+
 ## [0.7.4] — 2026-07-09
 
 ### Fixed

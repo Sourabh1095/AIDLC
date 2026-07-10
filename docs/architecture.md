@@ -59,6 +59,32 @@ invites merge conflicts and interleaved half-states; cross-item concurrency is d
 isolation in `sprint` instead. As `sprint` puts it: *parallelism multiplies mistakes too* — so the
 default is serial, and concurrency is opt-in exactly where isolation removes the risk.
 
+**D8 — One workspace, one or many repos; everything resolves to a repo entry.** A project is either
+**mono** (one git repo for everything — the default, unchanged) or **poly** (a workspace holding
+several git repos, e.g. `backend/`, `frontend/`, `website/`, `mobile/`, each with its own remote).
+The design that keeps both on one code path with zero migration:
+
+- **The config always yields a list of repo entries.** `repos[]` in `.claude/sdlc.config.json` defines
+  them in poly; in mono the resolver **synthesizes a single entry** from the legacy top-level
+  `git`/`stack`/`ux` blocks. Mono is just a one-entry registry, so every downstream consumer
+  (orchestrator, `git-workflow`, `status`, `sprint`, `release`) is written once against repo entries.
+  (Resolver spec: `sdlc:work-items` → *Repos & routing*.)
+- **The control plane is the workspace root.** `.claude/`, the shared `backlog/` and `.sdlc/` live at
+  the top; the product repos are subfolders under `workspace.root`. One backlog and one board span all
+  repos — the home for cross-repo features.
+- **The orchestrator owns routing.** The user states a requirement in plain language; the orchestrator
+  grounds it against the actual repos (their `role`/`stack`/`labels`) and routes each item to exactly one
+  repo (explicit `repo` → label → default → ground → ask). Users never hand-tag repos.
+- **Invariant: 1 run = 1 item = 1 repo = 1 branch = 1 PR.** A cross-repo feature is an **epic** whose
+  child stories each target one repo, ordered by `dependsOn`; the epic is the coordination unit (a
+  control-plane coordination file rolls up the children). Each PR stays small and independently
+  reviewable, a failure in one repo never poisons another, and every child run is atomic and resumable.
+  Per-item run files live in their repo (committed to its branch, so the PR keeps its audit trail);
+  `status` aggregates run files from the control plane and every repo.
+- **What stays per-repo:** branch/commit/push/PR (each repo's own `host`/`remote`/`defaultBranch`), the
+  design pod (each frontend repo's `renderBaseUrl`), and releases (each repo versions/tags on its own
+  cadence; a coordinated release iterates repos in `dependsOn` order).
+
 ## 2. Implemented (Phases 0–2)
 
 ### Pipeline

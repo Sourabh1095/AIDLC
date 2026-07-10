@@ -86,6 +86,28 @@ the env vars. Database servers must use **read-only** users; pipeline writes go 
    `"statusMap": { "in_review": "Code Review", "blocked": "On Hold" }`.
 4. For Azure Repos as the git host too: `git.host = "azure-repos"`.
 
+### Polyrepo: many repos in one workspace
+
+Use this when your product is split across separate git repos (e.g. `backend/`, `frontend/`,
+`website/`, `mobile/`) instead of one repo for everything. Run `/sdlc:init` in the **workspace root**
+(the "control plane") and choose the **poly** layout — or edit the config by hand:
+
+1. Set `workspace.layout: "poly"` and, if the repos live somewhere other than direct subfolders,
+   `workspace.root`.
+2. Add one entry per repo to `repos[]` — `name`, `path` (relative to `workspace.root`), `host`,
+   `remote`, `defaultBranch`, a one-line `role`, `labels` (routing hints) and per-repo `stack`; give
+   frontend repos a `ux.renderBaseUrl`; mark one repo `default: true`. A filled reference ships as
+   `.claude/sdlc.config.poly.example.json`; the shape is validated by `docs/sdlc.config.schema.json`.
+3. The control plane holds the single shared `backlog/`, `.sdlc/` board and `.claude/`; each product
+   repo is a normal git checkout under it.
+
+How it behaves: you describe a requirement in plain language and the **orchestrator** grounds it against
+the actual repos, routes each piece to the right repo, and — for anything spanning repos — creates an
+**epic** whose child stories each target one repo (sequenced by `dependsOn`). Every run stays atomic:
+**one item → one repo → one branch → one PR**, each independently reviewable. `/sdlc:status` shows a
+unified board across all repos; `/sdlc:release <repo>` cuts a per-repo release. Mono projects are
+unaffected — an empty `repos[]` behaves exactly as before.
+
 ## 5. Daily workflow
 
 1. Groom your backlog: add items to `backlog/items/` (see `backlog/README.md`) or your tracker.
@@ -107,7 +129,8 @@ then rerun `/sdlc:run <ID>` — it resumes from the recorded phase.
 Edit `.claude/sdlc.config.json`:
 
 - `workItems.source`: `markdown` | `jira` | `ado`
-- `git.host`: `github` | `azure-repos`; `git.branchPattern`
+- `git.host`: `github` | `azure-repos`; `git.branchPattern` (mono)
+- `workspace.layout` + `repos[]`: switch to **polyrepo** (see below)
 - `pipeline.maxFixCycles`, `pipeline.architectThreshold`
 - `pipeline.gates.ambiguousRequirements`: `assume-and-log` (default) | `ask-human`
   — flip to `ask-human` on lower-trust projects to pause when acceptance criteria are ambiguous.

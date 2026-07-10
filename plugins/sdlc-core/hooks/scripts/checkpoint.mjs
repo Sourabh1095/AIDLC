@@ -4,6 +4,7 @@
 //             BEFORE context is compacted (the run file must outlive the context).
 // stop:       if a run is mid-flight, surface a one-line status so the user
 //             sees where the pipeline stands.
+// Poly-aware: scans the control-plane run dir plus each declared repo's .sdlc/runs.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -16,14 +17,6 @@ try {
   /* empty */
 }
 const cwd = data.cwd || process.cwd();
-
-let runsDir;
-try {
-  runsDir = join(cwd, ".sdlc", "runs");
-  if (!existsSync(runsDir)) process.exit(0);
-} catch {
-  process.exit(0);
-}
 
 function frontmatter(file) {
   try {
@@ -40,13 +33,31 @@ function frontmatter(file) {
   }
 }
 
+// Run dirs to scan: the control plane, plus each declared repo (poly).
+function runDirs() {
+  const dirs = [join(cwd, ".sdlc", "runs")];
+  try {
+    const cfg = JSON.parse(readFileSync(join(cwd, ".claude", "sdlc.config.json"), "utf8"));
+    const root = (cfg.workspace && cfg.workspace.root) || ".";
+    for (const r of cfg.repos || [])
+      if (r && r.path) dirs.push(join(cwd, root, r.path, ".sdlc", "runs"));
+  } catch {
+    /* mono or no config → control plane only */
+  }
+  return dirs.filter((d) => existsSync(d));
+}
+
+const dirs = runDirs();
+if (!dirs.length) process.exit(0);
+
 let inflight = [];
 try {
-  inflight = readdirSync(runsDir)
-    .filter((f) => f.endsWith(".md"))
-    .map((f) => frontmatter(join(runsDir, f)))
+  const seen = new Set();
+  inflight = dirs
+    .flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".md")).map((f) => frontmatter(join(d, f))))
     .filter(Boolean)
-    .filter((r) => r.phase && !["done", "blocked"].includes(r.phase));
+    .filter((r) => r.phase && !["done", "blocked"].includes(r.phase))
+    .filter((r) => (r.item && seen.has(r.item) ? false : (seen.add(r.item), true)));
 } catch {
   process.exit(0);
 }
