@@ -2,6 +2,7 @@
 item: {{ID}}
 source: {{SOURCE}}
 type: {{TYPE}}
+repo: {{REPO}}
 branch: {{BRANCH}}
 phase: start
 fixCycles: 0

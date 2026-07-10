@@ -5,7 +5,8 @@
 ## Project facts
 - Work-item key prefix: `{{PROJECT_KEY}}` (e.g. {{PROJECT_KEY}}-123)
 - Stack: {{STACK_SUMMARY}}
-- Default branch: `{{DEFAULT_BRANCH}}` — never commit to it directly.
+- Default branch: `{{DEFAULT_BRANCH}}` — never commit to any repo's default branch directly.
+{{WORKSPACE_FACT}}
 
 ## Commands
 - Install deps: `{{INSTALL_CMD}}`

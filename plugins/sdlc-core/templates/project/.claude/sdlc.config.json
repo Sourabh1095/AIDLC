@@ -9,12 +9,16 @@
     "jira": { "site": "", "project": "", "statusMap": {} },
     "ado": { "org": "", "project": "", "statusMap": {} }
   },
+  "workspace": {
+    "layout": "mono"
+  },
   "git": {
     "host": "github",
     "defaultBranch": "main",
     "remote": "origin",
     "branchPattern": "{type}/{id}-{slug}"
   },
+  "repos": [],
   "stack": {
     "frontend": "nextjs",
     "backend": "nestjs",

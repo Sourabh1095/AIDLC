@@ -6,6 +6,8 @@ status: todo
 priority: {{PRIORITY}}
 estimate: {{ESTIMATE}}
 parent: {{PARENT}}
+repo: {{REPO}}
+dependsOn: [{{DEPENDS_ON}}]
 labels: [{{LABELS}}]
 branch: null
 pr: null

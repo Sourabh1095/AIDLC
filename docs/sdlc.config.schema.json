@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/bee-logical/claude-sdlc/main/docs/sdlc.config.schema.json",
+  "title": "SDLC project configuration",
+  "description": "Per-project configuration for the Bee-Logical Claude SDLC framework. Lives at the workspace control plane in .claude/sdlc.config.json. Supports a single repo (mono, the default) or many repos (poly).",
+  "type": "object",
+  "required": ["project", "workItems"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "$comment": { "type": "string" },
+    "project": {
+      "type": "object",
+      "required": ["key", "name"],
+      "properties": {
+        "key": { "type": "string", "description": "Uppercase work-item ID prefix, e.g. PROJ." },
+        "name": { "type": "string" }
+      }
+    },
+    "workItems": {
+      "type": "object",
+      "required": ["source"],
+      "properties": {
+        "source": { "enum": ["markdown", "jira", "ado"] },
+        "jira": { "type": "object" },
+        "ado": { "type": "object" }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "description": "Workspace topology. Absent or layout=mono → single repo (the top-level git/stack/ux blocks apply). layout=poly → the repos[] array defines each git repo; this file sits at the workspace root (control plane) and the product repos are subfolders under root.",
+      "properties": {
+        "layout": { "enum": ["mono", "poly"], "default": "mono" },
+        "root": {
+          "type": "string",
+          "default": ".",
+          "description": "Directory, relative to this config's location, under which the declared repo paths live. Usually '.'."
+        }
+      }
+    },
+    "repos": {
+      "type": "array",
+      "description": "Declared git repos. Empty (or omitted) means mono — a single repo synthesized from the top-level git/stack/ux blocks. Non-empty means poly.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "description": "Short unique id used to route items and label PRs, e.g. backend." },
+          "path": { "type": "string", "description": "Repo checkout path relative to workspace.root." },
+          "role": { "type": "string", "description": "Free-text description used as a routing hint by the orchestrator." },
+          "host": { "enum": ["github", "azure-repos"], "default": "github" },
+          "remote": { "type": "string", "default": "origin" },
+          "defaultBranch": { "type": "string", "default": "main" },
+          "branchPattern": { "type": "string", "default": "{type}/{id}-{slug}" },
+          "stack": {
+            "type": "object",
+            "properties": {
+              "frontend": { "type": ["string", "null"] },
+              "backend": { "type": ["string", "null"] },
+              "databases": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Label hints: an item labeled with any of these routes to this repo."
+          },
+          "ux": {
+            "type": "object",
+            "description": "Per-repo UX config for frontend repos (overrides the top-level ux block for this repo).",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "target": { "type": "string" },
+              "renderBaseUrl": { "type": "string" },
+              "uiPaths": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "default": { "type": "boolean", "description": "The fallback repo when routing is otherwise ambiguous. At most one repo should set this." }
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "description": "Mono-mode single-repo git settings. Ignored when repos[] is non-empty (poly).",
+      "properties": {
+        "host": { "enum": ["github", "azure-repos"] },
+        "defaultBranch": { "type": "string" },
+        "remote": { "type": "string" },
+        "branchPattern": { "type": "string" }
+      }
+    },
+    "stack": {
+      "type": "object",
+      "description": "Mono-mode stack. In poly, each repo carries its own stack.",
+      "properties": {
+        "frontend": { "type": ["string", "null"] },
+        "backend": { "type": ["string", "null"] },
+        "databases": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "properties": {
+        "autonomy": { "type": "string" },
+        "maxFixCycles": { "type": "integer" },
+        "architectThreshold": { "enum": ["S", "M", "L", "XL"] },
+        "securityReviewPaths": { "type": "array", "items": { "type": "string" } },
+        "gates": { "type": "object" },
+        "verification": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["auto", "manual", "ask"] },
+            "scope": { "enum": ["per-item", "per-epic"] },
+            "reviewer": { "type": "boolean" },
+            "qa": { "type": "boolean" },
+            "security": { "type": ["string", "boolean"] }
+          }
+        }
+      }
+    },
+    "ux": {
+      "type": "object",
+      "description": "Mono-mode / default UX config. In poly, each frontend repo may carry its own ux block."
+    },
+    "marketplace": {
+      "type": "object",
+      "properties": {
+        "repo": { "type": "string" },
+        "promotionBranchPrefix": { "type": "string" }
+      }
+    }
+  }
+}
