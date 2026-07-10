@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude SDLC
 
-**Status:** All phases (0–5) implemented · core v0.7.x · `sdlc-ux` design pod v0.2.x
+**Status:** All phases (0–5) implemented + polyrepo · core v0.8.x · `sdlc-ux` design pod v0.2.x
 
 ## 1. Core design decisions
 

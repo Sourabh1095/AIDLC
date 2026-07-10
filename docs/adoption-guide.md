@@ -130,7 +130,7 @@ Edit `.claude/sdlc.config.json`:
 
 - `workItems.source`: `markdown` | `jira` | `ado`
 - `git.host`: `github` | `azure-repos`; `git.branchPattern` (mono)
-- `workspace.layout` + `repos[]`: switch to **polyrepo** (see below)
+- `workspace.layout` + `repos[]`: switch to **polyrepo** (see §4 · *Polyrepo* above)
 - `pipeline.maxFixCycles`, `pipeline.architectThreshold`
 - `pipeline.gates.ambiguousRequirements`: `assume-and-log` (default) | `ask-human`
   — flip to `ask-human` on lower-trust projects to pause when acceptance criteria are ambiguous.

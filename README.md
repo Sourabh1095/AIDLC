@@ -11,6 +11,11 @@ fetch item → validate requirements → plan → implement → review + QA (par
 → fix cycles → push branch → open PR → update the tracker
 ```
 
+One workspace can hold **one repo or many** (e.g. `backend/`, `frontend/`, `website/`, `mobile/`):
+the orchestrator routes each item to the repo it belongs in, and a cross-repo feature becomes an
+epic whose child stories each ship as their own repo → branch → PR. Mono is the default and
+unchanged — existing projects need zero migration.
+
 Humans stay in the loop where it matters: **reviewing and merging PRs**.
 
 ## Repository layout
@@ -79,6 +84,7 @@ itself, curated.
 
 ## Status
 
-All five design phases are implemented (v0.5.0): core pipeline + quality gates, Jira/ADO/
-markdown trackers, GitHub + Azure Repos, 9 specialist agents, the web stack pack, parallel
+All five design phases are implemented, plus **polyrepo (multi-repo) support** (`sdlc` v0.8.0):
+core pipeline + quality gates, Jira/ADO/markdown trackers, GitHub + Azure Repos, mono **and**
+multi-repo workspaces, 9 specialist agents, the web stack pack, the `sdlc-ux` design pod, parallel
 sprints and the self-extension/promotion workflow. Full design: `docs/architecture.md`.

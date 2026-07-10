@@ -14,6 +14,12 @@ resuming works, and how the framework remembers everything. (Setup/installation 
   the pipeline knows about in-flight work lives there, on the item's branch.
 - **You are the merge gate.** The pipeline takes an item from backlog to an open PR without
   you; only a human merges.
+- **One repo or many.** In a **polyrepo** workspace (several git repos under one control plane),
+  the model is *one item → one repo → one branch → one PR*: the orchestrator routes each item to
+  the right repo, and a cross-repo feature is an epic whose children each target one repo. One
+  shared backlog and board span every repo — `/sdlc:status` shows a unified board with a Repo
+  column, and `/sdlc:release <repo>` cuts a per-repo release. Setup lives in `adoption-guide.md` §4.
+  Mono projects behave exactly as before.
 
 ## 2. Command cheat-sheet — which command, when
 

@@ -2,7 +2,7 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
-## [Unreleased]
+## [0.8.0] — 2026-07-11
 
 ### Added — polyrepo (multi-repo) support (`sdlc`)
 
@@ -20,10 +20,14 @@ All notable changes to the Bee-Logical Claude SDLC marketplace.
   repo, sequenced by a new `dependsOn` field; a control-plane coordination file rolls them up.
 - **Invariant: 1 run = 1 item = 1 repo = 1 branch = 1 PR** — every PR stays small and independently
   reviewable, and each child run is atomic and resumable.
-- Repo-aware across the pipeline: `run`, `git-workflow`, `work-items` schema + all three adapters
-  (markdown/Jira/ADO map `repo` + `dependsOn`), `intake`, `groom`, `status` (unified board + Repo
-  column + epic rollup), `sprint` (worktrees per target repo), `release` (per-repo), `init` (poly
-  setup), and the `session-context` / `checkpoint` hooks (scan every repo's run dir).
+- Repo-aware across the pipeline: `run`, `git-workflow`, `ci-cd` (host from the resolved repo),
+  `work-items` schema + all three adapters (markdown/Jira/ADO map `repo` + `dependsOn`), `intake`,
+  `groom`, `next` + `status` (multi-location run-file scan; unified board + Repo column + epic
+  rollup), `sprint` (worktrees per target repo), `release` (per-repo), `init` (poly setup), the
+  `sdlc-ux:design` pod (operates in the resolved frontend repo and reads its own `ux`), and the
+  `session-context` / `checkpoint` hooks (scan every repo's run dir).
+- Version bumps: `sdlc` 0.7.4 → **0.8.0** (minor — new feature), `sdlc-ux` 0.2.0 → **0.2.1**
+  (poly-aware design handoff), marketplace 0.7.4 → **0.8.0**. `sdlc-stack-web` unchanged (0.5.0).
 
 ## [0.7.4] — 2026-07-09
 
