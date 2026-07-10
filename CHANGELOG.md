@@ -2,6 +2,26 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.10.0] — 2026-07-11
+
+### Added — strict web-stack tooling baseline (`sdlc-stack-web`, `sdlc`)
+
+- `sdlc-stack-web` now ships a **deterministic quality baseline** in `templates/tooling/`:
+  `tsconfig.base.json` (strict — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, unused
+  locals/params, …), `eslint.config.mjs` (flat, type-aware: `typescript-eslint` strict-type-checked
+  + stylistic, `no-explicit-any`, `consistent-type-imports`, Prettier last), `.prettierrc.json`,
+  `.editorconfig`, `.npmrc` (`engine-strict` + `save-exact`), and a README with the exact devDeps +
+  scripts.
+- `/sdlc:init` scaffolds the baseline into every TypeScript repo (per-repo in poly; **merge-aware** —
+  never clobbers configs you already have; skips non-TS repos); `sdlc:ci-cd` runs
+  `typecheck → lint → format → build → test` as a **hard PR gate that holds even when the reviewer is
+  toggled off**. `coding-standards-ts` now states the division of labour: tools own the mechanical
+  rules, the reviewer owns judgment (validate-at-edge, state modelling, dependency choice).
+- Rationale: the coding standards were previously enforced mainly by the LLM reviewer and assumed a
+  strict project config existed. This shifts the mechanical half to tooling that runs on every commit
+  and in CI — "the code can't just work however it's written."
+- Version bumps: `sdlc-stack-web` 0.5.0 → **0.6.0**, `sdlc` 0.9.1 → **0.10.0**, marketplace → **0.10.0**.
+
 ## [0.9.1] — 2026-07-11
 
 ### Fixed
