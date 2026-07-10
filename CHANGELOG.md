@@ -2,6 +2,20 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.9.1] — 2026-07-11
+
+### Fixed
+
+- **Bash guard hook false-tripped on tokens inside commit messages (`sdlc`).** The push guard
+  flagged any command that merely contained the words `git` … `push`, so a legitimate
+  `git commit -m "…push…"` on `main` was blocked; the same class hit commit messages mentioning
+  `TRUNCATE TABLE`, `git filter-branch`, `prod`/`psql`, `id_rsa` or `rm -rf /`. The guard now
+  inspects the command being executed, not free text: quoted argument text is stripped before
+  command-identity detection, `git push` is matched as an actual subcommand, and the DB/prod/
+  credential/rm content checks are skipped for `git` segments (git runs none of those) while
+  cross-pipe `.env` exfil still scans the whole command. Adds `guard.test.mjs`, a 33-case
+  block/allow regression matrix. Version: `sdlc` 0.9.0 → **0.9.1**, marketplace → **0.9.1**.
+
 ## [0.9.0] — 2026-07-11
 
 ### Added — local git mode (no remote required) (`sdlc`)
