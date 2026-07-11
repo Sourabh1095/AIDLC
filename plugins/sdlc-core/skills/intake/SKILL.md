@@ -54,10 +54,23 @@ From your requirement I propose:
 Create these? [all / pick / adjust]
 ```
 
-(The `repo=` column appears only in poly; in mono it's omitted.)
+(The `repo=` column appears only in poly; in mono it's omitted. Every NEW item is created with the
+`unplanned` label + a provenance note — mention this once so the user knows it'll be traceable.)
 
 Apply adjustments; on approval → `adapter.create(...)` for each (epics first, then children
 with `parent` set), and `adapter.comment` on related EXISTING items about the new links.
+
+**Stamp provenance on every item intake creates** — this is what tells you, months later, *what was
+done apart from the planned backlog*:
+- add the label **`unplanned`** to each created item's `labels`, and
+- prepend a one-line note to its `description`:
+  `> Provenance: created via /sdlc:intake on <UTC date> from a direct request — "<verbatim requirement>".`
+Use the real date (system clock — `date -u` / `Get-Date`), never invented. This is
+**tracker-agnostic**: the adapter maps `labels` natively (markdown frontmatter · Jira labels · ADO
+`System.Tags`) and every adapter writes `description`, so the stamp lands the same whether the
+backlog is markdown, ADO or Jira. Stamp only the NEW items — never relabel the existing items you
+linked to. Afterwards, filtering the tracker on `unplanned` surfaces everything that entered outside
+planning.
 
 ## 4 · HAND OFF
 
@@ -71,6 +84,8 @@ into `sdlc:run` for the first ready item without re-asking.
 
 - NEVER start implementing from a raw requirement — items first, always. The audit trail
   (assumptions, AC, run files) only works if the work is tracked.
+- Stamp provenance (`unplanned` label + a `created via /sdlc:intake on <date>` description note) on
+  every item you create — the point is that request-born work stays visible and queryable afterwards.
 - Dedup honestly: creating a near-duplicate of an existing item is worse than asking.
 - Requirements that are pure bugs skip the epic question: one bug item with repro steps
   (ask for them if missing — the QA repro-first protocol depends on them).
