@@ -2,6 +2,15 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.12.1] — 2026-07-11
+
+### Changed
+
+- `sdlc-researcher` agent runs on **Opus** (was Sonnet). Spikes are high-stakes technology-selection
+  decisions that downstream stories build on; the deeper tier is worth it. Behavior/protocol
+  unchanged — it still blends codebase + Context7 + WebSearch + a scratchpad PoC and delivers a cited,
+  date-stamped decision report. Version: `sdlc` 0.12.0 → **0.12.1**, marketplace → **0.12.1**.
+
 ## [0.12.0] — 2026-07-11
 
 ### Added — dependency policy, vetted at install time (`sdlc`)
