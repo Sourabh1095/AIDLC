@@ -109,6 +109,22 @@ probe the actual board states.
 populate `statusMap` from them (mapping canonical → detected), instead of assuming defaults or leaving
 it empty. `wi-ado` self-healed at run time — but init should get it right up front.
 
+### F10 🟡 — Guidance gap: shared/base tsconfig should be strictness-only (module resolution per-repo)
+**Symptom.** The generated `@beelogical/dev-config` shared `tsconfig.base.json` set
+`moduleResolution:"node"` + `baseUrl`, which **TypeScript 6.0.3 deprecates**. Every consumer
+(`bee-auth-api`, and the siblings to come) inherits it and must patch per-repo with
+`ignoreDeprecations:"6.0"` — a workaround that won't survive a TS7 migration.
+**Root cause.** The implementer put module-resolution settings in the **shared base**. Our stack-web
+tooling-baseline *template* deliberately keeps `tsconfig.base.json` **strictness-only** (no
+`module`/`target`/`moduleResolution`/`baseUrl`) so it layers cleanly under any repo — but
+`coding-standards-ts` / `project-structure` never **state** that principle, so a hand-authored shared
+config drifted.
+**Proposed modification.** State explicitly in `coding-standards-ts` (and/or `project-structure`):
+a shared/base tsconfig is **strictness-only**; `moduleResolution`, `baseUrl`/`paths`, and `target`
+belong in each repo's own tsconfig (matching what the template already does).
+**Project-side follow-up (not plugin):** fix `bee-auth-dev-config`'s base to strictness-only and drop
+the per-repo `ignoreDeprecations` — before the siblings replicate the workaround, and before any TS7 move.
+
 ### F9 🟡 — Scaffold applied the structure *layout* but omitted the *boundary-gate config*
 **Symptom.** `bee-auth-api` (AUTH-8565) was scaffolded with the correct NestJS layout
 (`modules/`, `common/`, `config/`) and tooling (eslint/prettier/tsconfig via `@beelogical/dev-config`),
