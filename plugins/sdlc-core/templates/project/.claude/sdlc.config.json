@@ -35,10 +35,10 @@
     },
     "verification": {
       "mode": "auto",
-      "scope": "per-item",
-      "reviewer": true,
-      "qa": true,
-      "security": "risk-based"
+      "reviewer": "on-demand",
+      "qa": "on-demand",
+      "security": "per-epic",
+      "securityConfirm": true
     }
   },
   "ux": {

@@ -111,12 +111,13 @@
         "gates": { "type": "object" },
         "verification": {
           "type": "object",
+          "description": "Per-agent verification cadence — the pipeline's biggest recurring cost. Each agent runs on its own schedule so tokens are spent only where they earn it. Defaults are economical: reviewer/qa on-demand, security per-epic (confirmed). The deterministic CI gate (lint/format/typecheck/boundaries/tests) runs regardless and is the per-item floor.",
           "properties": {
-            "mode": { "enum": ["auto", "manual", "ask"] },
-            "scope": { "enum": ["per-item", "per-epic"] },
-            "reviewer": { "type": "boolean" },
-            "qa": { "type": "boolean" },
-            "security": { "type": ["string", "boolean"] }
+            "mode": { "enum": ["auto", "manual", "ask"], "default": "auto", "description": "auto: agent cadences decide. manual: skip all agents, human reviews the PR. ask: prompt per item." },
+            "reviewer": { "enum": ["off", "on-demand", "per-item", "per-epic"], "default": "on-demand", "description": "Adversarial diff review vs AC + coding standards." },
+            "qa": { "enum": ["off", "on-demand", "per-item", "per-epic"], "default": "on-demand", "description": "Full suite + missing-test authoring. (Bug repro-first still runs at implement.)" },
+            "security": { "enum": ["off", "on-demand", "per-item", "per-epic", "risk-based"], "default": "per-epic", "description": "Deep security pass. risk-based = per-item only when the diff is risky." },
+            "securityConfirm": { "type": "boolean", "default": true, "description": "Ask the user to confirm before running the security pass." }
           }
         }
       }

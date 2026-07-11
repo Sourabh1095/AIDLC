@@ -73,10 +73,11 @@ start → requirements → design → implement → verify → pr → docs → d
 3. **design** — plan written into the run file (architect agent for M+ items, with an ADR if
    the decision is hard to reverse).
 4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green.
-5. **verify** — reviewer + QA in parallel (+ security when auth paths/dependencies are
-   touched). Blocker/major findings loop back to the implementer, up to `maxFixCycles`.
-   **This phase's cadence is yours to set** — every item, once per epic, or off (you review the
-   PRs yourself). See §3b.
+5. **verify** — agent-driven review, **each on its own cadence** (`pipeline.verification`). By
+   default (economical) reviewer + QA are **on-demand** and security runs **per-epic** (confirmed),
+   so a typical item runs no LLM agent here — the deterministic CI gate (lint/type/tests/boundaries)
+   is the per-item floor. When agents do run, blocker/major findings loop back to the implementer up
+   to `maxFixCycles`. **The cadence is yours to set** — see §3b.
 6. **pr** — branch pushed, PR opened with AC checklist, assumptions, test evidence. Item → In Review.
 7. **docs** — README/CHANGELOG/API docs amended onto the PR if the change is user-visible.
 8. **done** — summary report. **You review and merge the PR.** After merge, `/sdlc:status`
@@ -120,23 +121,27 @@ honored exactly). Two ways: drop assets in `design/brand/`, or set `ux.brand` in
 design-system, motion-spec, audit, brand, and per-round jury reports) and are committed to the
 branch — so the reasoning and every score are auditable in the PR.
 
-### 3b. Who verifies, and how often (controlling the review/QA cost)
+### 3b. Who verifies, and how often (controlling the review/QA/security cost)
 
-The reviewer + QA agents are the pipeline's biggest recurring token/time cost. Whether SDLC spends
-that on every item, or you review the work yourself, is a setting — `pipeline.verification` in
-`.claude/sdlc.config.json` (you're also asked at `/sdlc:init`):
+The reviewer, QA and security agents are the pipeline's biggest recurring token/time cost, so **each
+has its own cadence** in `pipeline.verification` (`.claude/sdlc.config.json`; you're also asked at
+`/sdlc:init`). Cadence values per agent: `off` · `on-demand` (runs only when you ask on a run) ·
+`per-item` · `per-epic` (deferred to the epic's consolidated pass); `security` also takes
+`risk-based` (per-item, only on risky diffs). Whatever you pick, the **deterministic CI gate**
+(lint/format/typecheck/boundaries/tests) always runs — that's the per-item floor.
 
-| `mode` / `scope` | What happens | Cost |
+Common profiles:
+
+| Profile | reviewer / qa / security | Cost |
 |---|---|---|
-| `auto` / `per-item` (default) | reviewer + QA run before every PR; blocker/major findings loop back | highest, thorough |
-| `auto` / `per-epic` | child items skip per-item review; one consolidated pass when the epic's children are all done (run `/sdlc:run <EPIC-ID>`) | medium |
-| `manual` | SDLC skips the review/QA agents, builds, and **opens the PR for you to review**; the run ends at `review-pending` | lowest |
-| `ask` | the pipeline asks you per item which to do | — |
+| **Economical (default)** | `on-demand` / `on-demand` / `per-epic` (+`securityConfirm`) | lowest — no LLM agent per item; you invoke reviewer/QA when wanted; security once per epic, after you confirm |
+| **Balanced** | `per-item` / `on-demand` / `risk-based` | medium — AC/standards review every PR; QA on demand; security auto on risky diffs |
+| **Thorough** | `per-item` / `per-item` / `per-item` | highest — every item fully reviewed before PR |
+| **Manual** (`mode: manual`) | all skipped | you review the PR yourself; run ends at `review-pending` |
 
-Fine-grained toggles in the same block: `reviewer` (adversarial code review), `qa` (full suite +
-missing tests), `security` (`risk-based` deep pass on auth/dep changes, or `off`). So you can, e.g.,
-keep the fast code review on but turn the heavier QA test-authoring off: `"reviewer": true,
-"qa": false`.
+On-demand reviewer/QA is delivered by re-running the item and asking (e.g. "run a code review /
+QA on PROJ-123"). `security: per-epic` runs when you run the epic (`/sdlc:run <EPIC-ID>`) once its
+children are done — and asks before it spends the tokens (`securityConfirm: true`).
 
 **Important:** regardless of mode, the implementer still runs the project's own lint + tests to green
 before any PR — `manual` skips the *extra agent* review, not basic build health. And in every mode

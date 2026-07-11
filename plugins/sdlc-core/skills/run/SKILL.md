@@ -53,7 +53,7 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5); comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — `verification.scope: per-epic`:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated auto-verify pass (reviewer + QA per the toggles) over the epic's combined changes, then report — this is where deferred per-item verification is paid, once, for the whole feature. |
+| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5); comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature; then report. |
 
 ### UI detection (decide here, not later)
 
@@ -163,52 +163,57 @@ same as reviewer/QA findings.
 
 Phase → `verify`. Checkpoint.
 
-## 7 · VERIFY (user controls the cadence)
+## 7 · VERIFY (per-agent cadence — the pipeline's biggest cost, tuned)
 
-Read `pipeline.verification` (defaults: `mode` `auto`, `scope` `per-item`, `reviewer` true,
-`qa` true, `security` `risk-based`). The implementer has already run the project's lint + tests
-green before finishing — this phase is the *extra* agent-driven review/QA on top of that, and it's
-the biggest recurring cost, so who pays for it is the user's choice.
+Read `pipeline.verification`. Defaults are **economical**: `mode` `auto`; `reviewer` `on-demand`;
+`qa` `on-demand`; `security` `per-epic`; `securityConfirm` true. This is the *extra*, agent-driven
+review — and it never runs over nothing: the implementer already ran lint + typecheck + tests green,
+and CI re-runs them as a hard gate, so per-item quality always has that floor. Each agent carries its
+own **cadence** so tokens are spent only where they earn it.
 
-**Resolve the effective mode first:**
-- `ask` → present the choice to the user for THIS item (AskUserQuestion where available): run full
-  auto verification, run only one of reviewer/QA, or hand it to them (manual). Use their answer as
-  the mode below; record it in `## Log`. (Only `ask` mode ever interrupts — `auto`/`manual` run
-  unattended.)
-- `scope: per-epic` AND this item has a `parent` epic → **defer**: skip the agent passes here, add
-  `- verify deferred to epic {parent}` to `## Log`, and go to §8. The consolidated pass runs when
-  the epic itself is run (see §2 epic note). (`per-item` verifies every item — the default.)
+**Cadence values** (per agent): `per-item` (every item) · `per-epic` (defer to the epic's
+consolidated pass, §2) · `on-demand` (run ONLY when this run was explicitly asked — the user's prompt
+requested review/QA/security, or `## Findings` carries user-supplied issues to re-verify) · `off`.
+`security` also takes `risk-based` (per-item, only when the diff is risky).
 
-**Mode = `manual`** (the user reviews it themselves):
-Skip all verify agents. Add `[NOTE] verification: manual — no automated review/QA ran; human review
-is the gate` to `## Findings`. Go to §8, then §9 (docs), then set phase `review-pending` and
-STOP with a ≤6-line message: item, branch, and — **remote mode:** PR URL + "review the PR … merge
-when satisfied"; **local mode:** "review the branch (`git diff <default>...<branch>`), then re-run
-`/sdlc:run {ID}` to integrate it locally (or merge yourself)". In both: "to have issues fixed, run
-`/sdlc:run {ID}` and describe them (or add them under `## Findings`)." On a later resume with
-user-supplied findings, run them through the fix-cycle loop below (implementer → push update, or the
-local re-verify, → back to `review-pending`). Never auto-merge (remote) / never merge without
-confirmation (local).
+**Mode gate first:**
+- `manual` → skip all agents; go to the manual/parking block below.
+- `ask` → prompt the user which agents to run for THIS item (AskUserQuestion); use the answer as this
+  item's cadence, record it in `## Log`. (Only `ask`/a security-confirm interrupt; `auto` is unattended.)
+- `auto` → each agent's cadence decides:
 
-**Mode = `auto`** (SDLC verifies): dispatch in ONE parallel batch, honoring the toggles:
-- **Agent → sdlc-reviewer** — only if `verification.reviewer` (adversarial diff review vs AC +
-  standards per `sdlc:code-review`; findings to `## Findings`).
-- **Agent → sdlc-qa** — only if `verification.qa` (run full suite, add missing tests per
-  `sdlc:testing`; findings appended).
-- **Agent → sdlc-security** — only if `verification.security` is `risk-based` AND (diff overlaps
-  `pipeline.securityReviewPaths` OR manifests/lockfiles changed OR item labeled `security`). Deep
-  pass per `sdlc:security`. (Set `security: off` to disable — but if a risky diff ships without it,
-  add a `[NOTE] security review skipped on a risky change` to `## Findings` so a human sees it.)
-- If BOTH `reviewer` and `qa` are false and security doesn't trigger, there's nothing to run —
-  treat as manual (note it) and go to §8.
+  - **sdlc-reviewer** — runs if `reviewer` is `per-item`, or `on-demand` and this run requested it
+    (adversarial diff review vs AC + standards per `sdlc:code-review`).
+  - **sdlc-qa** — runs if `qa` is `per-item`, or `on-demand` and requested (full suite + missing
+    tests per `sdlc:testing`). Bugs still got their failing-repro test at §6 regardless — that's the
+    debugging protocol, not this pass.
+  - **sdlc-security** — runs if `security` is `per-item`, or `risk-based` AND the diff is risky
+    (overlaps `securityReviewPaths` / manifests-lockfiles changed / item labeled `security`), or
+    `on-demand` and requested. **If it is due AND `securityConfirm`, ASK the user to confirm before
+    dispatching**; on decline, add `[NOTE] security review declined` to `## Findings` and continue.
+  - **Deferred (`per-epic`)** agents don't run here — log `- <agent> deferred to epic {parent}` and
+    they run at epic consolidation (§2). An item with no parent epic whose only due check is per-epic:
+    offer the confirmed pass at its own completion, else note it deferred.
+  - **Nothing due** (the default per-item case — reviewer/qa on-demand, security per-epic): add
+    `[NOTE] no automated verification this item (cadence) — CI gate + human PR review are the gate`
+    to `## Findings` and go to §8. This is expected, not a failure.
 
-Then (auto mode):
-1. No `BLOCKER`/`MAJOR` findings open → phase `pr`, go to §8.
-2. Open blockers/majors AND `fixCycles < pipeline.maxFixCycles` → increment `fixCycles`,
-   dispatch **sdlc-implementer** with ONLY the open findings, then re-run this VERIFY phase
-   (re-dispatch only the enabled agents, scoped to the fixes).
-3. Still failing at max cycles → phase `blocked`, `adapter.comment` with open findings summary,
-   notify the user, STOP. (Do not thrash — this is a hard stop.)
+Dispatch the due agents in ONE parallel batch. Then:
+1. No open `BLOCKER`/`MAJOR` → phase `pr`, go to §8.
+2. Open blockers/majors AND `fixCycles < pipeline.maxFixCycles` → increment `fixCycles`, dispatch
+   **sdlc-implementer** with ONLY the open findings, re-run this phase (re-dispatch only the agents
+   that ran, scoped to the fixes).
+3. Still failing at max cycles → phase `blocked`, `adapter.comment` with open findings, notify, STOP.
+
+**Manual / nothing-runs parking** (`mode: manual`, or the user wants to review it themselves):
+Skip agents, add `[NOTE] verification: manual — human review is the gate` to `## Findings`, go to §8
+then §9, set phase `review-pending` and STOP with a ≤6-line message — **remote:** PR URL + "review
+the PR … merge when satisfied"; **local:** "review the branch (`git diff <default>...<branch>`), then
+re-run `/sdlc:run {ID}` to integrate (or merge yourself)". Either way: "to have issues fixed — or to
+run reviewer/QA on demand — re-run `/sdlc:run {ID}` and ask (or add issues under `## Findings`)." On a
+later resume with user-supplied findings, run the fix-cycle loop. Never auto-merge (remote) / never
+merge without confirmation (local). **This is also how on-demand review/QA is delivered:** re-run and
+request it.
 
 ## 8 · INTEGRATE (PR in remote mode; local merge in local mode)
 

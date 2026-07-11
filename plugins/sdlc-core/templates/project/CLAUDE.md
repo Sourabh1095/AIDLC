@@ -17,7 +17,9 @@
 ## SDLC workflow (mandatory)
 - All work items (epics, stories, tasks, bugs) are managed through the `/sdlc:*` commands.
   Never edit backlog item status by hand — use the pipeline, it keeps tracker + run state in sync.
-- `/sdlc:run <ID>` — take one work item end-to-end (branch → implement → review → QA → PR).
+- `/sdlc:run <ID>` — take one work item end-to-end (branch → implement → verify → PR). Verification
+  cadence is configurable (`pipeline.verification`); by default reviewer/QA are on-demand and security
+  runs per-epic, with the CI gate (lint/type/tests/boundaries) as the per-item floor.
 - `/sdlc:next` — pick the highest-priority ready item and run it.
 - `/sdlc:status` — dashboard of active runs and backlog.
 - Pipeline state lives in `.sdlc/runs/<ID>.md` — treat those files as the source of truth for in-flight work.

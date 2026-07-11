@@ -65,18 +65,20 @@ Collect:
      skeleton scaffolded in Step 4.
 5. **Commands**: install / dev / test / lint commands (detect from package.json scripts first and propose
    them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.
-6. **Verification cadence** — who runs code review + QA, and how often (this is the pipeline's
-   biggest recurring cost, so make it a conscious choice). Present these options and write the
-   answer to `pipeline.verification`:
-   - **Auto, every item** (`mode: auto`, `scope: per-item`) — thorough; reviewer + QA run before
-     every PR. Default, highest quality, highest cost.
-   - **Auto, once per epic** (`mode: auto`, `scope: per-epic`) — child items skip per-item review;
-     one consolidated pass when the epic's children are all done. Cheaper for large features.
-   - **Manual — I review the PRs** (`mode: manual`) — SDLC skips the review/QA agents and opens the
-     PR for you to review yourself; you feed back any issues by rerunning `/sdlc:run <ID>`. Cheapest.
-   - **Ask me each time** (`mode: ask`) — the pipeline prompts per item.
-   Also mention they can fine-tune `reviewer` / `qa` / `security` booleans in the config later
-   (e.g. keep the fast code review but drop the full QA test pass).
+6. **Verification cadence** — the pipeline's biggest recurring cost, so make it a conscious choice.
+   Each agent (reviewer, QA, security) gets its own cadence in `pipeline.verification`. Note that the
+   deterministic CI gate (lint/format/typecheck/boundaries/tests) always runs regardless, so per-item
+   quality has a floor either way. Offer these profiles:
+   - **Economical (default)** — `reviewer: on-demand`, `qa: on-demand`, `security: per-epic`,
+     `securityConfirm: true`. No LLM agent runs per item; you invoke reviewer/QA when you want them,
+     security runs once per epic after you confirm. Lowest cost; leans on the CI gate + your PR review.
+   - **Balanced** — `reviewer: per-item`, `qa: on-demand`, `security: risk-based`. Every PR gets an
+     AC/standards review; QA on demand; security auto-runs only on risky diffs.
+   - **Thorough** — `reviewer`/`qa`/`security` all `per-item`. Every item fully reviewed before PR.
+     Highest quality, highest cost.
+   - **Manual** — `mode: manual`. Skip all agents; review the PR yourself, feed issues back via `/sdlc:run <ID>`.
+   Cadence values per agent: `off | on-demand | per-item | per-epic` (security also `risk-based`);
+   they can hand-tune any agent later.
 
 ## Step 4 — Scaffold
 
