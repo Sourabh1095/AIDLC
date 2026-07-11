@@ -2,6 +2,24 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.12.0] — 2026-07-11
+
+### Added — dependency policy, vetted at install time (`sdlc`)
+
+- New `dep-vet` PreToolUse hook gates package-ADD commands (`npm i <pkg>`, `npm install <pkg>`,
+  `pnpm|yarn|bun add …`) and asks the operator to vet the package **before** it's installed and coded
+  against — so a bad/stale/incompatible choice is caught early, not reworked in verify. Bare lockfile
+  installs (`npm ci`, `npm install`, `pnpm i`) and `npm run` scripts are untouched. Ships
+  `dep-vet.test.mjs` (21-case detection matrix).
+- `sdlc:security` §4 is now the canonical **Dependency policy** — deliberately *not* an allow-list
+  (that would handcuff projects): any package is fine if it clears three tests — **safe** (maintained,
+  no typosquat, clean license/scripts, no open CVEs), **latest stable** (current stable version,
+  verified via Context7/registry, no prereleases), and **compatible** (satisfies peerDependencies +
+  `engines`; never `--legacy-peer-deps`/`--force` to silence a peer conflict). `coding-standards-ts`
+  (add-time) and `maintenance` (bump-time) cross-link it.
+- Version bumps: `sdlc` 0.11.0 → **0.12.0**, marketplace → **0.12.0**, `sdlc-stack-web` 0.7.0 →
+  **0.7.1** (coding-standards pointer). `sdlc-ux` (0.2.1) unchanged.
+
 ## [0.11.0] — 2026-07-11
 
 ### Added — enterprise project structure, scaffolded + boundary-gated (`sdlc-stack-web`, `sdlc`)

@@ -2,7 +2,7 @@
   "name": "sdlc",
   "displayName": "SDLC Core",
   "description": "AI-driven SDLC orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — end to end.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "author": {
     "name": "Bee-Logical",
     "email": "sourabh@bee-logical.com"
