@@ -40,6 +40,11 @@ and the backlog authored this as a single story.
 - Formalize the run-time "story spans repos → decompose" path the orchestrator improvised (the three
   options it offered — decompose-and-run / decompose-defer / single-repo-subset) so it's consistent
   and documented in `sdlc:run` §2.5.
+- **ADO hierarchy constraint (seen live):** ADO forbids Story→Story parenting, so decomposing a
+  cross-repo *Story* yields child **Tasks** under it (parent Story becomes an umbrella —
+  non-idiomatic). Prefer decomposing cross-repo work at the **Feature** level (Feature → per-repo
+  Stories) so each repo unit is a proper Story. (8416 → child Tasks 8564–8570.) Note: running the
+  scaffolds as Tasks is fine functionally (task = slim variant, right for scaffolding).
 
 **Positive note.** The orchestrator *catching* this and offering the canonical fix is the v0.8.0
 poly logic working as designed — the gap is authoring guidance + a first-class story-level split.
@@ -93,6 +98,25 @@ be present in the shell that **launches** Claude Code is a sharp, undocumented e
 **Proposed modification.** init should normalize the control-plane branch to the configured default
 (`git init -b main` / `git symbolic-ref`), or explicitly note the mismatch.
 
+### F7 🟠 — ADO `statusMap` assumed standard Agile states; this board is customized
+**Symptom.** `/sdlc:init` left `workItems.ado.statusMap` empty (and the recommended defaults —
+`in_progress→Active`, `in_review→Resolved` — were wrong). This project's board uses **customized**
+states: *Development in Progress / Ready for QA / Closed* (no Active/Resolved). The pipeline detected
+the real states and fixed the map at run time.
+**Root cause.** The default ADO status map assumes an out-of-the-box Agile process; init doesn't
+probe the actual board states.
+**Proposed modification.** init (ADO) should **query the project's real workflow states** and
+populate `statusMap` from them (mapping canonical → detected), instead of assuming defaults or leaving
+it empty. `wi-ado` self-healed at run time — but init should get it right up front.
+
+### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
+**Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
+so routing is deferred to run time.
+**Root cause.** Poly routing resolves to a `repos[]` entry; genuinely workspace-level work (README,
+cross-repo docs) has no such target.
+**Proposed modification.** Recognize a first-class **`control-plane`** routing target in `sdlc:run`
+§2.5 for workspace-level items, so they resolve deterministically instead of ad-hoc.
+
 ---
 
 ## Validated — working as designed (no change needed)
@@ -117,3 +141,7 @@ be present in the shell that **launches** Claude Code is a sharp, undocumented e
 
 ## Append log
 - 2026-07-11 — initial findings F1–F6 from `/sdlc:init` + first `/sdlc:run 8416` on the poly ADO setup.
+- 2026-07-11 — F1 & F2 confirmed live during 8416 decomposition: orchestrator prompted for the
+  cross-repo split (F1) and asked where the undeclared `bee-auth-dev-config` should live (F2 → new
+  repo). Added F7 (ADO statusMap auto-detect), F8 (control-plane routing target), and an F1 note on
+  the ADO Story→Story hierarchy constraint (children became Tasks 8564–8570).
