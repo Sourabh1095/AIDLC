@@ -5,14 +5,14 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AI-driven SDLC framework for all projects.",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "plugins": [
     {
       "name": "sdlc",
       "source": "./plugins/sdlc-core",
       "displayName": "SDLC Core",
       "description": "AI-driven SDLC orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — across one repo or a multi-repo workspace, with or without a git remote, end to end.",
-      "version": "0.12.1",
+      "version": "0.12.2",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["sdlc", "orchestration", "agile", "automation"],

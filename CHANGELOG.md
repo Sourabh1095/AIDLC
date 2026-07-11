@@ -2,6 +2,17 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.12.2] — 2026-07-11
+
+### Added
+
+- `sdlc:intake` now stamps **provenance** on every item it creates — an `unplanned` label plus a
+  `Provenance: created via /sdlc:intake on <date> — "<ask>"` note in the description — so
+  request-born work (asked for directly, outside the planned backlog) stays queryable later. It's
+  tracker-agnostic via the adapter contract: the label maps to markdown frontmatter, Jira labels or
+  ADO `System.Tags` identically, and the note goes in `description` everywhere. Filter on `unplanned`
+  to see everything that entered outside planning. Version: `sdlc` 0.12.1 → **0.12.2**, marketplace → **0.12.2**.
+
 ## [0.12.1] — 2026-07-11
 
 ### Changed
