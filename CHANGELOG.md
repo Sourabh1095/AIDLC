@@ -2,6 +2,25 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.13.0] — 2026-07-11
+
+### Changed — per-agent verification cadence; economical defaults (`sdlc`)
+
+- `pipeline.verification` moves from a global `mode`/`scope` + on/off toggles to **per-agent
+  cadence**: `reviewer`, `qa` and `security` each take `off | on-demand | per-item | per-epic`
+  (security also `risk-based`), plus `securityConfirm`. The old global `scope` field is removed
+  (folded into per-agent cadence).
+- **New defaults are economical** — `reviewer: on-demand`, `qa: on-demand`, `security: per-epic`
+  (`securityConfirm: true`). A typical item now runs **no LLM verification agent**: you invoke
+  reviewer/QA on demand (re-run and ask), and security runs once per epic **after you confirm**. The
+  deterministic CI gate (lint/format/typecheck/boundaries/tests) + the implementer's own test run are
+  the per-item floor, and the bug failing-repro-test still runs at implement. (Previous default:
+  reviewer + QA on every item + risk-based security — thorough, but the biggest recurring token/time cost.)
+- Wired through `run` §7 (verify) and §2 (epic consolidation runs the per-epic agents; security
+  confirmed), the config schema, both scaffolded configs, `init` (Economical / Balanced / Thorough /
+  Manual profiles) and the user guide. Teams wanting the old behavior set all three to `per-item`.
+- Version: `sdlc` 0.12.2 → **0.13.0**, marketplace → **0.13.0**.
+
 ## [0.12.2] — 2026-07-11
 
 ### Added
