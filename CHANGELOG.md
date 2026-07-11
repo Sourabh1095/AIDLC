@@ -2,6 +2,18 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.13.1] — 2026-07-11
+
+### Added
+
+- **ADO Feature handling in `wi-ado` (`sdlc`).** Azure DevOps nests Epic → Feature → User Story →
+  Task/Bug, but the canonical schema has no `feature` tier. The adapter now maps **both Epic and
+  Feature → canonical `epic`** (decomposable parents), preserving the real ADO type in
+  `sourceRaw.adoType` so writes never convert one into the other. `query` excludes Features as well
+  as Epics from ready work; decomposition creates User Story children parented under the Feature
+  (or under an Epic per the project's convention). Previously a Feature could surface in ready-work
+  queries and fail to classify. Version: `sdlc` 0.13.0 → **0.13.1**, marketplace → **0.13.1**.
+
 ## [0.13.0] — 2026-07-11
 
 ### Changed — per-agent verification cadence; economical defaults (`sdlc`)

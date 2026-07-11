@@ -29,7 +29,7 @@ or via artifact links (below).
 
 | WorkItem | ADO field |
 |---|---|
-| `type` | Epic→epic · User Story (Agile) / Product Backlog Item (Scrum)→story · Task→task · Bug→bug · spike = Task/Story tagged `spike`. Detect the process (Agile vs Scrum) from an existing item's type before creating. |
+| `type` | **Epic and Feature → `epic`** (both are decomposable parents; the actual ADO type is preserved in `sourceRaw.adoType`, so writes never convert one into the other) · User Story (Agile) / Product Backlog Item (Scrum)→story · Task→task · Bug→bug · spike = Task/Story tagged `spike`. Detect the process (Agile vs Scrum) from an existing item's type before creating. |
 | `title` / `description` | System.Title / System.Description (HTML → markdown on read, markdown → HTML on write) |
 | `acceptanceCriteria` | Microsoft.VSTS.Common.AcceptanceCriteria (HTML checklist) — the field exists on stories/PBIs and bugs |
 | `status` | System.State via statusMap (below) |
@@ -41,9 +41,23 @@ or via artifact links (below).
 | `labels` | System.Tags (semicolon-separated) |
 | `links.url` | `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}` |
 
+## Hierarchy — Epic → Feature → Story
+
+ADO nests **Epic → Feature → User Story → Task/Bug**. The canonical schema has no `feature` tier, so
+**both Epic and Feature map to canonical `epic`**: the orchestrator runs them through the epic variant
+(decompose into child stories — `sdlc:run` §2), and `sourceRaw.adoType` records which it actually is.
+When decomposing:
+- a **Feature** → create **User Story** children parented under it (natural ADO nesting);
+- an **Epic** → ADO's strict Agile hierarchy expects a Feature in between. Prefer creating a Feature
+  and the stories under it; if the project parents stories directly under Epics (many do), do that and
+  note the choice. **Never change the parent's own type** — read/write it via `sourceRaw.adoType`.
+
+`query` never returns Epics or Features as *ready work* — parents decompose, they don't run.
+
 ## Status map
 
-Canonical → ADO defaults; override in `workItems.ado.statusMap`. Detect the process first:
+Canonical → ADO defaults; override in `workItems.ado.statusMap`. Detect the process first
+(Epic/Feature use the same state names as User Story — New/Active/Resolved/Closed in Agile):
 
 | canonical | Agile (User Story) | Scrum (PBI) | Bug/Task |
 |---|---|---|---|
@@ -60,9 +74,9 @@ legal intermediate state; if still rejected, apply the tag fallback and comment 
 
 - **fetch(id)** — `az boards work-item show --id {n} --expand relations -o json` (or MCP equivalent); map as above.
 - **query(filter)** — WIQL:
-  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ('New','To Do','Approved') AND [System.WorkItemType] <> 'Epic' ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
+  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ('New','To Do','Approved') AND [System.WorkItemType] NOT IN ('Epic','Feature') ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
   via `az boards query --wiql "..."`, then fetch + map the first `limit + few` and apply the "ready" rule client-side.
-- **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
+- **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`. A canonical `epic` creates an ADO **Epic** by default; when decomposing a fetched **Feature**, create its children as **User Story** parented under it (see *Hierarchy*) — don't recreate the parent. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
 - **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above).
 - **comment(id, markdown)** — `az boards work-item update --id {n} --discussion "SDLC: ..."` (HTML allowed; keep it simple).
 - **link(id, {branch, pr})** — best effort artifact link (`az repos` / MCP); reliable fallback that ALWAYS runs: a discussion comment with the branch name and PR URL. Commits referencing `#<id>` also auto-link.
