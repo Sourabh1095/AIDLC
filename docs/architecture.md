@@ -127,7 +127,8 @@ Commands: `run`, `next`, `status`, `init`, `groom`, `release`. Infrastructure: `
 
 ### Hooks (Node, cross-platform)
 
-`guard.mjs` (PreToolUse Bash) · `protect-paths.mjs` (PreToolUse Edit/Write) · `format.mjs`
+`guard.mjs` (PreToolUse Bash) · `dep-vet.mjs` (PreToolUse Bash — gates package-add commands to vet
+the dependency before install) · `protect-paths.mjs` (PreToolUse Edit/Write) · `format.mjs`
 (PostToolUse) · `session-context.mjs` (SessionStart) · `checkpoint.mjs` (PreCompact + Stop).
 
 ### Phase 3 — Real trackers + Azure ✅ (v0.3.0)

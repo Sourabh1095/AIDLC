@@ -29,11 +29,27 @@ Patterns to grep the diff for: `password|secret|token|apikey|api_key|BEGIN.*PRIV
 base64 blobs in config, connection strings. Also: PII in new log lines; stack traces/internal
 errors returned to clients; overly informative auth failures ("no such user").
 
-## 4 · Dependency audit (manifests/lockfiles changed)
+## 4 · Dependency policy (vet BEFORE you install)
 
-1. `npm audit --omit=dev --json` (or pnpm/yarn equivalent) — evaluate NEW findings vs the default branch, not the whole backlog of known ones.
-2. New packages: weekly downloads + last publish + repo activity (typosquat check: exact name vs the popular one), `preinstall/postinstall` scripts, license.
-3. Critical CVE in a newly added direct dependency = BLOCKER; new advisory in a transitive dep = MAJOR with the upgrade path named.
+A new dependency is a supply-chain, freshness and compatibility decision — vet it *at the moment you
+reach for it*, before any code is built on top of it. Rejecting a bad choice here is cheap;
+discovering it in verify, after code depends on it, is rework. The `dep-vet` PreToolUse hook gates
+`npm i <pkg>` / `pnpm|yarn|bun add …` to force this pause. This is not an allow-list — any package is
+fine if it passes all three tests. Verify real facts via Context7/registry, never memory:
+
+1. **Safe** — maintained (recent publish + real repo activity), exact name (typosquat check vs the
+   popular package), sane license, no suspicious `pre/postinstall` scripts, clean of open CVEs
+   (`npm audit --omit=dev --json` — evaluate NEW findings vs the default branch). Critical CVE in a
+   newly added direct dep = BLOCKER; new advisory in a transitive dep = MAJOR with the upgrade path named.
+2. **Latest stable** — take the current stable release (not a stale major, not an alpha/beta/rc/next
+   tag). If you must hold an older version, record why. A direct dep already >1 major behind is tech debt.
+3. **Compatible** — the chosen version satisfies the `peerDependencies` and `engines` of the project's
+   stack (framework major, Node version) and of the packages it interoperates with. Resolve peer
+   conflicts properly — NEVER `--legacy-peer-deps`/`--force` to silence one; `npm ci` failing on peers
+   is the signal to fix the graph, not override it.
+
+Same three tests apply when *bumping* a dependency — ongoing freshness/compat over time is
+`sdlc:maintenance` (`npm outdated`, risk-tiered).
 
 ## 5 · Config regressions
 

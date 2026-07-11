@@ -15,7 +15,8 @@ user-invocable: false
    `chore(deps): <scope> <from>→<to>` with notable changes in the body.
 3. A major with breaking API usage in the repo = its own plan tasks (grep usage sites first;
    count them before promising the update in one run).
-4. Security advisories jump the queue: see `sdlc:security` §dependency audit.
+4. Every bump still meets the safe · latest-stable · compatible bar — `sdlc:security` →
+   *Dependency policy*; security advisories jump the queue.
 5. Never mix dependency updates with feature work in one branch.
 
 ## Deprecation sweeps

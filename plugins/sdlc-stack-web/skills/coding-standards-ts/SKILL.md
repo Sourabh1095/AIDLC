@@ -63,3 +63,6 @@ A repo with no baseline yet → note it and prefer scaffolding the baseline over
 - Dates: never `new Date()` arithmetic scattered around — the project's date util (or
   `Temporal`/date-fns per project); always store/transport UTC ISO-8601.
 - Magic values get named constants when used twice or non-obvious once.
+- Adding a dependency? Vet it FIRST — safe · latest-stable · peer-compatible — per `sdlc:security`
+  → *Dependency policy*, then pin it. The `dep-vet` hook prompts at install time; do the check then,
+  not after code depends on it. Prefer what the project/stdlib already provides over a new dep.
