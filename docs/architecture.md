@@ -114,7 +114,7 @@ verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) �
 | `sdlc-security` | input→sink tracing, authz, dependency audit (conditional trigger) | adversarial depth, read-only surface | opus |
 | `sdlc-devops` | docker/CI/release items, red-check diagnosis | different tool domain | sonnet |
 | `sdlc-docwriter` | README/CHANGELOG/API docs on the PR branch | mechanical, cheap | haiku |
-| `sdlc-researcher` | spikes → cited decision reports | web-heavy exploration context | sonnet |
+| `sdlc-researcher` | spikes → cited decision reports | web-heavy exploration + high-stakes tech-selection judgment | opus |
 
 ### Skills
 
