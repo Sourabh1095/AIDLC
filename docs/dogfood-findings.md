@@ -131,6 +131,13 @@ cross-repo docs) has no such target.
   orchestrator correctly detected cross-repo scope (see F1).
 - ✅ **ADO connectivity via `az` fallback:** full board (150 items, 7-epic rollup) rendered once the
   launch environment was fixed.
+- ✅ **Dependency policy (v0.12.0) — verified live against the npm registry (2026-07-12):** the
+  `bee-auth-dev-config` scaffold (AUTH-8564) pinned current, mutually-compatible versions — eslint
+  10.7.0, @eslint/js 10.0.1, typescript-eslint 8.63.0, @types/node 26.1.1, prettier 3.9.5,
+  eslint-config-prettier 10.1.8 — and, crucially, TypeScript **6.0.3 instead of the latest 7.0.2**,
+  because `typescript-eslint@8.63` caps TS at `<6.1.0` and no tseslint 9 exists yet. "Latest stable
+  **and** compatible" worked, including the non-obvious compat call. (Note to self: verify versions
+  against the registry, not training memory — nearly logged a false finding here.)
 
 ## Out of scope (not plugin issues — noted for the record)
 - Backlog push created **150 of 165** planned items (~3 stories + 12 tasks short) — a limitation of
@@ -145,3 +152,6 @@ cross-repo docs) has no such target.
   cross-repo split (F1) and asked where the undeclared `bee-auth-dev-config` should live (F2 → new
   repo). Added F7 (ADO statusMap auto-detect), F8 (control-plane routing target), and an F1 note on
   the ADO Story→Story hierarchy constraint (children became Tasks 8564–8570).
+- 2026-07-12 — AUTH-8564 (dev-config) scaffolded + locally merged. Reviewed its package.json;
+  registry-verified all versions → dependency policy produced current + compatible pins (see
+  Validated). No finding.
