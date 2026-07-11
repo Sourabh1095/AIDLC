@@ -109,6 +109,19 @@ probe the actual board states.
 populate `statusMap` from them (mapping canonical → detected), instead of assuming defaults or leaving
 it empty. `wi-ado` self-healed at run time — but init should get it right up front.
 
+### F9 🟡 — Scaffold applied the structure *layout* but omitted the *boundary-gate config*
+**Symptom.** `bee-auth-api` (AUTH-8565) was scaffolded with the correct NestJS layout
+(`modules/`, `common/`, `config/`) and tooling (eslint/prettier/tsconfig via `@beelogical/dev-config`),
+but **no `.dependency-cruiser.cjs`** — so the `project-structure` boundary check (v0.11.0) has no config
+to run and is silently inert.
+**Root cause.** The implementer applied the structure *layout* from `sdlc-stack-web:project-structure`
+but not the shipped `dependency-cruiser` boundary config; the task AC didn't call it out, and there's
+no CI in local mode to notice its absence.
+**Proposed modification.** Make the boundary config part of the repo-scaffold checklist — when the
+pipeline scaffolds a repo per `project-structure`, it should drop the matching
+`.dependency-cruiser.cjs` + `depcruise` script alongside the layout, so the gate is real once CI exists.
+(Low priority: no CI under local mode yet, but it should be present for the remote flip.)
+
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
 so routing is deferred to run time.
