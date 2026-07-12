@@ -2,7 +2,7 @@
   "name": "sdlc-ux",
   "displayName": "SDLC UX Pod — Design & Motion",
   "description": "Award-tier UI/UX pod for the SDLC pipeline: a UX-narrative writer, an Awwwards inspiration researcher, a design-system owner (the uniformity anchor), a motion/interaction specialist, and a strict unbiased jury that renders the UI and gates on a ≥9/10 Awwwards-style score. Works on new and existing projects, at page or whole-app scope, and honors supplied brand references (logo, colors, fonts).",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": {
     "name": "Bee-Logical",
     "email": "sourabh@bee-logical.com"

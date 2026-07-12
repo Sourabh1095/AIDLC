@@ -36,6 +36,38 @@ repo, before anything else.
   then design its surface.
 Record the scope in the run file.
 
+**Pod-scope gate — scaffold/skeleton vs real UI surface (decide right after scope).** Not every item
+in a frontend repo warrants the pod. The full pod (narrative → inspiration → design system → build +
+motion → jury) is reserved for a **real UI surface**; a **scaffold/skeleton** scope gets
+**skeleton-only** treatment — `ui:false`, jury skipped — where the core implementer builds the
+functional shell and the pod does not design an empty app.
+- **Reads as scaffold/skeleton → skeleton-only** when any hold: the scope is a minimal shell /
+  bootstrap / "stand up the app" with **no named page/route/screen** to design; the item's DoD/AC are
+  **functional-only** (it builds, routes, lints, a placeholder/health page renders) with no
+  visual/interaction/UX acceptance criteria; `ux.uiPaths` is empty or points only at not-yet-built
+  placeholders (no real surface exists yet); or the item is labeled/titled scaffold / skeleton /
+  bootstrap / init / wiring.
+- **Reads as a real UI surface → full pod** when any hold: the scope names a concrete
+  page/route/screen/component to design or redesign; the AC/DoD ask for visual, layout, styling,
+  motion or UX quality (not just "it renders"); or `ux.uiPaths` resolves to actual surfaces with
+  content to judge.
+- **Genuine ambiguity errs toward the full pod** — a wrongly-skipped surface ships un-judged UI,
+  which is worse than an over-invoked jury. The scaffold read must be *clear* to skip.
+
+**This gate is deterministic and is the default in both modes:**
+- **Non-interactive (headless / `/sdlc:sprint`):** apply it as-is — scaffold read → skeleton-only
+  with no prompt; real UI surface → full pod. A batched sprint never burns a full design-pod run on
+  an empty shell.
+- **Interactive (`/sdlc:run`, standalone `/sdlc-ux:design`):** apply the **same** default, surfaced
+  as a *confirmable recommendation* ("Skeleton only [recommended] vs Full design pod"). The prompt is
+  a confirmation, not the only gate; unattended, the default stands.
+
+**Contract with core.** `/sdlc:run` §2 (UI detection) and `/sdlc:sprint` consume this exact gate to
+set the run file's `ui:` flag: a scaffold/skeleton scope → `ui:false` (skeleton-only, jury skipped)
+**even in a `ux.enabled` frontend repo**; a real UI surface → `ui:true` → invoke this pod. If core
+already set `ui:false`, the pod isn't invoked; if invoked standalone on a scope that reads as a
+scaffold, the pod self-applies this gate and returns skeleton-only rather than designing a shell.
+
 **Detect the mode:**
 - `greenfield` — no established design system exists in the project (no `design/design-system.md`
   and no theme/tokens in code). You **establish** the system and it becomes the project standard.
@@ -63,8 +95,10 @@ auditable. Checkpoint before and after every agent.
 
 ## Pipeline
 
-**0 · AUDIT** *(existing surfaces only — skip for greenfield)*. Render the current target at
-`renderBaseUrl` via the Playwright MCP (start the dev server if needed) and screenshot it to
+**0 · AUDIT** *(existing surfaces only — skip for greenfield)*. Render the current target at the
+**resolved render URL** (derive the real port from the repo's `dev` script per the jury render
+protocol in `sdlc-ux:design-jury`; `renderBaseUrl` is only the fallback) via the Playwright MCP
+(start the dev server if needed) and screenshot it to
 `design/audit/`; also screenshot 1–2 sibling pages so you know what "consistent with the rest"
 means. Dispatch **Agent → sdlc-design-system** in **audit mode** with those shots + the code: it
 extracts the *current* design language (colors/type/spacing actually in use + where they live),
@@ -99,9 +133,12 @@ the uniformity contract for the build.
 Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from the established system.
 
 **5 · JURY LOOP.** `round = 1`.
-1. Ensure the app renders at `renderBaseUrl` (start dev server if down; wait until it responds;
-   record the URL). Un-renderable → phase `blocked`, report, STOP — the jury can't judge what
-   won't render.
+1. Ensure the app renders at the **resolved render URL** — derive the real port from the repo's
+   `dev` script (`ux.renderBaseUrl` is only a fallback; if they disagree, prefer the derived port and
+   note the mismatch so config gets corrected — see `sdlc-ux:design-jury`). Start dev server if down;
+   wait until it responds; record the resolved URL. Un-renderable, or a non-UI response (JSON/404
+   where an HTML UI was expected) → phase `blocked`, report, STOP — the jury can't judge what won't
+   render, and must never silently score the wrong server.
 2. Dispatch **Agent → sdlc-ux-jury** (fresh context, blind to the makers' notes). Brief gives it the
    target scope, the brand anchors, and — for retrofit/redesign — the sibling-page shots so it can
    score **cross-page consistency + brand adherence**, not just the target in isolation. For

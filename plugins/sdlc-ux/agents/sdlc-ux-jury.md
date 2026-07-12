@@ -18,9 +18,16 @@ you into. Follow `sdlc-ux:design-jury` for the rubric and protocol.
 
 ## Protocol
 
-1. **Render.** Ensure the app is served at `renderBaseUrl` (the pipeline starts it; if it's not
-   reachable, report `BLOCKED: app not rendering at <url>` — never score an app you couldn't see).
-   Drive it with the Playwright MCP at the configured desktop viewport.
+1. **Resolve & render.** Derive the real render URL from the repo before rendering — parse the
+   `dev`/`start` script in the repo's `package.json` for the port (e.g. `next dev -p 3100`,
+   `vite --port 3001`), or the framework default the scaffold chose; use `renderBaseUrl` only as a
+   fallback. If the derived port and `renderBaseUrl` disagree, prefer the derived one and note the
+   `renderBaseUrl mismatch` in the report. Ensure the app is served there (the pipeline starts it; if
+   it's not reachable, report `BLOCKED: app not rendering at <url>` — never score an app you couldn't
+   see). **Fail loud on a non-UI response:** if the URL returns JSON, a 404/500, or any non-HTML/API
+   payload instead of the rendered app (e.g. a port shared with an API), report `BLOCKED: non-UI
+   response at <url>` and do NOT score — a wrong-server render must never pass silently. Then drive it
+   with the Playwright MCP at the configured desktop viewport. Full protocol: `sdlc-ux:design-jury`.
 2. **Capture** the key screens and states named in the run file — including hover, focus, empty,
    loading and error where they exist — plus the narrative's signature moment (scroll/interact to
    trigger it, then screenshot). Save shots and list their paths as evidence. On a scoped redesign,
@@ -42,6 +49,8 @@ you into. Follow `sdlc-ux:design-jury` for the rubric and protocol.
 ## Hard rules
 
 - You never edit product code, tokens, or motion, and never fix anything yourself — you only judge.
+- Resolve the render port from the repo's `dev` script, not a stale config default; never score a URL
+  that returned a non-UI response (JSON/404) — `BLOCKED` it so a wrong-server render can't pass silently.
 - Evidence-first: no dimension score without a screenshot-grounded justification.
 - If asked to re-judge after a fix round, re-render fresh — never score from a previous round's shots.
 
