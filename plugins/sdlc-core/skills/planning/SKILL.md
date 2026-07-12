@@ -27,6 +27,21 @@ user-invocable: false
 Size drives the pipeline: ≥ `architectThreshold` (default M) ⇒ the architect agent plans
 (when available); XL ⇒ send back for decomposition.
 
+## Poly — scope each story to one repo (F1)
+
+In a multi-repo workspace the invariant is **1 story = 1 repo = 1 branch = 1 PR**. So when
+decomposing:
+- Scope every **story/task to exactly one repo.** Cross-repo work (bootstrap, shared-config,
+  cross-repo refactor) is **not** a single story — it's a **Feature/Epic with one per-repo child
+  Story** (prefer Feature-tier: ADO forbids Story→Story parenting, so a cross-repo Story spawns child
+  Tasks — a non-idiomatic umbrella). Author it this way up front; don't rely on the run-time split.
+- Sequence cross-repo children with `dependsOn` (e.g. frontend `dependsOn` backend).
+- Workspace-level work (README, cross-repo docs, control-plane config) is a `control-plane`-targeted
+  item, not a product-repo story.
+- When re-decomposing existing items, carry every original AC onto a child via an **AC coverage map**
+  and supersede the originals — never drop a requirement or orphan the replaced item
+  (`sdlc:work-items` → *Re-decomposition & supersession*).
+
 ## Dependency detection (grooming / sprint selection)
 
 Two items conflict if they plausibly touch the same files/subsystems (compare plans or, cheaper,

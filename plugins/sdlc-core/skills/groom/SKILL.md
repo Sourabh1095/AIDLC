@@ -29,8 +29,12 @@ priority order:
 5. **Priority sanity**: note mismatches (e.g. a bug in the auth path at P4) — **suggest, never
    change**: priorities are the product owner's call.
 6. **Repo routing** (poly only): items whose `repo` is unset and can't be inferred from labels →
-   propose a repo (grounded in a quick look at the candidate repos); apply on approval. An item
-   whose labels point at two repos is a split candidate — flag it.
+   propose a repo (grounded in a quick look at the candidate repos); apply on approval. **A story/task
+   whose scope spans repos is a split candidate — flag it (F1)**: propose re-modelling it as a
+   **Feature → per-repo child Stories** (not a single cross-repo story), with an AC coverage map so no
+   original AC is dropped (`sdlc:work-items` → *Re-decomposition*). Grooming is the cheap place to fix
+   this — before it reaches a run. Also flag items that really target the **`control-plane`** (F8) or an
+   **undeclared repo** (a shared lib / future product → offer `/sdlc:repo add`, F2).
 
 ## Autonomy boundaries
 

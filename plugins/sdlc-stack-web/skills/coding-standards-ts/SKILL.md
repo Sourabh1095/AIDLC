@@ -27,6 +27,25 @@ runs as a **hard PR gate** (`typecheck` + `lint` + `format` + `test`). The divis
 
 A repo with no baseline yet → note it and prefer scaffolding the baseline over hand-policing style.
 
+**The shared/base tsconfig is strictness-only.** `templates/tooling/tsconfig.base.json` carries *only*
+strictness flags (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) — it
+deliberately sets **no** `moduleResolution`, **no** `baseUrl`/`paths`, and **no** `target`/`module`.
+Those belong in each repo's OWN `tsconfig.json` (which does `"extends": "./tsconfig.base.json"`), for
+two reasons. (1) **Clean layering:** module-resolution/target are per-runtime — a Next app, a
+`tsc`-built CJS SDK, and a Nest service each need different values, so any shared value is wrong for
+someone. (2) **Deprecation:** TypeScript deprecates the older `moduleResolution` values (`"node"` is
+now `"node10"`, and both are deprecated), so a shared base that sets one forces **every** consumer to
+inherit the deprecation and patch it with `ignoreDeprecations` — a workaround that won't survive a
+major TS bump. Leave `moduleResolution` **unset** and use **no `baseUrl`** in the base → zero
+deprecation suppression anywhere (empirically validated on a `tsc`-built CJS repo). If you're
+hand-authoring a shared config instead of using the template, hold the same line — a strictness-only
+base is the invariant, not a template detail. `sdlc-stack-web:project-structure`'s repo-scaffold
+checklist enforces this at scaffold time.
+
+**Next.js repos** don't hand-reconcile `eslint-config-next` with the strict flat config — use the
+pre-composed overlay at `templates/tooling/next/` (four ESLint-10 / Turbopack / monorepo workarounds
+pre-solved) as the repo's `eslint.config.mjs`. See `sdlc-stack-web:nextjs`.
+
 ## Typing
 
 - `strict: true` assumed. No `any` — use `unknown` + narrowing; a justified `any` needs a

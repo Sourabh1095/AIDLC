@@ -16,6 +16,31 @@ and store layout live in **`sdlc-stack-web:project-structure`** (`frontend-next-
 dynamic post-load data — not a replacement for RSC fetching. (The `rtk-spa` flavor is for
 client-rendered SPAs where RTK Query *is* the primary data layer.)
 
+**Scaffolding a Next repo?** Follow the repo-scaffold checklist in `sdlc-stack-web:project-structure`
+(it applies whether via `/sdlc:init` or a `/sdlc:run` scaffold task): drop the `.dependency-cruiser.cjs`
+boundary gate, the hardened `.gitignore`, and this stack's Next.js tooling overlay (below).
+
+## Tooling overlay (compose the strict baseline with Next.js)
+
+The strict shared flat ESLint baseline (`templates/tooling/eslint.config.mjs` → `typescript-eslint`
+`strictTypeChecked`) does **not** compose with `eslint-config-next` out of the box on **ESLint 10** +
+**Turbopack** + a `file:../` monorepo — it needs four reconciliations. Don't re-derive them per repo:
+use the ready overlay at **`${CLAUDE_PLUGIN_ROOT}/templates/tooling/next/eslint.config.mjs`** as the
+repo's `eslint.config.mjs` (it replaces the plain baseline for a Next repo). It pre-solves:
+
+1. the duplicate `@typescript-eslint` plugin registration (flat-config *"Cannot redefine plugin"*),
+2. `eslint-plugin-react`'s `version:"detect"` crash on ESLint 10 (pins `settings.react.version`),
+3. plain `.js/.cjs/.mjs` crashing when routed through the type-aware TS pipeline, and
+4. `turbopack.root` for `file:../` sibling resolution (a `next.config` one-liner — in the overlay README).
+
+All four preserve full lint coverage (109 `@typescript-eslint` rules + react-hooks + jsx-a11y +
+`@next/next` stay active — reviewer-confirmed via `eslint --print-config`). **Version pins:**
+`eslint-config-next` must match your Next major and be an ESLint-10-compatible release (`16.2.10`
+verified 2026-07-12; peer `eslint >= 9`); `eslint-plugin-react` rides in transitively via
+`eslint-config-next` (no stable release declares ESLint 10 yet — the `react.version` pin is what makes
+it work). Exact pins, the "verify at adopt time" note, and the `turbopack.root` snippet live in
+`templates/tooling/next/README.md`.
+
 ## Server/client split (the default decision)
 
 - Server Components by default. `"use client"` ONLY for interactivity (state, effects,

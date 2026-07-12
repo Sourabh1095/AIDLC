@@ -1,8 +1,13 @@
 # SDLC Plugin — Dogfood Findings (Authentication / Identity Platform)
 
-**LIVING DOCUMENT — do NOT implement these yet.** Findings are logged as the dogfood proceeds;
-all plugin modifications get designed + implemented together at the **end**, through the normal
-branch → version → merge flow. Started 2026-07-11.
+**LIVING DOCUMENT.** Findings are logged as the dogfood proceeds. Started 2026-07-11.
+
+> **✅ F1–F16 BATCH IMPLEMENTED — 2026-07-12** (branch `feat/dogfood-f1-f16-batch`). All sixteen
+> Epic-1 findings were designed + implemented together through the branch → version → merge flow.
+> Version bumps: `sdlc` 0.13.1 → **0.14.0**, `sdlc-stack-web` 0.7.1 → **0.8.0**, `sdlc-ux` 0.2.1 →
+> **0.3.0**, marketplace → **0.14.0**. See the CHANGELOG for the per-finding change list. The findings
+> below are retained as the design record. Next dogfood cycle (Epic 2, design pod) runs on the updated
+> plugin and serves as the regression test for this batch.
 
 ## Context
 

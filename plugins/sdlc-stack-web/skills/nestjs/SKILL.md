@@ -13,6 +13,11 @@ messages}` module live in **`sdlc-stack-web:project-structure`** (`backend-nestj
 `dependency-cruiser` gate enforces the layering in CI. This section is the *why*; that skill is the
 *where*.
 
+When scaffolding a Nest repo (via `/sdlc:init` **or** a `/sdlc:run` scaffold task), follow that
+skill's repo-scaffold checklist — in particular drop `.dependency-cruiser.nestjs.cjs` into the root as
+`.dependency-cruiser.cjs` (with the `depcruise` script + `dependency-cruiser` devDep) and the hardened
+`.gitignore`; without the boundary config the layering gate is silently inert.
+
 - Feature modules own their domain: `users/` = `users.module.ts`, controller, service, repository,
   DTOs (`dto/`), entities/schemas. Cross-feature access ONLY through an exported service —
   never import another module's repository/entity directly.

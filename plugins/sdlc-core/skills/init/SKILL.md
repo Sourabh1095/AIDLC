@@ -29,9 +29,14 @@ improvise replacement files: the permission posture and rules must be the review
 ## Step 2 — Pre-flight checks
 
 1. Confirm cwd is a git repository (`git rev-parse --is-inside-work-tree`). If not, ask the user whether to
-   `git init`. (In **poly** the workspace-root control plane may or may not be its own git repo — that's
-   fine; what matters is that each declared repo path in Step 3 is a git repo. Verify each after Step 3 and
-   flag any that need cloning.)
+   `git init`. **When you `git init` (or on an existing repo), normalize the control-plane branch to the
+   configured default** (`git init -b <defaultBranch>`, or `git branch -m master <defaultBranch>` /
+   `git symbolic-ref HEAD refs/heads/<defaultBranch>` on an empty repo) so it matches
+   `git.defaultBranch` — don't leave a `master` control plane while every repo config says `main` (F6).
+   If they diverge and it's not empty, flag the mismatch rather than renaming silently. (In **poly** the
+   workspace-root control plane may or may not be its own git repo — that's fine; what matters is that
+   each declared repo path in Step 3 is a git repo. Verify each after Step 3 and flag/bootstrap any that
+   need it — see Step 4.)
 2. Check for collisions: `CLAUDE.md`, `.claude/settings.json`, `.claude/sdlc.config.json`, `backlog/`, `.sdlc/`.
    - If `CLAUDE.md` exists: do NOT overwrite. Merge — append the template's "SDLC workflow" and "Configuration" sections to the existing file.
    - If `.claude/settings.json` exists: do NOT overwrite. Show the user the template's permission posture and ask whether to merge `allow`/`deny`/`ask` arrays (union, dedupe) or skip.
@@ -43,9 +48,21 @@ Collect:
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
 2. **Project name** (human-readable).
 3. **Work-item source**: `markdown` (default) | `jira` | `ado`. If jira/ado, also collect site/org + project.
-4. **Workspace layout**: `mono` (default — one repo for everything) | `poly` (several git repos in this
-   workspace, e.g. backend/frontend/website/mobile). Auto-detect a likely poly setup by scanning the cwd
-   for multiple subfolders that are each git repos (`<sub>/.git`), and propose it.
+   - **ADO — populate `statusMap` from the board's REAL states, don't assume defaults (F7).** Many boards
+     are customized (e.g. *Development in Progress / Ready for QA / Closed*, not Agile's
+     Active/Resolved). If the ADO MCP / `az` is reachable now (see the doctor note in `wi-ado` →
+     *Connectivity*), query the project's actual `System.State` values per work-item type and build
+     `workItems.ado.statusMap` by mapping canonical → detected. If it's not reachable at init time,
+     leave `statusMap` empty and note that `wi-ado` self-heals on first run — but prefer getting it
+     right up front. Never write the assumed `in_progress→Active`/`in_review→Resolved` defaults blindly.
+4. **Workspace layout**: `mono` (one repo for everything) | `poly` (several git repos in this workspace,
+   e.g. backend/frontend/website/mobile). **Ask this as a real question — never silently default from
+   auto-detect (F3).** Auto-detect is only a *proposal*: scan the cwd for multiple subfolders that are
+   each git repos (`<sub>/.git`) and, if found, propose poly. **Crucially, a greenfield poly workspace
+   has no sub-repos yet** (the repos are what the first story will create), so "no sub-repos detected"
+   must NOT collapse to mono — present mono-vs-poly explicitly and let the user choose, seeding the
+   proposal from any signal (existing subfolders, the described project shape) but deciding by the
+   answer, not the scan.
    - **mono** → collect **Git host** (`github` default | `azure-repos`), **default branch** (`main`),
      the **git mode**, and the **stack** (defaults: frontend `nextjs`, backend `nestjs`, databases
      `postgres, mongodb`; accept "none"). **Git mode:** default `remote` (push + PR). Check
@@ -55,9 +72,14 @@ Collect:
    - **poly** → for EACH repo collect: `name`, `path` (relative to the workspace root), `host`, `mode`
      (`remote` default | `local` — detect per repo: no remote configured → propose `local`), `remote`
      (`origin`), `defaultBranch`, `role` (one-line description), `labels` (routing hints), and per-repo
-     `stack`. Frontend repos also get a `ux.renderBaseUrl` + `uiPaths`. Mark one repo `default: true`.
-     Write these to `repos[]` and set `workspace.layout: "poly"`; the top-level `git`/`stack` blocks are
-     unused in poly (leave them or drop them).
+     `stack`. Frontend repos also get `ux.renderBaseUrl` + `uiPaths`. **For `renderBaseUrl`, derive or
+     ASK the repo's real dev-server port — don't blindly default every UX repo to :3000 (F13)**: read
+     its `package.json` `dev`/`start` script if the repo exists, else ask. **Flag port collisions across
+     repos** (two repos both on :3000, or a UX repo's `renderBaseUrl` pointing at another repo's port —
+     e.g. the API's :3000 — which would make the jury render the wrong server). The scaffold ultimately
+     owns the port and writes it back (`sdlc:run` §6), but init should not seed a value it knows collides.
+     Mark one repo `default: true`. Write these to `repos[]` and set `workspace.layout: "poly"`; the
+     top-level `git`/`stack` blocks are unused in poly (leave them or drop them).
    - **Frontend structure flavor (any repo with a `stack.frontend`):** ask which enterprise structure
      it follows — `next-app` (App-Router-first: server components own data, RTK for client state) or
      `rtk-spa` (client SPA: RTK Query is the primary data layer). See `sdlc-stack-web:project-structure`.
@@ -84,6 +106,16 @@ Collect:
 
 1. Copy the template tree into cwd (the **workspace control plane**), respecting the collision decisions
    from Step 2. In poly the control plane is the workspace root; the product repos are its subfolders.
+
+   **Poly — bootstrap declared repos so the pipeline can run into them (F4).** Local mode branches from
+   / merges into each repo's default branch, so every declared repo must already be a git repo with at
+   least one commit — but a greenfield poly workspace's first story is often *"create the repos,"* a
+   chicken-and-egg. For each `repos[]` entry whose folder is missing or not a git repo, **offer to
+   bootstrap it**: create the folder, `git init -b <defaultBranch>`, and make an initial commit (a
+   stub `README.md`, or the tooling/structure baseline from Steps 4.5–4.6). Do it here or via a
+   dedicated `/sdlc:repo add <name>` per repo (same mechanism — see that command). Skip repos that
+   already exist and are non-empty. If you skip bootstrapping, **document the exact commands** the user
+   must run before the first `/sdlc:run`, so they don't hit the branch-into-empty-folder failure.
 2. Replace placeholders in `CLAUDE.md` and `.claude/sdlc.config.json`:
    `{{PROJECT_KEY}}`, `{{PROJECT_NAME}}`, `{{STACK_SUMMARY}}`, `{{DEFAULT_BRANCH}}`,
    `{{INSTALL_CMD}}`, `{{DEV_CMD}}`, `{{TEST_CMD}}`, `{{LINT_CMD}}` — with collected values.

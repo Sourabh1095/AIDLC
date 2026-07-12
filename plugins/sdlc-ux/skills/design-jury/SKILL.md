@@ -21,14 +21,26 @@ The score is only worth something if it's unbiased and evidence-backed.
 
 ## Render & evidence protocol
 
-1. Confirm the app is live at `renderBaseUrl`. If it isn't reachable, do NOT guess — report
-   `BLOCKED: app not rendering`. You cannot judge what you can't see.
-2. Drive it with the Playwright MCP at the configured desktop viewport (`target: desktop-web`).
-3. Capture the key screens AND states: default, hover, focus-visible, empty, loading, error where
+1. **Resolve the render URL from the repo, not the static config.** Before rendering, derive the real
+   dev-server URL/port from the repo itself — parse the `dev` (or `start`) script in the repo's
+   `package.json` for the port (e.g. `next dev -p 3100`, `vite --port 3001`, a `PORT=` prefix), or the
+   framework default the scaffold chose (Next 3000, Vite 5173, …). Use `ux.renderBaseUrl` **only** when
+   the port can't be derived. If the derived port and the configured `renderBaseUrl` disagree, **prefer
+   the derived one** and record a `renderBaseUrl mismatch: config <X> vs actual <Y>` line in the report
+   (so the config gets corrected) — never trust a stale config port over the repo's actual `dev` script.
+2. Confirm the app is live at the resolved URL. If it isn't reachable, do NOT guess — report
+   `BLOCKED: app not rendering at <url>`. You cannot judge what you can't see.
+3. **Fail loud on a non-UI response — never score the wrong server.** Verify the response is the
+   actual rendered HTML UI. If you get JSON, a bare API payload, a 404/500, or anything that isn't the
+   app (e.g. the port is shared with an API), do NOT score it — report `BLOCKED: non-UI response at
+   <url> (expected HTML UI, got <JSON/404/…>)`. A wrong-server render must fail loud, never pass
+   silently with a fabricated score.
+4. Drive it with the Playwright MCP at the configured desktop viewport (`target: desktop-web`).
+5. Capture the key screens AND states: default, hover, focus-visible, empty, loading, error where
    they exist — plus the narrative's **signature moment** (scroll/interact to trigger it, then shoot).
    On a scoped redesign, also review the supplied sibling-page shots so you can judge whether the
    target stays consistent with the rest of the app.
-4. Save screenshots; list their paths as the evidence set in the report.
+6. Save screenshots; list their paths as the evidence set in the report.
 
 ## Rubric (score each /10; composite = weighted sum, one decimal)
 

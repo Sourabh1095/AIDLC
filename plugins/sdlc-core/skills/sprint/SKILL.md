@@ -47,6 +47,10 @@ claude -p "/sdlc:run {ID}" --permission-mode acceptEdits   # background process,
   `.sdlc/sprint-{date}.json` at the **control plane** (workspace root).
 - Each headless run is a full pipeline: its run file lives in ITS worktree at
   `.sdlc/runs/{ID}.md` and is committed to its branch. Hooks (guard, checkpoint) apply there too.
+- **Design-pod gate is deterministic here (F11):** a headless run can't prompt, so it applies
+  `sdlc:run` §2's **scaffold-scope gate** with no interaction — a scaffold/skeleton item in a UI repo
+  resolves to `ui: false` (skeleton-only, jury skipped), so a sprint never burns a full design-pod run
+  on an empty shell. A real UI surface still fires the pod (ambiguity errs to `ui: true`).
 - Stagger launches ~30s apart so npm installs/builds don't thundering-herd the machine.
 
 ## 3 · MONITOR

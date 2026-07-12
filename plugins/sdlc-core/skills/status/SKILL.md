@@ -30,6 +30,18 @@ For BLOCKED runs, also read the run file's `## Findings` section and summarize t
 **Epic rollup (poly):** for each epic coordination file, show its children grouped under it with
 each child's repo, phase and PR state, so a cross-repo feature reads as one block.
 
+## Step 1.5 — Tracker doctor (fail clearly, not opaquely)
+
+Before querying the adapter, confirm the tracker is actually **reachable + authenticated**, not merely
+"connected". For **ADO**: a registered MCP (`azure-devops · connected · N tools`) does not prove
+reachability — it authenticates on the first call and fails opaquely (*"Failed to find api location for
+area"*) when the **launch environment** is wrong. Do a cheap probe (e.g. `az account show` +
+`echo $ADO_MCP_ORG`, or a 1-item WIQL). If it fails, print the exact remediation and name the root
+cause — `ADO_MCP_ORG` set **and** `az login` accessible **in the shell that launched Claude Code**,
+relaunch if `az` was installed mid-session (see `wi-ado` → *Connectivity*) — instead of a raw error.
+For Jira, a failing probe means re-auth the Atlassian MCP. Report `tracker: reachable` / the
+remediation line, then continue (backlog snapshot is skipped if unreachable).
+
 ## Step 2 — Backlog snapshot
 
 Load the `work-items` skill routing and query the active adapter (from `.claude/sdlc.config.json`) for:
@@ -51,6 +63,32 @@ End with one actionable line, e.g.:
 - runs blocked → "PROJ-123 is blocked at verify (2 unresolved findings) — review `.sdlc/runs/PROJ-123.md`"
 - no active runs, ready items exist → "Run `/sdlc:next` to start PROJ-124 (P1, story)."
 - done runs with merged PRs → "PROJ-120's PR merged — run cleanup: transition item to Done and archive the run file."
+
+## Ground-truth reconciliation (drift detection — the audit, automated)
+
+The run file and the board can silently diverge (a write that reported success but never persisted —
+`sdlc:work-items` → *Write verification*; or a re-decomposition that orphaned its originals —
+*Re-decomposition & supersession*). Reconcile **tracker state against what was actually built**, and
+report drift. Run this as part of `/sdlc:status`, and always **at epic/story close** (the orchestrator
+calls it before declaring an epic done). Read-only unless the user confirms a fix.
+
+For each epic/story with a run file or recent activity, cross-check three sources:
+1. **Board** — `fetch`/batch the item + its children: state, parent links, AC.
+2. **Run files** — `.sdlc/runs/*.md` (+ per-repo, + archive): the phase/outcome the pipeline recorded.
+3. **Disk + git** — does the deliverable actually exist? (files present, commits on the default branch,
+   scaffold/config in the repo). A "Closed" item with nothing on disk is drift; a "New" item that's
+   verifiably built is drift.
+
+Report drift as a short list, each with the proposed reconciliation (do NOT mutate without confirm):
+- **Status drift** — run file says done/closed but board shows otherwise (or vice-versa) → re-assert the
+  transition (with write-verification) or correct the record.
+- **Orphaned originals** — items superseded by a re-decomposition still `New`/`todo` → link to their
+  delivering children + move to the type-appropriate terminal (`Removed`/`Closed` + superseded comment).
+- **Dropped requirement** — an AC/deliverable in an original not covered by any child and not on disk →
+  file a follow-up (or flag for grooming).
+- **Tier/parent drift** — an open task hanging off a closed story, a child under the wrong parent.
+
+Apply fixes only on the user's pick; every applied transition is read-back-verified.
 
 ## Post-merge cleanup (only when the user confirms)
 
