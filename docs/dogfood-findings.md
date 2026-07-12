@@ -189,6 +189,13 @@ Next flavor.
 **Positive to note.** The orchestrator's **transparency** — surfacing exactly what went unreviewed and
 why, at the merge gate — is the economical cadence working as designed. The on-demand reviewer was then
 summoned at a genuine judgment moment (first time this dogfood), which is the intended trigger.
+**Reviewer confirmation (AUTH-8568).** The on-demand reviewer verified via `eslint --print-config` that
+all 4 workarounds **preserve full lint coverage** (109 `@typescript-eslint/*` rules + react-hooks +
+jsx-a11y + `@next/next` all active) and are AC-compliant *wiring* fixes, not divergent rules —
+including workaround **#3** (`.js/.cjs/.mjs` → TS parser), which is therefore **benign**. So the F12
+overlay we ship can safely encode all four. Workaround **#4** (`turbopack.root` breadth) is inherent to
+`file:../` siblings-under-parent and not cleanly narrowable today — the overlay should ship it with a
+"revisit as the workspace matures" note.
 
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
@@ -216,6 +223,14 @@ cross-repo docs) has no such target.
   implementer hit an environment session limit right before committing; recovery re-ran the suite,
   committed the scaffold, smoke-tested, and finished docs **without re-authoring code** — the run
   file carried enough state to resume cleanly. Core resilience feature confirmed on a live cut-off.
+- ✅ **On-demand reviewer earns its keep (v0.13.0) — validated on AUTH-8568 (first invocation of the
+  dogfood):** summoned at a genuine trigger (4 config workarounds flagged at the merge gate), it did
+  **not** rubber-stamp — it independently re-ran the gates, proved via `eslint --print-config` that the
+  workarounds didn't silently drop lint coverage (the exact risk), confirmed AC compliance, and
+  surfaced 2 real MINORs (one a genuine empty-env-string crash footgun in `lib/env.ts`) + 1 NIT with
+  correct BLOCKER/MAJOR-only gating. This validates the whole economical model: reviewer spent only
+  when triggered, and worth it when it is. (env.ts MINOR fixed in a project fix-cycle before merge —
+  project code, not a plugin finding.)
 - ✅ **Design-pod scope-gating (v0.2.1 ux) — validated on AUTH-8568:** on a Next.js *scaffold* task
   the orchestrator did NOT auto-run the full design pod; it detected the scaffold-vs-UI scope mismatch
   and recommended skeleton-only (`ui:false`, skip jury), reserving the pod for real UI surfaces. The
@@ -255,6 +270,12 @@ cross-repo docs) has no such target.
   tooling overlay so every frontend repo doesn't re-derive them; 8569 will hit the same). Recommended
   running the on-demand **reviewer** on the 4 deviations before merge (first reviewer invocation of the
   dogfood — a genuine, non-routine trigger). Reviewer verdict will sharpen F12 (esp. workaround #3).
+- 2026-07-12 — AUTH-8568 reviewer verdict: **APPROVE / mergeable** (0 BLOCKER, 0 MAJOR, 2 MINOR, 1 NIT).
+  Proved all 4 workarounds preserve full lint coverage via `eslint --print-config` (#3 benign) → F12
+  confirmed safe to templatize. Logged the reviewer as a **validated positive** (didn't rubber-stamp;
+  found a real empty-env-string footgun in `lib/env.ts`). Chose to fix `env.ts` in a project fix-cycle
+  before merge (reference pattern that will propagate to 8569+); left `turbopack.root` breadth as an
+  F12-tracked note (not cleanly narrowable). env.ts fix = project code, not a plugin finding.
 - 2026-07-12 — AUTH-8568 (web) design-pod decision point: orchestrator correctly detected scaffold
   scope and recommended **skeleton-only** (design pod reserved for real UI surfaces). Chose skeleton-
   only. Logged F11 (non-interactive default for the ui:true-repo + scaffold-scope fork is unclear —
