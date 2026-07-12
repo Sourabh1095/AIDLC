@@ -9,7 +9,7 @@ All notable changes to the Bee-Logical Claude SDLC marketplace.
 Sixteen findings from a real end-to-end dogfood on a polyrepo + Azure DevOps + local-git-mode build,
 designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc-stack-web` 0.7.1 →
 **0.8.0**, `sdlc-ux` 0.2.1 → **0.3.0**, marketplace → **0.14.0**. Full design record:
-`docs/dogfood-findings.md`.
+`docs/dogfood-findings-archive.md`.
 
 #### `sdlc` — poly workspace modeling
 
