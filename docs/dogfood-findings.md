@@ -197,6 +197,24 @@ overlay we ship can safely encode all four. Workaround **#4** (`turbopack.root` 
 `file:../` siblings-under-parent and not cleanly narrowable today — the overlay should ship it with a
 "revisit as the workspace matures" note.
 
+### F13 🟡 — `ux.renderBaseUrl` isn't synced to the scaffold's actual dev-server port (jury renders the wrong server)
+**Symptom.** `sdlc.config.json` → `repos[bee-auth-web].ux.renderBaseUrl` = `http://localhost:3000`, but
+the scaffolded web app runs on **:3100** (the scaffold picked :3100 to avoid colliding with the API on
+:3000). :3000 is in fact the **API repo's** port — so when the deferred Epic 2 design-pod UX story runs,
+the jury would render against the **API** (JSON / 404), not the web UI, and silently score the wrong
+thing (or fail to render).
+**Root cause.** `init` defaults `ux.renderBaseUrl` (to :3000); the scaffold **independently** chooses the
+repo's dev-server port; nothing reconciles the two, and there's no cross-repo port-collision check.
+**Proposed modification.**
+- When the scaffold assigns a UX repo's dev-server port, **write it back to `ux.renderBaseUrl`** (the
+  scaffold owns the port, so it should own the config value) — *or* have the design pod/jury resolve the
+  render URL from the repo's actual `dev` script / `package.json` at render time rather than a static
+  config default.
+- `init` (UX repos): derive/ask the dev port instead of defaulting to :3000, and **flag collisions**
+  (here `renderBaseUrl` :3000 collides with the API repo's port).
+- **Watch on AUTH-8569 (admin):** likely the same default :3000 `renderBaseUrl` vs its own dev port —
+  confirm whether it replicates.
+
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
 so routing is deferred to run time.
@@ -282,3 +300,11 @@ cross-repo docs) has no such target.
   matters for sprint/headless and for 8569) and a matching positive validation. Design pod itself
   still unobserved end-to-end — the honest place to characterize it is an Epic 2 real login-UI story,
   not an empty shell.
+- 2026-07-12 — AUTH-8568 **DONE / merged** (`--no-ff` 74493ab, branch deleted, ADO → Closed, rollup
+  **5/7**). env.ts empty-string fallback hardened in the fix-cycle; reviewer APPROVE, full lint coverage
+  intact. From the completion follow-ups, logged **F13** (`ux.renderBaseUrl` :3000 ≠ app-on-:3100, and
+  :3000 is the API's port → jury would render the wrong server; scaffold-port vs config not reconciled).
+  Notable: orchestrator claims it carried the Next.js-app "lore" (the 4 workarounds) into the epic
+  rollup so **8569 won't rediscover it** — a claim to test directly on 8569 (does it reuse, or
+  re-derive? bears on F12 severity). Next: **8569 (admin, Next twin of 8568)**, then **8570**
+  (control-plane README — the F8 case).
