@@ -1,0 +1,43 @@
+# Bee-Logical SDLC — web-stack .gitignore baseline (Node + Next.js).
+# Cross-framework: harmless keys for a role a repo doesn't use (e.g. .next/ in a
+# Nest repo) simply never match. Merge-aware scaffold: never clobber a repo's own.
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Test / coverage
+coverage/
+*.lcov
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Env & secrets — ignore ALL env files, allow-list only the checked-in example.
+# Keeps secret-bearing env files (a real concern for auth/identity repos) out of git
+# by default; commit non-secret defaults to .env.example.
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+
+# SDLC local settings (never commit machine-local overrides)
+.claude/settings.local.json

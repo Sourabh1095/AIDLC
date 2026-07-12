@@ -118,11 +118,39 @@ one and `sdlc:ci-cd` runs `depcruise` in the gate. The rules:
 - **Frontend layering** — `components/ui` ↛ `store` and ↛ `features`; `lib`/`types` ↛ `app`/`components`/`store`.
 - **No circular dependencies** (`no-circular`), **no orphans** for source (warn).
 
-## Scaffold manifest (what `/sdlc:init` creates per repo)
+## Repo-scaffold checklist (applies to `/sdlc:init` AND any `/sdlc:run` scaffold task)
 
-For a TS repo, after the tooling baseline, create the tree above for its role (backend-nestjs, or the
-chosen frontend flavor): the directories, `common/constants/{http-status,messages}` (backend) /
-`store/` + `constants/messages` (frontend) from `templates/structure/reference/`, an example
-`<feature>`/feature slice as a pattern to copy, and the matching `.dependency-cruiser.cjs` +
-`depcruise` script/devDep. **Merge-aware:** never overwrite an existing structure — if the repo
-already has a layout, adopt it and note the difference instead of imposing this one.
+Whenever a repo is scaffolded to this structure — by `/sdlc:init` Step 4 **or** by an implementer
+running a scaffold task via `/sdlc:run` — apply this checklist in full. Items 2–3 are **easy to
+forget** because nothing fails loudly without them (there's no CI in local mode to notice a missing
+boundary gate), so treat every item as mandatory, not optional. A `/sdlc:run` scaffold has no init
+wizard to prompt for these — the implementer owns the checklist.
+
+For a TS repo, after the tooling baseline (`templates/tooling/`), create the tree above for its role
+(`backend-nestjs`, `frontend-next-app`, or `frontend-rtk-spa`):
+
+1. **Layout** — the directories for the role, plus `common/constants/{http-status,messages}` (backend)
+   / `store/` + `constants/messages` (frontend) copied from `templates/structure/reference/`, and ONE
+   example `<feature>`/feature slice as a copy-me pattern.
+2. **Boundary gate — do NOT skip (F9).** Drop the matching
+   `templates/structure/dependency-cruiser/.dependency-cruiser.<flavor>.cjs` (`<flavor>` =
+   `nestjs` / `next-app` / `rtk-spa`) into the repo root as **`.dependency-cruiser.cjs`**, add
+   **`dependency-cruiser`** to devDependencies, and add a **`depcruise`** script
+   (`"depcruise": "depcruise src"`). Without this file the boundary check has nothing to run and is
+   **silently inert** — the layout looks enforced but isn't. `sdlc:ci-cd` runs `depcruise` in the PR
+   gate; it only bites when the config is present.
+3. **Hardened `.gitignore` (F14).** Copy `templates/tooling/.gitignore` — it ignores `.env*` with a
+   `!.env.example` allow-exception (plus `node_modules`/`dist`/`build`/`coverage`/`.next`). Secret-
+   bearing env files must be ignored by default; a framework's stock `.gitignore` often only covers
+   `.env*.local`, which is not enough for auth/identity repos.
+4. **Base tsconfig stays strictness-only (F10).** Point the repo's `tsconfig.json` at
+   `templates/tooling/tsconfig.base.json` via `extends`, and set `module`/`moduleResolution`/`target`/
+   `paths` in the repo's OWN tsconfig — never in the shared base (see
+   `sdlc-stack-web:coding-standards-ts` for the why).
+5. **Framework extras.** RTK flavors also need `@reduxjs/toolkit` + `react-redux`. **Next.js** repos
+   use the pre-composed tooling overlay (`templates/tooling/next/`) as their `eslint.config.mjs`
+   instead of the plain baseline — see `sdlc-stack-web:nextjs`.
+
+**Merge-aware:** never overwrite an existing structure/config — if the repo already has a layout, a
+`.dependency-cruiser.cjs`, or a `.gitignore`, adopt it, note the difference, and skip that item. Skip
+non-TS repos entirely.
