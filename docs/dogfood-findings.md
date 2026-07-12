@@ -253,10 +253,11 @@ Epic-1 "close," found four kinds of drift:
   the 8564–8570 re-decomposition) were left **"New"** on the board — never linked, superseded, or
   closed — even though 8417 (create repos) and 8419 (Docker Compose: PG16.4/Redis7.4/volumes/
   healthchecks) are verifiably done.
-- **(c) Parent status didn't persist / wrong tier.** 8416 (a **Story**, per F1 — not an Epic) showed
-  **"Development in Progress"** on the board despite all 4 ACs being met and this terminal reporting
-  *"epic → Closed."* The close either didn't persist or the close-flow didn't target the Story-typed
-  umbrella (it likely assumed the decomposable parent is an Epic).
+- **(c) Parent status didn't persist — CONFIRMED cause: silent write failure.** A prior session
+  recorded 8416 → Closed at **07:10Z in the run file**, but the ADO transition **never persisted** (a
+  flaky `az.cmd` write that returned without error), so the board still showed **"Development in
+  Progress."** Not a tier miss — the close *targeted* 8416; the *write* silently failed and nothing
+  read it back to notice. This is the concrete mechanism, now split out as **F16** (write verification).
 - **(d) No drift detection.** Nothing in the pipeline reconciles tracker state against what was actually
   built — the user had to do it entirely by hand.
 **Root cause.** The F1 run-time decomposition creates children but has **no AC coverage-mapping**
@@ -271,9 +272,10 @@ board matches reality. Requirements leak and the board silently diverges.
   children), so closing them double-counts throughput (10 "done" scaffolding tasks vs the 7 actually
   delivered). Link each Removed original to its delivering children; if a carved-out AC (e.g. husky)
   moved to a *new* follow-up, link that too. **State availability is process-dependent (F7 echo):** this
-  board's **Task** type has **no `Removed` state** (only `Closed` is terminal), so the reconciliation
-  must **probe the process's available terminal states and adapt** — prefer `Removed`, else fall back to
-  `Closed` + a superseded comment; it must NOT hard-code `Removed`. (Live: 8417/8418/8419 → `Closed` +
+  board's **Task** type has **no `Removed` state** (only `Closed` is terminal) — whereas `Removed` *does*
+  exist for **User Story**. So state availability is **per-work-item-type, not just per-process**: the
+  reconciliation must **probe the available terminal states for that item's type and adapt** — prefer
+  `Removed`, else fall back to `Closed` + a superseded comment; it must NOT hard-code `Removed`. (Live: 8417/8418/8419 → `Closed` +
   "superseded; delivered under 8564–8570; husky → AUTH-8667". Leaving them `New` was rejected because
   the pipeline's `query()` would resurface delivered work as "ready" and risk re-running it.)
 - **Ground-truth reconciliation step** in `/sdlc:status` (and at epic/story close): verify tracker
@@ -285,6 +287,26 @@ mitigated only by a manual audit — arguably 🔴 precisely *because* it was si
 **Project-side (not plugin):** husky+lint-staged carved out to a high-priority follow-up task (wire in
 `@beelogical/dev-config` `prepare` → inherited by all repos); 8418 closed with a linked carve-out note;
 8417/8419/8416 reconciled to done.
+
+### F16 🟠 — Tracker transitions can silently fail; the adapter doesn't read-back-verify (durable record ≠ board)
+**Symptom.** A prior session stamped 8416 → Closed in the run file at 07:10Z and moved on, but the ADO
+transition **never landed** — a flaky `az.cmd` write returned without surfacing an error. The board sat
+at "Development in Progress" while the pipeline's durable state said Closed. Nothing caught it until a
+manual ground-truth audit; it was the concrete cause of F15(c).
+**Root cause.** `wi-ado`'s `transition` (acutely via the `az boards` CLI fallback) can fail silently —
+the mutation appears to succeed, the run file records success, but the board is unchanged. There is **no
+read-back verification** of writes, so the pipeline trusts a record that has diverged from reality.
+**Proposed modification.** Adapter write ops — **`transition` at minimum, ideally every mutation
+(`comment`/`link`/`updateAC`/`create`)** — must **fetch the item back and assert the change landed**
+before recording success (verify state == target / field present / item exists). On mismatch: retry,
+then **surface a hard error** instead of silently stamping success. State this in the adapter contract
+(`work-items` skill) so it binds all trackers, not just ADO — any tracker write can fail; the `az.cmd`
+fallback just makes it likely. **Prevention** pairs with F15's ground-truth reconciliation
+(the **detection** safety net). Severity 🟠 — silent state divergence in an autonomous pipeline, where
+every downstream decision trusts the durable record (arguably 🔴 for exactly that reason).
+**Positive corollary.** The project session already added a "verify writes with a read-back" note +
+corrected the stale "Task has a Removed state" memory — the right instinct; F16 makes it a plugin-level
+contract rule, not a per-project habit.
 
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
@@ -435,3 +457,13 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   the husky follow-up + tracker reconciliation — not the clean 7/7 the board+report implied. **Findings
   now F1–F15.** The manual audit itself is the evidence for F15's "add a ground-truth reconciliation
   step" fix.
+- 2026-07-12 — **Board reconciled to ground truth** (169-item tree audited; only 8416's subtree was
+  wrong, 8420+ legitimately New). 8416 → Closed; 8417/8418/8419 → Closed + superseded comments (linked
+  to delivering children 8564–8570; husky → new task **AUTH-8667**, P3); 8667 to be reparented under
+  **Feature 8415** (open task shouldn't hang off a closed story). **Confirmed F15(c)'s mechanism →
+  split out as F16:** the 07:10Z 8416-close was recorded in the run file but the `az.cmd` write
+  **silently failed** and was never read back → board diverged. Refined F15 (state availability is
+  per-item-**type**: `Removed` on User Story, not Task). Advised creating the 3 security follow-ups
+  (postcss + `.gitignore` = one hardening task under 8415; admin-route-guard = note-to-promote on the
+  auth story-to-be). **Findings now F1–F16.** Scaffolding phase genuinely closed. Next: plan the
+  F1–F16 batch (+ the pending ADO tier/ID cross-check if it surfaces anything).
