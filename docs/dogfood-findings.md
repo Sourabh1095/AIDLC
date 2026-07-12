@@ -196,6 +196,14 @@ including workaround **#3** (`.js/.cjs/.mjs` → TS parser), which is therefore 
 overlay we ship can safely encode all four. Workaround **#4** (`turbopack.root` breadth) is inherent to
 `file:../` siblings-under-parent and not cleanly narrowable today — the overlay should ship it with a
 "revisit as the workspace matures" note.
+**Carried-lore reuse validated (AUTH-8569).** The admin scaffold reused all 4 workarounds + the
+`env.ts` guard + every config file **verbatim** from bee-auth-web (only the port/package/clientId/route
+differed) — **no re-derivation**. So *within an epic* the orchestrator's carried lore self-mitigates
+F12: the second Next repo doesn't rediscover the fixes. **But** the lore is **epic-run-scoped memory**,
+not persistent — a fresh Next repo in a different epic/project (or a cold start) would re-derive from
+zero. So F12's fix still stands, refined to: **make the lore persistent** by shipping the overlay in
+`sdlc-stack-web/templates/tooling/` (a template survives across epics/projects; run-scoped memory does
+not). In-epic *urgency* downgraded; the durable fix is unchanged.
 
 ### F13 🟡 — `ux.renderBaseUrl` isn't synced to the scaffold's actual dev-server port (jury renders the wrong server)
 **Symptom.** `sdlc.config.json` → `repos[bee-auth-web].ux.renderBaseUrl` = `http://localhost:3000`, but
@@ -214,6 +222,10 @@ repo's dev-server port; nothing reconciles the two, and there's no cross-repo po
   (here `renderBaseUrl` :3000 collides with the API repo's port).
 - **Watch on AUTH-8569 (admin):** likely the same default :3000 `renderBaseUrl` vs its own dev port —
   confirm whether it replicates.
+**Replication confirmed (AUTH-8569).** Admin runs on **:3001** (web on :3100, api on :3000) — three
+different scaffold-chosen ports, none reconciled with `ux.renderBaseUrl` (default :3000 = the API).
+So F13 is systemic, not a one-off: every UX repo picks its dev port ad-hoc and nothing writes it back
+to config. Reinforces the fix — scaffold owns the port, so scaffold should write `ux.renderBaseUrl`.
 
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
@@ -249,6 +261,13 @@ cross-repo docs) has no such target.
   correct BLOCKER/MAJOR-only gating. This validates the whole economical model: reviewer spent only
   when triggered, and worth it when it is. (env.ts MINOR fixed in a project fix-cycle before merge —
   project code, not a plugin finding.)
+- ✅ **On-demand reviewer skips correctly on routine work (v0.13.0) — validated on AUTH-8569 (the
+  *other* direction of the cadence):** where 8568 *spent* the reviewer on genuine novelty (4 new config
+  deviations), 8569 was a **verbatim mirror** of the already-approved bee-auth-web (only port/package/
+  clientId/route differed, green dev-smoke on both routes), so a fresh review was correctly **skipped**
+  — the mechanical diffs are fully covered by the deterministic gates, and admin authz is deferred to
+  the epic security pass. Spend-when-novel + skip-when-routine both observed ⇒ the economical model
+  earns its keep in both directions, not just one.
 - ✅ **Design-pod scope-gating (v0.2.1 ux) — validated on AUTH-8568:** on a Next.js *scaffold* task
   the orchestrator did NOT auto-run the full design pod; it detected the scaffold-vs-UI scope mismatch
   and recommended skeleton-only (`ui:false`, skip jury), reserving the pod for real UI surfaces. The
@@ -308,3 +327,10 @@ cross-repo docs) has no such target.
   rollup so **8569 won't rediscover it** — a claim to test directly on 8569 (does it reuse, or
   re-derive? bears on F12 severity). Next: **8569 (admin, Next twin of 8568)**, then **8570**
   (control-plane README — the F8 case).
+- 2026-07-12 — AUTH-8569 (admin) merge gate: **verbatim mirror** of reviewer-approved bee-auth-web (only
+  port :3001 / package / clientId / `/dashboard` route differed), gates green incl. dev-smoke both
+  routes. **Carried lore worked** (no re-derivation) → updated F12 (in-epic self-mitigation confirmed;
+  durable fix = persistent template overlay, not run-scoped memory). **F13 replication confirmed**
+  (admin :3001, three unreconciled ports). Chose **merge without a fresh reviewer** — routine
+  verbatim mirror, nothing novel to judge → logged as a validation of the on-demand cadence's
+  *skip-when-routine* direction (complements 8568's spend-when-novel). → rollup **6/7**. Last: **8570**.
