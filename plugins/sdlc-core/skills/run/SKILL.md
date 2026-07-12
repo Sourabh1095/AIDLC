@@ -53,7 +53,7 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5); comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature; then report. |
+| epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `sdlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **Before declaring the epic done, run the `/sdlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
 
 ### UI detection (decide here, not later)
 
@@ -77,18 +77,55 @@ If none of the signals fire, `ui: false` — never force the design pod onto bac
 (This is a judgment call; when genuinely unsure whether a frontend item warrants the design pod,
 default `ui: true` — an over-invoked jury is cheap insurance; a missed one ships un-judged UI.)
 
+**Scaffold-scope gate (deterministic — don't burn the pod on an empty shell).** A frontend/`ux.enabled`
+repo is NOT enough to fire the pod: a **scaffold/skeleton** item renders no real UI surface yet. Set
+`ui: false` (skeleton-only, jury skipped) — **even in a UI repo** — when the item reads as scaffold,
+i.e. *any* of: minimal-shell / bootstrap / "stand up the app" scope with **no named page/route/screen**
+to design; **functional-only** DoD/AC (builds, routes, lints, a placeholder/health page renders — no
+visual/interaction/UX criteria); `ux.uiPaths` empty or pointing only at not-yet-built placeholders; or
+the item is labeled/titled `scaffold`/`skeleton`/`bootstrap`/`init`/`wiring`. Conversely `ui: true`
+when a concrete page/route/component is named or the AC ask for visual/layout/motion/UX quality (not
+just "it renders"). **Ambiguity errs toward `ui: true`** — the scaffold read must be *clear* to skip.
+This is the **same rule in interactive and non-interactive (`/sdlc:sprint`, headless) modes**: headless
+applies it with no prompt; interactive may surface it as a confirmable *"Skeleton only [recommended] vs
+Full design pod"* recommendation, but the recommendation is not the only gate. (Mirrors
+`sdlc-ux:design` → *Pod-scope gate*, the pod's own view of the same contract.)
+
 ## 2.5 · ROUTE TO REPO (poly; a no-op in mono)
 
 With one repo in the registry (mono), skip this — the single entry is the target; leave `repo:`
 unset on the run file. With several:
 
 **Non-epic item** — resolve its target repo via the chain in `sdlc:work-items` → *Repos & routing*
-(explicit `repo` → label match → single default → analyst grounding → ask). Record the resolved repo
-on the run file's `repo:` and write it back via `adapter.link`/`adapter.updateAC` where the source
-supports it. From here **every git/branch/commit/push/PR/verify step for this run runs with cwd =
-`workspace.root`/`<repo.path>`**, using THAT repo entry's `host`/`remote`/`defaultBranch`/
-`branchPattern`. The run file lives at `<repo.path>/.sdlc/runs/{ID}.md` and is committed to the
-branch (so the PR still carries the full audit trail).
+(control-plane → explicit `repo` → label match → single default → analyst grounding → undeclared-repo →
+ask). Record the resolved repo on the run file's `repo:` and write it back via
+`adapter.link`/`adapter.updateAC` where the source supports it. From here **every
+git/branch/commit/push/PR/verify step for this run runs with cwd = `workspace.root`/`<repo.path>`**,
+using THAT repo entry's `host`/`remote`/`defaultBranch`/`branchPattern`. The run file lives at
+`<repo.path>/.sdlc/runs/{ID}.md` and is committed to the branch (so the PR still carries the full audit
+trail). Two routing outcomes are first-class, not ad-hoc:
+- **`control-plane`** (F8) — a workspace-level item (README, cross-repo docs, control-plane config)
+  routes to the workspace root and branches/merges there through the same gate. No `repos[]` entry
+  needed; `repo: control-plane` on the run file.
+- **Undeclared repo** (F2) — grounding says the work belongs in a repo not in `repos[]` (a shared lib,
+  a future product). **Offer to declare it** (`/sdlc:repo add` — appends `repos[]` + bootstraps the
+  folder), then route to the new entry. Never silently fold it into another repo.
+
+**Non-epic item whose scope spans repos** (F1) — a single *story/task* legitimately touching several
+repos (bootstrap, shared-config, cross-repo refactor) breaks the invariant *1 run = 1 repo = 1 branch*.
+Do NOT run it as-is. Detect it (its AC/plan clearly touch >1 declared repo) and offer three options,
+consistently:
+1. **Decompose-and-run** — split into per-repo children now and run them (in `dependsOn` order); the
+   parent becomes an umbrella. **Follow `sdlc:work-items` → *Re-decomposition & supersession*** (AC
+   coverage map, flag uncovered ACs, link+supersede the original if it's being replaced).
+2. **Decompose-defer** — create the per-repo children and STOP (pick up via `/sdlc:next`).
+3. **Single-repo subset** — the item really only needs one repo after grounding → route there, note the
+   descope.
+**ADO hierarchy constraint:** ADO forbids Story→Story parenting, so decomposing a cross-repo *Story*
+yields child **Tasks** (the parent Story becomes a non-idiomatic umbrella). **Prefer modelling
+cross-repo work one tier up — a Feature with per-repo Stories** — so each repo unit is a proper Story;
+the best fix is authoring it right up front (`sdlc:intake`/`sdlc:groom`/`sdlc:planning`), this run-time
+split is the safety net.
 
 **Epic / cross-repo requirement** — the feature may span repos. Dispatch **sdlc-analyst** to ground
 it against the candidate repos and decompose into **one child story per affected repo**, setting each
@@ -153,10 +190,19 @@ phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STO
 **UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
 backend/structure is in place, hand the frontend off by following `sdlc-ux:design` for this item's
 run file, passing the **scope, mode and brand** you recorded at §2 — and, in poly, the **resolved
-frontend repo** (its `path` as the working dir and its `ux.renderBaseUrl` for the jury). It runs narrative → research →
+frontend repo** (its `path` as the working dir). The jury resolves the **render URL from the repo's
+actual dev-server port** (parsed from its `package.json` `dev`/`start` script), using
+`ux.renderBaseUrl` only as a fallback and failing loud on a non-UI response — so a stale config port
+can't make it score the wrong server (F13; see `sdlc-ux:design-jury`). It runs narrative → research →
 design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
 capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
 same as reviewer/QA findings.
+
+**Scaffold owns the port (F13).** When the implement phase **scaffolds a UX repo and assigns its
+dev-server port** (e.g. picks :3100 to avoid colliding with an API on :3000), write that port back to
+the repo's `ux.renderBaseUrl` in `sdlc.config.json` (the scaffold owns the port, so it owns the config
+value) and **flag any cross-repo port collision**. This keeps the jury's fallback honest even before it
+derives the port itself.
 - If `ui: true` but `sdlc-ux` is not installed, build the UI with the implementer as usual and note
   in `## Findings` that the design gate was unavailable (so a human knows it shipped un-judged).
 - `ui: false` items skip the pod entirely.
