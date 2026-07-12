@@ -266,7 +266,11 @@ board matches reality. Requirements leak and the board silently diverges.
 **Proposed modification.**
 - **Decomposition (extend F1):** emit an explicit **AC coverage map** old→new and **flag any original AC
   not covered** by a child (husky would have been caught at decompose time); **link + close/supersede**
-  the original tasks being replaced (don't leave them "New").
+  the original tasks being replaced (don't leave them "New"). **Use `Removed` (superseded) state, not
+  `Closed`** — the originals were never worked *as themselves* (their scope was re-tracked under the new
+  children), so closing them double-counts throughput (10 "done" scaffolding tasks vs the 7 actually
+  delivered). Link each Removed original to its delivering children; if a carved-out AC (e.g. husky)
+  moved to a *new* follow-up, link that too.
 - **Ground-truth reconciliation step** in `/sdlc:status` (and at epic/story close): verify tracker
   status against run files + git + disk and report drift — the exact audit done here by hand.
 - **Verify transitions persisted** (reported success ≠ board state) and make close **tier-aware** (a
