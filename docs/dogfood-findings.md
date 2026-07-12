@@ -158,6 +158,38 @@ scaffold, and any future scaffold story). If it defaults to skeleton-only, that 
 (b) an explicit non-interactive default in `sdlc:run` §2 + `sdlc:sprint`, so headless runs don't
 guess. Keep the interactive prompt as the confirmation, not the only gate.
 
+### F12 🟠 — stack-web tooling baseline has no Next.js overlay; every Next repo re-derives the same 4 workarounds
+**Symptom.** Scaffolding `bee-auth-web` (AUTH-8568) required **4 config-level workarounds** to reconcile
+the shared strict flat ESLint config (`@beelogical/dev-config` → typescript-eslint `strictTypeChecked`)
+with `eslint-config-next` on **ESLint 10** + **Turbopack** + a `file:../` monorepo. Gates stayed green
+and no rules were weakened, but the reconciliation was hand-authored per-repo:
+1. **Duplicate `@typescript-eslint` plugin registration** — both the shared config *and*
+   `eslint-config-next` register it → flat-config *"Cannot redefine plugin"* error. Dropped the
+   redundant registration from the next config; kept our parser override (no coverage lost).
+2. **`eslint-plugin-react` `settings.react.version:"detect"` crashes on ESLint 10** (relies on the
+   removed `context.getFilename()`). Pinned `react.version` explicitly (`"19.2.7"`) to avoid the
+   detection code path.
+3. **Plain `.js/.cjs/.mjs` routed to the TS parser** — the default parser path crashed under ESLint 10.
+   *(The one to scrutinize — could over-broaden the parser; reviewer to confirm it's benign.)*
+4. **`turbopack.root` widened to the workspace parent** so Turbopack resolves the `file:../` sibling
+   packages (dev-config + SDKs).
+**Root cause.** The v0.10.0 tooling baseline template was validated on **plain-tsc backend/SDK** repos.
+It has **no Next.js-specific overlay**. Next brings its own required tooling (`eslint-config-next`) and
+bundler (Turbopack) that don't compose with a strict shared flat config out of the box on ESLint 10 —
+so **every** frontend repo re-derives the same 4 fixes by hand (8569 admin will hit all four again).
+**Proposed modification.** Ship a **Next.js tooling overlay** in `sdlc-stack-web/templates/tooling/`
+(+ state it in the `nextjs` / `coding-standards-ts` skills): a ready `eslint.config.mjs` fragment that
+composes `@beelogical/dev-config` + `eslint-config-next` with all four reconciliations **pre-solved**
+(dedupe the typescript-eslint plugin, pin `react.version`, parser mapping for `.js/.cjs/.mjs`,
+`turbopack.root` for monorepo `file:../`). **Pin `eslint-config-next` / `eslint-plugin-react` to
+ESLint-10-compatible versions** (workarounds #2/#3 are ESLint-10 breakages the ecosystem hasn't fully
+absorbed) — Context7-verify the exact pins at implementation time (per the "verify vs registry, not
+memory" lesson). Sibling of F9 (boundary config) + F10 (base tsconfig) — template-completeness for the
+Next flavor.
+**Positive to note.** The orchestrator's **transparency** — surfacing exactly what went unreviewed and
+why, at the merge gate — is the economical cadence working as designed. The on-demand reviewer was then
+summoned at a genuine judgment moment (first time this dogfood), which is the intended trigger.
+
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
 so routing is deferred to run time.
@@ -217,6 +249,12 @@ cross-repo docs) has no such target.
   base in skills). Validated: run-state resume (8567 mid-run recovery), dependency policy. 8566
   proved F10's clean fix (moduleResolution unset + no baseUrl = zero suppression). Next: the two UX
   frontends (8568/8569) — first exercise of the design pod on a scaffold.
+- 2026-07-12 — AUTH-8568 (web) merge gate: gates green (lint/type/build, 3 routes 200) but the
+  implementer needed **4 config workarounds** to compose our strict shared flat ESLint config with
+  `eslint-config-next` + ESLint 10 + Turbopack + `file:../` monorepo → logged **F12** (ship a Next.js
+  tooling overlay so every frontend repo doesn't re-derive them; 8569 will hit the same). Recommended
+  running the on-demand **reviewer** on the 4 deviations before merge (first reviewer invocation of the
+  dogfood — a genuine, non-routine trigger). Reviewer verdict will sharpen F12 (esp. workaround #3).
 - 2026-07-12 — AUTH-8568 (web) design-pod decision point: orchestrator correctly detected scaffold
   scope and recommended **skeleton-only** (design pod reserved for real UI surfaces). Chose skeleton-
   only. Logged F11 (non-interactive default for the ui:true-repo + scaffold-scope fork is unclear —
