@@ -242,6 +242,41 @@ per the registry-vs-memory lesson). Sibling of F9 (boundary config) — scaffold
 **Positive corollary.** The per-epic security pass **caught** this — the layered model (scaffold +
 epic-time security audit) compensated for the template gap rather than shipping it silently.
 
+### F15 🟠 — Cross-repo re-decomposition (F1 path) drops requirements + orphans superseded originals; tracker never reconciled to ground truth
+**Symptom.** A manual **ground-truth audit** (disk + git log + run files vs the ADO board), run after
+Epic-1 "close," found four kinds of drift:
+- **(a) Requirement silently dropped.** When 8416's cross-repo story was decomposed into per-repo
+  children 8564–8570, the **husky-hooks AC of the original task 8418 was not carried into any new
+  child** and was never delivered (no `.husky/`, no `prepare` script, no husky dep in *any* of the 6
+  repos). Only caught out-of-band by the manual audit.
+- **(b) Superseded originals orphaned.** The original sibling tasks **8417 / 8418 / 8419** (replaced by
+  the 8564–8570 re-decomposition) were left **"New"** on the board — never linked, superseded, or
+  closed — even though 8417 (create repos) and 8419 (Docker Compose: PG16.4/Redis7.4/volumes/
+  healthchecks) are verifiably done.
+- **(c) Parent status didn't persist / wrong tier.** 8416 (a **Story**, per F1 — not an Epic) showed
+  **"Development in Progress"** on the board despite all 4 ACs being met and this terminal reporting
+  *"epic → Closed."* The close either didn't persist or the close-flow didn't target the Story-typed
+  umbrella (it likely assumed the decomposable parent is an Epic).
+- **(d) No drift detection.** Nothing in the pipeline reconciles tracker state against what was actually
+  built — the user had to do it entirely by hand.
+**Root cause.** The F1 run-time decomposition creates children but has **no AC coverage-mapping**
+(original ACs → new children, with uncovered ACs flagged), **no reconciliation** of the originals it
+supersedes (link + transition), and **no post-hoc verification** that transitions persisted / that the
+board matches reality. Requirements leak and the board silently diverges.
+**Proposed modification.**
+- **Decomposition (extend F1):** emit an explicit **AC coverage map** old→new and **flag any original AC
+  not covered** by a child (husky would have been caught at decompose time); **link + close/supersede**
+  the original tasks being replaced (don't leave them "New").
+- **Ground-truth reconciliation step** in `/sdlc:status` (and at epic/story close): verify tracker
+  status against run files + git + disk and report drift — the exact audit done here by hand.
+- **Verify transitions persisted** (reported success ≠ board state) and make close **tier-aware** (a
+  Story-as-umbrella like 8416 must itself be transitioned; don't assume the parent is an Epic).
+**Severity 🟠** (silent requirement loss + board drift; a correctness gap in the decompose/close flow,
+mitigated only by a manual audit — arguably 🔴 precisely *because* it was silent). Extends F1.
+**Project-side (not plugin):** husky+lint-staged carved out to a high-priority follow-up task (wire in
+`@beelogical/dev-config` `prepare` → inherited by all repos); 8418 closed with a linked carve-out note;
+8417/8419/8416 reconciled to done.
+
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
 so routing is deferred to run time.
@@ -380,3 +415,14 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   (scaffold `.gitignore` should harden `.env*`). 3 project follow-ups (postcss override + `.gitignore`
   → one maintenance task; admin-route-guard → auth-epic note) advised to file in ADO. **Findings now
   F1–F14.** Next: cross-check ADO tier/ID alignment (separate terminal), then plan the F1–F14 batch.
+- 2026-07-12 — **Ground-truth audit (disk + git + run files vs board) after Epic-1 close** surfaced
+  real drift → new finding **F15** (F1 re-decomposition drops requirements + orphans originals + board
+  drift). Verified: the 7 re-decomposed children (8564–8570) are **genuinely done**; BUT the **husky
+  AC of original task 8418 was silently dropped** (wired in zero repos), originals **8417/8418/8419
+  left "New,"** and **8416 (a Story) showed "Development in Progress"** despite our "epic→Closed"
+  report. Advised: husky → **high-priority follow-up task** (via dev-config); **close 8418 with a
+  linked carve-out note** (don't false-close); **reconcile 8417/8419/8416 → done** with "delivered
+  under 8564–8570" comments. **Correction to prior entry:** Epic-1 scaffolding is delivered *modulo*
+  the husky follow-up + tracker reconciliation — not the clean 7/7 the board+report implied. **Findings
+  now F1–F15.** The manual audit itself is the evidence for F15's "add a ground-truth reconciliation
+  step" fix.
