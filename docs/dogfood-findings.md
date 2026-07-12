@@ -141,6 +141,23 @@ pipeline scaffolds a repo per `project-structure`, it should drop the matching
 `.dependency-cruiser.cjs` + `depcruise` script alongside the layout, so the gate is real once CI exists.
 (Low priority: no CI under local mode yet, but it should be present for the remote flip.)
 
+### F11 🟡 — Design pod scope-gating is correct interactively, but the non-interactive default is unclear
+**Symptom (positive core).** On `/sdlc:run 8568` (`bee-auth-web`, a Next.js *scaffold* task), the
+orchestrator did **not** blindly fire the `sdlc-ux` design pod just because the repo is a frontend/UI
+repo. It **detected the scaffold-vs-UI scope mismatch** ("minimal shell" scope, functional-only DoD)
+and surfaced a choice — *Skeleton only (`ui:false`, skip jury) [recommended]* vs *Full design pod* —
+recommending skeleton-only. This is exactly the smart gating I feared it lacked: the pod is reserved
+for real UI surfaces, not empty scaffolds. **Good behavior — validated.**
+**Open question (the finding).** The decision was resolved by an **interactive prompt**. In
+**`/sdlc:sprint` / headless** mode the orchestrator can't ask — so what is the default for a
+frontend-repo item whose scope reads as a scaffold? If it silently falls back to firing the full pod,
+a batched sprint could burn a large design-pod run on an empty shell (esp. relevant for 8569 admin
+scaffold, and any future scaffold story). If it defaults to skeleton-only, that should be stated.
+**Proposed modification.** Make the ui-detection / design-pod trigger deterministic and documented:
+(a) a scope signal (scaffold/skeleton items → `ui:false` by default even in UI repos), and
+(b) an explicit non-interactive default in `sdlc:run` §2 + `sdlc:sprint`, so headless runs don't
+guess. Keep the interactive prompt as the confirmation, not the only gate.
+
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
 so routing is deferred to run time.
@@ -167,6 +184,10 @@ cross-repo docs) has no such target.
   implementer hit an environment session limit right before committing; recovery re-ran the suite,
   committed the scaffold, smoke-tested, and finished docs **without re-authoring code** — the run
   file carried enough state to resume cleanly. Core resilience feature confirmed on a live cut-off.
+- ✅ **Design-pod scope-gating (v0.2.1 ux) — validated on AUTH-8568:** on a Next.js *scaffold* task
+  the orchestrator did NOT auto-run the full design pod; it detected the scaffold-vs-UI scope mismatch
+  and recommended skeleton-only (`ui:false`, skip jury), reserving the pod for real UI surfaces. The
+  only gap is the *non-interactive* default (logged as F11) — the interactive behavior is correct.
 - ✅ **Dependency policy (v0.12.0) — verified live against the npm registry (2026-07-12):** the
   `bee-auth-dev-config` scaffold (AUTH-8564) pinned current, mutually-compatible versions — eslint
   10.7.0, @eslint/js 10.0.1, typescript-eslint 8.63.0, @types/node 26.1.1, prettier 3.9.5,
@@ -196,3 +217,9 @@ cross-repo docs) has no such target.
   base in skills). Validated: run-state resume (8567 mid-run recovery), dependency policy. 8566
   proved F10's clean fix (moduleResolution unset + no baseUrl = zero suppression). Next: the two UX
   frontends (8568/8569) — first exercise of the design pod on a scaffold.
+- 2026-07-12 — AUTH-8568 (web) design-pod decision point: orchestrator correctly detected scaffold
+  scope and recommended **skeleton-only** (design pod reserved for real UI surfaces). Chose skeleton-
+  only. Logged F11 (non-interactive default for the ui:true-repo + scaffold-scope fork is unclear —
+  matters for sprint/headless and for 8569) and a matching positive validation. Design pod itself
+  still unobserved end-to-end — the honest place to characterize it is an Epic 2 real login-UI story,
+  not an empty shell.
