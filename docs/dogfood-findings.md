@@ -270,7 +270,12 @@ board matches reality. Requirements leak and the board silently diverges.
   `Closed`** — the originals were never worked *as themselves* (their scope was re-tracked under the new
   children), so closing them double-counts throughput (10 "done" scaffolding tasks vs the 7 actually
   delivered). Link each Removed original to its delivering children; if a carved-out AC (e.g. husky)
-  moved to a *new* follow-up, link that too.
+  moved to a *new* follow-up, link that too. **State availability is process-dependent (F7 echo):** this
+  board's **Task** type has **no `Removed` state** (only `Closed` is terminal), so the reconciliation
+  must **probe the process's available terminal states and adapt** — prefer `Removed`, else fall back to
+  `Closed` + a superseded comment; it must NOT hard-code `Removed`. (Live: 8417/8418/8419 → `Closed` +
+  "superseded; delivered under 8564–8570; husky → AUTH-8667". Leaving them `New` was rejected because
+  the pipeline's `query()` would resurface delivered work as "ready" and risk re-running it.)
 - **Ground-truth reconciliation step** in `/sdlc:status` (and at epic/story close): verify tracker
   status against run files + git + disk and report drift — the exact audit done here by hand.
 - **Verify transitions persisted** (reported success ≠ board state) and make close **tier-aware** (a
