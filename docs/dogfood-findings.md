@@ -278,6 +278,11 @@ board matches reality. Requirements leak and the board silently diverges.
   `Removed`, else fall back to `Closed` + a superseded comment; it must NOT hard-code `Removed`. (Live: 8417/8418/8419 → `Closed` +
   "superseded; delivered under 8564–8570; husky → AUTH-8667". Leaving them `New` was rejected because
   the pipeline's `query()` would resurface delivered work as "ready" and risk re-running it.)
+- **ADO can't retype a work item via REST** — so any reconciliation/restructure fix (here, and the F1
+  decompose path) must **create-new + link + supersede** or use an **umbrella-Story** structure, never
+  "convert" an existing Task into a Story. (Live: husky Task 8667 stayed a Task under a new umbrella
+  Story 8669 rather than being converted.) Also: the **AC field is Story-tier**, not Task-tier — the
+  `updateAC` op must write ACs to the Story (Tasks only carry them in the description).
 - **Ground-truth reconciliation step** in `/sdlc:status` (and at epic/story close): verify tracker
   status against run files + git + disk and report drift — the exact audit done here by hand.
 - **Verify transitions persisted** (reported success ≠ board state) and make close **tier-aware** (a
@@ -299,9 +304,13 @@ read-back verification** of writes, so the pipeline trusts a record that has div
 **Proposed modification.** Adapter write ops — **`transition` at minimum, ideally every mutation
 (`comment`/`link`/`updateAC`/`create`)** — must **fetch the item back and assert the change landed**
 before recording success (verify state == target / field present / item exists). On mismatch: retry,
-then **surface a hard error** instead of silently stamping success. State this in the adapter contract
-(`work-items` skill) so it binds all trackers, not just ADO — any tracker write can fail; the `az.cmd`
-fallback just makes it likely. **Prevention** pairs with F15's ground-truth reconciliation
+then **surface a hard error** instead of silently stamping success. **Tolerate eventual consistency:**
+an immediate read-after-write can transiently show stale/`None` (observed live during the 8415
+reconciliation — mid-script `parent==None` flags that an authoritative batch re-fetch then showed
+correct and stable). So the verification must **retry with a short backoff / re-fetch authoritatively**
+before declaring failure — *not* hard-fail on the first mismatch (that would trade silent-success for
+false-failure). State this in the adapter contract (`work-items` skill) so it binds all trackers, not
+just ADO — any tracker write can fail; the `az.cmd` fallback just makes it likely. **Prevention** pairs with F15's ground-truth reconciliation
 (the **detection** safety net). Severity 🟠 — silent state divergence in an autonomous pipeline, where
 every downstream decision trusts the durable record (arguably 🔴 for exactly that reason).
 **Positive corollary.** The project session already added a "verify writes with a read-back" note +
@@ -467,3 +476,16 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   (postcss + `.gitignore` = one hardening task under 8415; admin-route-guard = note-to-promote on the
   auth story-to-be). **Findings now F1–F16.** Scaffolding phase genuinely closed. Next: plan the
   F1–F16 batch (+ the pending ADO tier/ID cross-check if it surfaces anything).
+- 2026-07-12 — **Reconciliation follow-ups landed + read-back-verified; scaffolding phase truly closed.**
+  Under Feature 8415: new Story **8669** "Foundation tooling & hardening" (P2) with ACs, parenting Task
+  **8670** (postcss override + `.gitignore` `.env*` hardening) and the reparented husky Task **8667**
+  (P3) — tiers correct (Feature→Story→Task), nothing hangs off closed Story 8416. Admin-route-guard →
+  grooming-flag comment + tag on **Epic 8444** (not a task). **The ADO tier/ID cross-check is effectively
+  complete: tiers were modeled correctly all along** (8416 is a Story, children are Tasks — deliberate
+  per F1); the only problems were **status drift (F16 silent write) + decomposition gaps (F15)**, not
+  ID/tier confusion. **F16 validated in the field** — the read-back caught transient `parent==None`
+  read-after-write lag that a batch re-fetch resolved → refined F16 to require *eventual-consistency-
+  tolerant* verification (retry/backoff, not hard-fail-on-first-mismatch). Refined F15 with two ADO
+  constraints (no REST retype → umbrella-Story/create-new; AC field is Story-tier). Terminal A (original
+  `/sdlc:run`) retired as stale; accurate state lives on the board + run files + terminal B. **Findings
+  F1–F16 stable. Discovery phase done — next conversation: plan the batch.**
