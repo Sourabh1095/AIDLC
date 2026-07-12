@@ -124,6 +124,9 @@ a shared/base tsconfig is **strictness-only**; `moduleResolution`, `baseUrl`/`pa
 belong in each repo's own tsconfig (matching what the template already does).
 **Project-side follow-up (not plugin):** fix `bee-auth-dev-config`'s base to strictness-only and drop
 the per-repo `ignoreDeprecations` — before the siblings replicate the workaround, and before any TS7 move.
+**Proven clean fix (from AUTH-8566):** leave `moduleResolution` **unset** (don't use `"node"` *or*
+`"node10"` — both deprecated) and use **no `baseUrl`** → zero deprecation suppression needed. That's
+the config the shared base should ship; empirically validated on a tsc-built CJS repo.
 
 ### F9 🟡 — Scaffold applied the structure *layout* but omitted the *boundary-gate config*
 **Symptom.** `bee-auth-api` (AUTH-8565) was scaffolded with the correct NestJS layout
@@ -188,3 +191,8 @@ cross-repo docs) has no such target.
 - 2026-07-12 — AUTH-8564 (dev-config) scaffolded + locally merged. Reviewed its package.json;
   registry-verified all versions → dependency policy produced current + compatible pins (see
   Validated). No finding.
+- 2026-07-12 — AUTH-8565 (api) + 8567 (sdk-next) + 8566 (sdk-nest) done; rollup 4/7. Added F9
+  (scaffold omits dependency-cruiser config, now confirmed across 3 repos), F10 (state strictness-only
+  base in skills). Validated: run-state resume (8567 mid-run recovery), dependency policy. 8566
+  proved F10's clean fix (moduleResolution unset + no baseUrl = zero suppression). Next: the two UX
+  frontends (8568/8569) — first exercise of the design pod on a scaffold.
