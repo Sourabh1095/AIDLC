@@ -160,6 +160,10 @@ cross-repo docs) has no such target.
   orchestrator correctly detected cross-repo scope (see F1).
 - ✅ **ADO connectivity via `az` fallback:** full board (150 items, 7-epic rollup) rendered once the
   launch environment was fixed.
+- ✅ **Run-state resume (checkpoint/resume) — validated on a real interruption (AUTH-8567):** the
+  implementer hit an environment session limit right before committing; recovery re-ran the suite,
+  committed the scaffold, smoke-tested, and finished docs **without re-authoring code** — the run
+  file carried enough state to resume cleanly. Core resilience feature confirmed on a live cut-off.
 - ✅ **Dependency policy (v0.12.0) — verified live against the npm registry (2026-07-12):** the
   `bee-auth-dev-config` scaffold (AUTH-8564) pinned current, mutually-compatible versions — eslint
   10.7.0, @eslint/js 10.0.1, typescript-eslint 8.63.0, @types/node 26.1.1, prettier 3.9.5,
