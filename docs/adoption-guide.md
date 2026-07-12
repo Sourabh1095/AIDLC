@@ -73,6 +73,19 @@ The plugin ships MCP servers pre-wired; you provide credentials:
 
 If a server fails to start, `claude --debug` shows why; the pipeline degrades gracefully
 (GitHub operations fall back to the `gh` CLI, Azure Boards falls back to `az boards`).
+
+> **Azure DevOps: "connected" ≠ "authenticated" (a sharp edge).** `/mcp` showing
+> `azure-devops · connected · N tools` only means the MCP **process started** — it authenticates on the
+> **first real call**, which then fails opaquely (*"Failed to find api location for area."*) if the
+> launch environment is wrong. The requirement is that **both `ADO_MCP_ORG` (your org name) and a
+> working `az login` are present in the shell that _launches_ Claude Code**. Consequences:
+> - Installing `az` (or setting `ADO_MCP_ORG`) **mid-session doesn't take** — it isn't on the launching
+>   shell's PATH/env. **Fully relaunch** Claude Code from a shell where both are set.
+> - Verify before you start: `echo $ADO_MCP_ORG` is non-empty, `az account show` succeeds, and (once)
+>   `az devops configure --defaults organization=https://dev.azure.com/<org> project=<project>`.
+> - `/sdlc:status` runs a tracker doctor that distinguishes "MCP process up" from "ADO reachable +
+>   authenticated" and prints this remediation if the probe fails.
+
 Servers you don't use just sit idle — disable them via `/mcp` if the noise bothers you.
 
 **Optional project-scoped servers** (databases, Sentry, Notion, Figma): the template ships

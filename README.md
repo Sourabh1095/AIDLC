@@ -63,6 +63,7 @@ requirement → working full-stack app, every command included.
 | `/sdlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
 | `/sdlc:release` | Cut a release: semver from commits, changelog, tag, notes (publish is approval-gated) |
 | `/sdlc:sprint N` | Run N independent items in parallel worktrees with a live board |
+| `/sdlc:repo add <name>` | Declare + bootstrap a repo in a poly workspace (config entry + `git init` + base commit) |
 | `/sdlc:promote` | PR a proven project-local skill/agent into the shared plugin |
 | `/sdlc:sync` | Reconcile local extensions after plugin updates (kill drift) |
 

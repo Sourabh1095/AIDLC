@@ -2,6 +2,96 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.14.0] — 2026-07-12
+
+### Dogfood batch F1–F16 (Authentication / Identity Platform, Epic 1)
+
+Sixteen findings from a real end-to-end dogfood on a polyrepo + Azure DevOps + local-git-mode build,
+designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc-stack-web` 0.7.1 →
+**0.8.0**, `sdlc-ux` 0.2.1 → **0.3.0**, marketplace → **0.14.0**. Full design record:
+`docs/dogfood-findings.md`.
+
+#### `sdlc` — poly workspace modeling
+
+- **F1 — cross-repo work is modeled at authoring time, not improvised at run time.** `intake`, `groom`
+  and `planning` now enforce the poly invariant *1 story = 1 repo*: a story/task spanning repos is
+  authored as a **Feature → per-repo child Stories** (Feature-tier preferred because ADO forbids
+  Story→Story parenting). `run` §2.5 formalizes the run-time safety net (decompose-and-run /
+  decompose-defer / single-repo-subset) with the ADO hierarchy constraint spelled out.
+- **F2 — undeclared repos get declared, not mis-routed.** New **`/sdlc:repo add <name>`** command
+  declares a repo in `repos[]` **and** bootstraps the folder (`git init` + base commit + optional
+  tooling/structure baseline). `work-items` routing and `run` §2.5 now offer to declare an undeclared
+  repo instead of silently folding the work into another one.
+- **F3 — `init` asks mono-vs-poly explicitly.** Auto-detect is a *proposal* only; a greenfield poly
+  workspace (no sub-repos yet) no longer silently collapses to mono.
+- **F4 — `init` bootstraps greenfield repos.** Poly `init` offers to `git init -b <default>` + base-
+  commit each declared repo so the pipeline can branch into it immediately (the "first story creates
+  the repos" chicken-and-egg), or documents the exact commands if skipped. Shared with `/sdlc:repo`.
+- **F8 — `control-plane` is a first-class routing target.** Workspace-level items (README, cross-repo
+  docs, control-plane config) resolve deterministically to the workspace root instead of ad-hoc.
+
+#### `sdlc` — tracker robustness
+
+- **F5 — ADO "connected" ≠ "authenticated".** `wi-ado` documents the launch-env root cause
+  (`ADO_MCP_ORG` + `az login` must be present in the shell that *launches* Claude Code; mid-session
+  installs need a relaunch); `status` adds a **tracker doctor** that distinguishes "MCP process up" from
+  "ADO reachable + authenticated" and prints the remediation; the adoption guide gains a callout.
+- **F7 — `init` populates ADO `statusMap` from the board's real states** (customized boards like
+  *Development in Progress / Ready for QA*), instead of assuming Agile defaults or leaving it empty.
+- **F15 — re-decomposition no longer drops requirements or orphans originals.** `work-items` gains a
+  **Re-decomposition & supersession** contract: an **AC coverage map (old→new)** flags any uncovered
+  criterion; superseded originals are linked + moved to a **type-appropriate terminal state** (probe
+  per work-item type — `Removed` may exist for a Story but not a Task — never hard-code); no silent
+  retype (create-new + link, or umbrella parent); AC field is Story-tier in ADO. `status` adds a
+  **ground-truth reconciliation** step (board vs run files vs disk/git) run at epic/story close.
+- **F16 — adapter writes are read-back-verified.** Every mutation (`transition`/`create`/`comment`/
+  `link`/`updateAC`) must fetch the item back and assert the change landed before recording success,
+  **tolerating eventual consistency** (retry/backoff, not hard-fail on first mismatch) and raising a
+  hard error on persistent divergence. Stated in the `work-items` contract so it binds all trackers;
+  `wi-ado` calls out the flaky `az.cmd` write that caused the live board/run-file divergence.
+
+#### `sdlc` — gating & render defaults
+
+- **F6 — `init` normalizes the control-plane branch** to the configured default (no `master` control
+  plane while every repo says `main`).
+- **F11 — the design-pod scaffold gate is deterministic in headless/sprint mode.** `run` §2 defines a
+  scaffold-vs-real-UI classifier (scaffold/skeleton scope → `ui:false`, jury skipped, even in a UI
+  repo; ambiguity errs to `ui:true`); `sprint` applies it with no prompt so a batched sprint never
+  burns a full design run on an empty shell.
+- **F13 — the render URL is resolved from the repo, not a stale config default** (see `sdlc-ux`);
+  `run` §6 has the scaffold write its chosen dev-server port back to `ux.renderBaseUrl` and flag
+  cross-repo port collisions; `init` derives/asks the UX dev port instead of defaulting every repo to
+  :3000.
+
+#### `sdlc-stack-web` — scaffold-template completeness
+
+- **F9 — the dependency-cruiser boundary gate ships with every scaffold.** `project-structure` replaces
+  the init-only note with a mandatory **repo-scaffold checklist** (applies to `/sdlc:init` *and* any
+  `/sdlc:run` scaffold task) so `.dependency-cruiser.cjs` + `depcruise` are never silently omitted.
+- **F10 — the shared/base tsconfig is documented as strictness-only** in `coding-standards-ts`
+  (`moduleResolution`/`baseUrl`/`target` belong in each repo's own tsconfig) — the template was already
+  clean; the principle was unstated. Enforced by the F9 checklist.
+- **F12 — a pre-composed Next.js ESLint overlay** (`templates/tooling/next/`) ships the four
+  ESLint-10 / Turbopack / `file:../`-monorepo reconciliations pre-solved (dedupe the `@typescript-
+  eslint` plugin registration, pin `react.version`, map `.js/.cjs/.mjs` to `disableTypeChecked`,
+  `turbopack.root` snippet) so every Next repo stops re-deriving them. Pins verified against the
+  registry + Context7 (2026-07-12): `eslint-config-next@16.2.10` (peerDep `eslint >=9`, accepts
+  ESLint 10), `react@19.2.7`; `eslint-plugin-react` rides transitively at `7.37.5` — the `react.version`
+  pin (workaround #2) is required precisely because no stable `eslint-plugin-react` yet declares native
+  ESLint-10 support (documented, with a "drop the pin when it does" note). Overlay README instructs
+  adopters to confirm with `eslint --print-config` per repo.
+- **F14 — a hardened `.gitignore`** (`templates/tooling/.gitignore`) ignores `.env*` with a
+  `!.env.example` allow-exception — secret hygiene by default, a real concern for auth/identity repos.
+
+#### `sdlc-ux` — jury render resolution & scope gate
+
+- **F11 — pod-scope gate** in `design` mirrors the core scaffold-vs-UI classifier so the pod
+  self-applies skeleton-only when invoked standalone on a scaffold scope.
+- **F13 — the jury resolves the render URL from the repo's actual `dev`/`start` port** at render time
+  (parsed from `package.json`), using `ux.renderBaseUrl` only as a fallback, preferring the derived
+  port on mismatch, and **failing loud on a non-UI response** (JSON/404) so a wrong-server render can
+  never silently score. Mirrored across `design`, `design-jury` and the `sdlc-ux-jury` agent.
+
 ## [0.13.1] — 2026-07-11
 
 ### Added
