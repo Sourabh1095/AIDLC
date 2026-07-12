@@ -227,6 +227,21 @@ different scaffold-chosen ports, none reconciled with `ux.renderBaseUrl` (defaul
 So F13 is systemic, not a one-off: every UX repo picks its dev port ad-hoc and nothing writes it back
 to config. Reinforces the fix — scaffold owns the port, so scaffold should write `ux.renderBaseUrl`.
 
+### F14 🟡 — Scaffolded `.gitignore` doesn't harden `.env*` (secret-hygiene gap across every repo)
+**Symptom.** The epic security consolidation (AUTH-8416) flagged that `bee-auth-web`, `bee-auth-admin`,
+**and** `bee-auth-api` `.gitignore` should be tightened to ignore `.env*` with a `!.env.example`
+allow-exception (defense-in-depth — no live leak, but the pattern wasn't there by default). Flagged
+across all three code repos ⇒ template-level, not a one-off.
+**Root cause.** The tooling/structure scaffold doesn't ship a hardened `.gitignore` (or ships a
+framework default that only covers `.env*.local`), so secret-bearing env files aren't robustly ignored
+by default — a real concern for **auth/identity** repos.
+**Proposed modification.** Ship a hardened `.gitignore` in the scaffold (stack-web tooling template)
+that ignores `.env*` and re-includes `!.env.example` (alongside the usual `node_modules`/`dist`/
+`coverage`/`.next`). **Verify what the template currently emits before writing the fix** (don't assume,
+per the registry-vs-memory lesson). Sibling of F9 (boundary config) — scaffold-template completeness.
+**Positive corollary.** The per-epic security pass **caught** this — the layered model (scaffold +
+epic-time security audit) compensated for the template gap rather than shipping it silently.
+
 ### F8 🟡 — Poly: control-plane-targeted items have no `repos[]` entry to route to
 **Symptom.** Task 8570 (workspace README) targets the **control plane**, which isn't a declared repo,
 so routing is deferred to run time.
@@ -234,6 +249,12 @@ so routing is deferred to run time.
 cross-repo docs) has no such target.
 **Proposed modification.** Recognize a first-class **`control-plane`** routing target in `sdlc:run`
 §2.5 for workspace-level items, so they resolve deterministically instead of ad-hoc.
+**Resolved live (AUTH-8570) — behavior OK, fix still warranted.** At run time the item routed to the
+**control-plane repo** (the `D:\Authentication` root), branched `task/AUTH-8570-workspace-readme`, and
+merged via the *same* local `--no-ff` gate — it did **not** error on the missing `repos[]` entry. But
+it did so through a **logged run-time assumption** ("control-plane routing special-case," 1 of 5
+assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't break; the fix
+(formalize `control-plane` as a routing target) is confirmed as **polish, not a blocker**.
 
 ---
 
@@ -279,6 +300,22 @@ cross-repo docs) has no such target.
   because `typescript-eslint@8.63` caps TS at `<6.1.0` and no tseslint 9 exists yet. "Latest stable
   **and** compatible" worked, including the non-obvious compat call. (Note to self: verify versions
   against the registry, not training memory — nearly logged a false finding here.)
+
+- ✅ **Per-epic security consolidation (v0.13.0) — validated end-to-end on the AUTH-8416 close (the last
+  unobserved cadence behavior):** the `securityConfirm` gate was honored (it **asked** before running,
+  not silent); it reviewed the **combined 6-repo scaffolding diff coherently** (a real consolidation,
+  not per-item); returned **APPROVE — 0 blocker / 0 major** with proportionate real findings (placeholder
+  auth **fails closed**, AC2 env validation confirmed **fail-loud**, **no committed secrets**, Docker
+  **binds loopback-only**) + 3 non-blocking follow-ups (postcss transitive-XSS override; `.gitignore`
+  `.env*` hardening → F14; a future admin-route-guard AC). Right **depth for scaffolds** — light but not
+  empty. Confirms per-epic timing + confirm-first is well-placed; real findings will scale when Epic 2
+  adds actual auth logic. The 3 follow-ups were **surfaced, not auto-filed** (filed on user confirmation)
+  — correct confirm-first behavior for creating work items.
+- ✅ **Layered dependency defense — add-time + epic-time together caught a *transitive* vuln:** `dep-vet`
+  (v0.12.0) vets packages at **add** time and structurally can't see a vuln buried in a framework's
+  transitive tree (moderate XSS via `postcss` under `next@16`, a direct dep of neither repo). The
+  **epic security audit caught it.** Validates the *two-layer* model (install-time policy **and**
+  periodic audit), not install-time policy alone.
 
 ## Out of scope (not plugin issues — noted for the record)
 - Backlog push created **150 of 165** planned items (~3 stories + 12 tasks short) — a limitation of
@@ -334,3 +371,12 @@ cross-repo docs) has no such target.
   (admin :3001, three unreconciled ports). Chose **merge without a fresh reviewer** — routine
   verbatim mirror, nothing novel to judge → logged as a validation of the on-demand cadence's
   *skip-when-routine* direction (complements 8568's spend-when-novel). → rollup **6/7**. Last: **8570**.
+- 2026-07-12 — **AUTH-8570 done + Epic AUTH-8416 CLOSED (7/7) — Epic 1 (scaffolding) complete.** 8570
+  (workspace README) merged (`--no-ff` 035775f) → **F8 resolved** (routed to the control-plane repo via
+  a logged run-time assumption; behavior OK, formalize-fix downgraded to polish). Epic-close **per-epic
+  security consolidation** ran (user-confirmed): APPROVE, 0 blocker/0 major over the combined 6-repo
+  diff → logged as a **major validation** (last unobserved cadence behavior) + a **layered-dep-defense**
+  validation (caught transitive postcss XSS that add-time vetting can't see). New finding **F14**
+  (scaffold `.gitignore` should harden `.env*`). 3 project follow-ups (postcss override + `.gitignore`
+  → one maintenance task; admin-route-guard → auth-epic note) advised to file in ADO. **Findings now
+  F1–F14.** Next: cross-check ADO tier/ID alignment (separate terminal), then plan the F1–F14 batch.
