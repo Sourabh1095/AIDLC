@@ -151,6 +151,22 @@ Detection backstop: `/sdlc:status` runs a **ground-truth reconciliation** (track
 + git + disk) at epic/story close — see that skill. Prevention (this section + write-verification
 above) and detection (status) together close the loop the manual audit had to do by hand.
 
+## Parent rollup (keep parents honest — both ends of a child's life)
+
+A parent (Epic/Feature) should reflect its children's state at both transitions:
+
+- **Start (proactive, F19):** when the **first** child enters in_progress, the parent should move
+  todo→in_progress. `sdlc:run` §3 does this on story-start. **Guards:** only todo→in_progress; never
+  pull a parent back or touch one already in a later state; one tier per run; respect a tracker's own
+  rollup automation rather than fighting it. This is prevention.
+- **Close (reconciliation, F15):** at epic/story close, `/sdlc:status` ground-truth reconciliation
+  rolls a finished parent up to done **only when all children are terminal**, and correctly **leaves a
+  parent open** when siblings remain (never force-closes). This is detection/backstop.
+
+Both respect `statusMap` and are **type-aware** (see `wi-ado`: a parent Epic's working/terminal state
+name differs from a Story's). A `transition` here is a normal adapter write — read-back-verified like
+any other (below). Prevention (start) + detection (close) together keep the board from drifting.
+
 ## Rules
 
 - The **run file** (see `sdlc:run-state`) is the internal machine state; adapter comments are the

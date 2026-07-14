@@ -136,6 +136,15 @@ child's `repo`, `parent` (the epic), and `dependsOn` (cross-repo order — e.g. 
   rollup. This one is NOT committed to any product branch — it is cross-cutting workspace state.
 - Run the children in `dependsOn` order (independent children may be handed to `/sdlc:sprint`);
   each child is its own atomic run per the rules above. Update the rollup as each child's PR opens.
+- **Shared-dependency pilot — a green pilot is necessary, not sufficient (F28).** When the first
+  child is a **shared-package dependency** the others consume (a `dev-config`/sdk/types repo), do NOT
+  declare "pattern proven, fan out" on that repo's own green: it validates itself via relative imports
+  and **never exercises the consumers' cross-repo resolution path**. Before fanning out to the
+  remaining consumers, run **at least one true consumer** end-to-end (its CI must resolve the shared
+  dependency under isolated single-repo checkout and go green). If that consumer surfaces a
+  resolution blocker (unpublished `file:` sibling can't resolve in CI — F28; cross-platform lockfile —
+  F29; depcruise floor — F30), **halt and flag rather than fan out or silently re-architect** the
+  merged pattern. Lead with one consumer so the blast radius surfaces on one repo, not five.
 - Comment the child IDs + repos on the epic, then proceed child-by-child (or STOP and let the user
   pick them up via `/sdlc:next`, per autonomy).
 
@@ -147,6 +156,16 @@ child's `repo`, `parent` (the epic), and `dependsOn` (cross-repo order — e.g. 
    `host`/`remote`/`defaultBranch`/`branchPattern`. Record branch in run file.
 3. `adapter.transition(ID, in_progress)` · `adapter.link(ID, {branch})` ·
    `adapter.comment(ID, "SDLC run started on <branch>")`.
+3a. **Roll the parent up to in_progress (F19).** After the story moves to in_progress, if it has a
+   `parent` (Feature/Epic) still in a **todo** state, transition the parent → in_progress via
+   `adapter.transition` (read-back-verified). This stops the board transiently misrepresenting a parent
+   as `New` while its children are already in flight. **Guards:** only **todo→in_progress**; **never
+   touch a parent already in a later state** (in_progress/in_review/done/blocked) — leave it. Walk up
+   only one tier per run (the immediate parent); F15 close-time reconciliation handles deeper/mixed
+   cases. **Don't fight team-configured rollup:** if the tracker auto-manages parent state (ADO
+   rollup rules) or rejects the transition, don't force it — note it and continue; this is a
+   proactive complement to F15 reconciliation (`/sdlc:status`), not a hard requirement. See
+   `sdlc:work-items` → *Parent rollup* and the adapter (`wi-ado`).
 4. Phase → `requirements`. Checkpoint.
 
 ## 4 · REQUIREMENTS
@@ -291,11 +310,30 @@ mode; branch-caused failures feed one extra fix cycle (respect `maxFixCycles` ov
 ## 10 · WRAP
 
 Phase → `done`. Final checkpoint + `## Log` summary (phases run, fix cycles, PR URL or local-merge sha).
+
+**Archive the run file ON THE BRANCH before it merges (F23) — poly per-repo runs.** A poly per-repo run
+file lives at `<repo.path>/.sdlc/runs/{ID}.md` and rides into `main` via the PR. If it rides in still
+under the **active** `runs/` dir, it can only be archived afterwards by a **direct-to-`main` commit**,
+which `sdlc:git-workflow` forbids — so it lingers forever and shows as a completed run in
+`/sdlc:status`. Instead, as the **final commit on the feature branch**, `git mv` it to
+`<repo.path>/.sdlc/runs/archive/{ID}.md` and commit `chore(sdlc): archive run {ID}` — **remote:** push
+it to the open PR (a benign trailing commit, like the §9 docs commit) so it merges in **already
+archived**; **local:** this must precede the §8 confirmed merge, so for local mode the post-merge
+cleanup in `/sdlc:status` archives it in-session instead. The **control-plane** epic coordination file
+(`.sdlc/runs/{EPIC-ID}.md`) is NOT committed to any product branch and archives normally at the control
+plane. See `sdlc:run-state` → *Archive*.
+
 Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
 resolved, anything needing human eyes.
-- **Remote mode:** **Humans review and merge the PR — never merge it yourself.**
+- **Remote mode:** **Humans review and merge the PR — never merge it yourself.** The item stays at
+  `in_review` until merge. **ADO does NOT auto-close a work item when its PR merges (F22)** (unlike a
+  GitHub `Closes #X` / branch-policy setup) — so the DONE transition + parent rollup is a **required
+  post-merge step**, not something to rediscover per run. It runs on merge detection via
+  `/sdlc:status` → *Post-merge cleanup* (or a later `/sdlc:run {ID}` resume that finds the PR merged).
+  Left unhandled, the item sits open silently.
 - **Local mode:** the default-branch merge only happened because the user confirmed it at §8 —
-  **never merge into the default branch without that explicit confirmation.**
+  **never merge into the default branch without that explicit confirmation.** The local merge
+  completes integration, so the item reaches `done` here (no separate post-merge step).
 
 ## Capability gaps (self-extension protocol)
 

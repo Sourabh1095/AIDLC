@@ -12,7 +12,11 @@ Render a compact status board for this project. Read-only — never mutate state
 Build the repo registry (`sdlc:work-items` → *Repos & routing*). Glob run files from **every**
 location: the control-plane `.sdlc/runs/*.md` (mono runs + poly epic coordination files) **and**,
 in poly, each declared repo's `<repo.path>/.sdlc/runs/*.md`. For each file, read ONLY the
-frontmatter (`item`, `type`, `repo`, `branch`, `phase`, `fixCycles`, `pr`, `started`).
+frontmatter (`item`, `type`, `repo`, `branch`, `phase`, `fixCycles`, `pr`, `started`). **Also scan
+`runs/archive/*.md` for `phase: done` runs whose PR is not yet merged** — in poly+remote a completed
+run is archived on the branch pre-merge (F23), so a done-but-awaiting-merge run lives in `archive/`,
+not `runs/`; surface it as "done — PR open (awaiting merge)" so it isn't invisible. Fully
+merged+closed archived runs stay out of the active view.
 
 Render a table (drop the Repo column in mono):
 
@@ -41,6 +45,17 @@ cause — `ADO_MCP_ORG` set **and** `az login` accessible **in the shell that la
 relaunch if `az` was installed mid-session (see `wi-ado` → *Connectivity*) — instead of a raw error.
 For Jira, a failing probe means re-auth the Atlassian MCP. Report `tracker: reachable` / the
 remediation line, then continue (backlog snapshot is skipped if unreachable).
+
+## Step 1.6 — Remote-repo gate check (F24 — never leave a remote repo silently ungated)
+
+For each repo entry whose `mode` is `remote`, cheaply check whether an enforced PR gate exists:
+CI config present (`.github/workflows/*.yml` for github, `azure-pipelines.yml` for azure-repos) **and**
+a required/blocking PR-check policy (GitHub required status check / ADO blocking build-validation on
+the default branch — `az repos policy list` / `gh api .../branches/<b>/protection` where reachable).
+If a remote repo has neither, warn — "⚠ `<repo>` is `mode: remote` but has no detectable CI /
+required-check policy: its PRs merge **ungated**." This is the proactive complement to the ground-truth
+reconciliation below; remote mode's promise (CI enforces the gate before merge) is otherwise silently
+unmet. Point at `sdlc:ci-cd` + the `sdlc-stack-web/templates/ci/` templates and `/sdlc:init`'s CI offer.
 
 ## Step 2 — Backlog snapshot
 
@@ -82,6 +97,10 @@ For each epic/story with a run file or recent activity, cross-check three source
 Report drift as a short list, each with the proposed reconciliation (do NOT mutate without confirm):
 - **Status drift** — run file says done/closed but board shows otherwise (or vice-versa) → re-assert the
   transition (with write-verification) or correct the record.
+- **PR merged but item still open (F22)** — the run's PR is merged (`gh pr view --json state` / `az
+  repos pr show`) yet the linked item is still `in_review`/open. ADO doesn't auto-close on merge, so
+  this is expected drift, not a fluke → close the item (+ type-aware parent rollup) per *Post-merge
+  cleanup* above. This is the detection backstop for the post-merge close.
 - **Orphaned originals** — items superseded by a re-decomposition still `New`/`todo` → link to their
   delivering children + move to the type-appropriate terminal (`Removed`/`Closed` + superseded comment).
 - **Dropped requirement** — an AC/deliverable in an original not covered by any child and not on disk →
@@ -92,12 +111,26 @@ Apply fixes only on the user's pick; every applied transition is read-back-verif
 
 ## Post-merge cleanup (only when the user confirms)
 
-For any run in phase `done` that is integrated — **remote mode:** its PR is merged
+For any run in phase `done`/`in_review` that is integrated — **remote mode:** its PR is merged
 (`gh pr view --json state` / `az repos pr show`); **local mode:** `pr:` is a `local-merge:<sha>`
 (the merge already happened at §8, so it's integrated by definition):
 1. `adapter.transition(id, done)` and `adapter.comment(id, "PR merged: <url>")` (remote) /
    `adapter.comment(id, "Integrated locally: <sha>")` (local).
-2. Move the run file to `archive/` **in its own location** — `<repo.path>/.sdlc/runs/archive/<ID>.md`
-   for a poly per-repo run, else `.sdlc/runs/archive/<ID>.md`.
-3. Delete the local feature branch if fully merged (in that repo). In local mode §8 usually deleted
+2. **Parent rollup (F19/F22).** After closing the item, roll its parent up if all the parent's
+   children are now terminal (Feature closed when its last Story lands; Epic closed when its last
+   Feature lands) — **type-aware** (an Epic's Completed state name differs from a Story's; `wi-ado`).
+   **Never force-close a parent with open siblings** (correctly leave an Epic In Progress while other
+   Features remain).
+3. Move the run file to `archive/` **in its own location** — `<repo.path>/.sdlc/runs/archive/<ID>.md`
+   for a poly per-repo run, else `.sdlc/runs/archive/<ID>.md`. (Poly+remote: the per-repo run file was
+   ideally archived **on the branch pre-merge** so it rode into `main` already archived — F23; this
+   step is the control-plane / local-mode fallback.)
+4. Delete the local feature branch if fully merged (in that repo). In local mode §8 usually deleted
    it already — skip if gone.
+
+**ADO remote mode does NOT auto-close on merge (F22).** Unlike some GitHub setups (a PR body `Closes
+#X`, or branch policy configured to transition), linking an ADO work item to a PR does **not**
+transition it when the PR merges. So a merged ADO PR leaves its item sitting at `in_review`
+indefinitely unless this cleanup runs. Treat the DONE transition + parent rollup as a **required
+post-merge step**, not optional tidying — the ground-truth reconciliation below flags "**PR merged but
+item still open**" precisely so it isn't missed.
