@@ -2,6 +2,116 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.15.0] — 2026-07-14
+
+### Dogfood batch F17–F33 (Authentication / Identity Platform, Cycle 2)
+
+Seventeen findings from continued dogfooding on the same polyrepo + Azure DevOps build, now first
+exercising the **remote/PR** integration path (the six `bee-auth-*` repos flipped to `git.mode:
+remote`) plus real CI, a shared-config poly pattern, and the first security-critical design phase.
+Designed and implemented together. Versions: `sdlc` 0.14.0 → **0.15.0**, `sdlc-stack-web` 0.8.0 →
+**0.9.0**, `sdlc-ux` unchanged (**0.3.0**), marketplace → **0.15.0**. Full record:
+`docs/dogfood-findings.md`.
+
+#### `sdlc-stack-web` — tooling baseline & templates
+
+- **F17 — the tooling baseline now ships a `.gitattributes`** (`* text=auto eol=lf` + binary rules).
+  Stops CRLF/LF churn on Windows checkouts and keeps a Windows dev byte-identical to a Linux CI runner,
+  so Prettier's `endOfLine: lf` no longer misreports CRLF as a diff (the false "files are CRLF" finding
+  that cost a correction cycle). Added to the tooling README, `init` Step 4.5, and the
+  `project-structure` repo-scaffold checklist (sibling of F14). The plugin repo itself also gains a
+  root `.gitattributes`. Agent note added (`debugging`, checklist): confirm with `git ls-files --eol`
+  before ever logging a line-ending finding.
+- **F18 — shipped templates are now Prettier-clean, and scaffolds start format-clean.** Reformatted the
+  template code files that genuinely failed `prettier --check` (long comments/calls prettier wraps);
+  `init` and the repo-scaffold checklist now run `prettier --write .` **repo-wide** at scaffold so a
+  fresh repo passes its own `format` gate at first merge; the enforced gate is stated as
+  `prettier --check .` (repo-wide, not just `src/`), and must include the format step, not only eslint.
+- **F21 — optional husky v9 + lint-staged pre-commit layer.** New `templates/tooling/husky/pre-commit`
+  + `lint-staged.config.mjs` (eslint `--fix` + prettier `--write` on staged files). Gated behind an
+  `init` prompt (opinionated-but-optional). `prepare` documented **CI-safe** (`husky || true`) because
+  bare `husky` exits **127** on `npm ci` in a CI container or a `file:../` sibling checkout that lacks
+  it. Poly pattern documented: the shared-config repo owns the preset, the others re-export it.
+- **F26 — the three dependency-cruiser profiles set `enhancedResolveOptions`** (`exportsFields` +
+  `conditionNames: [import, require]` + `mainFields`) so ESM `exports`-map subpaths (the poly
+  shared-config pattern, `@beelogical/dev-config/lint-staged`) resolve deterministically across
+  versions/conditions. *Verified:* dependency-cruiser 17.4.3's defaults already resolve the common
+  case, so this is a robustness/explicitness fix (requires the `>= 17` floor, F30), not a change that
+  flips a reproducible failure on current versions — framed accordingly in the profile comments.
+- **F27 — the eslint baseline can now lint `.cjs` in an ESM package.** Split the config-files override:
+  `**/*.cjs` gets `sourceType: "commonjs"` + Node globals and the require-style rules off, so
+  `module`/`require`/`__dirname` no longer trip `no-undef`/`no-require-imports`. *Verified* end-to-end:
+  the plugin's own shipped `.dependency-cruiser.*.cjs` now pass the baseline (the old config errored
+  `'module' is not defined`).
+- **F28 (design-time) — `project-structure` documents cross-repo dependency consumption.** In
+  poly+remote a shared package must be **published** (required for transitive/built deps) or resolved
+  via **multi-repo checkout** (leaf config deps only); an unpublished `file:../sibling` link is
+  local-only and fails isolated single-repo CI.
+- **F30 (floor) — `dependency-cruiser` is pinned `@^17`** everywhere the plugin adds it
+  (`project-structure`, `nestjs`, `init`), with the why: `< 17` silently no-ops on `.ts` and passes the
+  gate green while enforcing nothing.
+- **F33 — `nestjs` testing guidance covers ESM-only deps consumed via `import()`.** A CJS repo needs
+  `NODE_OPTIONS=--experimental-vm-modules` (cross-platform via `cross-env`) for jest to execute the
+  dynamic ESM import, plus the `testRegex`-match gotcha for new e2e files.
+
+#### `sdlc-stack-web` — CI templates (new)
+
+- **F24 (templates) — new `templates/ci/`**: `azure-pipelines.yml` + `github-actions-ci.yml` (+ README)
+  running the **same** deterministic gate as the local run (typecheck → lint → format → boundaries →
+  build → test). Parameterized for a **self-hosted pool** (F25), **cross-platform lockfile** guidance
+  (F29), a **non-empty-graph assertion** (F30), and a commented **multi-repo-checkout** block (F28).
+
+#### `sdlc` — board fidelity (ADO)
+
+- **F19 — parents roll up to in_progress at first-child-start.** `run` §3 transitions a still-`todo`
+  parent Feature/Epic → in_progress when its first child starts (guards: only todo→in_progress, never
+  pull back a later state, one tier per run, respect tracker rollup automation). Documented in
+  `work-items` → *Parent rollup*; the proactive complement to F15 close-time reconciliation.
+- **F20 — ADO transitions are type-aware via state category.** `wi-ado` resolves a canonical status to
+  the target state through the item type's ADO **state category** (Proposed/InProgress/Resolved/
+  Completed/Removed) rather than a flat global name, fixing the Epic ("In Progress") vs Story/Feature
+  ("Development in Progress") divergence; the F7/F15 self-heal now keys on `(type → category → real
+  state name)`; `init` populates a **per-type** `statusMap` from the work-item-type states API.
+- **F22 — remote-mode ADO gets an encoded post-merge close.** ADO does **not** auto-close a linked item
+  on PR merge — so `status` post-merge cleanup transitions the item → done + type-aware parent rollup,
+  the ground-truth reconciliation flags "**PR merged but item still open**", and `run` §10 + `wi-ado`
+  document that the DONE transition is a required post-merge step, not rediscovered per run.
+- **F23 — poly+remote per-repo run files archive on the branch pre-merge.** `run` §10 `git mv`s the
+  completed per-repo run file into `runs/archive/` as the final branch commit so it rides into `main`
+  **already archived** — avoiding the forbidden post-merge direct-to-`main` commit that left run files
+  lingering as "active." `run-state` documents the mode/layout matrix; `status` surfaces
+  done-but-awaiting-merge archived runs.
+
+#### `sdlc` — remote mode, CI & shared-package poly
+
+- **F24 (warn) — remote mode is never silently ungated.** `init` (Step 4.7) and `status` (Step 1.6)
+  warn when a `mode: remote` repo has no detectable CI / required-check policy, and `init` offers to
+  scaffold the matching CI template per remote repo — remote mode's promise (CI enforces the gate
+  before merge) is otherwise silently unmet.
+- **F25 — `ci-cd` documents the fresh-org Azure gotchas.** Hosted parallelism can be unavailable on a
+  new org (`resourceLimit: null` → `vmImage` pipelines can't run) with the request link and a
+  self-hosted `pool:` fallback; `Checkpoint.Authorization` may be a missing `pipelinePermissions` grant
+  at the **queue** id (distinct from pool/repo) — not always a benign wait.
+- **F28 (CI + pilot) — `ci-cd` documents cross-repo package resolution under isolated CI** (publish vs
+  multi-repo-checkout; `file:` siblings are local-only) and `run` (poly pilot) requires validating **at
+  least one true consumer's** CI before fanning a shared-dependency pattern out — the dependency repo's
+  own green never exercises the consumers' resolution path (the false-green pilot).
+- **F29 — cross-platform lockfile.** `ci-cd` diagnosis + `init` prescribe generating/refreshing the
+  committed `package-lock.json` in the **Linux context CI uses** (a `node:22` container), since a
+  Windows/macOS-generated lock can be unsatisfiable by Linux `npm ci` (platform-specific optional deps).
+- **F30 (assertion) — the CI gate asserts a non-empty module graph** (fails if depcruise analyzed 0
+  `.ts` files), so a future silent no-op can't pass green. Carried by both CI templates and documented
+  in `ci-cd`.
+- **F31 — reproduce CI failures in the CI image before iterating.** `ci-cd` + `debugging` prescribe
+  `docker run`-ing the CI runtime with the isolated single-repo checkout + `npm ci` layout to validate
+  a fix green **before** slow serial remote cycles — essential for poly `file:`-sibling (F28) and
+  cross-platform-lock (F29) failures that never reproduce in the local workspace.
+- **F32 — doc-verifying subagents get the bundled Context7 MCP.** `sdlc-architect`, `sdlc-researcher`
+  and `sdlc-security` now list the plugin-scoped Context7 tools (`resolve-library-id`, `query-docs`) —
+  and `WebFetch` — in their tool grants, with an explicit sanctioned fallback documented if the harness
+  can't pass the MCP through to a subagent at runtime, so version/API checks stop degrading to
+  registry-only.
+
 ## [0.14.0] — 2026-07-12
 
 ### Dogfood batch F1–F16 (Authentication / Identity Platform, Epic 1)

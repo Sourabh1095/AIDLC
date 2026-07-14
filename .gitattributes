@@ -1,0 +1,53 @@
+# Bee-Logical SDLC marketplace — line-ending normalization.
+#
+# Without this, Windows checkouts (core.autocrlf=true) render every text file as
+# CRLF in the working tree while the committed blob is LF — which churns diffs on
+# every touch and makes tools like Prettier (default endOfLine: lf) misreport CRLF
+# as a formatting diff. This is exactly the false CRLF finding + prettier-dirty
+# templates observed while dogfooding (F17/F18). Normalize everything to LF in the
+# repo and on checkout; binaries opt out.
+
+* text=auto eol=lf
+
+# Explicit text (belt-and-suspenders where git's auto-detection is ambiguous)
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.cjs   text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.jsonc text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.html  text eol=lf
+*.svg   text eol=lf
+*.sh    text eol=lf
+
+# Windows-only scripts keep CRLF (some Windows tooling requires it)
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Generated lockfiles — text (LF) but collapsed in diffs/reviews
+package-lock.json  linguist-generated -diff
+
+# Binary — never normalize
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.mp4   binary
+*.mov   binary
