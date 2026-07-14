@@ -46,6 +46,35 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
 
+  // CommonJS files (e.g. `.dependency-cruiser.cjs`, `*.config.cjs`, `commitlint.config.cjs`)
+  // inside an otherwise ESM/TS repo. Without this block the baseline can't lint its own shipped
+  // `.cjs` configs: `no-undef` fires on `module`/`require`/`exports`/`__dirname`, and
+  // `@typescript-eslint/no-require-imports` (NOT cleared by disableTypeChecked — it isn't
+  // type-aware) fires on `require()`. Declare the CommonJS module system + Node globals and
+  // switch the require-style rules off for `.cjs` only; `.mjs`/`.js` stay as they are above.
+  {
+    files: ["**/*.cjs"],
+    languageOptions: {
+      // `commonjs` auto-provides module/exports/require/__dirname/__filename; add the rest.
+      sourceType: "commonjs",
+      globals: {
+        module: "readonly",
+        require: "readonly",
+        exports: "writable",
+        __dirname: "readonly",
+        __filename: "readonly",
+        process: "readonly",
+        console: "readonly",
+        Buffer: "readonly",
+        global: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-var-requires": "off",
+    },
+  },
+
   // MUST be last — turns off rules that conflict with Prettier.
   prettier,
 );

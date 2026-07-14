@@ -36,7 +36,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : undefined;
 
     if (!isHttp || status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(exception instanceof Error ? (exception.stack ?? exception.message) : String(exception));
+      this.logger.error(
+        exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
+      );
     }
 
     res.status(status).json({

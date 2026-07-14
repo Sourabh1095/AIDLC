@@ -13,9 +13,11 @@ quality doesn't depend on a reviewer noticing. `/sdlc:init` scaffolds them into 
 | `eslint.config.mjs` | Type-aware linting: `typescript-eslint` `strictTypeChecked` + `stylisticTypeChecked`, `no-explicit-any`, `consistent-type-imports`, `no-console` (warn), `eqeqeq`. Prettier owns formatting. |
 | `.prettierrc.json` | Formatting (100 col, semicolons, double quotes, trailing commas). |
 | `.editorconfig` | Editor defaults (LF, UTF-8, 2-space, final newline). |
+| `.gitattributes` | Line-ending normalization — `* text=auto eol=lf` + binary rules. Stops CRLF/LF churn on Windows checkouts and keeps a Windows dev and a Linux CI runner byte-identical (so Prettier's `endOfLine: lf` doesn't misreport CRLF as a diff). `.editorconfig` is editor-time; this is git-time — you need both. |
 | `.npmrc` | `engine-strict` + `save-exact` — deterministic installs. |
 | `.gitignore` | Node + Next.js baseline. Ignores `.env*` with a `!.env.example` allow-exception (secret hygiene by default) plus `node_modules`/`dist`/`build`/`coverage`/`.next`. |
 | `next/eslint.config.mjs` | **Next.js ESLint overlay** — the strict baseline pre-composed with `eslint-config-next` for ESLint 10 + Turbopack + `file:../` monorepos (four reconciliations pre-solved). Use it as a Next repo's `eslint.config.mjs`. See `next/README.md`. |
+| `lint-staged.config.mjs` + `husky/pre-commit` | **Optional pre-commit layer** — husky v9 + lint-staged: eslint `--fix` + prettier `--write` on staged files at commit time. The *local* complement to the CI/merge gate. Opt-in (some teams decline git hooks) — see "Pre-commit hooks" below. |
 
 ## Install (per TS repo)
 
@@ -42,8 +44,15 @@ Point your `tsconfig.json` at the baseline:
 { "extends": "./tsconfig.base.json", "compilerOptions": { "module": "…", "target": "…" } }
 ```
 
-The `ci-cd` skill's baseline pipeline runs `typecheck` + `lint` + `format` + `test` as a **hard PR
-gate**, so these can't be skipped by turning the reviewer off.
+The `ci-cd` skill's baseline pipeline runs `typecheck` + `lint` + `format` (`prettier --check .`,
+**repo-wide** — not just `src/`) + `test` as a **hard PR gate**, so these can't be skipped by turning
+the reviewer off.
+
+**Leave the repo format-clean at scaffold.** After scaffolding a repo (init or a `/sdlc:run` scaffold
+task), run `npm run format:write` (`prettier --write .`) once so the fresh repo passes its own
+`format` gate on the first merge. A scaffold that "merged never-clean" — ~17 unformatted files slipping
+past the gate because format was never enforced repo-wide at scaffold time — is a real failure mode
+this closes.
 
 ## Framework layering (don't replace, add on top)
 
@@ -59,6 +68,37 @@ gate**, so these can't be skipped by turning the reviewer off.
   `turbopack.root` snippet).
 - **NestJS** → the baseline is sufficient; ensure `tsconfig` has `experimentalDecorators` +
   `emitDecoratorMetadata` for DI.
+
+## Pre-commit hooks (optional — the local enforcement layer)
+
+The tooling baseline enforces standards at the **CI/merge gate**; nothing runs at **commit time** by
+default, so mis-formatted / lint-broken code isn't caught locally until a later push. The husky +
+lint-staged layer closes that gap. It's **opt-in** (some teams decline git hooks) — `/sdlc:init` asks;
+you can add it later.
+
+Install (per repo):
+
+```
+npm i -D husky lint-staged
+npx husky init          # creates .husky/ and a "prepare" script
+```
+
+Then copy `husky/pre-commit` → `.husky/pre-commit` and `lint-staged.config.mjs` → repo root.
+
+**Make `prepare` CI-safe.** `npx husky init` writes `"prepare": "husky"`, which runs on **every**
+`npm ci` — and husky exits **127** in any context that didn't install it (a CI container, or a
+`file:../` sibling checkout pulled without its devDeps). Guard it so a missing husky never breaks
+`npm ci`:
+
+```jsonc
+{ "scripts": { "prepare": "husky || true" } }
+```
+
+(Equivalent guards: skip when `CI` is set, or when there's no `.git`. Husky also honors `HUSKY=0`.)
+
+**Poly:** let the shared-config repo own the lint-staged preset and have the others re-export it —
+`export { default } from "@beelogical/dev-config/lint-staged";` (an `exports`-map subpath; the shipped
+depcruise profiles set `enhancedResolveOptions` so that resolves). One preset, six repos.
 
 ## Relaxing
 

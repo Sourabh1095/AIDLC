@@ -15,14 +15,16 @@ module.exports = {
     {
       name: "controller-not-to-data",
       severity: "error",
-      comment: "Controllers must delegate to a service — never import a repository or entity directly.",
+      comment:
+        "Controllers must delegate to a service — never import a repository or entity directly.",
       from: { path: "\\.controller\\.ts$" },
       to: { path: "(\\.repository\\.ts$|/entities/)" },
     },
     {
       name: "no-feature-to-feature-internals",
       severity: "error",
-      comment: "A feature module must not import another feature's internals — use its exported service.",
+      comment:
+        "A feature module must not import another feature's internals — use its exported service.",
       from: { path: "^src/modules/([^/]+)/" },
       to: { path: "^src/modules/([^/]+)/", pathNot: "^src/modules/$1/" },
     },
@@ -49,5 +51,16 @@ module.exports = {
     tsConfig: { fileName: "tsconfig.json" },
     tsPreCompilationDeps: true,
     includeOnly: "^src/",
+    // Resolve ESM `exports`-map subpaths explicitly — the poly shared-config pattern this plugin
+    // promotes (`@beelogical/dev-config/lint-staged`). enhanced-resolve's `exports`-map handling
+    // varies by version/package shape (older defaults don't follow subpath maps at all); setting
+    // these pins subpath resolution across both import/require conditions so a shared-config
+    // subpath isn't false-flagged as unresolvable. Requires dependency-cruiser >= 17 (see the
+    // devDep floor in project-structure) — harmless where the default already resolves it.
+    enhancedResolveOptions: {
+      exportsFields: ["exports"],
+      conditionNames: ["import", "require"],
+      mainFields: ["main", "module", "types"],
+    },
   },
 };

@@ -34,14 +34,16 @@ module.exports = {
     {
       name: "components-not-to-services",
       severity: "error",
-      comment: "Components reach the network through RTK Query (store/api) or a hook — not raw services/.",
+      comment:
+        "Components reach the network through RTK Query (store/api) or a hook — not raw services/.",
       from: { path: "^src/components/" },
       to: { path: "^src/services/" },
     },
     {
       name: "lib-types-are-leaves",
       severity: "error",
-      comment: "lib/ and types/ are framework-agnostic leaves — no imports from routes/components/store.",
+      comment:
+        "lib/ and types/ are framework-agnostic leaves — no imports from routes/components/store.",
       from: { path: "^src/(lib|types)/" },
       to: { path: "^src/(routes|pages|components|store)/" },
     },
@@ -58,5 +60,16 @@ module.exports = {
     tsConfig: { fileName: "tsconfig.json" },
     tsPreCompilationDeps: true,
     includeOnly: "^src/",
+    // Resolve ESM `exports`-map subpaths explicitly — the poly shared-config pattern this plugin
+    // promotes (`@beelogical/dev-config/lint-staged`). enhanced-resolve's `exports`-map handling
+    // varies by version/package shape (older defaults don't follow subpath maps at all); setting
+    // these pins subpath resolution across both import/require conditions so a shared-config
+    // subpath isn't false-flagged as unresolvable. Requires dependency-cruiser >= 17 (see the
+    // devDep floor in project-structure) — harmless where the default already resolves it.
+    enhancedResolveOptions: {
+      exportsFields: ["exports"],
+      conditionNames: ["import", "require"],
+      mainFields: ["main", "module", "types"],
+    },
   },
 };

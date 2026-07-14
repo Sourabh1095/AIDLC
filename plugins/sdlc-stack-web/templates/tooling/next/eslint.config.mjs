@@ -32,8 +32,13 @@ const REACT_VERSION = "19.2.7";
 export default tseslint.config(
   {
     ignores: [
-      "dist/**", "build/**", ".next/**", "out/**",
-      "coverage/**", "node_modules/**", "next-env.d.ts",
+      "dist/**",
+      "build/**",
+      ".next/**",
+      "out/**",
+      "coverage/**",
+      "node_modules/**",
+      "next-env.d.ts",
     ],
   },
 
