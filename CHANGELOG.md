@@ -2,6 +2,22 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.16.0] — 2026-07-14
+
+### `sdlc` — plugin self-feedback (dogfood) channel
+
+- **New `sdlc:dogfood` skill + `pluginFeedback` config.** A portable way for the pipeline to record
+  friction with **the plugin itself** — gaps, wrong/missing guidance, steps it had to work around, a
+  per-run step it had to save to memory, a broken shipped template (all distinct from *project* bugs) —
+  as structured, append-only entries in a local inbox (`pluginFeedback.inbox`, default
+  `.sdlc/plugin-feedback.md`). Gated behind `pluginFeedback.enabled` (default **false**, so normal
+  projects stay quiet); a project used to dogfood the plugin turns it on. The `run` orchestrator
+  captures friction (its own + friction surfaced in agent reports) via the skill and continues — it
+  never blocks delivery. The maintainer drains the inbox into `docs/dogfood-findings.md` by reading it
+  directly from disk and marks each entry's `status:` (`pulled:F<n>` / `dismissed`), so findings flow
+  from a test project to the plugin without a human relaying responses by hand. Versions: `sdlc`
+  0.15.0 → **0.16.0**, marketplace → **0.16.0** (`sdlc-stack-web` 0.9.0 / `sdlc-ux` 0.3.0 unchanged).
+
 ## [0.15.0] — 2026-07-14
 
 ### Dogfood batch F17–F33 (Authentication / Identity Platform, Cycle 2)

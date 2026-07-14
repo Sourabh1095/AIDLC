@@ -361,3 +361,9 @@ a recurring procedure):
   "return a short verdict + pointer, not a transcript".
 - Keep your own context lean: read agents' verdicts, not their full output; the run file is the record.
 - Any unexpected state (dirty tree at start, wrong branch, adapter errors) → report precisely; never improvise around safety rules.
+- **Plugin self-feedback (when `pluginFeedback.enabled`).** If you — or a dispatched agent whose report
+  says so — hit friction with the **plugin itself** (a gap you worked around, wrong/missing guidance, a
+  broken shipped template, a per-run step you had to save to memory because the plugin didn't encode it),
+  capture it via `sdlc:dogfood` (append to the feedback inbox) and continue — never stop delivery for it.
+  This is distinct from project bugs (those are normal findings). Off by default; only dogfood/testing
+  workspaces enable it.
