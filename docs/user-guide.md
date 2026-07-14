@@ -15,12 +15,61 @@ resuming works, and how the framework remembers everything. (Setup/installation 
 - **You are the merge gate.** The pipeline takes an item from backlog to an open PR without
   you; only a human merges. **No remote yet?** Set `git.mode: local` — instead of a PR the pipeline
   proposes a local `--no-ff` merge after verify and waits for your OK; it never merges on its own.
-- **One repo or many.** In a **polyrepo** workspace (several git repos under one control plane),
-  the model is *one item → one repo → one branch → one PR*: the orchestrator routes each item to
-  the right repo, and a cross-repo feature is an epic whose children each target one repo. One
-  shared backlog and board span every repo — `/sdlc:status` shows a unified board with a Repo
-  column, and `/sdlc:release <repo>` cuts a per-repo release. Setup lives in `adoption-guide.md` §4.
-  Mono projects behave exactly as before.
+- **One repo or many.** In a **polyrepo** workspace (several git repos under one control plane), the
+  model is *one **runnable leaf** → one repo → one branch → one PR*: the orchestrator routes each leaf
+  to the right repo, and a cross-repo feature fans out so each leaf targets one repo. Epics/Features
+  always span repos; **which tier is the single-repo leaf** — the Story or the Task — is your call
+  (`workspace.crossRepoSplit`; see §1a). One shared backlog and board span every repo —
+  `/sdlc:status` shows a unified board with a Repo column, and `/sdlc:release <repo>` cuts a per-repo
+  release. Setup lives in `adoption-guide.md` §4. Mono projects behave exactly as before.
+
+## 1a. Poly: how a feature's work maps to repos (a worked example)
+
+A feature spans repos — an API in the backend, its UI in the frontend, a migration in the DB repo.
+**Epics and Features always span repos.** The only hard rule is that the **runnable leaf** (the thing
+that gets one branch + one PR) lives in **one repo** — separate git repos can't share a branch/PR.
+
+*Which tier is the leaf* is a per-project convention set by **`workspace.crossRepoSplit`** (default
+`story`). Both are fully supported — pick the one your board is authored for. Take a **"Profile page"**
+epic:
+
+**`crossRepoSplit: "story"` (default, recommended) — the leaf is the Story:**
+
+```
+Epic: Profile page                       ← spans repos
+├─ Feature: General info                 ← spans repos
+│  ├─ Story: General-info API + schema      → bee-auth-api    (one branch/PR)
+│  │    └─ Tasks: migration · endpoints · DTOs        (all in bee-auth-api)
+│  └─ Story: General-info UI                → bee-auth-web    (one branch/PR; dependsOn the API story)
+│       └─ Tasks: form component · wire to /profile   (all in bee-auth-web)
+└─ Feature: Notification info
+   ├─ Story: Notification-prefs API           → bee-auth-api
+   └─ Story: Notification-prefs UI            → bee-auth-web
+```
+
+Each Story is one repo = one PR; Tasks are that repo's breakdown. Fits ADO's
+Epic→Feature→Story→Task hierarchy natively and keeps estimates/velocity honest. Recommended default.
+
+**`crossRepoSplit: "task"` — the leaf is the Task (the Story is a cross-repo umbrella):**
+
+```
+Epic: Profile page
+└─ Feature: General info
+   └─ Story: General info                 ← cross-repo UMBRELLA (one unit of user value)
+      ├─ Task: API ready       → bee-auth-api   (one branch/PR)
+      ├─ Task: UI ready        → bee-auth-web   (one branch/PR)
+      └─ Task: DB migration    → bee-auth-api   (one branch/PR)
+```
+
+Here you run the **Tasks** (each a single-repo run); the Story rolls up when they all complete. Natural
+when a team treats a story as *user value* rather than *deliverable unit*, or when an existing board
+already nests cross-repo tasks under one story.
+
+**Which to choose?** Default to **`story`** — cleaner PRs, native ADO fit. Choose **`task`** if your
+board is already authored that way or your team insists a story = one user-facing capability. The
+pipeline honors the setting everywhere: `/sdlc:intake` and `/sdlc:groom` propose the matching shape,
+and `/sdlc:run` treats an umbrella story as a coordinator (runs its per-repo tasks) instead of trying
+to run it as one repo.
 
 ## 2. Command cheat-sheet — which command, when
 

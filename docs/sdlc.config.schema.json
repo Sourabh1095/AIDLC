@@ -35,6 +35,11 @@
           "type": "string",
           "default": ".",
           "description": "Directory, relative to this config's location, under which the declared repo paths live. Usually '.'."
+        },
+        "crossRepoSplit": {
+          "enum": ["story", "task"],
+          "default": "story",
+          "description": "Poly only. The work-item tier at which cross-repo work is split into single-repo RUNNABLE units (one run = one repo = one branch = one PR — that leaf is always single-repo either way). 'story' (default, recommended): a Feature fans out to per-repo Stories; each Story is one repo and its Tasks are that repo's breakdown. Fits ADO's Epic→Feature→Story→Task hierarchy natively and makes one Story = one PR. 'task': a User Story is a cross-repo UMBRELLA that captures one unit of user value, and its child Tasks are the per-repo runnable units (API task → backend repo, UI task → frontend repo, migration task → db repo); the Story rolls up when its tasks complete. Both are supported; pick the one your ADO board is authored for. See sdlc:work-items → Cross-repo split tier."
         }
       }
     },

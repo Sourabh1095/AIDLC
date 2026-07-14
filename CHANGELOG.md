@@ -2,6 +2,27 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.17.0] — 2026-07-14
+
+### `sdlc` — poly cross-repo split tier (`story` default, `task` supported)
+
+- **New `workspace.crossRepoSplit` config (`"story"` default | `"task"`)** — makes explicit *which
+  work-item tier is the single-repo runnable leaf* in poly. Epics/Features always span repos; the leaf
+  (one repo = one branch = one PR) is either a **Story** (`story`: a Feature fans out to per-repo
+  Stories, each Story one repo, Tasks its breakdown — the recommended default, native to ADO's
+  Epic→Feature→Story→Task and forbidden Story→Story) or a **Task** (`task`: a User Story is a cross-repo
+  **umbrella** of user value, its child Tasks the per-repo leaves, rolled up on completion). Both are
+  first-class — pick the one your board is authored for. Canonical definition in `sdlc:work-items` →
+  *Cross-repo split tier*; a worked "Profile page" example (both tiers) in the user-guide §1a.
+- **The pipeline honors the knob end-to-end.** `run` §2 treats an umbrella Story (task mode) as a
+  coordination parent — runs its per-repo Task children, rolls the Story up, and recognizes existing
+  children instead of re-decomposing; `run` §2.5 no longer flags a cross-repo Story as an error in
+  `task` mode (it's the expected umbrella) while keeping the *fix-it* path in `story` mode.
+  `intake`/`groom`/`planning` propose the shape matching the configured tier. The "non-idiomatic
+  umbrella" language is gone — task-tier is a supported convention, not a grudging fallback.
+- Versions: `sdlc` 0.16.0 → **0.17.0**, marketplace → **0.17.0** (`sdlc-stack-web` 0.9.0 / `sdlc-ux`
+  0.3.0 unchanged).
+
 ## [0.16.0] — 2026-07-14
 
 ### `sdlc` — plugin self-feedback (dogfood) channel

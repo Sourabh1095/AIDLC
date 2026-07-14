@@ -29,12 +29,16 @@ priority order:
 5. **Priority sanity**: note mismatches (e.g. a bug in the auth path at P4) — **suggest, never
    change**: priorities are the product owner's call.
 6. **Repo routing** (poly only): items whose `repo` is unset and can't be inferred from labels →
-   propose a repo (grounded in a quick look at the candidate repos); apply on approval. **A story/task
-   whose scope spans repos is a split candidate — flag it (F1)**: propose re-modelling it as a
-   **Feature → per-repo child Stories** (not a single cross-repo story), with an AC coverage map so no
-   original AC is dropped (`sdlc:work-items` → *Re-decomposition*). Grooming is the cheap place to fix
-   this — before it reaches a run. Also flag items that really target the **`control-plane`** (F8) or an
-   **undeclared repo** (a shared lib / future product → offer `/sdlc:repo add`, F2).
+   propose a repo (grounded in a quick look at the candidate repos); apply on approval. **Cross-repo
+   items are split candidates — flag them per `workspace.crossRepoSplit`** (default `story`; see
+   `sdlc:work-items` → *Cross-repo split tier*): in **`story` mode**, a Story whose scope spans repos
+   should be re-modelled as a **Feature → per-repo child Stories** (not one fat cross-repo story); in
+   **`task` mode**, a cross-repo **Story is fine as an umbrella** — flag it only if it lacks a per-repo
+   **Task** breakdown (propose the per-repo tasks). A single **Task** spanning repos is always a split
+   candidate. Apply the **AC coverage map** so no original AC is dropped (`sdlc:work-items` →
+   *Re-decomposition*). Grooming is the cheap place to fix this — before it reaches a run. Also flag
+   items that really target the **`control-plane`** (F8) or an **undeclared repo** (a shared lib /
+   future product → offer `/sdlc:repo add`, F2).
 
 ## Autonomy boundaries
 

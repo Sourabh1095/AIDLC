@@ -125,6 +125,31 @@ The pipeline operates on **repo entries**, never on a hardcoded "the repo". Buil
 Epics are never routed to a single repo; they **fan out** to one child per affected repo (each child
 routed by this chain), with `dependsOn` sequencing. See `sdlc:run` §2.
 
+## Cross-repo split tier (poly) — where a feature's work meets the repos
+
+A feature in poly naturally spans repos (an API in the backend, its UI in the frontend, a migration in
+the DB repo). **Epics and Features always span repos** (they carry no single `repo`; they fan out). The
+only real constraint is physical: the **runnable leaf** — the thing that gets one branch + one PR —
+must live in **one repo**, because separate git repos can't share a branch/PR. Everything above the
+leaf can span repos freely.
+
+*Which tier is the leaf* is a per-project convention, set by `workspace.crossRepoSplit` (default
+`story`). Both are first-class — pick the one the tracker board is authored for:
+
+- **`story` (default, recommended).** A **Feature → per-repo Stories**; each **Story is the
+  single-repo leaf** (one repo = one branch = one PR) and its **Tasks are that repo's breakdown**.
+  Fits ADO's `Epic→Feature→Story→Task` hierarchy natively (no Story→Story nesting), makes one Story a
+  clean reviewable/estimable PR, and keeps velocity honest.
+- **`task`.** A **User Story is a cross-repo umbrella** capturing one unit of user value; its child
+  **Tasks are the single-repo leaves** (API task → backend repo, UI task → frontend repo, migration →
+  db repo), each its own branch/PR. The Story rolls up when all its tasks complete (parent rollup +
+  reconciliation, above). Natural when a team defines a story as *user value* rather than *deliverable
+  unit*, and the common shape when an existing board already nests cross-repo tasks under one story.
+
+Worked example (a "Profile page" epic), both tiers, in the user-guide. The orchestrator honors the
+knob in `sdlc:run` §2/§2.5; authoring skills (`intake`/`groom`/`planning`) propose the matching shape.
+The **runnable leaf is single-repo in both** — only its tier differs.
+
 ## Re-decomposition & supersession (don't drop requirements or orphan originals)
 
 When work is **re-decomposed** — an epic/feature/story split into new children that REPLACE existing

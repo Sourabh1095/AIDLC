@@ -55,6 +55,18 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | spike | research only: dispatch **sdlc-researcher** per `sdlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
 | epic | decompose only: dispatch `sdlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `sdlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **Before declaring the epic done, run the `/sdlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
 
+### Umbrella story (poly, `workspace.crossRepoSplit: task`)
+
+When `crossRepoSplit` is `task` (see `sdlc:work-items` → *Cross-repo split tier*), a **User Story is a
+cross-repo umbrella** and its child **Tasks are the single-repo runnable leaves**. So a Story whose
+child Tasks span repos is NOT a `full` single-repo story run — treat it like the **epic/`decompose`
+variant**: coordinate its per-repo Task children (run each in its repo per §2.5, in `dependsOn` order),
+write a coordination file, and roll the Story up when its tasks complete (parent rollup, §3a / close
+reconciliation). **Recognize existing children — don't re-decompose** a Story whose per-repo Tasks are
+already on the board (query first; mirror the epic *consolidation* exception). Running an individual
+**Task** of such a Story is a normal single-repo run (§2.5 non-epic path). In the default `story` mode
+this doesn't apply — a Story is itself the single-repo leaf and runs the `full` variant.
+
 ### UI detection (decide here, not later)
 
 Determine **now** whether this item renders a user-facing surface, and record `ui: true|false` on
@@ -111,21 +123,28 @@ trail). Two routing outcomes are first-class, not ad-hoc:
   a future product). **Offer to declare it** (`/sdlc:repo add` — appends `repos[]` + bootstraps the
   folder), then route to the new entry. Never silently fold it into another repo.
 
-**Non-epic item whose scope spans repos** (F1) — a single *story/task* legitimately touching several
-repos (bootstrap, shared-config, cross-repo refactor) breaks the invariant *1 run = 1 repo = 1 branch*.
-Do NOT run it as-is. Detect it (its AC/plan clearly touch >1 declared repo) and offer three options,
-consistently:
-1. **Decompose-and-run** — split into per-repo children now and run them (in `dependsOn` order); the
-   parent becomes an umbrella. **Follow `sdlc:work-items` → *Re-decomposition & supersession*** (AC
-   coverage map, flag uncovered ACs, link+supersede the original if it's being replaced).
-2. **Decompose-defer** — create the per-repo children and STOP (pick up via `/sdlc:next`).
-3. **Single-repo subset** — the item really only needs one repo after grounding → route there, note the
-   descope.
-**ADO hierarchy constraint:** ADO forbids Story→Story parenting, so decomposing a cross-repo *Story*
-yields child **Tasks** (the parent Story becomes a non-idiomatic umbrella). **Prefer modelling
-cross-repo work one tier up — a Feature with per-repo Stories** — so each repo unit is a proper Story;
-the best fix is authoring it right up front (`sdlc:intake`/`sdlc:groom`/`sdlc:planning`), this run-time
-split is the safety net.
+**Non-epic item whose scope spans repos** — the runnable leaf must be single-repo (1 leaf = 1 repo =
+1 branch = 1 PR); how you get there depends on `workspace.crossRepoSplit` (default `story`; see
+`sdlc:work-items` → *Cross-repo split tier*). A **Task** that spans repos is always wrong — a task is a
+leaf; decompose it into per-repo tasks. A **Story** that spans repos:
+
+- **`task` mode — expected, not an error.** The Story is the cross-repo **umbrella**; its per-repo
+  child **Tasks are the leaves**. Handle per §2 *Umbrella story*: coordinate/run the Task children in
+  `dependsOn` order, roll the Story up on completion. If the umbrella has no child Tasks yet, decompose
+  it into per-repo Tasks first (AC coverage map — `sdlc:work-items` → *Re-decomposition*). Do NOT
+  offer the three options below or warn — this is the project's chosen convention.
+- **`story` mode (default) — mis-authored; fix it.** A cross-repo Story breaks *1 story = 1 repo*; it
+  should have been a **Feature → per-repo Stories**. Do NOT run as-is. Offer three options consistently:
+  1. **Decompose-and-run** — split into per-repo children now and run them (in `dependsOn` order); the
+     parent becomes an umbrella. **Follow `sdlc:work-items` → *Re-decomposition & supersession*** (AC
+     coverage map, flag uncovered ACs, link+supersede the original if it's being replaced).
+  2. **Decompose-defer** — create the per-repo children and STOP (pick up via `/sdlc:next`).
+  3. **Single-repo subset** — the item really only needs one repo after grounding → route there, note
+     the descope.
+  **Prefer re-modelling one tier up — a Feature with per-repo Stories** — so each repo unit is a proper
+  Story; author it right up front (`sdlc:intake`/`sdlc:groom`/`sdlc:planning`), this run-time split is
+  the safety net. (ADO forbids Story→Story parenting, so a run-time split of a Story yields child Tasks
+  — a stopgap, exactly why the Feature-tier authoring is preferred in `story` mode.)
 
 **Epic / cross-repo requirement** — the feature may span repos. Dispatch **sdlc-analyst** to ground
 it against the candidate repos and decompose into **one child story per affected repo**, setting each
