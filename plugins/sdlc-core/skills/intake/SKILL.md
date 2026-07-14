@@ -36,14 +36,18 @@ Brief the analyst with the requirement text (and, in poly, the repo registry fro
    - Multiple independent outcomes, > L, **or work that spans repos** → an epic + 2–8 INVEST child
      stories. In poly, **each child targets exactly one repo** (`repo` set) with `dependsOn`
      capturing cross-repo order (e.g. the frontend child depends on the backend child).
-   - **Poly invariant — one story = one repo (F1).** NEVER author a single story/task whose scope spans
-     repos (bootstrap, shared-config, cross-repo refactor). If a described outcome touches >1 declared
-     repo, model it **at creation time** as a **Feature/Epic with one per-repo child Story** — don't
-     leave it as a fat story for `/sdlc:run` to split at run time. Prefer the **Feature → per-repo
-     Stories** shape (in ADO, Story→Story parenting is forbidden, so a cross-repo *Story* would spawn
-     child *Tasks* — a non-idiomatic umbrella; going one tier up keeps each repo unit a proper Story).
-     When a split re-homes ACs across children, apply the **AC coverage map** (`sdlc:work-items` →
-     *Re-decomposition*): every original AC lands on a child, none dropped.
+   - **Poly — author cross-repo work at the tier `workspace.crossRepoSplit` sets** (default `story`; see
+     `sdlc:work-items` → *Cross-repo split tier*). The runnable leaf is always single-repo; only its
+     tier differs. A described outcome touching >1 declared repo becomes:
+     - **`story` (default):** a **Feature → one per-repo child Story** (each Story = one repo = one PR).
+       Never author a single fat cross-repo Story for `/sdlc:run` to split later; going one tier up
+       keeps each repo unit a proper Story (ADO forbids Story→Story parenting).
+     - **`task`:** a **User Story (the user-value umbrella) → one per-repo child Task** (API → backend
+       repo, UI → frontend repo, migration → db repo), each Task a single-repo leaf; the Story rolls up
+       when its tasks complete.
+     Either way, a single **Task** never spans repos, and when a split re-homes ACs across children,
+     apply the **AC coverage map** (`sdlc:work-items` → *Re-decomposition*): every original AC lands on
+     a child, none dropped.
    - Work that belongs to **no product repo** (workspace README, cross-repo docs, control-plane config)
      → target `control-plane` (F8), not a product repo. Work referencing a repo **not yet declared** (a
      shared lib, a future product) → note it and offer to declare it (`/sdlc:repo add`), don't fold it

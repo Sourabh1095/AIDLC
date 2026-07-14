@@ -27,15 +27,18 @@ user-invocable: false
 Size drives the pipeline: ≥ `architectThreshold` (default M) ⇒ the architect agent plans
 (when available); XL ⇒ send back for decomposition.
 
-## Poly — scope each story to one repo (F1)
+## Poly — split cross-repo work at the configured tier
 
-In a multi-repo workspace the invariant is **1 story = 1 repo = 1 branch = 1 PR**. So when
-decomposing:
-- Scope every **story/task to exactly one repo.** Cross-repo work (bootstrap, shared-config,
-  cross-repo refactor) is **not** a single story — it's a **Feature/Epic with one per-repo child
-  Story** (prefer Feature-tier: ADO forbids Story→Story parenting, so a cross-repo Story spawns child
-  Tasks — a non-idiomatic umbrella). Author it this way up front; don't rely on the run-time split.
-- Sequence cross-repo children with `dependsOn` (e.g. frontend `dependsOn` backend).
+The runnable leaf is always single-repo (**1 leaf = 1 repo = 1 branch = 1 PR**); the tier of that leaf
+is set by `workspace.crossRepoSplit` (default `story`; see `sdlc:work-items` → *Cross-repo split tier*).
+So when decomposing:
+- **`story` mode (default):** scope every **Story to exactly one repo**; its Tasks are that repo's
+  breakdown. Cross-repo work is a **Feature → per-repo child Stories**, not one fat story (ADO forbids
+  Story→Story parenting, so a run-time split of a Story yields Tasks — a stopgap; author the Feature
+  shape up front).
+- **`task` mode:** a **Story is the cross-repo umbrella**; scope every **Task to exactly one repo** (API
+  task → backend, UI task → frontend, migration → db). The Story rolls up when its tasks complete.
+- Sequence cross-repo children with `dependsOn` (e.g. frontend `dependsOn` backend) — in both modes.
 - Workspace-level work (README, cross-repo docs, control-plane config) is a `control-plane`-targeted
   item, not a product-repo story.
 - When re-decomposing existing items, carry every original AC onto a child via an **AC coverage map**
