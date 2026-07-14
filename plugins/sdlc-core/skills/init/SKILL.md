@@ -48,13 +48,21 @@ Collect:
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
 2. **Project name** (human-readable).
 3. **Work-item source**: `markdown` (default) | `jira` | `ado`. If jira/ado, also collect site/org + project.
-   - **ADO — populate `statusMap` from the board's REAL states, don't assume defaults (F7).** Many boards
-     are customized (e.g. *Development in Progress / Ready for QA / Closed*, not Agile's
-     Active/Resolved). If the ADO MCP / `az` is reachable now (see the doctor note in `wi-ado` →
-     *Connectivity*), query the project's actual `System.State` values per work-item type and build
-     `workItems.ado.statusMap` by mapping canonical → detected. If it's not reachable at init time,
-     leave `statusMap` empty and note that `wi-ado` self-heals on first run — but prefer getting it
-     right up front. Never write the assumed `in_progress→Active`/`in_review→Resolved` defaults blindly.
+   - **ADO — populate `statusMap` from the board's REAL states, PER TYPE, don't assume defaults
+     (F7 + F20).** Many boards are customized (e.g. *Development in Progress / Ready for QA / Closed*,
+     not Agile's Active/Resolved), and **state names are scoped per work-item-type** — an Epic's
+     working state ("In Progress") commonly differs from a Story/Feature's ("Development in Progress"),
+     so a single flat name per canonical status is wrong. If the ADO MCP / `az` is reachable now (see
+     the doctor note in `wi-ado` → *Connectivity*), for **each** work-item type in play (Epic, Feature,
+     User Story/PBI, Task, Bug) query the type's states + categories
+     (`_apis/wit/workitemtypes/{type}/states` — each carries a `stateCategory` of
+     Proposed/InProgress/Resolved/Completed/Removed) and build a **per-type**
+     `workItems.ado.statusMap` (`{ "<Type>": { "<canonical>": "<state name>" } }`) by mapping canonical
+     → the state whose category matches (todo=Proposed, in_progress=InProgress, in_review=Resolved,
+     done=Completed). This captures the Epic/Story divergence up front. If it's not reachable at init
+     time, leave `statusMap` empty and note that `wi-ado` self-heals per-type on first run — but prefer
+     getting it right up front. Never write the assumed flat `in_progress→Active`/`in_review→Resolved`
+     defaults blindly.
 4. **Workspace layout**: `mono` (one repo for everything) | `poly` (several git repos in this workspace,
    e.g. backend/frontend/website/mobile). **Ask this as a real question — never silently default from
    auto-detect (F3).** Auto-detect is only a *proposal*: scan the cwd for multiple subfolders that are
@@ -101,6 +109,10 @@ Collect:
    - **Manual** — `mode: manual`. Skip all agents; review the PR yourself, feed issues back via `/sdlc:run <ID>`.
    Cadence values per agent: `off | on-demand | per-item | per-epic` (security also `risk-based`);
    they can hand-tune any agent later.
+7. **Pre-commit hooks (TypeScript repos; opinionated-but-optional).** Ask whether to install the
+   husky + lint-staged pre-commit layer (eslint `--fix` + prettier `--write` on staged files at commit
+   time — the local complement to the CI/merge gate). Default **yes** for a fresh repo; some teams
+   decline git hooks, so it's a real question, not automatic. Record the choice; it drives Step 4.5.
 
 ## Step 4 — Scaffold
 
@@ -131,14 +143,37 @@ Collect:
    the reviewer. Locate it like the project template — glob `**/sdlc-stack-web/templates/tooling/`
    under the install locations. Per repo (per-repo in poly; **skip non-TS repos**, e.g. a Postgres-only
    or mobile repo):
-   - Copy `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`, `.npmrc`
-     into the repo root — **merge-aware**: if the repo already has an ESLint / tsconfig / Prettier
-     config, do NOT overwrite; show the delta and ask whether to adopt the baseline, merge, or skip
-     (a repo already linting strictly needs nothing). Point its `tsconfig.json` at the baseline via
-     `"extends": "./tsconfig.base.json"`.
-   - Add the devDependencies and `lint`/`typecheck`/`format` scripts from the tooling `README.md` to
-     `package.json` (or, if you can't edit it safely, print the exact `npm i -D …` + scripts for the
-     user to run).
+   - Copy `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`,
+     `.gitattributes`, `.npmrc` into the repo root — **merge-aware**: if the repo already has an
+     ESLint / tsconfig / Prettier / gitattributes config, do NOT overwrite; show the delta and ask
+     whether to adopt the baseline, merge, or skip (a repo already linting strictly needs nothing).
+     Point its `tsconfig.json` at the baseline via `"extends": "./tsconfig.base.json"`. The
+     `.gitattributes` (`* text=auto eol=lf`) is what stops CRLF/LF churn on Windows and keeps the repo
+     byte-identical between a Windows dev and a Linux CI runner (F17) — copy it even into a non-Next
+     repo; the binary rules are harmless where they don't match.
+   - Add the devDependencies and `lint`/`typecheck`/`format`/`format:write` scripts from the tooling
+     `README.md` to `package.json` (or, if you can't edit it safely, print the exact `npm i -D …` +
+     scripts for the user to run).
+   - **Cross-platform lockfile for Linux CI (F29).** `npm ci` is exact-lock — and npm resolves
+     platform-specific optional deps (`@emnapi/*`, esbuild/swc/rollup natives) per OS/arch, so a
+     `package-lock.json` **generated on Windows/macOS can be unsatisfiable on Linux CI**. If this repo
+     has (or will have) Linux CI, generate/refresh the committed lockfile in the **Linux context CI
+     uses** (e.g. `docker run --rm -v "$PWD":/w -w /w node:22 npm install`) rather than committing the
+     Windows-generated one — or document it as a required step for the user. Recurs on every repo when
+     dev is Windows and CI is Linux.
+   - **Leave the repo format-clean (F18).** After the baseline is in place, run `prettier --write .`
+     **repo-wide** so the freshly scaffolded repo passes its own `format` (`prettier --check .`) gate
+     at the first merge — a scaffold that "merged never-clean" (unformatted files slipping past because
+     format was never enforced repo-wide at scaffold time) is the failure this prevents. Confirm the
+     enforced gate runs `format:check`/`prettier --check .` (not just eslint) — see `ci-cd`.
+   - **Pre-commit hooks (F21) — only if the user opted in at Step 3.7.** Add `husky` + `lint-staged`
+     to devDeps, `npx husky init`, copy `templates/tooling/husky/pre-commit` → `.husky/pre-commit`
+     and `templates/tooling/lint-staged.config.mjs` → repo root. **Make `prepare` CI-safe**:
+     `"prepare": "husky || true"` (not the bare `"husky"` husky writes) — bare `husky` exits **127** on
+     every `npm ci` in a CI container or a `file:../` sibling checkout that lacks husky. In **poly**,
+     prefer letting the shared-config repo own the lint-staged preset and having the others re-export
+     it (`export { default } from "@beelogical/dev-config/lint-staged"`). If the user declined, skip
+     silently — the CI/merge gate still enforces the same standards.
    - Framework layer (don't replace): Next.js repos also install `eslint-config-next` and keep their
      own tsconfig `module` settings, layering the baseline's strictness on top.
    If `sdlc-stack-web` is absent or the repo isn't TS, skip silently — the baseline is stack-specific.
@@ -155,10 +190,26 @@ Collect:
      `store/{index,hooks,api/base-api}`) into place, and generate ONE example feature/module as a
      copy-me pattern.
    - Drop the matching `templates/structure/dependency-cruiser/.dependency-cruiser.<flavor>.cjs` as
-     `.dependency-cruiser.cjs`; add `dependency-cruiser` to devDeps and a `depcruise` script
+     `.dependency-cruiser.cjs`; add **`dependency-cruiser@^17`** to devDeps (pin the `^17` floor — a
+     `< 17` install silently no-ops on `.ts` and the gate passes green enforcing nothing, F30; the
+     profiles' `enhancedResolveOptions` also need `>= 17`) and a `depcruise` script
      (`"depcruise": "depcruise src"`). RTK flavors also need `@reduxjs/toolkit` + `react-redux`.
    - **Merge-aware:** never overwrite an existing structure — if the repo already has a layout, adopt
      it, skip the skeleton, and note the difference. Skip non-TS repos entirely.
+7. **CI gate for `mode: remote` repos (F24) — remote mode implies a PR-gated merge, so a gate must
+   exist.** For each repo whose `mode` is `remote`, check whether it already has CI wired
+   (`.github/workflows/*.yml` for github, `azure-pipelines.yml` for azure-repos) **and** a
+   required/blocking PR-check policy. If not:
+   - If `sdlc-stack-web` is present, **offer to scaffold the matching CI template** (glob
+     `**/sdlc-stack-web/templates/ci/`): `azure-pipelines.yml` (azure-repos) or `.github/workflows/ci.yml`
+     (github). It runs the SAME deterministic gate as the local run (typecheck/lint/format/boundaries/
+     build/test) — so remote PRs are actually enforced, not merged ungated.
+   - **Always warn, even if you don't scaffold:** "`<repo>` is `mode: remote` but has no detectable CI /
+     required-check policy — its PRs will merge **ungated** until a CI gate + branch policy land." Never
+     leave this silent (a repo can otherwise run for weeks with the gate running only locally per run).
+   - Setting the actual branch policy / build-validation (and, on Azure, the service connection, agent
+     pool, hosted-parallelism grant) needs org permissions — it may stay a tracked devops task. Say so;
+     don't pretend it's done. See `sdlc:ci-cd` for the pool/parallelism/queue-auth specifics.
 
 ## Step 5 — Report
 
@@ -169,5 +220,8 @@ Print a summary: files created, config chosen, and next steps:
 - If a tooling baseline / structure was scaffolded: "Installed the strict web-stack tooling baseline
   + enterprise skeleton (`<flavor>`) in `<repo(s)>` — run the printed `npm i -D …` to pull the
   devDeps, then `npm run lint && npm run typecheck && npm run depcruise` to confirm a clean start."
+- For any `mode: remote` repo: whether CI was scaffolded, and — for each — the explicit reminder to
+  add the **blocking build-validation / required-check policy** on the default branch (needs org
+  permissions), or the PR gate is advisory. Name any repo left **ungated**.
 
 Do NOT commit automatically — show `git status` and let the user commit the scaffold.

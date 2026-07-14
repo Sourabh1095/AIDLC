@@ -79,7 +79,22 @@ change are marked `[needs-rework]` or struck through `~~…~~ (descoped)` — hi
 readable; completed work that still stands is never redone. (Reconciliation itself is the
 orchestrator's job — see `sdlc:run` §1.)
 
-**Archive** — after PR merge + item transitioned to done, move the file to `.sdlc/runs/archive/`.
+**Archive** — move the completed run file to `…/runs/archive/{ID}.md`. **Where + when depends on
+mode/layout (F23):**
+- **Poly + remote** — the per-repo run file merges into `main` via the PR, so archive it **on the
+  feature branch as the run's final commit** (`git mv` → `runs/archive/`, `chore(sdlc): archive run
+  {ID}`, pushed to the open PR) so it rides into `main` **already archived**. Archiving after merge
+  would require a forbidden direct-to-`main` commit — that's the trap this avoids. `/sdlc:run` §10
+  owns this step.
+- **Local mode** — the branch is merged in-session (`/sdlc:run` §8), so archive via `/sdlc:status`
+  post-merge cleanup (a local commit on the default branch is acceptable here — the user already
+  confirmed the merge).
+- **Control-plane** — the epic coordination file isn't on any product branch; archive it at the
+  control plane `.sdlc/runs/archive/`.
+
+Resume + status therefore look for a run file in **both** `runs/` and `runs/archive/`; a file found
+only in `archive/` means the run already completed (suggest `/sdlc:status` cleanup / confirm the
+merge), never redo it.
 
 ## Invariants
 

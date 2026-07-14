@@ -14,7 +14,8 @@ module.exports = {
     {
       name: "ui-not-to-store",
       severity: "error",
-      comment: "components/ui are presentational design-system primitives — they take props, never import the store.",
+      comment:
+        "components/ui are presentational design-system primitives — they take props, never import the store.",
       from: { path: "^src/components/ui/" },
       to: { path: "^src/store/" },
     },
@@ -35,7 +36,8 @@ module.exports = {
     {
       name: "lib-types-are-leaves",
       severity: "error",
-      comment: "lib/ and types/ are framework-agnostic leaves — no imports from app/components/store.",
+      comment:
+        "lib/ and types/ are framework-agnostic leaves — no imports from app/components/store.",
       from: { path: "^src/(lib|types)/" },
       to: { path: "^src/(app|components|store)/" },
     },
@@ -43,7 +45,11 @@ module.exports = {
       name: "no-orphans",
       severity: "warn",
       comment: "Orphaned source module — likely dead code.",
-      from: { orphan: true, pathNot: "\\.(spec|test|d)\\.tsx?$|(^|/)(layout|page|route|loading|error|not-found)\\.tsx?$" },
+      from: {
+        orphan: true,
+        pathNot:
+          "\\.(spec|test|d)\\.tsx?$|(^|/)(layout|page|route|loading|error|not-found)\\.tsx?$",
+      },
       to: {},
     },
   ],
@@ -52,5 +58,16 @@ module.exports = {
     tsConfig: { fileName: "tsconfig.json" },
     tsPreCompilationDeps: true,
     includeOnly: "^src/",
+    // Resolve ESM `exports`-map subpaths explicitly — the poly shared-config pattern this plugin
+    // promotes (`@beelogical/dev-config/lint-staged`). enhanced-resolve's `exports`-map handling
+    // varies by version/package shape (older defaults don't follow subpath maps at all); setting
+    // these pins subpath resolution across both import/require conditions so a shared-config
+    // subpath isn't false-flagged as unresolvable. Requires dependency-cruiser >= 17 (see the
+    // devDep floor in project-structure) — harmless where the default already resolves it.
+    enhancedResolveOptions: {
+      exportsFields: ["exports"],
+      conditionNames: ["import", "require"],
+      mainFields: ["main", "module", "types"],
+    },
   },
 };

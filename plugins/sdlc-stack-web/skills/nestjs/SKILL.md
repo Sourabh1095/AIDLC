@@ -15,8 +15,10 @@ messages}` module live in **`sdlc-stack-web:project-structure`** (`backend-nestj
 
 When scaffolding a Nest repo (via `/sdlc:init` **or** a `/sdlc:run` scaffold task), follow that
 skill's repo-scaffold checklist — in particular drop `.dependency-cruiser.nestjs.cjs` into the root as
-`.dependency-cruiser.cjs` (with the `depcruise` script + `dependency-cruiser` devDep) and the hardened
-`.gitignore`; without the boundary config the layering gate is silently inert.
+`.dependency-cruiser.cjs` (with the `depcruise` script + a **`dependency-cruiser@^17`** devDep — pin
+the floor; `< 17` silently no-ops on `.ts` and the gate passes green enforcing nothing, F30) plus the
+hardened `.gitignore` and `.gitattributes`; without the boundary config the layering gate is silently
+inert.
 
 - Feature modules own their domain: `users/` = `users.module.ts`, controller, service, repository,
   DTOs (`dto/`), entities/schemas. Cross-feature access ONLY through an exported service —
@@ -59,3 +61,21 @@ around multi-write invariants, no query building in controllers.
   cover each endpoint's happy/validation/authz paths per `sdlc:testing`.
 - Don't mock what you own inside an integration test — mock at the external boundary
   (third-party APIs), exercise your own stack for real.
+
+### ESM-only deps consumed via `import()` (F33)
+
+A CommonJS Nest repo that consumes an **ESM-only** dependency through a dynamic `import()` wrapper
+(the endorsed CJS↔ESM interop — e.g. `nest-oidc-provider` wrapping ESM-only `oidc-provider`) will find
+that **jest can't execute the dynamic ESM import** under the default CJS transform. The test throws on
+the `import()` until you enable VM modules:
+
+```jsonc
+// package.json — the test script
+{ "scripts": { "test": "NODE_OPTIONS=--experimental-vm-modules jest" } }
+```
+
+(Cross-platform: use `cross-env NODE_OPTIONS=--experimental-vm-modules jest`, since bare `NODE_OPTIONS=`
+prefixing doesn't work on Windows shells.) Two gotchas that bite together: (1) without the flag the
+dynamic import fails at runtime, not compile time — the error points at the wrapper, not the config;
+(2) a new e2e file must match the repo's **`testRegex`** or jest silently won't run it. ESM-only
+libraries are increasingly common, so any web-stack repo consuming one via `import()` hits this.

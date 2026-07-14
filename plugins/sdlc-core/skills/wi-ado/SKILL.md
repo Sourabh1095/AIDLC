@@ -75,21 +75,41 @@ constraints shape it:
   not Tasks. `updateAC` must write ACs to the **Story**; a Task only carries them in its
   `System.Description`. When re-decomposing, ensure carried ACs land on a Story-tier item.
 
-## Status map
+## Status map — resolve by **state category, per work-item-type** (F20)
 
-Canonical → ADO defaults; override in `workItems.ado.statusMap`. Detect the process first
-(Epic/Feature use the same state names as User Story — New/Active/Resolved/Closed in Agile):
+**ADO state names are scoped per work-item-type, so a flat `statusMap` is wrong.** On a customized
+board an Epic's working state may be **"In Progress"** while a Story/Feature's is **"Development in
+Progress"** — a single name per canonical status can't be valid for every type. The stable key is the
+state's **category**, which every state carries and which is uniform across types:
 
-| canonical | Agile (User Story) | Scrum (PBI) | Bug/Task |
-|---|---|---|---|
-| todo | New | New/Approved | New/To Do |
-| in_progress | Active | Committed | Active/In Progress |
-| in_review | Resolved | Committed + tag `in-review` | Resolved/In Progress + tag |
-| done | Closed | Done | Closed/Done |
-| blocked | keep state + tag `blocked` | same | same |
+| canonical | ADO state **category** |
+|---|---|
+| todo | `Proposed` |
+| in_progress | `InProgress` |
+| in_review | `Resolved` (if the type has one; else nearest `InProgress` state + tag `in-review`) |
+| done | `Completed` |
+| blocked | keep current state + tag `blocked` |
+| (superseded) | `Removed` (if the type has one; else `Completed` + `superseded` comment — see below) |
 
-If a state transition is rejected (ADO enforces per-process rules), step through the nearest
-legal intermediate state; if still rejected, apply the tag fallback and comment what happened.
+**Resolution algorithm for `transition(id, canonical)`:**
+1. Read the item's **type** (`System.WorkItemType` / `sourceRaw.adoType`).
+2. Get that type's states + their categories from the **work-item-type states API** —
+   `GET {org}/{project}/_apis/wit/workitemtypes/{type}/states?api-version=7.1` (via the MCP or
+   `az rest`); each entry is `{ name, stateCategory }` with `stateCategory` ∈
+   Proposed/InProgress/Resolved/Completed/Removed.
+3. Pick the **state name** whose category matches the canonical status above. That name is what you
+   write to `System.State`. If several states share a category, prefer an explicit `statusMap`
+   override for that `(type, canonical)`, else the first legal one and log the choice.
+
+So rolling an **Epic** to in_progress resolves to *the Epic type's* `InProgress` state ("In Progress"),
+not the Story's "Development in Progress" — the flat-map bug that mis-targeted a non-existent Epic state.
+
+`workItems.ado.statusMap` may be **flat** (legacy: `canonical → name`, used only when a type has one
+obvious state per category) **or per-type** (`{ "<Type>": { "<canonical>": "<state name>" } }`,
+preferred on customized boards). Prefer per-type; treat a flat map as a hint, never as authoritative
+for a type whose real states differ. If a transition is still rejected (ADO enforces per-process
+transition rules), step through the nearest legal intermediate state by category; if still rejected,
+apply the tag fallback and comment what happened.
 
 ## Operations
 
@@ -127,10 +147,25 @@ this as a doctor check.)
 
 ## Cautions
 
+- **PR merge does NOT transition the linked item (F22).** In ADO, `link`-ing a work item to a PR is a
+  reference only — merging the PR does **not** move the item to a done state unless branch policy is
+  explicitly configured to (most aren't). So the DONE transition is always an **explicit
+  `transition(id, done)` adapter call** made post-merge (by `/sdlc:status` cleanup or a `/sdlc:run`
+  resume), followed by the type-aware parent rollup. Never assume merge closed the item.
 - HTML fields: always convert cleanly (no raw markdown dumped into System.Description).
 - Re-read before every write (humans edit boards mid-run).
 - Area/iteration paths: leave defaults on create unless the config or parent specifies them.
-- **statusMap self-heal (F7 echo):** if `init` left `workItems.ado.statusMap` empty or wrong for a
-  **customized** board (states like *Development in Progress / Ready for QA*, not the Agile defaults),
-  detect the real `System.State` values on first use and reconcile the map before transitioning
-  (`init` should pre-populate it by querying the board — but never trust that it did).
+- **statusMap self-heal — key on `(type → category → real state name)` (F7 + F20).** If `init` left
+  `workItems.ado.statusMap` empty or wrong for a **customized** board (states like *Development in
+  Progress / Ready for QA*, not the Agile defaults), detect the real states on first use and reconcile
+  before transitioning. F7's original self-heal only checked whether a state exists **on the board at
+  all** — not whether it's legal for **this item's type** — so a state valid for Story ("Development in
+  Progress") slipped through for an Epic that has none. Self-heal must resolve per the algorithm above:
+  fetch the *item's type's* states + categories and map canonical → the category's real state name for
+  **that type**. (F15 already made *terminal* states per-type; F20 extends it to the non-terminal
+  working states.) `init` should pre-populate a **per-type** map by querying the board — but never
+  trust that it did.
+- **Parent rollup transitions are type-aware too (F19).** The proactive parent rollup (`sdlc:run` §3;
+  `sdlc:work-items` → *Parent rollup*) transitions an Epic/Feature via this same category resolution —
+  which is exactly why it must be type-aware: rolling an Epic to in_progress lands on the Epic type's
+  `InProgress` state, not the Story's.
