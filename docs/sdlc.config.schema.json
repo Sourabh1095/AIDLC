@@ -132,6 +132,14 @@
         "repo": { "type": "string" },
         "promotionBranchPrefix": { "type": "string" }
       }
+    },
+    "pluginFeedback": {
+      "type": "object",
+      "description": "Plugin self-feedback (dogfood) channel. When enabled, the pipeline records SDLC-plugin friction it hits during a run — gaps, wrong/missing guidance, steps it had to work around, skill/agent/template bugs (distinct from project bugs) — as structured entries in a local inbox, for the plugin maintainer to triage. Default off, so normal projects stay quiet; a project used to dogfood the plugin turns it on. See the sdlc:dogfood skill.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false, "description": "Turn on plugin self-feedback capture for this workspace." },
+        "inbox": { "type": "string", "default": ".sdlc/plugin-feedback.md", "description": "Path (relative to the control plane) of the append-only feedback inbox the pipeline writes to." }
+      }
     }
   }
 }
