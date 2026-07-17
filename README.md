@@ -32,7 +32,7 @@ remote yet (`git.mode: local`), **approving the local merge** the pipeline propo
 ## Install (per developer)
 
 ```
-/plugin marketplace add <OWNER>/AIDLC     # or a local path / Azure Repos URL
+/plugin marketplace add bee-logical/AIDLC     # or a local path / Azure Repos URL
 /plugin install aidlc@bee-logical
 /plugin install aidlc-stack-web@bee-logical          # Next.js/NestJS/PG/Mongo expertise (optional per stack)
 ```

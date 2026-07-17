@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/<OWNER>/AIDLC/main/docs/aidlc.config.schema.json",
+  "$id": "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/aidlc.config.schema.json",
   "title": "AIDLC project configuration",
   "description": "Per-project configuration for the Bee-Logical Claude AIDLC framework. Lives at the workspace control plane in .claude/aidlc.config.json. Supports a single repo (mono, the default) or many repos (poly).",
   "type": "object",

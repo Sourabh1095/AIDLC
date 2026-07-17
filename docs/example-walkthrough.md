@@ -48,7 +48,7 @@ Inside the Claude Code session:
 ```
 
 > When the marketplace repo is pushed to your org, this becomes
-> `/plugin marketplace add <OWNER>/AIDLC` (or the HTTPS URL) — everything else is identical.
+> `/plugin marketplace add bee-logical/AIDLC` (or the HTTPS URL) — everything else is identical.
 
 The second plugin is the web stack pack — since this project is Next.js/NestJS/Postgres, you
 want its conventions active. Verify: type `/aidlc:` and you should see `init`, `intake`, `run`,

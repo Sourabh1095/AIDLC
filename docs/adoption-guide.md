@@ -12,7 +12,7 @@ How to use the Bee-Logical Claude AIDLC in any project — new or existing.
 ## 2. Install the plugin (once per developer)
 
 ```
-/plugin marketplace add <OWNER>/AIDLC
+/plugin marketplace add bee-logical/AIDLC
 /plugin install aidlc@bee-logical
 /plugin install aidlc-stack-web@bee-logical   # if the project is on the Next.js/NestJS/PG/Mongo stack
 ```

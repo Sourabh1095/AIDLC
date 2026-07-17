@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/<OWNER>/AIDLC/main/docs/aidlc.config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/aidlc.config.schema.json",
   "project": {
     "key": "{{PROJECT_KEY}}",
     "name": "{{PROJECT_NAME}}"
@@ -58,7 +58,7 @@
     }
   },
   "marketplace": {
-    "repo": "<OWNER>/AIDLC",
+    "repo": "bee-logical/AIDLC",
     "promotionBranchPrefix": "promote/"
   }
 }
