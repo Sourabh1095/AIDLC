@@ -2,6 +2,19 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.18.1] — 2026-07-17
+
+### `sdlc` — dogfood inbox stays a short live queue (F41)
+
+- **F41 — the maintainer now prunes shipped (`pulled:F<n>`) entries from a consuming project's dogfood
+  inbox once their batch merges.** The inbox is a *queue*; the plugin's `docs/dogfood-findings.md` +
+  CHANGELOG are the permanent *record*. Leaving drained entries in the inbox made every future run in
+  that project re-read an ever-growing log for no benefit — a recurring token cost. `sdlc:dogfood` now
+  documents the prune step (a second maintainer exception to "append only") and the inbox header
+  template states the queue is cleared after shipping. Applied to the Authentication inbox (its
+  F34–F40 entries pruned; record preserved here). Versions: `sdlc` 0.18.0 → **0.18.1**, marketplace →
+  **0.18.1** (`sdlc-stack-web` 0.9.0 / `sdlc-ux` 0.3.0 unchanged).
+
 ## [0.18.0] — 2026-07-17
 
 ### Dogfood batch F34–F40 (Authentication / Identity Platform, Cycle 3) — reliability hardening

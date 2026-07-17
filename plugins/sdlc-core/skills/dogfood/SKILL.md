@@ -64,9 +64,11 @@ The inbox file's header (create once if the file doesn't exist):
 ```markdown
 # SDLC plugin — feedback inbox (dogfood)
 
-Append-only. The pipeline writes plugin-friction entries here when `pluginFeedback.enabled`.
-The plugin maintainer drains genuine ones into the plugin's `docs/dogfood-findings.md` and marks
-each entry's `status:` (`pulled:F<n>` or `dismissed: <why>`). Do not hand-edit others' entries.
+Append-only queue. The pipeline writes plugin-friction entries here when `pluginFeedback.enabled`.
+The plugin maintainer drains genuine ones into the plugin's `docs/dogfood-findings.md`, marks each
+entry's `status:` (`pulled:F<n>` or `dismissed: <why>`), and **prunes shipped (`pulled`) entries once
+their batch merges** so this file stays a short live queue (the permanent record is the
+dogfood-findings log). Do not hand-edit others' entries.
 ```
 
 4. `## Log` a one-liner in the current run file if one is open (`plugin-feedback logged: <symptom>`),
@@ -79,7 +81,14 @@ project's inbox file directly from disk** — no copy-paste, no relay. For each 
 1. Decide real-plugin-issue vs not. Genuine ones become a numbered finding in the plugin's
    `docs/dogfood-findings.md` (continue the F-series), matched to the finding format there.
 2. Edit the inbox entry's `status:` in place → `pulled:F<n>` (logged) or `dismissed: <one-line why>`.
-   This is the one exception to "append only" — the maintainer marks triage state so entries aren't
-   re-triaged.
+   This is a maintainer exception to "append only" — the maintainer marks triage state so entries
+   aren't re-triaged.
 3. Never let a genuine rough edge sit only in the inbox — the inbox is a queue, the dogfood-findings
    file is the record that gets designed + shipped as a batch.
+4. **Prune after shipping — keep the inbox a short live queue (F41).** Once the batch containing a
+   `pulled:F<n>` entry actually **ships** (versioned + merged), **delete that entry from the consuming
+   project's inbox**. The permanent record is the plugin's `docs/dogfood-findings.md` + CHANGELOG, so a
+   shipped entry left in the inbox adds nothing — it just makes every future run re-read an
+   ever-growing log (a real, recurring token cost). Keep only what's still actionable: `new` (awaiting
+   triage) and not-yet-recorded `dismissed` entries. Optionally leave a one-line `<!-- … -->` breadcrumb
+   naming the shipped batch + version. This is the second maintainer exception to "append only".

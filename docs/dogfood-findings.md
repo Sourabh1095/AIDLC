@@ -16,9 +16,9 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F41**._
+_Numbering continues across cycles — the next finding is **F42**._
 
-### Implemented — batch F34–F40 (shipped in marketplace **0.18.0**, pending merge)
+### Implemented — batch F34–F40 (shipped in marketplace **0.18.0**, merged `--no-ff` d6a1eef)
 
 Drained from the Authentication inbox (`.sdlc/plugin-feedback.md`) on 2026-07-17. Per-finding change
 lists are in the CHANGELOG under **[0.18.0]**.
@@ -52,6 +52,13 @@ lists are in the CHANGELOG under **[0.18.0]**.
   - *symptom:* devops (CI-gate implement) repeatedly returned a bare "still running" instead of a verdict — confirming F37 is a cross-agent contract gap, not one agent's prompt.
   - *fix:* covered by the shared finish contract; devops additionally must poll a CI/pipeline run to a terminal state itself.
 
+### Implemented — F41 (shipped in marketplace **0.18.1**)
+
+- **F41 — 🟡 dogfood inbox grows unbounded; shipped entries get re-read every run.**
+  - *area:* `dogfood` (maintainer drain section + inbox header template).
+  - *symptom:* drained `pulled:F<n>` entries stayed in a consuming project's inbox after their batch shipped, so every future run there re-read an ever-growing log — a recurring token cost. Raised directly (not via the inbox) while cleaning the Authentication inbox after F34–F40 shipped.
+  - *fix:* the maintainer prunes shipped `pulled` entries once their batch merges; the inbox is a short live queue and the permanent record is `docs/dogfood-findings.md` + CHANGELOG. Documented as the second maintainer exception to "append only"; inbox header template updated. Authentication inbox pruned (F34–F40).
+
 ## Validated — working as designed (no change needed)
 
 _None yet this cycle._
@@ -66,3 +73,7 @@ _None yet this cycle._
   CI-parity recipe). Shipped at marketplace **0.18.0** (`sdlc` 0.17.0 → 0.18.0). Inbox entries marked
   `pulled:F<n>`. Next id **F41**. Archive this file to `dogfood-findings-archive.md` once the batch
   merges and Cycle 3 closes.
+- 2026-07-17 — Batch F34–F40 **merged to main** (`--no-ff` d6a1eef, marketplace 0.18.0). Then **F41**
+  (dogfood inbox pruning lifecycle) implemented + shipped at marketplace **0.18.1**, and the
+  Authentication inbox was pruned of its shipped F34–F40 entries (record preserved here + CHANGELOG).
+  Next id **F42**.
