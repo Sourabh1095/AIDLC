@@ -1,18 +1,18 @@
-# SDLC Plugin — Dogfood Findings ARCHIVE — Cycle 1 (Authentication / Identity Platform, Epic-1 scaffolding)
+# AIDLC Plugin — Dogfood Findings ARCHIVE — Cycle 1 (Authentication / Identity Platform, Epic-1 scaffolding)
 
 **CLOSED ARCHIVE (F1–F16).** Historical design record only — do not add new findings here; log those in
 `dogfood-findings.md`. Cycle ran 2026-07-11 → 2026-07-12.
 
 > **✅ F1–F16 BATCH IMPLEMENTED — 2026-07-12** (branch `feat/dogfood-f1-f16-batch`). All sixteen
 > Epic-1 findings were designed + implemented together through the branch → version → merge flow.
-> Version bumps: `sdlc` 0.13.1 → **0.14.0**, `sdlc-stack-web` 0.7.1 → **0.8.0**, `sdlc-ux` 0.2.1 →
+> Version bumps: `aidlc` 0.13.1 → **0.14.0**, `aidlc-stack-web` 0.7.1 → **0.8.0**, `aidlc-ux` 0.2.1 →
 > **0.3.0**, marketplace → **0.14.0**. See the CHANGELOG for the per-finding change list. The findings
 > below are retained as the design record. Next dogfood cycle (Epic 2, design pod) runs on the updated
 > plugin and serves as the regression test for this batch.
 
 ## Context
 
-Dogfooding the SDLC plugin end-to-end on the **Bee Logical Identity Platform** (a real, ambitious
+Dogfooding the AIDLC plugin end-to-end on the **Bee Logical Identity Platform** (a real, ambitious
 build):
 
 - **Layout:** polyrepo — 5 repos: `bee-auth-api` (NestJS IdP), `bee-auth-web` (Next.js login),
@@ -22,7 +22,7 @@ build):
   7 epics / 27 features / ~37 stories / ~79 tasks (150 items).
 - **Git mode:** local (no remotes yet). **Verification:** economical (reviewer/QA on-demand,
   security per-epic + confirm).
-- Plugin versions under test: `sdlc` 0.13.1, `sdlc-stack-web` 0.7.1, `sdlc-ux` 0.2.1.
+- Plugin versions under test: `aidlc` 0.13.1, `aidlc-stack-web` 0.7.1, `aidlc-ux` 0.2.1.
 
 **Severity:** 🔴 blocks/confuses a core flow · 🟠 friction/manual workaround · 🟡 polish.
 
@@ -32,20 +32,20 @@ build):
 
 ### F1 🔴 — Poly: a cross-repo "workspace-bootstrap" story has no clean home
 **Symptom.** Story 8416 "Scaffold platform as separate repos" legitimately spans all 5 repos + a
-shared `@beelogical/dev-config` package + a workspace README. On `/sdlc:run 8416` the orchestrator
+shared `@beelogical/dev-config` package + a workspace README. On `/aidlc:run 8416` the orchestrator
 correctly *detected* the conflict with the poly invariant (1 story = 1 repo = 1 branch) and offered
 to decompose into per-repo child stories — but only ad-hoc, at run time.
 **Root cause.** Poly models cross-repo work only at the **epic** level (fan out to per-repo child
 stories). A cross-repo **story** (common for bootstrap/refactor/shared-config work) isn't modeled,
 and the backlog authored this as a single story.
 **Proposed modification.**
-- `sdlc:intake` + `sdlc:groom` (poly): detect a story whose scope spans repos and split it into
+- `aidlc:intake` + `aidlc:groom` (poly): detect a story whose scope spans repos and split it into
   per-repo child stories **at creation/refinement time**, not at run time.
 - Poly backlog-authoring guidance in `intake`/`planning` skills + adoption/user docs: *"in poly,
   scope each story to one repo; cross-repo work is a feature/epic with per-repo children."*
 - Formalize the run-time "story spans repos → decompose" path the orchestrator improvised (the three
   options it offered — decompose-and-run / decompose-defer / single-repo-subset) so it's consistent
-  and documented in `sdlc:run` §2.5.
+  and documented in `aidlc:run` §2.5.
 - **ADO hierarchy constraint (seen live):** ADO forbids Story→Story parenting, so decomposing a
   cross-repo *Story* yields child **Tasks** under it (parent Story becomes an umbrella —
   non-idiomatic). Prefer decomposing cross-repo work at the **Feature** level (Feature → per-repo
@@ -62,9 +62,9 @@ repo extends) that was never declared in `repos[]`. Decomposition has nowhere cl
 (shared libs, future products — e.g. Epic 7's five SaaS apps).
 **Proposed modification.** When routing/decomposition hits an undeclared repo, **offer to declare
 it** (append to `repos[]` + bootstrap the folder) instead of silently folding it into another repo.
-Consider a small `/sdlc:repo add <name>` helper (updates config + git-inits + base commit).
+Consider a small `/aidlc:repo add <name>` helper (updates config + git-inits + base commit).
 
-### F3 🟠 — `/sdlc:init`: poly auto-detect defaults to mono for a greenfield poly project
+### F3 🟠 — `/aidlc:init`: poly auto-detect defaults to mono for a greenfield poly project
 **Symptom.** With a git-init'd but empty workspace root and no sub-repos yet, init's pre-flight
 concluded *"No sub-repos detected → mono layout."* The user had to override via "type something" to
 get poly.
@@ -82,7 +82,7 @@ base-commit all 5 before running anything.
 has no repo and no `main`. init *flags* missing repos but doesn't create them.
 **Proposed modification.** init (poly) should **offer to bootstrap declared repos** — `git init -b
 main` + an initial commit — so the pipeline can run into them immediately. Or a dedicated
-`/sdlc:bootstrap` step. At minimum, document the requirement + the exact commands.
+`/aidlc:bootstrap` step. At minimum, document the requirement + the exact commands.
 
 ### F5 🟠 — ADO MCP: "connected" ≠ "authenticated"; opaque `Failed to find api location for area`
 **Symptom.** `/mcp` showed `azure-devops · connected · 90 tools`, yet board reads failed with
@@ -95,17 +95,17 @@ be present in the shell that **launches** Claude Code is a sharp, undocumented e
 **Proposed modification.**
 - Adoption guide (ADO section): state explicitly that `ADO_MCP_ORG` must be set and `az login`
   accessible **in the shell that launches Claude Code**; installing `az` mid-session needs a full relaunch.
-- A preflight/"doctor" check (or `/sdlc:status`) that distinguishes *"MCP process up"* from *"ADO
+- A preflight/"doctor" check (or `/aidlc:status`) that distinguishes *"MCP process up"* from *"ADO
   reachable + authenticated"* and prints the exact remediation, naming the launch-env root cause.
 
-### F6 🟡 — `/sdlc:init`: control-plane branch is `master`, config says `main`
+### F6 🟡 — `/aidlc:init`: control-plane branch is `master`, config says `main`
 **Symptom.** `git init` created `master` at the control plane while every repo's config is
 `defaultBranch: main`. Cosmetic mismatch; user renamed manually.
 **Proposed modification.** init should normalize the control-plane branch to the configured default
 (`git init -b main` / `git symbolic-ref`), or explicitly note the mismatch.
 
 ### F7 🟠 — ADO `statusMap` assumed standard Agile states; this board is customized
-**Symptom.** `/sdlc:init` left `workItems.ado.statusMap` empty (and the recommended defaults —
+**Symptom.** `/aidlc:init` left `workItems.ado.statusMap` empty (and the recommended defaults —
 `in_progress→Active`, `in_review→Resolved` — were wrong). This project's board uses **customized**
 states: *Development in Progress / Ready for QA / Closed* (no Active/Resolved). The pipeline detected
 the real states and fixed the map at run time.
@@ -139,7 +139,7 @@ the config the shared base should ship; empirically validated on a tsc-built CJS
 (`modules/`, `common/`, `config/`) and tooling (eslint/prettier/tsconfig via `@beelogical/dev-config`),
 but **no `.dependency-cruiser.cjs`** — so the `project-structure` boundary check (v0.11.0) has no config
 to run and is silently inert.
-**Root cause.** The implementer applied the structure *layout* from `sdlc-stack-web:project-structure`
+**Root cause.** The implementer applied the structure *layout* from `aidlc-stack-web:project-structure`
 but not the shipped `dependency-cruiser` boundary config; the task AC didn't call it out, and there's
 no CI in local mode to notice its absence.
 **Proposed modification.** Make the boundary config part of the repo-scaffold checklist — when the
@@ -148,20 +148,20 @@ pipeline scaffolds a repo per `project-structure`, it should drop the matching
 (Low priority: no CI under local mode yet, but it should be present for the remote flip.)
 
 ### F11 🟡 — Design pod scope-gating is correct interactively, but the non-interactive default is unclear
-**Symptom (positive core).** On `/sdlc:run 8568` (`bee-auth-web`, a Next.js *scaffold* task), the
-orchestrator did **not** blindly fire the `sdlc-ux` design pod just because the repo is a frontend/UI
+**Symptom (positive core).** On `/aidlc:run 8568` (`bee-auth-web`, a Next.js *scaffold* task), the
+orchestrator did **not** blindly fire the `aidlc-ux` design pod just because the repo is a frontend/UI
 repo. It **detected the scaffold-vs-UI scope mismatch** ("minimal shell" scope, functional-only DoD)
 and surfaced a choice — *Skeleton only (`ui:false`, skip jury) [recommended]* vs *Full design pod* —
 recommending skeleton-only. This is exactly the smart gating I feared it lacked: the pod is reserved
 for real UI surfaces, not empty scaffolds. **Good behavior — validated.**
 **Open question (the finding).** The decision was resolved by an **interactive prompt**. In
-**`/sdlc:sprint` / headless** mode the orchestrator can't ask — so what is the default for a
+**`/aidlc:sprint` / headless** mode the orchestrator can't ask — so what is the default for a
 frontend-repo item whose scope reads as a scaffold? If it silently falls back to firing the full pod,
 a batched sprint could burn a large design-pod run on an empty shell (esp. relevant for 8569 admin
 scaffold, and any future scaffold story). If it defaults to skeleton-only, that should be stated.
 **Proposed modification.** Make the ui-detection / design-pod trigger deterministic and documented:
 (a) a scope signal (scaffold/skeleton items → `ui:false` by default even in UI repos), and
-(b) an explicit non-interactive default in `sdlc:run` §2 + `sdlc:sprint`, so headless runs don't
+(b) an explicit non-interactive default in `aidlc:run` §2 + `aidlc:sprint`, so headless runs don't
 guess. Keep the interactive prompt as the confirmation, not the only gate.
 
 ### F12 🟠 — stack-web tooling baseline has no Next.js overlay; every Next repo re-derives the same 4 workarounds
@@ -183,7 +183,7 @@ and no rules were weakened, but the reconciliation was hand-authored per-repo:
 It has **no Next.js-specific overlay**. Next brings its own required tooling (`eslint-config-next`) and
 bundler (Turbopack) that don't compose with a strict shared flat config out of the box on ESLint 10 —
 so **every** frontend repo re-derives the same 4 fixes by hand (8569 admin will hit all four again).
-**Proposed modification.** Ship a **Next.js tooling overlay** in `sdlc-stack-web/templates/tooling/`
+**Proposed modification.** Ship a **Next.js tooling overlay** in `aidlc-stack-web/templates/tooling/`
 (+ state it in the `nextjs` / `coding-standards-ts` skills): a ready `eslint.config.mjs` fragment that
 composes `@beelogical/dev-config` + `eslint-config-next` with all four reconciliations **pre-solved**
 (dedupe the typescript-eslint plugin, pin `react.version`, parser mapping for `.js/.cjs/.mjs`,
@@ -208,11 +208,11 @@ differed) — **no re-derivation**. So *within an epic* the orchestrator's carri
 F12: the second Next repo doesn't rediscover the fixes. **But** the lore is **epic-run-scoped memory**,
 not persistent — a fresh Next repo in a different epic/project (or a cold start) would re-derive from
 zero. So F12's fix still stands, refined to: **make the lore persistent** by shipping the overlay in
-`sdlc-stack-web/templates/tooling/` (a template survives across epics/projects; run-scoped memory does
+`aidlc-stack-web/templates/tooling/` (a template survives across epics/projects; run-scoped memory does
 not). In-epic *urgency* downgraded; the durable fix is unchanged.
 
 ### F13 🟡 — `ux.renderBaseUrl` isn't synced to the scaffold's actual dev-server port (jury renders the wrong server)
-**Symptom.** `sdlc.config.json` → `repos[bee-auth-web].ux.renderBaseUrl` = `http://localhost:3000`, but
+**Symptom.** `aidlc.config.json` → `repos[bee-auth-web].ux.renderBaseUrl` = `http://localhost:3000`, but
 the scaffolded web app runs on **:3100** (the scaffold picked :3100 to avoid colliding with the API on
 :3000). :3000 is in fact the **API repo's** port — so when the deferred Epic 2 design-pod UX story runs,
 the jury would render against the **API** (JSON / 404), not the web UI, and silently score the wrong
@@ -289,7 +289,7 @@ board matches reality. Requirements leak and the board silently diverges.
   "convert" an existing Task into a Story. (Live: husky Task 8667 stayed a Task under a new umbrella
   Story 8669 rather than being converted.) Also: the **AC field is Story-tier**, not Task-tier — the
   `updateAC` op must write ACs to the Story (Tasks only carry them in the description).
-- **Ground-truth reconciliation step** in `/sdlc:status` (and at epic/story close): verify tracker
+- **Ground-truth reconciliation step** in `/aidlc:status` (and at epic/story close): verify tracker
   status against run files + git + disk and report drift — the exact audit done here by hand.
 - **Verify transitions persisted** (reported success ≠ board state) and make close **tier-aware** (a
   Story-as-umbrella like 8416 must itself be transitioned; don't assume the parent is an Epic).
@@ -328,7 +328,7 @@ contract rule, not a per-project habit.
 so routing is deferred to run time.
 **Root cause.** Poly routing resolves to a `repos[]` entry; genuinely workspace-level work (README,
 cross-repo docs) has no such target.
-**Proposed modification.** Recognize a first-class **`control-plane`** routing target in `sdlc:run`
+**Proposed modification.** Recognize a first-class **`control-plane`** routing target in `aidlc:run`
 §2.5 for workspace-level items, so they resolve deterministically instead of ad-hoc.
 **Resolved live (AUTH-8570) — behavior OK, fix still warranted.** At run time the item routed to the
 **control-plane repo** (the `D:\Authentication` root), branched `task/AUTH-8570-workspace-readme`, and
@@ -347,7 +347,7 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   (reviewer/QA on-demand, security per-epic + confirm).
 - ✅ **Local git mode (v0.9.0):** selected and written for all repos; host inferred `azure-repos`
   (inert under local) for a clean future flip.
-- ✅ **Poly config (v0.8.0):** 5 repos with correct per-repo stacks/ux written to `sdlc.config.json`;
+- ✅ **Poly config (v0.8.0):** 5 repos with correct per-repo stacks/ux written to `aidlc.config.json`;
   orchestrator correctly detected cross-repo scope (see F1).
 - ✅ **ADO connectivity via `az` fallback:** full board (150 items, 7-epic rollup) rendered once the
   launch environment was fixed.
@@ -406,7 +406,7 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
 ---
 
 ## Append log
-- 2026-07-11 — initial findings F1–F6 from `/sdlc:init` + first `/sdlc:run 8416` on the poly ADO setup.
+- 2026-07-11 — initial findings F1–F6 from `/aidlc:init` + first `/aidlc:run 8416` on the poly ADO setup.
 - 2026-07-11 — F1 & F2 confirmed live during 8416 decomposition: orchestrator prompted for the
   cross-repo split (F1) and asked where the undeclared `bee-auth-dev-config` should live (F2 → new
   repo). Added F7 (ADO statusMap auto-detect), F8 (control-plane routing target), and an F1 note on
@@ -493,20 +493,20 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   read-after-write lag that a batch re-fetch resolved → refined F16 to require *eventual-consistency-
   tolerant* verification (retry/backoff, not hard-fail-on-first-mismatch). Refined F15 with two ADO
   constraints (no REST retype → umbrella-Story/create-new; AC field is Story-tier). Terminal A (original
-  `/sdlc:run`) retired as stale; accurate state lives on the board + run files + terminal B. **Findings
+  `/aidlc:run`) retired as stale; accurate state lives on the board + run files + terminal B. **Findings
   F1–F16 stable. Discovery phase done — next conversation: plan the batch.**
 
 ---
 
-# SDLC Plugin — Dogfood Findings ARCHIVE — Cycle 2 (Authentication / Identity Platform — remote/PR + CI + poly shared-config)
+# AIDLC Plugin — Dogfood Findings ARCHIVE — Cycle 2 (Authentication / Identity Platform — remote/PR + CI + poly shared-config)
 
 **CLOSED ARCHIVE (F17–F33).** Historical design record only — do not add new findings here; log those in
 `dogfood-findings.md`. Cycle ran 2026-07-12 → 2026-07-14.
 
 > **✅ F17–F33 BATCH IMPLEMENTED — 2026-07-14** (branch `chore/dogfood-cycle2-f17-f33`, merge `5212bbb`,
-> 3 commits: `feat(stack-web)` / `feat(sdlc)` / `chore(release)`). All seventeen findings were designed +
-> implemented together through the branch → version → merge flow. Version bumps: `sdlc` 0.14.0 →
-> **0.15.0**, `sdlc-stack-web` 0.8.0 → **0.9.0**, `sdlc-ux` unchanged (**0.3.0**), marketplace →
+> 3 commits: `feat(stack-web)` / `feat(aidlc)` / `chore(release)`). All seventeen findings were designed +
+> implemented together through the branch → version → merge flow. Version bumps: `aidlc` 0.14.0 →
+> **0.15.0**, `aidlc-stack-web` 0.8.0 → **0.9.0**, `aidlc-ux` unchanged (**0.3.0**), marketplace →
 > **0.15.0**. See the CHANGELOG `[0.15.0]` entry for the per-finding change list. This cycle came from
 > first exercising the **remote/PR** integration path (the six `bee-auth-*` repos flipped to
 > `git.mode: remote`), real Azure CI, a poly shared-config (`bee-auth-dev-config`, `file:../`-consumed)
@@ -527,7 +527,7 @@ touch across these repos (and the plugin repo). There is no line-ending normaliz
 `.gitattributes`**. On Windows, without `* text=auto eol=lf`, working-tree endings churn and agents
 misattribute genuine-or-phantom format differences to line endings.
 **Proposed modification.** Ship a `.gitattributes` (`* text=auto eol=lf` + sensible `-text` binary
-rules) in `sdlc-stack-web/templates/tooling/` and add it to the repo-scaffold checklist (sibling of
+rules) in `aidlc-stack-web/templates/tooling/` and add it to the repo-scaffold checklist (sibling of
 F14). Optionally, a one-line agent note: verify LF vs CRLF via `git ls-files --eol` before ever logging
 a line-ending finding.
 
@@ -545,17 +545,17 @@ implementation time** whether the shipped template files themselves are prettier
 `.prettierrc.json`. (Project-side: the ~17 dirty files are a `prettier --write .` maintenance item, not
 a plugin change.)
 
-### F19 🟡 — Parent Feature/Epic isn't rolled up to in_progress when its first child story starts (drift left for `/sdlc:status` to reconcile)
-**Symptom.** On the Authentication board, `/sdlc:status` ground-truth reconciliation flagged parents
+### F19 🟡 — Parent Feature/Epic isn't rolled up to in_progress when its first child story starts (drift left for `/aidlc:status` to reconcile)
+**Symptom.** On the Authentication board, `/aidlc:status` ground-truth reconciliation flagged parents
 8414 (Epic) and 8415 (Feature) as still `New` while their child stories were already in
 progress/closed (AUTH-8420 done, 8425 ready). Between story-start and the next status run, the board
 transiently misrepresents parent state.
-**Root cause.** `/sdlc:run` transitions the **story** it runs but does not proactively transition the
+**Root cause.** `/aidlc:run` transitions the **story** it runs but does not proactively transition the
 parent Feature/Epic from a todo state → in_progress when the **first** child enters in_progress. The
-drift is only caught later by **F15** ground-truth reconciliation in `/sdlc:status` (which correctly
+drift is only caught later by **F15** ground-truth reconciliation in `/aidlc:status` (which correctly
 detected and *proposed* the fix — the safety net works; this is its proactive complement, not a
 replacement).
-**Proposed modification.** When `/sdlc:run` moves a story to in_progress, if the parent is still in a
+**Proposed modification.** When `/aidlc:run` moves a story to in_progress, if the parent is still in a
 todo state, roll the parent up to in_progress via the adapter (respect `statusMap`; guard: only
 todo→in_progress, only when no sibling is already in progress, never touch a parent already in a later
 state). Keep F15 reconciliation as the backstop for mixed/edge cases. **Verify at implementation time**
@@ -577,7 +577,7 @@ non-terminal working states flat.)
 **Proposed modification.** Make `wi-ado` transitions **type-aware**: resolve a canonical status to the
 target state via the item type's ADO **state category** (Proposed / InProgress / Resolved / Completed /
 Removed) instead of a hardcoded global name; extend the F7/F15 self-heal to key on `(type → category →
-real state name)`. Optionally, `/sdlc:init` should sample states **per type** when populating `statusMap`
+real state name)`. Optionally, `/aidlc:init` should sample states **per type** when populating `statusMap`
 (or emit a per-type map) so the Epic/Story divergence is captured up front. **Verify at implementation
 time** via the ADO work-item-type states API (each state carries a `category`). See `skills/wi-ado/SKILL.md`
 (transition + statusMap self-heal) and `skills/init/SKILL.md` (statusMap population).
@@ -587,7 +587,7 @@ time** via the ADO work-item-type states API (each state carries a `category`). 
 freshly scaffolded repos. The scaffold ships tsconfig/eslint/prettier/`.gitignore`/`.editorconfig`/`.npmrc`
 but **no git pre-commit hooks**, so mis-formatted/lint-broken code isn't caught locally until a later
 story wires husky in.
-**Root cause.** The `sdlc-stack-web/templates/tooling/` baseline enforces standards at the **CI/merge
+**Root cause.** The `aidlc-stack-web/templates/tooling/` baseline enforces standards at the **CI/merge
 gate** (and, per F18, ideally at scaffold) but installs nothing at **commit time**. Local enforcement is
 absent by default. (Sibling to **F18**: F18 = repo-wide format at the *merge gate*; F21 = the *local
 pre-commit* layer.)
@@ -606,30 +606,30 @@ each via REST in a manual "post-merge cleanup," then hand-rolled the parents (86
 8414 left In Progress). It **saved this to memory as a standing per-run step**, i.e. the plugin didn't
 tell it — it rediscovered the behavior.
 **Root cause.** In ADO, linking a work item to a PR does **not** transition it on merge unless branch
-policy is configured to. The plugin's remote-mode `/sdlc:run` ends at "PR opened → item in_review"; the
+policy is configured to. The plugin's remote-mode `/aidlc:run` ends at "PR opened → item in_review"; the
 DONE transition (+ parent rollup) has **no encoded post-merge trigger**, so it relies on an agent
 noticing the merge. Left unhandled, items stay open silently.
 **Proposed modification.** Encode a **post-merge close** step in the remote-mode run/close flow: on merge
 detection, transition the linked item → done via the adapter and run the F19-style parent rollup.
-Belt-and-suspenders: confirm `/sdlc:status` F15 reconciliation flags "PR merged but item still open" and
+Belt-and-suspenders: confirm `/aidlc:status` F15 reconciliation flags "PR merged but item still open" and
 surfaces the close. Document in the run skill that ADO PR-merge is **not** auto-closing (unlike some
 GitHub setups). See `skills/run/SKILL.md` (close phase) + `skills/status/SKILL.md` (reconciliation) +
 `skills/wi-ado/SKILL.md`.
 
 ### F23 🟡 — Poly + remote: per-repo run files ride into `main` via the PR but can't be archived without a forbidden direct-to-main commit
-**Symptom.** Each repo's `.sdlc/runs/<id>.md` was committed on its feature branch and rode into `main`
+**Symptom.** Each repo's `.aidlc/runs/<id>.md` was committed on its feature branch and rode into `main`
 via the PR, but stayed in the active `runs/` dir (not `runs/archive/`). Archiving them now would mean
 committing directly to `main` — which the git-workflow rule forbids — so they linger and show as
-completed runs in `/sdlc:status`. Harmless, but it recurs every run. (The control-plane coordination
+completed runs in `/aidlc:status`. Harmless, but it recurs every run. (The control-plane coordination
 file archived fine — this is only the per-repo run files.)
 **Root cause.** The run skill archives run files at close, but in remote+poly the close is relative to a
 branch that's already merged; there's **no pre-merge archive step**, so archiving can only happen via a
 forbidden post-merge `main` commit.
 **Proposed modification.** Either (a) move the run file into `runs/archive/` **on the branch before the
 PR is finalized**, so it rides into `main` already archived; or (b) keep per-repo run state **out of the
-product repos entirely** — persist run files only in the control-plane `.sdlc/` (the coordination file
+product repos entirely** — persist run files only in the control-plane `.aidlc/` (the coordination file
 already archives correctly there) and don't commit per-repo run files into product `main`. (b) is cleaner
-if run files are pure SDLC metadata. Decide at implementation. See `skills/run/SKILL.md` +
+if run files are pure AIDLC metadata. Decide at implementation. See `skills/run/SKILL.md` +
 `skills/run-state/SKILL.md`.
 
 ### F24 🟠 — Remote mode implies PR-gated merges, but the plugin neither scaffolds a CI gate nor warns when none exists — repos operate silently ungated
@@ -637,20 +637,20 @@ if run files are pure SDLC metadata. Decide at implementation. See `skills/run/S
 PRs merged with the deterministic gate (lint/type/test/dependency-boundaries) having run **only locally
 during each run** — never as a required PR check. The gap surfaced by luck (an agent aside *after* the
 merges), not from any plugin warning.
-**Root cause.** `/sdlc:init`/scaffold provisions the local tooling baseline and sets `git.mode: remote`
+**Root cause.** `/aidlc:init`/scaffold provisions the local tooling baseline and sets `git.mode: remote`
 per repo, but nothing links "remote mode" to "an enforced PR gate must exist." No CI template ships, and
-neither `init` nor `/sdlc:status` flags a remote repo that has no CI / no required-check branch policy.
+neither `init` nor `/aidlc:status` flags a remote repo that has no CI / no required-check branch policy.
 Remote mode's core promise — CI enforces the gate before a human merges — is silently unmet.
 **Proposed modification.** Graduated; do at least the first:
-- **Minimum (cheap, high-value):** `/sdlc:init` and `/sdlc:status` **warn** when a `mode: remote` repo
+- **Minimum (cheap, high-value):** `/aidlc:init` and `/aidlc:status` **warn** when a `mode: remote` repo
   has no detectable CI / required PR-check policy — "remote PRs will merge ungated until a CI gate lands."
-- **Better:** ship a CI template in `sdlc-stack-web` (`templates/ci/azure-pipelines.yml` + a GitHub
+- **Better:** ship a CI template in `aidlc-stack-web` (`templates/ci/azure-pipelines.yml` + a GitHub
   Actions sibling) running the **same** deterministic gate the local run uses, and have `init` offer to
   scaffold it per remote repo (like the tooling baseline), wired to the existing `ci-cd` skill.
 - Org-level bits (service connection, agent pool, actually *setting* branch policy — needs permissions)
   may legitimately stay a tracked devops task, but the plugin should get ~90% there and **never leave it
   silent**.
-See `skills/init/SKILL.md`, `skills/status/SKILL.md`, `skills/ci-cd/SKILL.md`, and `sdlc-stack-web`.
+See `skills/init/SKILL.md`, `skills/status/SKILL.md`, `skills/ci-cd/SKILL.md`, and `aidlc-stack-web`.
 
 ### F25 🟠 — ci-cd defaults to Microsoft-hosted `vmImage` with no warning that new ADO orgs lack the parallelism grant (pipelines silently can't run)
 **Symptom.** On this org the Microsoft-hosted pool was offline (`resourceLimit: null` — new-org grant
@@ -683,7 +683,7 @@ subpaths and flags them as unresolvable/violations.
 **Proposed modification.** Add `options.enhancedResolveOptions: { exportsFields: ["exports"],
 conditionNames: ["import","require"] }` (plus `mainFields` if needed) to all three shipped profiles.
 **Verify at implementation** against a package that uses an `exports` map. See
-`sdlc-stack-web/templates/structure/dependency-cruiser/`.
+`aidlc-stack-web/templates/structure/dependency-cruiser/`.
 
 ### F27 🟠 — Shipped eslint config can't lint `.cjs` files in an ESM package — and the plugin's own `.cjs` configs would fail it
 **Symptom.** `.cjs` files fail the shipped eslint baseline: `no-undef` on `module`/`require`/`exports`/
@@ -699,7 +699,7 @@ globals + a require-rule exception for `**/*.cjs`. **Self-inconsistency:** the p
 `__dirname`/`process` as readonly) and turn off `@typescript-eslint/no-require-imports` +
 `@typescript-eslint/no-var-requires`; leave `.mjs`/`.js` as-is. **Verify** by linting the shipped
 depcruise `.cjs` configs against the baseline — they must pass. See
-`sdlc-stack-web/templates/tooling/eslint.config.mjs`.
+`aidlc-stack-web/templates/tooling/eslint.config.mjs`.
 
 ### F28 🔴 — Poly shared-package dependency (`file:../sibling`) doesn't resolve in isolated CI, and the shared-repo pilot never exercises it (false-green pilot)
 **Symptom.** All five consumers (8679–8683) consume the shared config via `file:../bee-auth-dev-config`
@@ -730,14 +730,14 @@ sibling checkouts + building sdk-next for type-check; there **publishing is effe
 optional. (c) **Pilot-guidance fix** in `run`/`sprint`: when the piloted repo
 is a *shared dependency*, "proven" requires validating **at least one true consumer's** CI before
 declaring the pattern ready to fan out — the dependency repo's own green is necessary but not sufficient.
-See `skills/ci-cd/SKILL.md`, `sdlc-stack-web/skills/project-structure/SKILL.md`, `skills/run/SKILL.md`
+See `skills/ci-cd/SKILL.md`, `aidlc-stack-web/skills/project-structure/SKILL.md`, `skills/run/SKILL.md`
 (poly pilot).
 
 ### F29 🟠 — Lockfile generated on the scaffolding OS (Windows) fails `npm ci` on Linux CI
 **Symptom.** api's `package-lock.json` (generated on Windows at scaffold) pinned `@emnapi/core@1.10.0`
 nested; Linux `npm ci` needs `1.11.2` top-level → CI failed until the lock was regenerated in a `node:22`
 Docker container. Will recur on every repo (dev is Windows, CI is Linux).
-**Root cause.** `/sdlc:init`/scaffold installs devDeps and commits the resulting `package-lock.json` **on
+**Root cause.** `/aidlc:init`/scaffold installs devDeps and commits the resulting `package-lock.json` **on
 the developer's OS**. npm resolves platform-specific optional deps (`@emnapi/*`, esbuild/swc/rollup
 natives) per OS/arch, so a Windows-generated lock can be unsatisfiable by Linux `npm ci` (exact-lock, no
 resolution).
@@ -756,7 +756,7 @@ devDeps with **no version constraint** (verified — bare package name everywher
 **Proposed modification.** Pin a floor everywhere the plugin adds it — `dependency-cruiser@^17` (or the
 tested exact version) — and state *why* (TS analysis). Belt-and-suspenders: the `ci-cd` gate should assert
 a **non-empty module graph** (fail if depcruise analyzed 0 `.ts` files) so a future silent no-op can't
-pass. See `skills/init/SKILL.md`, `sdlc-stack-web/skills/project-structure/SKILL.md` + `nestjs`,
+pass. See `skills/init/SKILL.md`, `aidlc-stack-web/skills/project-structure/SKILL.md` + `nestjs`,
 `skills/ci-cd/SKILL.md`.
 
 ### F31 🟡 — No guidance to reproduce CI locally in the CI container → agents burn slow serial remote cycles
@@ -779,16 +779,16 @@ versions via npm registry + upstream docs instead — reported as a "harness rou
 plugin tool-grant gap.
 **Root cause.** The plugin **bundles Context7** as an MCP specifically for library/API/version doc
 verification, and its own guidance leans on it — but the agents whose job *is* that verification don't
-list the Context7 tools: verified `agents/sdlc-architect.md` grants only `Read/Grep/Glob/Bash/WebSearch`;
-`sdlc-researcher` (tech selection) and `sdlc-security` (dependency audit) are likewise Context7-less (no
+list the Context7 tools: verified `agents/aidlc-architect.md` grants only `Read/Grep/Glob/Bash/WebSearch`;
+`aidlc-researcher` (tech selection) and `aidlc-security` (dependency audit) are likewise Context7-less (no
 `mcp__…context7…` tools; the architect also lacks `WebFetch`). So the bundled MCP is effectively usable
 only from the main thread, and every subagent doc-check degrades to WebSearch/registry.
 **Proposed modification.** Add the bundled Context7 tools (`…context7…query-docs` / `resolve-library-id`)
-to the tool grants of `sdlc-architect`, `sdlc-researcher`, and `sdlc-security` (and `WebFetch` to the
+to the tool grants of `aidlc-architect`, `aidlc-researcher`, and `aidlc-security` (and `WebFetch` to the
 architect so it can read a cited page). Confirm subagents can resolve the plugin-scoped MCP tool name at
 runtime; if the harness genuinely can't pass MCP tools to subagents, **document** that limitation and
-sanction the WebSearch/registry fallback explicitly. See `agents/sdlc-architect.md`,
-`agents/sdlc-researcher.md`, `agents/sdlc-security.md`.
+sanction the WebSearch/registry fallback explicitly. See `agents/aidlc-architect.md`,
+`agents/aidlc-researcher.md`, `agents/aidlc-security.md`.
 
 ### F33 🟡 — Web-stack testing guidance is silent on ESM-only deps consumed via `import()` (jest needs `--experimental-vm-modules`)
 **Symptom.** 8426 consumes ESM-only `oidc-provider` from a CommonJS repo via the `nest-oidc-provider`
@@ -797,12 +797,12 @@ ESM import until the implementer added `--experimental-vm-modules` (and the e2e 
 match the repo's `testRegex`).
 **Root cause.** The plugin endorses "keep the repo CommonJS, consume ESM-only deps via `import()`" but its
 testing/nestjs guidance says nothing about the jest consequence (verified — no `experimental-vm-modules`/
-ESM mention anywhere in `sdlc-stack-web/skills`). ESM-only libraries are increasingly common, so any
+ESM mention anywhere in `aidlc-stack-web/skills`). ESM-only libraries are increasingly common, so any
 web-stack repo consuming one hits this silently.
-**Proposed modification.** Add a short note to `sdlc-stack-web/skills/nestjs` (and/or testing guidance):
+**Proposed modification.** Add a short note to `aidlc-stack-web/skills/nestjs` (and/or testing guidance):
 when a CJS repo consumes an ESM-only dep via `import()`, jest needs `NODE_OPTIONS=--experimental-vm-modules`
 (or equivalent config) to run the dynamic import in tests. Optionally the recommended Nest jest config sets
-it. See `sdlc-stack-web/skills/nestjs/SKILL.md`.
+it. See `aidlc-stack-web/skills/nestjs/SKILL.md`.
 
 ## Validated — working as designed (no change needed)
 
@@ -826,7 +826,7 @@ it. See `sdlc-stack-web/skills/nestjs/SKILL.md`.
   stable. (Underlying flat-statusMap bug still tracked as F20 for the real fix.)
 - ✅ **CI/devops path stood up a REAL blocking gate on a live ADO org (AUTH-8678):** pipeline def +
   `blocking=true` branch policy on `refs/heads/main`, proven **red→green pre-merge** (run 779 rejected →
-  merge blocked; run 780 approved → unblocked). The `sdlc-devops` + `ci-cd` capability works end-to-end —
+  merge blocked; run 780 approved → unblocked). The `aidlc-devops` + `ci-cd` capability works end-to-end —
   **F24's remediation approach is viable**; F25/F26/F27 are the rough edges to smooth, not blockers. Bonus:
   the `typecheck`/`type-check` naming heads-up was heeded (no `typecheck` left in the tree).
 - ✅ **"Lead with api first" caught the blast radius early + the pipeline stopped clean (AUTH-8679):**
@@ -865,12 +865,12 @@ it. See `sdlc-stack-web/skills/nestjs/SKILL.md`.
   **F17** (missing `.gitattributes`/eol → CRLF mis-diagnosis) and **F18** (scaffold merged
   prettier-dirty). Deferred per-epic security = working-as-designed (not a finding). Separately: the six
   `bee-auth-*` repos were pushed to Azure Repos and the workspace flipped to `git.mode: remote` — the
-  remote/PR integration path is now first under test (watch the next `/sdlc:run` for remote-mode
+  remote/PR integration path is now first under test (watch the next `/aidlc:run` for remote-mode
   findings).
-- 2026-07-12 — From an Authentication `/sdlc:status`: logged **F19** (parent Feature/Epic not rolled up
+- 2026-07-12 — From an Authentication `/aidlc:status`: logged **F19** (parent Feature/Epic not rolled up
   to in_progress at first-child-start; drift caught only by F15 status reconciliation). F15 detecting +
   proposing the rollup = working-as-designed; F19 is the proactive complement. Unsized-backlog flag from
-  the same status = `/sdlc:groom` working correctly, not a finding.
+  the same status = `/aidlc:groom` working correctly, not a finding.
 - 2026-07-13 — From the AUTH-8669 pilot (bee-auth-dev-config / PR #1754): logged **F20** (flat statusMap
   vs per-type ADO working-state names — Epic "In Progress" ≠ Story/Feature "Development in Progress";
   F7 self-heal isn't type-aware) and **F21** (scaffold ships no husky/lint-staged pre-commit layer;
@@ -890,7 +890,7 @@ it. See `sdlc-stack-web/skills/nestjs/SKILL.md`.
   (eslint baseline can't lint `.cjs` — including the plugin's *own* shipped `.cjs` configs). All three
   verified against the shipped templates. Validated: devops/ci-cd stood up a real blocking branch policy,
   proven red→green pre-merge — **F24 remediation is viable**. Sequencing note reinforces **F24** (not a
-  new finding): a bare `/sdlc:next` would grab P1 8425 before api's gate 8679 exists → ungated PR; the
+  new finding): a bare `/aidlc:next` would grab P1 8425 before api's gate 8679 exists → ungated PR; the
   *terminal* reasoned that out — exactly the warning F24 says the *plugin* should surface.
 - 2026-07-13 — From AUTH-8679 (api, first true consumer): logged **F28 🔴** (poly `file:../sibling`
   shared-config can't resolve in isolated CI + the shared-repo pilot never exercises it → false-green
@@ -921,8 +921,8 @@ it. See `sdlc-stack-web/skills/nestjs/SKILL.md`.
   cleanly (assume-and-log). Decisions (user's call): approve + continue to 8427/8428; defer confidential
   clients to Feature 8440 (recommended).
 - 2026-07-14 — **Cycle 2 batch F17–F33 designed + implemented together** (marketplace → **0.15.0**:
-  `sdlc` 0.14.0→0.15.0, `sdlc-stack-web` 0.8.0→0.9.0, `sdlc-ux` unchanged). Per-finding change list in
-  the CHANGELOG. New this cycle: `sdlc-stack-web/templates/ci/` (Azure + GitHub CI templates), a
+  `aidlc` 0.14.0→0.15.0, `aidlc-stack-web` 0.8.0→0.9.0, `aidlc-ux` unchanged). Per-finding change list in
+  the CHANGELOG. New this cycle: `aidlc-stack-web/templates/ci/` (Azure + GitHub CI templates), a
   `.gitattributes` baseline (+ plugin-repo root), an optional husky/lint-staged layer, depcruise
   `enhancedResolveOptions` + `@^17` floor + non-empty-graph assertion, eslint `.cjs` support; ADO board
   fidelity (F19 parent rollup, F20 type-aware state-category transitions, F22 post-merge close, F23
@@ -936,19 +936,19 @@ it. See `sdlc-stack-web/skills/nestjs/SKILL.md`.
 
 ---
 
-# SDLC Plugin — Dogfood Findings ARCHIVE — Cycle 3 (Authentication / Identity Platform — pipeline reliability)
+# AIDLC Plugin — Dogfood Findings ARCHIVE — Cycle 3 (Authentication / Identity Platform — pipeline reliability)
 
 **CLOSED ARCHIVE (F34–F41).** Historical design record only — do not add new findings here; log those in
 `dogfood-findings.md`. Cycle ran 2026-07-14 → 2026-07-17.
 
 > **✅ F34–F41 SHIPPED + MERGED — 2026-07-17.** Two ships, both merged to `main` through the
 > branch → version → merge flow:
-> - **F34–F40** (reliability hardening) → marketplace **0.18.0** (`sdlc` 0.17.0 → 0.18.0), merge
+> - **F34–F40** (reliability hardening) → marketplace **0.18.0** (`aidlc` 0.17.0 → 0.18.0), merge
 >   `--no-ff` **d6a1eef**.
-> - **F41** (dogfood inbox pruning lifecycle) → marketplace **0.18.1** (`sdlc` 0.18.0 → 0.18.1), merge
+> - **F41** (dogfood inbox pruning lifecycle) → marketplace **0.18.1** (`aidlc` 0.18.0 → 0.18.1), merge
 >   `--no-ff` **743e75a**.
 >
-> `sdlc-stack-web` 0.9.0 / `sdlc-ux` 0.3.0 unchanged. Per-finding change lists are in the CHANGELOG
+> `aidlc-stack-web` 0.9.0 / `aidlc-ux` 0.3.0 unchanged. Per-finding change lists are in the CHANGELOG
 > under **[0.18.0]** and **[0.18.1]**. The findings below are retained as the design record.
 
 ## Context
@@ -957,9 +957,9 @@ Continued dogfooding on the **Bee Logical Identity Platform** (poly + Azure DevO
 Cycle 2 first exercised the remote/CI path, Cycle 3's findings are about the **reliability of the
 pipeline itself** — trustworthy subagent hand-offs, no silently-truncated backlog sweeps, a clean
 grooming-approval path, a coherent run-file archival story in remote/poly, an encoded CI-parity recipe,
-and keeping the dogfood inbox a short queue. All fixes landed in `sdlc` core (+ the shared agent
+and keeping the dogfood inbox a short queue. All fixes landed in `aidlc` core (+ the shared agent
 contract shared across all nine agents). F34–F40 were drained from the Authentication inbox
-(`.sdlc/plugin-feedback.md`); F41 was raised directly while cleaning that inbox after the batch shipped.
+(`.aidlc/plugin-feedback.md`); F41 was raised directly while cleaning that inbox after the batch shipped.
 
 **Severity:** 🔴 blocks/confuses a core flow · 🟠 friction/manual workaround · 🟡 polish.
 
@@ -978,7 +978,7 @@ contract shared across all nine agents). F34–F40 were drained from the Authent
 - **F36 — 🟠 remote run merged un-archived had no clean archival path (F23 guard-blocked).**
   - *area:* `run` §10 · `run-state` (Archive) · `git-workflow`.
   - *symptom:* a blocked→resolved-via-follow-up-PR run rode into `main` still `phase: blocked`; archiving needed a forbidden direct-to-`main` commit, so it lingered as a blocked active run.
-  - *fix:* fold the archive into the resolving PR (already-archived at merge); remote post-merge fallback is a `chore(sdlc): archive` branch → PR — never a direct push to a protected branch (guard stays strict).
+  - *fix:* fold the archive into the resolving PR (already-archived at merge); remote post-merge fallback is a `chore(aidlc): archive` branch → PR — never a direct push to a protected branch (guard stays strict).
 - **F37 — 🟠 implementer returned an incomplete non-verdict and left uncommitted state.** *(root cause of F40)*
   - *area:* all agents + agent-template (finish contract) · `run` orchestrator invariants.
   - *symptom:* implementer returned "waiting for a background CI check" instead of a verdict, leaving a regenerated lockfile + run-file edits uncommitted for the orchestrator to finish.
@@ -990,9 +990,9 @@ contract shared across all nine agents). F34–F40 were drained from the Authent
 - **F39 — 🟠 batch post-merge archival in poly+remote = one branch+PR per repo AND blocked by husky.**
   - *area:* `status` (post-merge cleanup) · `git-workflow`.
   - *symptom:* cleanup of merged-but-un-archived runs cost one PR per repo, each archive commit blocked by the repo's husky `lint-staged` hook (no `node_modules`), and a hook-aborted commit still left an empty pushed branch.
-  - *fix:* `status` warns of the per-repo PR cost upfront; `.sdlc/**`-only bookkeeping commits use `--no-verify`; `git-workflow` requires verifying a commit landed before pushing.
+  - *fix:* `status` warns of the per-repo PR cost upfront; `.aidlc/**`-only bookkeeping commits use `--no-verify`; `git-workflow` requires verifying a commit landed before pushing.
 - **F40 — 🟠 RECURRENCE (devops): same non-verdict-on-background-task pattern as F37.**
-  - *area:* `sdlc-devops` + the shared finish contract (F37).
+  - *area:* `aidlc-devops` + the shared finish contract (F37).
   - *symptom:* devops (CI-gate implement) repeatedly returned a bare "still running" instead of a verdict — confirming F37 is a cross-agent contract gap, not one agent's prompt.
   - *fix:* covered by the shared finish contract; devops additionally must poll a CI/pipeline run to a terminal state itself.
 - **F41 — 🟡 dogfood inbox grows unbounded; shipped entries get re-read every run.**

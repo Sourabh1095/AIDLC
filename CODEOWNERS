@@ -1,4 +1,4 @@
-# Shared SDLC plugins are platform-team owned: every change (including /sdlc:promote PRs)
+# Shared AIDLC plugins are platform-team owned: every change (including /aidlc:promote PRs)
 # requires platform-team review. Replace the placeholder with the real team handle
 # (GitHub: @bee-logical/platform ; Azure Repos: use branch policies instead of this file).
 /plugins/           @bee-logical/platform

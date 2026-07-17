@@ -1,0 +1,57 @@
+# Bee-Logical AIDLC — web-stack .gitattributes baseline (line-ending normalization).
+#
+# On Windows (core.autocrlf=true) working-tree endings churn against the LF-committed
+# blob on every file touch, and agents/tools misattribute genuine or phantom format
+# differences to line endings — Prettier (default endOfLine: lf) flags CRLF files as
+# "unformatted" even when the content is clean. Normalize all text to LF in the repo
+# and on checkout so a Windows dev and a Linux CI runner see byte-identical files.
+# Merge-aware scaffold: never clobber a repo's own .gitattributes.
+#
+# Diagnosing a suspected line-ending issue? Check the truth first:
+#   git ls-files --eol <path>     # i/=index  w/=working-tree  attr/=applied rule
+# Do NOT log a CRLF/LF finding before confirming with that.
+
+* text=auto eol=lf
+
+# Explicit text (belt-and-suspenders where git's auto-detection is ambiguous)
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.cjs   text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.jsonc text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.html  text eol=lf
+*.svg   text eol=lf
+*.sh    text eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Generated lockfile — text (LF) but collapsed in diffs/reviews
+package-lock.json  linguist-generated -diff
+
+# Binary — never normalize
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.mp4   binary
+*.mov   binary
