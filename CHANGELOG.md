@@ -7,6 +7,27 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.20.1] — 2026-07-18
+
+### `aidlc` — drop the unused, always-erroring `github` MCP server from the bundle
+
+- **Removed the bundled `github` MCP server** (`@modelcontextprotocol/server-github`) from
+  `plugins/aidlc-core/.mcp.json`. Its config referenced `${GITHUB_PERSONAL_ACCESS_TOKEN}`, so **every
+  project that didn't set that token got a plugin load error** — *"Invalid MCP server config for
+  'github': Missing environment variables"* — even ADO-only or markdown-only projects that never
+  touch GitHub. The plugin **never called the github MCP**: all GitHub operations already go through
+  the **`gh` CLI** (`gh pr create` / `gh pr checks` / `gh release create` / `gh api` in
+  `git-workflow`, `status`, `ci-cd`, `release`, and the devops agent). So the server was pure
+  liability — bundled but unused, and forcing a token requirement on everyone. Removing it loses zero
+  capability and clears the error for all token-less projects.
+- **Opt back in per project** if you want the github MCP's tools available for ad-hoc use: add the
+  server to your project's own `.mcp.json` with the token set (`"env": { "GITHUB_PERSONAL_ACCESS_TOKEN":
+  "${GITHUB_PERSONAL_ACCESS_TOKEN}" }`). The plugin's own flows don't need it.
+- The remaining bundled MCP servers are all ones the pipeline actually uses: `context7` (docs),
+  `playwright` (UX rendering), `atlassian` (Jira via `wi-jira`), `azure-devops` (ADO via `wi-ado`).
+- Versions: `aidlc` 0.20.0 → **0.20.1**, marketplace → **0.20.1** (`aidlc-stack-web` 0.10.0 /
+  `aidlc-ux` 0.4.0 unchanged).
+
 ## [0.20.0] — 2026-07-17
 
 ### `aidlc` — new `/aidlc:bootstrap`: whole-backlog setup from a requirements document
