@@ -7,6 +7,41 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.21.0] — 2026-07-18
+
+### `aidlc` — requirements drive the architecture: init-lite + bootstrap infers topology/stack
+
+Reworks the `init` ↔ `bootstrap` boundary so a greenfield project's **repo topology, stack, and
+monolith-vs-microservices are derived from the requirements**, not answered blind before them. Previously
+`/aidlc:init` interrogated the user for workspace layout, per-repo stack, split tier and CI **up front** —
+which both blocked getting to `/aidlc:bootstrap` and asked the *wrong actor* (the user, with no
+requirements read yet) what the requirements should decide.
+
+- **`/aidlc:init` gains a deferred (lite) path.** A new first question — "how will this project be
+  populated?" — offers **"from a requirements document/brief."** Choosing it collects only the essentials
+  (project key/name, tracker + connection, verification cadence), writes a config with the architecture
+  left **pending** (`architecture.status: "pending"`, no `workspace.layout`, `repos: []`, blank `stack`),
+  and **skips the topology/stack questions and the tooling/structure/CI scaffolding** (Step 4.5–4.7).
+  The "I know my setup / existing code" path keeps the full flow unchanged.
+- **`/aidlc:bootstrap` gains a Phase 2.0 architecture-determination step.** After extracting the
+  requirements, when the config is pending/unset it **infers the architecture** — style (monolith /
+  modular-monolith / microservices), topology (mono/poly + repos with roles), stack, and crossRepoSplit —
+  **biased to the simplest that fits (YAGNI):** it defaults to a single-repo modular monolith and escalates
+  to microservices/poly only on real signals (independent scaling/deploy, distinct bounded contexts,
+  multiple client surfaces, separate teams, a component needing a different runtime). It then **writes the
+  resolved shape to `.claude/aidlc.config.json`** and shapes the work-breakdown to match. A human-authored
+  architecture is honored, never overwritten.
+- **Decision mode: silent auto-decide.** Per the chosen mode, bootstrap resolves and writes the
+  architecture **without a dedicated confirmation gate** — but the derived topology/stack/style is
+  **surfaced in the Phase 4 plan review** (with its rationale) before any tracker item is created, so a
+  wrong mono/poly or over-eager microservices call is still catchable at the one gate that already exists.
+- **Schema:** added an optional top-level `architecture` block (`status` pending|resolved, `style`,
+  `resolvedBy`, `rationale`) to `docs/aidlc.config.schema.json` — the pending→resolved signal between
+  init and bootstrap, and a home for the recorded architecture style (which the config didn't capture
+  before).
+- Versions: `aidlc` 0.20.1 → **0.21.0**, marketplace → **0.21.0** (`aidlc-stack-web` 0.10.0 /
+  `aidlc-ux` 0.4.0 unchanged).
+
 ## [0.20.1] — 2026-07-18
 
 ### `aidlc` — drop the unused, always-erroring `github` MCP server from the bundle

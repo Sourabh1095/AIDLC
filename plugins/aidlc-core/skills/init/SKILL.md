@@ -44,7 +44,23 @@ improvise replacement files: the permission posture and rules must be the review
 
 ## Step 3 — Ask the user (use AskUserQuestion where available)
 
-Collect:
+**Ask the setup path FIRST (item 0) — it decides which of the questions below you even ask.**
+
+0. **How will this project be populated?**
+   - **From a requirements document or brief** — the user will run `/aidlc:bootstrap` next → **deferred
+     (lite) path.** Collect only items **1–3 and 6**. **Skip items 4, 5, 7 and all stack scaffolding in
+     Step 4.5–4.7.** Write a config that leaves the architecture **pending** — omit `workspace.layout`,
+     set `repos: []`, blank the `stack` (`{ "frontend": null, "backend": null, "databases": [] }`), and
+     add `"architecture": { "status": "pending", "resolvedBy": "/aidlc:bootstrap" }`. Set
+     `{{STACK_SUMMARY}}` / `{{WORKSPACE_FACT}}` to "to be determined by /aidlc:bootstrap" and leave the
+     `{{*_CMD}}` placeholders as "tbd". `/aidlc:bootstrap` then **infers topology, stack and
+     monolith-vs-microservices from the requirements**, writes them to config (status→resolved), and
+     scaffolds per the resolved stack. This is the default for greenfield-from-requirements — it stops
+     forcing blind topology/stack answers on a project whose shape the requirements haven't been read to
+     decide yet.
+   - **I know my setup, or there's existing code** → **full path.** Collect everything below as normal.
+
+Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
 2. **Project name** (human-readable).
 3. **Work-item source**: `markdown` (default) | `jira` | `ado`. If jira/ado, also collect site/org + project.
@@ -63,7 +79,8 @@ Collect:
      time, leave `statusMap` empty and note that `wi-ado` self-heals per-type on first run — but prefer
      getting it right up front. Never write the assumed flat `in_progress→Active`/`in_review→Resolved`
      defaults blindly.
-4. **Workspace layout**: `mono` (one repo for everything) | `poly` (several git repos in this workspace,
+4. **Workspace layout** *(full-path only — the deferred/bootstrap path skips this; `/aidlc:bootstrap`
+   infers it)*: `mono` (one repo for everything) | `poly` (several git repos in this workspace,
    e.g. backend/frontend/website/mobile). **Ask this as a real question — never silently default from
    auto-detect (F3).** Auto-detect is only a *proposal*: scan the cwd for multiple subfolders that are
    each git repos (`<sub>/.git`) and, if found, propose poly. **Crucially, a greenfield poly workspace
@@ -93,7 +110,8 @@ Collect:
      `rtk-spa` (client SPA: RTK Query is the primary data layer). See `aidlc-stack-web:project-structure`.
      Record it (mono: note it; poly: `structure: "next-app"|"rtk-spa"` on the repo entry). Drives the
      skeleton scaffolded in Step 4.
-5. **Commands**: install / dev / test / lint commands (detect from package.json scripts first and propose
+5. **Commands** *(full-path only — deferred path skips; the resolved stack drives these at bootstrap)*:
+   install / dev / test / lint commands (detect from package.json scripts first and propose
    them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.
 6. **Verification cadence** — the pipeline's biggest recurring cost, so make it a conscious choice.
    Each agent (reviewer, QA, security) gets its own cadence in `pipeline.verification`. Note that the
@@ -109,12 +127,20 @@ Collect:
    - **Manual** — `mode: manual`. Skip all agents; review the PR yourself, feed issues back via `/aidlc:run <ID>`.
    Cadence values per agent: `off | on-demand | per-item | per-epic` (security also `risk-based`);
    they can hand-tune any agent later.
-7. **Pre-commit hooks (TypeScript repos; opinionated-but-optional).** Ask whether to install the
+7. **Pre-commit hooks (TypeScript repos; opinionated-but-optional)** *(full-path only — deferred path
+   skips; bootstrap handles it once the stack is known).* Ask whether to install the
    husky + lint-staged pre-commit layer (eslint `--fix` + prettier `--write` on staged files at commit
    time — the local complement to the CI/merge gate). Default **yes** for a fresh repo; some teams
    decline git hooks, so it's a real question, not automatic. Record the choice; it drives Step 4.5.
 
 ## Step 4 — Scaffold
+
+> **Deferred (bootstrap) path — do the minimum.** If Step 3.0 chose the requirements-doc path, scaffold
+> only the control plane: copy the base template (CLAUDE.md, `.claude/`, `backlog/`, `.aidlc/`), write the
+> **pending** config from Step 3.0 (no `workspace.layout`, `repos: []`, blank `stack`,
+> `architecture.status: "pending"`), and **skip 4.5 (tooling baseline), 4.6 (project structure) and 4.7
+> (CI)** — there's no resolved stack or repo set to scaffold against yet. `/aidlc:bootstrap` runs those
+> once it has inferred the stack/topology. Then go to Step 5 and point the user at `/aidlc:bootstrap`.
 
 1. Copy the template tree into cwd (the **workspace control plane**), respecting the collision decisions
    from Step 2. In poly the control plane is the workspace root; the product repos are its subfolders.
@@ -214,6 +240,10 @@ Collect:
 ## Step 5 — Report
 
 Print a summary: files created, config chosen, and next steps:
+- **Deferred (bootstrap) path:** the single next step is **`/aidlc:bootstrap <requirements doc or brief>`**
+  — say that architecture (mono/poly, stack, monolith-vs-microservices) is left **pending** and bootstrap
+  will infer it from the requirements, write it to config, and populate the backlog. Skip the item/next
+  suggestions below (there's no resolved stack or backlog yet).
 - "Create your first item in `backlog/items/` (see `backlog/README.md`) or connect your tracker."
 - "Run `/aidlc:next` to pick up the first item, or `/aidlc:run <ID>` for a specific one."
 - "Auth for MCP servers (GitHub token, Jira/ADO) is per-user — see the adoption guide."

@@ -43,9 +43,25 @@
         }
       }
     },
+    "architecture": {
+      "type": "object",
+      "description": "The project's shape as DERIVED FROM REQUIREMENTS by /aidlc:bootstrap, rather than answered up front. init may write {status:pending} to defer topology/stack/repos to bootstrap (the greenfield-from-requirements flow); bootstrap then infers them, sets status=resolved, and writes workspace.layout + (stack or repos[]) + workspace.crossRepoSplit to match. A human who authored those fields directly can leave this absent (treated as resolved).",
+      "properties": {
+        "status": {
+          "enum": ["pending", "resolved"],
+          "description": "pending = init deferred the architecture; the topology/stack/repos in this file are placeholders and /aidlc:bootstrap will overwrite them from the requirements. resolved = the architecture has been determined (by bootstrap or a human) and workspace.layout/stack/repos are authoritative. Absent ⇒ resolved."
+        },
+        "style": {
+          "enum": ["monolith", "modular-monolith", "microservices"],
+          "description": "Architecture style bootstrap inferred from the requirements, biased to the SIMPLEST that fits (YAGNI). Drives the mono/poly + repos[] shape and crossRepoSplit: monolith / modular-monolith ⇒ mono (single repo, modules internal); microservices ⇒ poly (service-per-repo). Recorded for traceability."
+        },
+        "resolvedBy": { "type": "string", "description": "What set the architecture, e.g. \"/aidlc:bootstrap\" or \"init\" or \"human\"." },
+        "rationale": { "type": "string", "description": "One-line why, grounded in the requirements (the split/no-split signal bootstrap acted on)." }
+      }
+    },
     "repos": {
       "type": "array",
-      "description": "Declared git repos. Empty (or omitted) means mono — a single repo synthesized from the top-level git/stack/ux blocks. Non-empty means poly.",
+      "description": "Declared git repos. Empty (or omitted) means mono — a single repo synthesized from the top-level git/stack/ux blocks. Non-empty means poly. When architecture.status=pending these are placeholders until /aidlc:bootstrap resolves them.",
       "items": {
         "type": "object",
         "required": ["name", "path"],
