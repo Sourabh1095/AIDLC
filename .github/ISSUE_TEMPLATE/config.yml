@@ -1,4 +1,7 @@
-blank_issues_enabled: false
+# Templates stay the recommended path on the chooser; blank remains available as an escape
+# hatch for reports that fit neither form (docs confusion, support questions, "does X work with Y").
+# Revisit if issue quality becomes a triage burden.
+blank_issues_enabled: true
 contact_links:
   - name: Adoption & usage questions
     url: https://github.com/bee-logical/AIDLC/blob/main/docs/user-guide.md
