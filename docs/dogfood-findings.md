@@ -1,4 +1,4 @@
-# SDLC Plugin — Dogfood Findings
+# AIDLC Plugin — Dogfood Findings
 
 **LIVING DOCUMENT.** Log plugin findings here as dogfooding proceeds, then design + implement them
 together as a batch through the normal branch → version → merge flow. When a cycle's batch ships,

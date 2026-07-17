@@ -1,7 +1,7 @@
 # Promotion Policy
 
 How project-born skills and agents enter the shared plugins. Audience: the platform team
-(who review promotion PRs) and anyone running `/sdlc:promote`.
+(who review promotion PRs) and anyone running `/aidlc:promote`.
 
 ## Governance
 
@@ -17,7 +17,7 @@ How project-born skills and agents enter the shared plugins. Audience: the platf
 - [ ] **Reusable**: plausibly useful to ≥2 projects (reuseCount evidence in the PR body counts,
       but judgment rules — a project-quirk used 5× is still a quirk).
 - [ ] **Generalized**: no project names/keys/URLs/hostnames; project specifics reference
-      `.claude/sdlc.config.json` or are marked `{{placeholders}}`; no absolute/personal paths.
+      `.claude/aidlc.config.json` or are marked `{{placeholders}}`; no absolute/personal paths.
 - [ ] **No secrets**: tokens, credentials, connection strings, internal endpoints — automatic reject.
 - [ ] **Right kind**: skills carry procedural knowledge; an agent PR must state which of the
       agent-test criteria (isolated context / tool surface / independent judgment) it meets.
@@ -30,7 +30,7 @@ How project-born skills and agents enter the shared plugins. Audience: the platf
 
 ## After merge
 
-Consuming projects pick the change up via `/plugin marketplace update`, then run `/sdlc:sync`
+Consuming projects pick the change up via `/plugin marketplace update`, then run `/aidlc:sync`
 — it deletes the now-shadowed local copy and marks the registry entry `promoted`. Source
 projects should do this promptly; long-lived local forks of promoted skills are drift bugs.
 

@@ -1,0 +1,126 @@
+# Bee-Logical AIDLC — Azure Pipelines PR gate (web-stack baseline).
+#
+# Runs the SAME deterministic gate the local `/aidlc:run` runs — typecheck, lint, format,
+# boundaries, build, test — so a remote-mode repo's PRs are enforced by CI, not just by a
+# human clicking merge. Drop this at the repo root as `azure-pipelines.yml`.
+#
+# IMPORTANT — this YAML alone does NOT gate merges. In Azure Repos, PR validation is a
+# **branch policy** (Build validation) on the target branch, not a YAML trigger. After creating
+# the pipeline, add a *blocking* build-validation policy on `refs/heads/<defaultBranch>` or the
+# gate is advisory only. `/aidlc:init` and `/aidlc:status` warn when a remote repo has no such policy.
+#
+# See `aidlc:ci-cd` for the parallelism / queue-authorization / self-hosted-pool gotchas this
+# template's parameters exist to handle.
+
+parameters:
+  - name: nodeVersion
+    type: string
+    default: "22" # match the repo's .nvmrc / package.json "engines"
+  # Microsoft-hosted image (default). NOTE: a brand-new ADO org has NO hosted-parallelism grant
+  # (resourceLimit: null) — every vmImage pipeline then silently can't run until the grant is
+  # requested at https://aka.ms/azpipelines-parallelism-request (~2-3 business days). If you have a
+  # self-hosted agent instead, set `poolName` below and this vmImage is ignored.
+  - name: poolVmImage
+    type: string
+    default: "ubuntu-latest"
+  # Self-hosted pool name. Set this (non-empty) to run on your own agent — the fallback when the
+  # hosted grant is unavailable. Leave empty to use the Microsoft-hosted `poolVmImage`.
+  - name: poolName
+    type: string
+    default: ""
+  # Poly: the repo's subdirectory when the pipeline runs from a workspace root. "." for mono / a
+  # normal single-repo checkout.
+  - name: workingDirectory
+    type: string
+    default: "."
+
+# PR validation is enforced by a branch policy (see header) — this trigger is for CI on merge.
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  ${{ if ne(parameters.poolName, '') }}:
+    name: ${{ parameters.poolName }}
+  ${{ else }}:
+    vmImage: ${{ parameters.poolVmImage }}
+
+steps:
+  - task: NodeTool@0
+    displayName: "Use Node ${{ parameters.nodeVersion }}"
+    inputs:
+      versionSpec: "${{ parameters.nodeVersion }}"
+
+  - task: Cache@2
+    displayName: "Cache npm"
+    inputs:
+      key: 'npm | "$(Agent.OS)" | ${{ parameters.workingDirectory }}/package-lock.json'
+      path: $(Pipeline.Workspace)/.npm
+
+  # `npm ci` is EXACT-lock — no resolution. A package-lock.json generated on Windows/macOS can be
+  # unsatisfiable here (Linux resolves platform-specific optional deps like @emnapi/* / esbuild /
+  # swc / rollup natives differently). If this step fails with a lock/optional-dep mismatch,
+  # regenerate the lockfile in a Linux context (see `aidlc:ci-cd` → cross-platform lockfile) — do NOT
+  # loosen it to `npm install`.
+  - script: |
+      cd "${{ parameters.workingDirectory }}"
+      npm config set cache "$(Pipeline.Workspace)/.npm" --location=project
+      npm ci
+    displayName: "Install (npm ci)"
+
+  - script: cd "${{ parameters.workingDirectory }}" && npm run typecheck
+    displayName: "Type-check (tsc --noEmit)"
+
+  - script: cd "${{ parameters.workingDirectory }}" && npm run lint
+    displayName: "Lint (eslint)"
+
+  - script: cd "${{ parameters.workingDirectory }}" && npx prettier --check .
+    displayName: "Format (prettier --check .)"
+
+  # Boundary gate + a non-empty-graph assertion: dependency-cruiser < 17 SILENTLY no-ops on .ts
+  # (analyzes 0 modules → passes green while enforcing nothing). Fail loud if 0 .ts modules were
+  # analyzed so a bad version can't defeat the gate. Requires dependency-cruiser >= 17.
+  - script: |
+      cd "${{ parameters.workingDirectory }}"
+      npx depcruise src
+      TS=$(npx depcruise src --output-type json | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j.modules.filter(m=>/\.tsx?$/.test(m.source)).length))}catch(e){process.stdout.write("0")}})')
+      echo "dependency-cruiser analyzed $TS TypeScript module(s)."
+      if [ "$TS" -eq 0 ]; then
+        echo "##vso[task.logissue type=error]Boundary gate is INERT — depcruise analyzed 0 .ts modules. Pin dependency-cruiser@^17 (see aidlc-stack-web:project-structure)."
+        exit 1
+      fi
+    displayName: "Boundaries (depcruise + non-empty-graph assertion)"
+
+  - script: cd "${{ parameters.workingDirectory }}" && npm run build --if-present
+    displayName: "Build"
+
+  - script: cd "${{ parameters.workingDirectory }}" && npm test
+    displayName: "Test"
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# POLY + a cross-repo package dependency (e.g. a shared `@beelogical/dev-config`)?
+# CI checks out ONE repo, so an unpublished `file:../sibling` link is ABSENT here and every config
+# it sources fails ("Cannot find package '@beelogical/dev-config'"). Two supported fixes (see
+# `aidlc-stack-web:project-structure` → cross-repo dependencies and `aidlc:ci-cd`):
+#
+#   (A) PUBLISH the shared package (Azure Artifacts / private registry) and consume it by version.
+#       REQUIRED for transitive/built deps (a repo needing a *built* sibling SDK, not just configs).
+#
+#   (B) MULTI-REPO CHECKOUT — check the sibling out alongside and `npm ci` it (its exported configs
+#       need their own deps), guarding husky's `prepare` (see F21). Workable for a LEAF config dep
+#       only. Uncomment and set the repository name:
+#
+# resources:
+#   repositories:
+#     - repository: devconfig
+#       type: git
+#       name: <project>/<shared-config-repo>
+#       ref: refs/heads/main
+# # ...then, before `npm ci` above:
+# #   - checkout: self
+# #   - checkout: devconfig
+# #     path: s/../<shared-config-repo>      # sibling layout the file:../ link expects
+# #   - script: cd "$(Pipeline.Workspace)/s/../<shared-config-repo>" && npm ci
+# #     displayName: "Install shared-config sibling"
+# ─────────────────────────────────────────────────────────────────────────────────────────────

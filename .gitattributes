@@ -1,4 +1,4 @@
-# Bee-Logical SDLC marketplace — line-ending normalization.
+# Bee-Logical AIDLC marketplace — line-ending normalization.
 #
 # Without this, Windows checkouts (core.autocrlf=true) render every text file as
 # CRLF in the working tree while the committed blob is LF — which churns diffs on

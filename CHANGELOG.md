@@ -1,32 +1,59 @@
 # Changelog
 
-All notable changes to the Bee-Logical Claude SDLC marketplace.
+All notable changes to the Bee-Logical Claude AIDLC marketplace.
+
+> **Rebrand note:** this project was formerly named **SDLC** (marketplace + `sdlc` plugin, `/sdlc:`
+> commands, `.sdlc/` state, `sdlc.config.json`). It was renamed to **AIDLC** (AI Development Life Cycle)
+> in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
+> SDLC name; the version numbers are unchanged, only the name differs.
+
+## [0.19.0] — 2026-07-17
+
+### Marketplace-wide rename: **SDLC → AIDLC**
+
+- **The framework is now AIDLC (AI Development Life Cycle).** A full, mechanical rebrand ahead of the
+  first public/remote release. Nothing about the behavior changed — only the name:
+  - **Commands:** `/sdlc:*` → **`/aidlc:*`** (e.g. `/aidlc:run`, `/aidlc:next`, `/aidlc:status`,
+    `/aidlc:init`). Plugin/command identifiers are lowercase per Claude Code's rules; **AIDLC** is the
+    brand used in display names, titles and docs.
+  - **Plugins:** `sdlc` → **`aidlc`**, `sdlc-stack-web` → **`aidlc-stack-web`**, `sdlc-ux` →
+    **`aidlc-ux`** (directories `plugins/aidlc-*`). Skill cross-references `sdlc:*` → **`aidlc:*`**;
+    agents `sdlc-*` → **`aidlc-*`**; bundled MCP tool prefix becomes `plugin_aidlc_*`.
+  - **Per-project state:** the state dir `.sdlc/` → **`.aidlc/`** and config `sdlc.config.json` →
+    **`aidlc.config.json`** (+ `aidlc.config.poly.example.json`, `docs/aidlc.config.schema.json`). This
+    is a **breaking change for existing projects** — an `.sdlc/`/`sdlc.config.json` project must rename
+    those two paths (the D:\Authentication dogfood workspace was migrated as part of this release).
+  - The marketplace `name` stays **`bee-logical`** (the company marketplace); the repository is
+    published as **`AIDLC`**. Install: `/plugin marketplace add <owner>/AIDLC` → `/plugin install
+    aidlc@bee-logical`.
+- Versions: `aidlc` 0.18.1 → **0.19.0**, `aidlc-stack-web` 0.9.0 → **0.10.0**, `aidlc-ux` 0.3.0 →
+  **0.4.0**, marketplace → **0.19.0**.
 
 ## [0.18.1] — 2026-07-17
 
-### `sdlc` — dogfood inbox stays a short live queue (F41)
+### `aidlc` — dogfood inbox stays a short live queue (F41)
 
 - **F41 — the maintainer now prunes shipped (`pulled:F<n>`) entries from a consuming project's dogfood
   inbox once their batch merges.** The inbox is a *queue*; the plugin's `docs/dogfood-findings.md` +
   CHANGELOG are the permanent *record*. Leaving drained entries in the inbox made every future run in
-  that project re-read an ever-growing log for no benefit — a recurring token cost. `sdlc:dogfood` now
+  that project re-read an ever-growing log for no benefit — a recurring token cost. `aidlc:dogfood` now
   documents the prune step (a second maintainer exception to "append only") and the inbox header
   template states the queue is cleared after shipping. Applied to the Authentication inbox (its
-  F34–F40 entries pruned; record preserved here). Versions: `sdlc` 0.18.0 → **0.18.1**, marketplace →
-  **0.18.1** (`sdlc-stack-web` 0.9.0 / `sdlc-ux` 0.3.0 unchanged).
+  F34–F40 entries pruned; record preserved here). Versions: `aidlc` 0.18.0 → **0.18.1**, marketplace →
+  **0.18.1** (`aidlc-stack-web` 0.9.0 / `aidlc-ux` 0.3.0 unchanged).
 
 ## [0.18.0] — 2026-07-17
 
 ### Dogfood batch F34–F40 (Authentication / Identity Platform, Cycle 3) — reliability hardening
 
-Seven findings drained from the Authentication dogfood inbox, all in `sdlc` (core orchestration, agent
+Seven findings drained from the Authentication dogfood inbox, all in `aidlc` (core orchestration, agent
 contracts, adapters). This batch is about the *reliability of the pipeline itself*: trustworthy
 subagent hand-offs, no silently-truncated backlog sweeps, a clean approval path, a coherent run-file
 archival story in remote/poly, and an encoded CI-parity recipe. Designed and implemented together.
-Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-web` 0.9.0 / `sdlc-ux`
+Versions: `aidlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`aidlc-stack-web` 0.9.0 / `aidlc-ux`
 0.3.0 unchanged). Full record: `docs/dogfood-findings.md`.
 
-#### `sdlc` — subagent finish-contract (F37, F40 — a cross-agent recurrence)
+#### `aidlc` — subagent finish-contract (F37, F40 — a cross-agent recurrence)
 
 - **F37 / F40 — a subagent must never return on a pending self-launched background task.** The
   implementer (F37), then the devops agent (F40), each returned a bare "still running — I'll wait for
@@ -40,7 +67,7 @@ Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-
   — ground-truth the working tree, drive the remaining deterministic steps, and never blindly re-resume
   a yielding agent.
 
-#### `sdlc` — backlog sweeps no longer silently truncate (F34)
+#### `aidlc` — backlog sweeps no longer silently truncate (F34)
 
 - **F34 — full-backlog operations count-first and page to completion.** `groom` opened its sweep at
   `query({status:"todo", limit:25})`; on a ~120-item backlog that refined ~20% and reported "groomed."
@@ -50,7 +77,7 @@ Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-
   `startAt`/`maxResults` and reads `total`; `wi-markdown` returns all matches when no `limit`), and
   `groom`'s sweep protocol now counts-then-covers.
 
-#### `sdlc` — grooming approval path (F35)
+#### `aidlc` — grooming approval path (F35)
 
 - **F35 — gated actions are applied by the coordinator, not a re-dispatched subagent.** A fresh analyst
   subagent correctly refused to act on the coordinator's *claim* that the user had approved — a peer's
@@ -58,33 +85,33 @@ Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-
   turn, the analyst sweep is **propose-only** for gated actions, and the **coordinator itself** applies
   the approved decompositions / splits / priority / routing writes (each read-back-verified).
 
-#### `sdlc` — run-file archival in remote/poly (F36, F39)
+#### `aidlc` — run-file archival in remote/poly (F36, F39)
 
 - **F36 — blocked→resolved runs get a real archival path.** A run resolved via a follow-up PR could
   ride into `main` still stamped `phase: blocked` and then linger as a blocked *active* run forever,
   because archiving it needed a forbidden direct-to-`main` commit. `run` §10 now folds the archive into
   the **resolving PR** so it merges in already archived; `run-state` documents the remote post-merge
-  fallback (a `chore(sdlc): archive` **branch → PR**, never a direct push to the protected branch — the
+  fallback (a `chore(aidlc): archive` **branch → PR**, never a direct push to the protected branch — the
   guard blocks that correctly and stays untouched).
 - **F39 — batch archival: cost warned, husky unblocked, empty-branch trap closed.** `status` post-merge
   cleanup now **warns of the per-repo PR cost** ("N run files across M repos → M PRs") before starting;
-  the framework's own `.sdlc/**`-only bookkeeping commits use **`git commit --no-verify`** so a
+  the framework's own `.aidlc/**`-only bookkeeping commits use **`git commit --no-verify`** so a
   repo-local husky/lint-staged hook (which assumes `node_modules`) can't block them; and `git-workflow`
   now requires **verifying a commit actually landed before pushing** (a hook-aborted commit otherwise
   leaves an empty pushed branch).
 
-#### `sdlc` — CI-parity recipe (F38)
+#### `aidlc` — CI-parity recipe (F38)
 
 - **F38 — encoded local CI-parity recipe for a `file:`-sibling consumer.** When the orchestrator must
   ground-truth a consumer's CI gate (e.g. after a non-verdict), a `file:../sibling` consumer needs a
   **two-step install** — `npm ci` in the sibling first (so its exported eslint/tsconfig/depcruise
   configs resolve their own deps), then the consumer — run in the CI image, with **each gate step's exit
-  code standing on its own** (no `&& echo OK` tail that fakes a green). Shipped in `sdlc:ci-cd`
+  code standing on its own** (no `&& echo OK` tail that fakes a green). Shipped in `aidlc:ci-cd`
   (_Local CI-parity for a `file:`-sibling consumer_), referenced from `run` §7.
 
 ## [0.17.0] — 2026-07-14
 
-### `sdlc` — poly cross-repo split tier (`story` default, `task` supported)
+### `aidlc` — poly cross-repo split tier (`story` default, `task` supported)
 
 - **New `workspace.crossRepoSplit` config (`"story"` default | `"task"`)** — makes explicit *which
   work-item tier is the single-repo runnable leaf* in poly. Epics/Features always span repos; the leaf
@@ -92,7 +119,7 @@ Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-
   Stories, each Story one repo, Tasks its breakdown — the recommended default, native to ADO's
   Epic→Feature→Story→Task and forbidden Story→Story) or a **Task** (`task`: a User Story is a cross-repo
   **umbrella** of user value, its child Tasks the per-repo leaves, rolled up on completion). Both are
-  first-class — pick the one your board is authored for. Canonical definition in `sdlc:work-items` →
+  first-class — pick the one your board is authored for. Canonical definition in `aidlc:work-items` →
   *Cross-repo split tier*; a worked "Profile page" example (both tiers) in the user-guide §1a.
 - **The pipeline honors the knob end-to-end.** `run` §2 treats an umbrella Story (task mode) as a
   coordination parent — runs its per-repo Task children, rolls the Story up, and recognizes existing
@@ -100,24 +127,24 @@ Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-
   `task` mode (it's the expected umbrella) while keeping the *fix-it* path in `story` mode.
   `intake`/`groom`/`planning` propose the shape matching the configured tier. The "non-idiomatic
   umbrella" language is gone — task-tier is a supported convention, not a grudging fallback.
-- Versions: `sdlc` 0.16.0 → **0.17.0**, marketplace → **0.17.0** (`sdlc-stack-web` 0.9.0 / `sdlc-ux`
+- Versions: `aidlc` 0.16.0 → **0.17.0**, marketplace → **0.17.0** (`aidlc-stack-web` 0.9.0 / `aidlc-ux`
   0.3.0 unchanged).
 
 ## [0.16.0] — 2026-07-14
 
-### `sdlc` — plugin self-feedback (dogfood) channel
+### `aidlc` — plugin self-feedback (dogfood) channel
 
-- **New `sdlc:dogfood` skill + `pluginFeedback` config.** A portable way for the pipeline to record
+- **New `aidlc:dogfood` skill + `pluginFeedback` config.** A portable way for the pipeline to record
   friction with **the plugin itself** — gaps, wrong/missing guidance, steps it had to work around, a
   per-run step it had to save to memory, a broken shipped template (all distinct from *project* bugs) —
   as structured, append-only entries in a local inbox (`pluginFeedback.inbox`, default
-  `.sdlc/plugin-feedback.md`). Gated behind `pluginFeedback.enabled` (default **false**, so normal
+  `.aidlc/plugin-feedback.md`). Gated behind `pluginFeedback.enabled` (default **false**, so normal
   projects stay quiet); a project used to dogfood the plugin turns it on. The `run` orchestrator
   captures friction (its own + friction surfaced in agent reports) via the skill and continues — it
   never blocks delivery. The maintainer drains the inbox into `docs/dogfood-findings.md` by reading it
   directly from disk and marks each entry's `status:` (`pulled:F<n>` / `dismissed`), so findings flow
-  from a test project to the plugin without a human relaying responses by hand. Versions: `sdlc`
-  0.15.0 → **0.16.0**, marketplace → **0.16.0** (`sdlc-stack-web` 0.9.0 / `sdlc-ux` 0.3.0 unchanged).
+  from a test project to the plugin without a human relaying responses by hand. Versions: `aidlc`
+  0.15.0 → **0.16.0**, marketplace → **0.16.0** (`aidlc-stack-web` 0.9.0 / `aidlc-ux` 0.3.0 unchanged).
 
 ## [0.15.0] — 2026-07-14
 
@@ -126,11 +153,11 @@ Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-
 Seventeen findings from continued dogfooding on the same polyrepo + Azure DevOps build, now first
 exercising the **remote/PR** integration path (the six `bee-auth-*` repos flipped to `git.mode:
 remote`) plus real CI, a shared-config poly pattern, and the first security-critical design phase.
-Designed and implemented together. Versions: `sdlc` 0.14.0 → **0.15.0**, `sdlc-stack-web` 0.8.0 →
-**0.9.0**, `sdlc-ux` unchanged (**0.3.0**), marketplace → **0.15.0**. Full record:
+Designed and implemented together. Versions: `aidlc` 0.14.0 → **0.15.0**, `aidlc-stack-web` 0.8.0 →
+**0.9.0**, `aidlc-ux` unchanged (**0.3.0**), marketplace → **0.15.0**. Full record:
 `docs/dogfood-findings.md`.
 
-#### `sdlc-stack-web` — tooling baseline & templates
+#### `aidlc-stack-web` — tooling baseline & templates
 
 - **F17 — the tooling baseline now ships a `.gitattributes`** (`* text=auto eol=lf` + binary rules).
   Stops CRLF/LF churn on Windows checkouts and keeps a Windows dev byte-identical to a Linux CI runner,
@@ -171,14 +198,14 @@ Designed and implemented together. Versions: `sdlc` 0.14.0 → **0.15.0**, `sdlc
   `NODE_OPTIONS=--experimental-vm-modules` (cross-platform via `cross-env`) for jest to execute the
   dynamic ESM import, plus the `testRegex`-match gotcha for new e2e files.
 
-#### `sdlc-stack-web` — CI templates (new)
+#### `aidlc-stack-web` — CI templates (new)
 
 - **F24 (templates) — new `templates/ci/`**: `azure-pipelines.yml` + `github-actions-ci.yml` (+ README)
   running the **same** deterministic gate as the local run (typecheck → lint → format → boundaries →
   build → test). Parameterized for a **self-hosted pool** (F25), **cross-platform lockfile** guidance
   (F29), a **non-empty-graph assertion** (F30), and a commented **multi-repo-checkout** block (F28).
 
-#### `sdlc` — board fidelity (ADO)
+#### `aidlc` — board fidelity (ADO)
 
 - **F19 — parents roll up to in_progress at first-child-start.** `run` §3 transitions a still-`todo`
   parent Feature/Epic → in_progress when its first child starts (guards: only todo→in_progress, never
@@ -199,7 +226,7 @@ Designed and implemented together. Versions: `sdlc` 0.14.0 → **0.15.0**, `sdlc
   lingering as "active." `run-state` documents the mode/layout matrix; `status` surfaces
   done-but-awaiting-merge archived runs.
 
-#### `sdlc` — remote mode, CI & shared-package poly
+#### `aidlc` — remote mode, CI & shared-package poly
 
 - **F24 (warn) — remote mode is never silently ungated.** `init` (Step 4.7) and `status` (Step 1.6)
   warn when a `mode: remote` repo has no detectable CI / required-check policy, and `init` offers to
@@ -223,8 +250,8 @@ Designed and implemented together. Versions: `sdlc` 0.14.0 → **0.15.0**, `sdlc
   `docker run`-ing the CI runtime with the isolated single-repo checkout + `npm ci` layout to validate
   a fix green **before** slow serial remote cycles — essential for poly `file:`-sibling (F28) and
   cross-platform-lock (F29) failures that never reproduce in the local workspace.
-- **F32 — doc-verifying subagents get the bundled Context7 MCP.** `sdlc-architect`, `sdlc-researcher`
-  and `sdlc-security` now list the plugin-scoped Context7 tools (`resolve-library-id`, `query-docs`) —
+- **F32 — doc-verifying subagents get the bundled Context7 MCP.** `aidlc-architect`, `aidlc-researcher`
+  and `aidlc-security` now list the plugin-scoped Context7 tools (`resolve-library-id`, `query-docs`) —
   and `WebFetch` — in their tool grants, with an explicit sanctioned fallback documented if the harness
   can't pass the MCP through to a subagent at runtime, so version/API checks stop degrading to
   registry-only.
@@ -234,18 +261,18 @@ Designed and implemented together. Versions: `sdlc` 0.14.0 → **0.15.0**, `sdlc
 ### Dogfood batch F1–F16 (Authentication / Identity Platform, Epic 1)
 
 Sixteen findings from a real end-to-end dogfood on a polyrepo + Azure DevOps + local-git-mode build,
-designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc-stack-web` 0.7.1 →
-**0.8.0**, `sdlc-ux` 0.2.1 → **0.3.0**, marketplace → **0.14.0**. Full design record:
+designed and implemented together. Versions: `aidlc` 0.13.1 → **0.14.0**, `aidlc-stack-web` 0.7.1 →
+**0.8.0**, `aidlc-ux` 0.2.1 → **0.3.0**, marketplace → **0.14.0**. Full design record:
 `docs/dogfood-findings-archive.md`.
 
-#### `sdlc` — poly workspace modeling
+#### `aidlc` — poly workspace modeling
 
 - **F1 — cross-repo work is modeled at authoring time, not improvised at run time.** `intake`, `groom`
   and `planning` now enforce the poly invariant *1 story = 1 repo*: a story/task spanning repos is
   authored as a **Feature → per-repo child Stories** (Feature-tier preferred because ADO forbids
   Story→Story parenting). `run` §2.5 formalizes the run-time safety net (decompose-and-run /
   decompose-defer / single-repo-subset) with the ADO hierarchy constraint spelled out.
-- **F2 — undeclared repos get declared, not mis-routed.** New **`/sdlc:repo add <name>`** command
+- **F2 — undeclared repos get declared, not mis-routed.** New **`/aidlc:repo add <name>`** command
   declares a repo in `repos[]` **and** bootstraps the folder (`git init` + base commit + optional
   tooling/structure baseline). `work-items` routing and `run` §2.5 now offer to declare an undeclared
   repo instead of silently folding the work into another one.
@@ -253,11 +280,11 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
   workspace (no sub-repos yet) no longer silently collapses to mono.
 - **F4 — `init` bootstraps greenfield repos.** Poly `init` offers to `git init -b <default>` + base-
   commit each declared repo so the pipeline can branch into it immediately (the "first story creates
-  the repos" chicken-and-egg), or documents the exact commands if skipped. Shared with `/sdlc:repo`.
+  the repos" chicken-and-egg), or documents the exact commands if skipped. Shared with `/aidlc:repo`.
 - **F8 — `control-plane` is a first-class routing target.** Workspace-level items (README, cross-repo
   docs, control-plane config) resolve deterministically to the workspace root instead of ad-hoc.
 
-#### `sdlc` — tracker robustness
+#### `aidlc` — tracker robustness
 
 - **F5 — ADO "connected" ≠ "authenticated".** `wi-ado` documents the launch-env root cause
   (`ADO_MCP_ORG` + `az login` must be present in the shell that *launches* Claude Code; mid-session
@@ -277,7 +304,7 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
   hard error on persistent divergence. Stated in the `work-items` contract so it binds all trackers;
   `wi-ado` calls out the flaky `az.cmd` write that caused the live board/run-file divergence.
 
-#### `sdlc` — gating & render defaults
+#### `aidlc` — gating & render defaults
 
 - **F6 — `init` normalizes the control-plane branch** to the configured default (no `master` control
   plane while every repo says `main`).
@@ -285,16 +312,16 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
   scaffold-vs-real-UI classifier (scaffold/skeleton scope → `ui:false`, jury skipped, even in a UI
   repo; ambiguity errs to `ui:true`); `sprint` applies it with no prompt so a batched sprint never
   burns a full design run on an empty shell.
-- **F13 — the render URL is resolved from the repo, not a stale config default** (see `sdlc-ux`);
+- **F13 — the render URL is resolved from the repo, not a stale config default** (see `aidlc-ux`);
   `run` §6 has the scaffold write its chosen dev-server port back to `ux.renderBaseUrl` and flag
   cross-repo port collisions; `init` derives/asks the UX dev port instead of defaulting every repo to
   :3000.
 
-#### `sdlc-stack-web` — scaffold-template completeness
+#### `aidlc-stack-web` — scaffold-template completeness
 
 - **F9 — the dependency-cruiser boundary gate ships with every scaffold.** `project-structure` replaces
-  the init-only note with a mandatory **repo-scaffold checklist** (applies to `/sdlc:init` *and* any
-  `/sdlc:run` scaffold task) so `.dependency-cruiser.cjs` + `depcruise` are never silently omitted.
+  the init-only note with a mandatory **repo-scaffold checklist** (applies to `/aidlc:init` *and* any
+  `/aidlc:run` scaffold task) so `.dependency-cruiser.cjs` + `depcruise` are never silently omitted.
 - **F10 — the shared/base tsconfig is documented as strictness-only** in `coding-standards-ts`
   (`moduleResolution`/`baseUrl`/`target` belong in each repo's own tsconfig) — the template was already
   clean; the principle was unstated. Enforced by the F9 checklist.
@@ -310,30 +337,30 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 - **F14 — a hardened `.gitignore`** (`templates/tooling/.gitignore`) ignores `.env*` with a
   `!.env.example` allow-exception — secret hygiene by default, a real concern for auth/identity repos.
 
-#### `sdlc-ux` — jury render resolution & scope gate
+#### `aidlc-ux` — jury render resolution & scope gate
 
 - **F11 — pod-scope gate** in `design` mirrors the core scaffold-vs-UI classifier so the pod
   self-applies skeleton-only when invoked standalone on a scaffold scope.
 - **F13 — the jury resolves the render URL from the repo's actual `dev`/`start` port** at render time
   (parsed from `package.json`), using `ux.renderBaseUrl` only as a fallback, preferring the derived
   port on mismatch, and **failing loud on a non-UI response** (JSON/404) so a wrong-server render can
-  never silently score. Mirrored across `design`, `design-jury` and the `sdlc-ux-jury` agent.
+  never silently score. Mirrored across `design`, `design-jury` and the `aidlc-ux-jury` agent.
 
 ## [0.13.1] — 2026-07-11
 
 ### Added
 
-- **ADO Feature handling in `wi-ado` (`sdlc`).** Azure DevOps nests Epic → Feature → User Story →
+- **ADO Feature handling in `wi-ado` (`aidlc`).** Azure DevOps nests Epic → Feature → User Story →
   Task/Bug, but the canonical schema has no `feature` tier. The adapter now maps **both Epic and
   Feature → canonical `epic`** (decomposable parents), preserving the real ADO type in
   `sourceRaw.adoType` so writes never convert one into the other. `query` excludes Features as well
   as Epics from ready work; decomposition creates User Story children parented under the Feature
   (or under an Epic per the project's convention). Previously a Feature could surface in ready-work
-  queries and fail to classify. Version: `sdlc` 0.13.0 → **0.13.1**, marketplace → **0.13.1**.
+  queries and fail to classify. Version: `aidlc` 0.13.0 → **0.13.1**, marketplace → **0.13.1**.
 
 ## [0.13.0] — 2026-07-11
 
-### Changed — per-agent verification cadence; economical defaults (`sdlc`)
+### Changed — per-agent verification cadence; economical defaults (`aidlc`)
 
 - `pipeline.verification` moves from a global `mode`/`scope` + on/off toggles to **per-agent
   cadence**: `reviewer`, `qa` and `security` each take `off | on-demand | per-item | per-epic`
@@ -348,51 +375,51 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 - Wired through `run` §7 (verify) and §2 (epic consolidation runs the per-epic agents; security
   confirmed), the config schema, both scaffolded configs, `init` (Economical / Balanced / Thorough /
   Manual profiles) and the user guide. Teams wanting the old behavior set all three to `per-item`.
-- Version: `sdlc` 0.12.2 → **0.13.0**, marketplace → **0.13.0**.
+- Version: `aidlc` 0.12.2 → **0.13.0**, marketplace → **0.13.0**.
 
 ## [0.12.2] — 2026-07-11
 
 ### Added
 
-- `sdlc:intake` now stamps **provenance** on every item it creates — an `unplanned` label plus a
-  `Provenance: created via /sdlc:intake on <date> — "<ask>"` note in the description — so
+- `aidlc:intake` now stamps **provenance** on every item it creates — an `unplanned` label plus a
+  `Provenance: created via /aidlc:intake on <date> — "<ask>"` note in the description — so
   request-born work (asked for directly, outside the planned backlog) stays queryable later. It's
   tracker-agnostic via the adapter contract: the label maps to markdown frontmatter, Jira labels or
   ADO `System.Tags` identically, and the note goes in `description` everywhere. Filter on `unplanned`
-  to see everything that entered outside planning. Version: `sdlc` 0.12.1 → **0.12.2**, marketplace → **0.12.2**.
+  to see everything that entered outside planning. Version: `aidlc` 0.12.1 → **0.12.2**, marketplace → **0.12.2**.
 
 ## [0.12.1] — 2026-07-11
 
 ### Changed
 
-- `sdlc-researcher` agent runs on **Opus** (was Sonnet). Spikes are high-stakes technology-selection
+- `aidlc-researcher` agent runs on **Opus** (was Sonnet). Spikes are high-stakes technology-selection
   decisions that downstream stories build on; the deeper tier is worth it. Behavior/protocol
   unchanged — it still blends codebase + Context7 + WebSearch + a scratchpad PoC and delivers a cited,
-  date-stamped decision report. Version: `sdlc` 0.12.0 → **0.12.1**, marketplace → **0.12.1**.
+  date-stamped decision report. Version: `aidlc` 0.12.0 → **0.12.1**, marketplace → **0.12.1**.
 
 ## [0.12.0] — 2026-07-11
 
-### Added — dependency policy, vetted at install time (`sdlc`)
+### Added — dependency policy, vetted at install time (`aidlc`)
 
 - New `dep-vet` PreToolUse hook gates package-ADD commands (`npm i <pkg>`, `npm install <pkg>`,
   `pnpm|yarn|bun add …`) and asks the operator to vet the package **before** it's installed and coded
   against — so a bad/stale/incompatible choice is caught early, not reworked in verify. Bare lockfile
   installs (`npm ci`, `npm install`, `pnpm i`) and `npm run` scripts are untouched. Ships
   `dep-vet.test.mjs` (21-case detection matrix).
-- `sdlc:security` §4 is now the canonical **Dependency policy** — deliberately *not* an allow-list
+- `aidlc:security` §4 is now the canonical **Dependency policy** — deliberately *not* an allow-list
   (that would handcuff projects): any package is fine if it clears three tests — **safe** (maintained,
   no typosquat, clean license/scripts, no open CVEs), **latest stable** (current stable version,
   verified via Context7/registry, no prereleases), and **compatible** (satisfies peerDependencies +
   `engines`; never `--legacy-peer-deps`/`--force` to silence a peer conflict). `coding-standards-ts`
   (add-time) and `maintenance` (bump-time) cross-link it.
-- Version bumps: `sdlc` 0.11.0 → **0.12.0**, marketplace → **0.12.0**, `sdlc-stack-web` 0.7.0 →
-  **0.7.1** (coding-standards pointer). `sdlc-ux` (0.2.1) unchanged.
+- Version bumps: `aidlc` 0.11.0 → **0.12.0**, marketplace → **0.12.0**, `aidlc-stack-web` 0.7.0 →
+  **0.7.1** (coding-standards pointer). `aidlc-ux` (0.2.1) unchanged.
 
 ## [0.11.0] — 2026-07-11
 
-### Added — enterprise project structure, scaffolded + boundary-gated (`sdlc-stack-web`, `sdlc`)
+### Added — enterprise project structure, scaffolded + boundary-gated (`aidlc-stack-web`, `aidlc`)
 
-- New `sdlc-stack-web:project-structure` skill — the canonical enterprise folder trees: NestJS
+- New `aidlc-stack-web:project-structure` skill — the canonical enterprise folder trees: NestJS
   backend (`modules/<feature>` + `common/{filters,guards,interceptors,pipes,decorators,constants}`,
   thin controller → service → repository) and **two frontend flavors** — `next-app` (App-Router-first,
   server components own data, RTK for client state) and `rtk-spa` (RTK Query as the primary data
@@ -401,38 +428,38 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 - Ships `templates/structure/`: three `dependency-cruiser` boundary configs (backend / next-app /
   rtk-spa) and canonical reference files (NestJS exception filter mapping to the api-design error
   shape + constants; RTK `store/{index,hooks,api/base-api}`).
-- `/sdlc:init` asks the frontend flavor and scaffolds the matching skeleton per TS repo (per-repo in
-  poly, merge-aware, skips non-TS); `sdlc:ci-cd` runs `depcruise` in the PR gate so layering
+- `/aidlc:init` asks the frontend flavor and scaffolds the matching skeleton per TS repo (per-repo in
+  poly, merge-aware, skips non-TS); `aidlc:ci-cd` runs `depcruise` in the PR gate so layering
   violations (feature→feature internals, controller→repository, `ui`→`store`) fail the build
   regardless of `verification.mode`. `nestjs`/`nextjs` skills cross-link the structure; Next adopts
   the RTK/RTK Query state stance.
-- Version bumps: `sdlc-stack-web` 0.6.0 → **0.7.0**, `sdlc` 0.10.0 → **0.11.0**, marketplace → **0.11.0**.
+- Version bumps: `aidlc-stack-web` 0.6.0 → **0.7.0**, `aidlc` 0.10.0 → **0.11.0**, marketplace → **0.11.0**.
 
 ## [0.10.0] — 2026-07-11
 
-### Added — strict web-stack tooling baseline (`sdlc-stack-web`, `sdlc`)
+### Added — strict web-stack tooling baseline (`aidlc-stack-web`, `aidlc`)
 
-- `sdlc-stack-web` now ships a **deterministic quality baseline** in `templates/tooling/`:
+- `aidlc-stack-web` now ships a **deterministic quality baseline** in `templates/tooling/`:
   `tsconfig.base.json` (strict — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, unused
   locals/params, …), `eslint.config.mjs` (flat, type-aware: `typescript-eslint` strict-type-checked
   + stylistic, `no-explicit-any`, `consistent-type-imports`, Prettier last), `.prettierrc.json`,
   `.editorconfig`, `.npmrc` (`engine-strict` + `save-exact`), and a README with the exact devDeps +
   scripts.
-- `/sdlc:init` scaffolds the baseline into every TypeScript repo (per-repo in poly; **merge-aware** —
-  never clobbers configs you already have; skips non-TS repos); `sdlc:ci-cd` runs
+- `/aidlc:init` scaffolds the baseline into every TypeScript repo (per-repo in poly; **merge-aware** —
+  never clobbers configs you already have; skips non-TS repos); `aidlc:ci-cd` runs
   `typecheck → lint → format → build → test` as a **hard PR gate that holds even when the reviewer is
   toggled off**. `coding-standards-ts` now states the division of labour: tools own the mechanical
   rules, the reviewer owns judgment (validate-at-edge, state modelling, dependency choice).
 - Rationale: the coding standards were previously enforced mainly by the LLM reviewer and assumed a
   strict project config existed. This shifts the mechanical half to tooling that runs on every commit
   and in CI — "the code can't just work however it's written."
-- Version bumps: `sdlc-stack-web` 0.5.0 → **0.6.0**, `sdlc` 0.9.1 → **0.10.0**, marketplace → **0.10.0**.
+- Version bumps: `aidlc-stack-web` 0.5.0 → **0.6.0**, `aidlc` 0.9.1 → **0.10.0**, marketplace → **0.10.0**.
 
 ## [0.9.1] — 2026-07-11
 
 ### Fixed
 
-- **Bash guard hook false-tripped on tokens inside commit messages (`sdlc`).** The push guard
+- **Bash guard hook false-tripped on tokens inside commit messages (`aidlc`).** The push guard
   flagged any command that merely contained the words `git` … `push`, so a legitimate
   `git commit -m "…push…"` on `main` was blocked; the same class hit commit messages mentioning
   `TRUNCATE TABLE`, `git filter-branch`, `prod`/`psql`, `id_rsa` or `rm -rf /`. The guard now
@@ -440,11 +467,11 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
   command-identity detection, `git push` is matched as an actual subcommand, and the DB/prod/
   credential/rm content checks are skipped for `git` segments (git runs none of those) while
   cross-pipe `.env` exfil still scans the whole command. Adds `guard.test.mjs`, a 33-case
-  block/allow regression matrix. Version: `sdlc` 0.9.0 → **0.9.1**, marketplace → **0.9.1**.
+  block/allow regression matrix. Version: `aidlc` 0.9.0 → **0.9.1**, marketplace → **0.9.1**.
 
 ## [0.9.0] — 2026-07-11
 
-### Added — local git mode (no remote required) (`sdlc`)
+### Added — local git mode (no remote required) (`aidlc`)
 
 - New `git.mode` (`remote` default | `local`) — per-repo in poly, top-level in mono. Lets a project
   run the full pipeline **before it has a git remote**: no push, no PR. After green verify the
@@ -456,21 +483,21 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
   merge), `init` (detects a missing remote and proposes `local`), `status` (PR column shows
   `local-merge:<sha>`), `release` (tags locally, skips publish), the always-on git-workflow rule,
   the config schema + scaffolded template. Flip `git.mode: remote` once an origin exists.
-- Version bumps: `sdlc` 0.8.0 → **0.9.0** (minor — new feature), marketplace 0.8.0 → **0.9.0**.
-  `sdlc-ux` (0.2.1) and `sdlc-stack-web` (0.5.0) unchanged.
+- Version bumps: `aidlc` 0.8.0 → **0.9.0** (minor — new feature), marketplace 0.8.0 → **0.9.0**.
+  `aidlc-ux` (0.2.1) and `aidlc-stack-web` (0.5.0) unchanged.
 
 ## [0.8.0] — 2026-07-11
 
-### Added — polyrepo (multi-repo) support (`sdlc`)
+### Added — polyrepo (multi-repo) support (`aidlc`)
 
 - A workspace can now hold **many git repos** (e.g. `backend/`, `frontend/`, `website/`, `mobile/`),
   not just one. **Mono is unchanged and remains the default** — an empty `repos[]` behaves exactly as
   before, so existing projects need zero migration.
 - New config: `workspace.layout` (`mono` | `poly`) + `repos[]` (per-repo `name`, `path`, `host`,
   `remote`, `defaultBranch`, `branchPattern`, `stack`, `labels`, optional per-repo `ux`, `default`).
-  The control plane (`.claude/`, `backlog/`, `.sdlc/`) lives at the workspace root; product repos are
-  subfolders. Ships `.claude/sdlc.config.poly.example.json` and the previously-missing
-  `docs/sdlc.config.schema.json` (validates both shapes).
+  The control plane (`.claude/`, `backlog/`, `.aidlc/`) lives at the workspace root; product repos are
+  subfolders. Ships `.claude/aidlc.config.poly.example.json` and the previously-missing
+  `docs/aidlc.config.schema.json` (validates both shapes).
 - **Orchestrator-driven routing.** You describe a requirement in plain language; the orchestrator
   grounds it against the actual repos and routes each item to one repo (explicit `repo` → label →
   default → ground → ask). Cross-repo features become an **epic** whose child stories each target one
@@ -481,35 +508,35 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
   `work-items` schema + all three adapters (markdown/Jira/ADO map `repo` + `dependsOn`), `intake`,
   `groom`, `next` + `status` (multi-location run-file scan; unified board + Repo column + epic
   rollup), `sprint` (worktrees per target repo), `release` (per-repo), `init` (poly setup), the
-  `sdlc-ux:design` pod (operates in the resolved frontend repo and reads its own `ux`), and the
+  `aidlc-ux:design` pod (operates in the resolved frontend repo and reads its own `ux`), and the
   `session-context` / `checkpoint` hooks (scan every repo's run dir).
-- Version bumps: `sdlc` 0.7.4 → **0.8.0** (minor — new feature), `sdlc-ux` 0.2.0 → **0.2.1**
-  (poly-aware design handoff), marketplace 0.7.4 → **0.8.0**. `sdlc-stack-web` unchanged (0.5.0).
+- Version bumps: `aidlc` 0.7.4 → **0.8.0** (minor — new feature), `aidlc-ux` 0.2.0 → **0.2.1**
+  (poly-aware design handoff), marketplace 0.7.4 → **0.8.0**. `aidlc-stack-web` unchanged (0.5.0).
 
 ## [0.7.4] — 2026-07-09
 
 ### Fixed
 
-- **Duplicate hooks-file load error (`sdlc` → 0.7.3).** Current Claude Code auto-loads a plugin's
+- **Duplicate hooks-file load error (`aidlc` → 0.7.3).** Current Claude Code auto-loads a plugin's
   standard `hooks/hooks.json`, so the manifest must not also point at it. Removed
-  `"hooks": "./hooks/hooks.json"` from `plugins/sdlc-core/.claude-plugin/plugin.json`; the hooks
+  `"hooks": "./hooks/hooks.json"` from `plugins/aidlc-core/.claude-plugin/plugin.json`; the hooks
   still load automatically from the standard path. Fixes: *"Failed to load hooks … Duplicate hooks
   file detected … manifest.hooks should only reference additional hook files."*
 
 ## [0.7.3] — 2026-07-09
 
-### Added — user-controlled verification cadence (`sdlc` → 0.7.2)
+### Added — user-controlled verification cadence (`aidlc` → 0.7.2)
 
 - New `pipeline.verification` config block puts the review/QA cost — the pipeline's biggest
   recurring spend — in the user's hands:
-  - `mode`: `auto` (SDLC runs reviewer + QA, current behavior), `manual` (SDLC skips the agents and
+  - `mode`: `auto` (AIDLC runs reviewer + QA, current behavior), `manual` (AIDLC skips the agents and
     opens the PR for the human to review; run ends at a new `review-pending` phase; issues fed back
-    by rerunning `/sdlc:run <ID>`), or `ask` (pipeline prompts per item).
+    by rerunning `/aidlc:run <ID>`), or `ask` (pipeline prompts per item).
   - `scope`: `per-item` (verify every item, default) or `per-epic` (children skip per-item review;
     one consolidated pass when the epic's children are all implemented).
   - `reviewer` / `qa` / `security` toggles for fine control (e.g. keep the fast code review, drop
     the heavier QA test-authoring).
-- `/sdlc:init` now asks for the verification cadence up front.
+- `/aidlc:init` now asks for the verification cadence up front.
 - Safety preserved: in every mode the implementer still runs lint + tests to green before a PR, and
   the human merge of the PR remains the final gate — `manual` just skips the *extra* bot pre-review
   (and flags the PR as un-reviewed by bots). `security: off` on a risky diff leaves a visible note.
@@ -522,17 +549,17 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 
 ### Changed
 
-- **`sdlc-ux` enabled by default.** The design pod now ships `defaultEnabled: true` in the
+- **`aidlc-ux` enabled by default.** The design pod now ships `defaultEnabled: true` in the
   marketplace — no manual install/enable step. It stays dormant on backend/infra items, so
   non-UI projects are unaffected; turn it off per project with `ux.enabled: false`.
-- **Hardened UI detection in the orchestrator (`sdlc` → 0.7.1).** The decision to invoke the
+- **Hardened UI detection in the orchestrator (`aidlc` → 0.7.1).** The decision to invoke the
   design pod moved from a soft path-glob check during implement to an explicit determination at
   the **classify** step, recorded as `ui:` on the run file. Signals: a `ui`/`ux`/`design`/`frontend`
   label, OR the title/description/AC mentioning a screen/page/component/layout/visual/motion/
   redesign, OR a frontend stack with an item that clearly renders something. When unsure on a
   frontend item it defaults `ui: true` (an over-invoked jury is cheap; a missed one ships un-judged
   UI). The auto-invocation now also passes the resolved **scope, mode and brand** through, so the
-  autopilot behaves the same as running `/sdlc-ux:design` by hand. Run-file template gains
+  autopilot behaves the same as running `/aidlc-ux:design` by hand. Run-file template gains
   `ui` / `uxScope` / `uxMode`.
 - Docs updated: user guide (§3a design-pod section + cheat-sheet + troubleshooting), example
   walkthrough (§6a/§6b showing the pod on the todo UI + a brand-anchored redesign), adoption guide
@@ -540,9 +567,9 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 
 ## [0.7.1] — 2026-07-09
 
-### Added — `sdlc-ux` plugin (v0.2.0): existing projects, scope targeting & brand references
+### Added — `aidlc-ux` plugin (v0.2.0): existing projects, scope targeting & brand references
 
-- **Works on existing projects, not just greenfield.** `/sdlc-ux:design` now resolves a **scope**
+- **Works on existing projects, not just greenfield.** `/aidlc-ux:design` now resolves a **scope**
   (a page/route/screen, a path/glob, or the whole app) and a **mode**:
   - `greenfield` — establish the design system; it becomes the project standard every later UI item
     adopts (implemented and followed throughout).
@@ -550,7 +577,7 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
     first, so the target stays uniform with the rest of the app.
   - `redesign` — whole-app redesign that may replace and re-propagate the system.
 - **UI audit step** for existing surfaces: renders the current UI (Playwright) + sibling screens,
-  and `sdlc-design-system` (new **audit mode**) extracts the current design language, flags
+  and `aidlc-design-system` (new **audit mode**) extracts the current design language, flags
   inconsistencies, and recommends conform / elevate-in-place / replace → `design/audit.md`.
 - **Brand references** (new + existing): pass a logo, colors, fonts, or reference screenshots (in
   `$ARGUMENTS`, in `ux.brand.referenceDir` = `design/brand/`, or via the `ux.brand` config). They're
@@ -563,33 +590,33 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 
 ## [0.7.0] — 2026-07-09
 
-### Added — `sdlc-ux` plugin (new, opt-in): the UI/UX design pod
+### Added — `aidlc-ux` plugin (new, opt-in): the UI/UX design pod
 
 - A five-role pod for award-tier, uniform desktop-web UI:
-  - `sdlc-ux-writer` (sonnet) — writes `design/narrative.md`: the experience story (vision, tone,
+  - `aidlc-ux-writer` (sonnet) — writes `design/narrative.md`: the experience story (vision, tone,
     journey, one signature moment) that every downstream decision must trace back to.
-  - `sdlc-ux-researcher` (sonnet) — mines Awwwards/FWA and current best-in-class work (WebSearch/
+  - `aidlc-ux-researcher` (sonnet) — mines Awwwards/FWA and current best-in-class work (WebSearch/
     WebFetch) for cited, transferable techniques → `design/inspiration.md`.
-  - `sdlc-design-system` (sonnet) — the **uniformity anchor**: color/type/spacing/radius/elevation
+  - `aidlc-design-system` (sonnet) — the **uniformity anchor**: color/type/spacing/radius/elevation
     tokens emitted to code as the single source of truth, WCAG-AA contrast verified.
-  - `sdlc-motion` (sonnet) — animation, micro-interactions, scroll/parallax, GSAP, sequencing —
+  - `aidlc-motion` (sonnet) — animation, micro-interactions, scroll/parallax, GSAP, sequencing —
     within a 60fps + `prefers-reduced-motion` budget; realizes the signature moment.
-  - `sdlc-ux-jury` (opus) — strict, **unbiased** Awwwards-style judge. Renders the built UI with
+  - `aidlc-ux-jury` (opus) — strict, **unbiased** Awwwards-style judge. Renders the built UI with
     Playwright, screenshots it, scores a weighted rubric /10 with mandatory visual evidence, blind
     to the makers' reasoning. A 9 is rare and must be earned.
-- `/sdlc-ux:design <item|path|description>` — the pod pipeline: narrative → research → design system
+- `/aidlc-ux:design <item|path|description>` — the pod pipeline: narrative → research → design system
   → build + motion → **jury loop until composite ≥ `ux.juryThreshold` (default 9)**, capped at
   `ux.maxJuryRounds` (default 3). At the cap it ships the best-scoring round, attaches the jury's
   remaining critique, and flags for human — never loops forever, never escalates models.
 - Skills: `design` (orchestration), `ux-narrative`, `design-research`, `design-system`, `motion`,
   `design-jury` (rubric + anti-bias + render protocol). Templates for all five `design/*` artifacts.
 
-### Changed — `sdlc` plugin
+### Changed — `aidlc` plugin
 
-- Orchestrator (`/sdlc:run`): UI-touching items now route the frontend through `sdlc-ux:design`
-  (jury gate included) when `sdlc-ux` is installed and `ux.enabled` — no hard dependency; core still
+- Orchestrator (`/aidlc:run`): UI-touching items now route the frontend through `aidlc-ux:design`
+  (jury gate included) when `aidlc-ux` is installed and `ux.enabled` — no hard dependency; core still
   runs standalone.
-- Project `sdlc.config.json` gains a `ux` block (`enabled`, `target: desktop-web`, `juryThreshold`,
+- Project `aidlc.config.json` gains a `ux` block (`enabled`, `target: desktop-web`, `juryThreshold`,
   `maxJuryRounds`, `juryPanelSize`, `renderBaseUrl`, `uiPaths`).
 
 ## [0.6.1] — 2026-07-09
@@ -605,32 +632,32 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 
 ## [0.6.0] — 2026-07-09
 
-### Added — `sdlc` plugin (requirement intake)
+### Added — `aidlc` plugin (requirement intake)
 
-- `/sdlc:intake <text>`: the pipeline's front door for requirements that exist only in the
+- `/aidlc:intake <text>`: the pipeline's front door for requirements that exist only in the
   user's head — analyst grounds the requirement in the codebase, sweeps the existing backlog
   (skip covered / delta-only for partial overlap / flag in-flight conflicts), proposes the
   item set (epic+stories or single story/bug/task) with AC, creates on approval in the active
   tracker (Jira/ADO/markdown).
-- `/sdlc:run <free text>`: non-ID arguments route through intake, then the pipeline runs the
+- `/aidlc:run <free text>`: non-ID arguments route through intake, then the pipeline runs the
   first created item — "describe it and it gets built".
 - Analyst agent: intake mode (propose-only; the orchestrator creates after approval).
 
 ## [0.5.0] — 2026-07-08
 
-### Added — `sdlc` plugin (Phase 5: self-extension & scale)
+### Added — `aidlc` plugin (Phase 5: self-extension & scale)
 
 - `scaffold-skill` / `scaffold-agent`: create project-local capabilities from the templates,
-  with mandatory `x-sdlc` metadata and the agent-test justification; registered in
-  `.sdlc/extensions.json` with reuse tracking.
+  with mandatory `x-aidlc` metadata and the agent-test justification; registered in
+  `.aidlc/extensions.json` with reuse tracking.
 - Capability-gap protocol in the orchestrator: search plugins → local → registry before
-  creating; reuseCount bumped on every reuse; `/sdlc:status` surfaces promotion candidates.
-- `/sdlc:promote`: validate (secret scan, lint) → generalize (project specifics → config
+  creating; reuseCount bumped on every reuse; `/aidlc:status` surfaces promotion candidates.
+- `/aidlc:promote`: validate (secret scan, lint) → generalize (project specifics → config
   references, with a shown diff) → package into the right plugin on a `promote/<name>` branch
   → PR with the reviewer checklist. PR opening is user-confirmed.
-- `/sdlc:sync`: post-merge reconciliation — deletes local forks shadowed by promoted plugin
+- `/aidlc:sync`: post-merge reconciliation — deletes local forks shadowed by promoted plugin
   versions, resolves shadowing conflicts, reports promotion-ready candidates.
-- `/sdlc:sprint N`: parallel independent items — analyst independence check, one git worktree
+- `/aidlc:sprint N`: parallel independent items — analyst independence check, one git worktree
   + headless pipeline run per item, live board from run-file polling, queued conflicts,
   worktree cleanup on completion.
 - Governance: `docs/promotion-policy.md` (acceptance bar + reviewer checklist), CODEOWNERS
@@ -638,34 +665,34 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 
 ## [0.4.0] — 2026-07-08
 
-### Added — `sdlc` plugin (Phase 4: depth agents)
+### Added — `aidlc` plugin (Phase 4: depth agents)
 
-- `sdlc-architect` (opus): explores the codebase, plans items ≥ `architectThreshold`, writes ADRs.
-- `sdlc-security` (opus): deep security pass — input→sink tracing, authz, dependency audit —
+- `aidlc-architect` (opus): explores the codebase, plans items ≥ `architectThreshold`, writes ADRs.
+- `aidlc-security` (opus): deep security pass — input→sink tracing, authz, dependency audit —
   auto-triggered by `securityReviewPaths` overlap, manifest changes, or `security` label.
-- `sdlc-devops`: docker/CI/release items and red-PR-check diagnosis.
-- `sdlc-docwriter` (haiku): docs phase; amends the PR with `docs(...)` commits.
-- `sdlc-researcher`: spike items → cited decision reports in `docs/research/`.
-- Skills: `architecture` (ADR discipline), `security`, `ci-cd`, `release` (`/sdlc:release`),
+- `aidlc-devops`: docker/CI/release items and red-PR-check diagnosis.
+- `aidlc-docwriter` (haiku): docs phase; amends the PR with `docs(...)` commits.
+- `aidlc-researcher`: spike items → cited decision reports in `docs/research/`.
+- Skills: `architecture` (ADR discipline), `security`, `ci-cd`, `release` (`/aidlc:release`),
   `docs-writing`, `research`, `maintenance`; ADR template.
 - Orchestrator wiring: security agent joins the verify batch conditionally; spikes route to the
   researcher; infra-only plans route to devops; red CI checks get a diagnosis pass.
 
-### Added — `sdlc-stack-web` plugin (new)
+### Added — `aidlc-stack-web` plugin (new)
 
 - Stack expertise skills: `coding-standards-ts`, `nextjs` (App Router), `nestjs`, `postgres`,
   `mongodb`, `db-migrations` (expand-contract), `docker`, `api-design`.
 
 ## [0.3.0] — 2026-07-08
 
-### Added — `sdlc` plugin (Phase 3: real trackers + Azure)
+### Added — `aidlc` plugin (Phase 3: real trackers + Azure)
 
 - `wi-jira` adapter: Jira via Atlassian MCP — JQL queries, transition-by-target-status,
   AC field/section detection, dev-panel linking, per-project `statusMap`.
 - `wi-ado` adapter: Azure Boards via ADO MCP with `az boards` CLI fallback — WIQL queries,
   Agile/Scrum process detection, state-stepping with tag fallbacks, HTML field mapping.
 - Azure Repos PR path in `git-workflow` (`az repos pr create` + work-item linking).
-- `/sdlc:groom` — analyst-driven backlog refinement with autonomy boundaries
+- `/aidlc:groom` — analyst-driven backlog refinement with autonomy boundaries
   (AC/sizing applied; decompositions and priority changes proposed only).
 - Bundled MCP: `atlassian` (remote, OAuth) and `azure-devops` servers.
 - Project template: `.mcp.json.example` with optional read-only Postgres/MongoDB, Sentry,
@@ -673,16 +700,16 @@ designed and implemented together. Versions: `sdlc` 0.13.1 → **0.14.0**, `sdlc
 
 ## [0.2.0] — 2026-07-08
 
-### Added — `sdlc` plugin (Phases 0–2)
+### Added — `aidlc` plugin (Phases 0–2)
 
 - Marketplace + plugin manifests; installable via `/plugin marketplace add`.
-- Project template (`templates/project/`) scaffolded by `/sdlc:init`: CLAUDE.md, permissions
-  posture, `sdlc.config.json` switchboard, always-on rules, markdown backlog spec, run-state folders.
-- Orchestrator pipeline `/sdlc:run`: fetch → classify → requirements → plan → implement →
+- Project template (`templates/project/`) scaffolded by `/aidlc:init`: CLAUDE.md, permissions
+  posture, `aidlc.config.json` switchboard, always-on rules, markdown backlog spec, run-state folders.
+- Orchestrator pipeline `/aidlc:run`: fetch → classify → requirements → plan → implement →
   verify (review + QA parallel, fix cycles) → PR → wrap; resumable via run files.
-- `/sdlc:next`, `/sdlc:status` commands.
+- `/aidlc:next`, `/aidlc:status` commands.
 - Work-item adapter layer: canonical WorkItem schema + 7-operation contract; `wi-markdown` adapter.
-- Agents: `sdlc-analyst`, `sdlc-implementer`, `sdlc-reviewer`, `sdlc-qa`.
+- Agents: `aidlc-analyst`, `aidlc-implementer`, `aidlc-reviewer`, `aidlc-qa`.
 - Phase skills: requirements, planning, git-workflow, code-review, testing, debugging, run-state.
 - Hooks (Node, cross-platform): bash guard, protected paths, format-on-save, session context
   snapshot, run-state checkpoint/notify.
