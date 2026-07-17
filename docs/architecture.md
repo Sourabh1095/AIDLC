@@ -160,7 +160,7 @@ and reuse tracking (`/aidlc:status` surfaces candidates at reuseCount ≥ 2); `/
 `promote/<name>` → user-confirmed PR with the reviewer checklist); `/aidlc:sync` (deletes local
 forks shadowed by promoted versions, resolves shadowing conflicts); `/aidlc:sprint N` (analyst
 independence check → worktree + headless run per item → live board from run-file polling →
-cleanup); governance via `docs/promotion-policy.md` + CODEOWNERS (`plugins/**` platform-owned).
+cleanup); governance via `docs/promotion-policy.md` (`plugins/**` platform-owned).
 
 ### Design pod ✅ (`aidlc-ux` plugin, v0.1–0.2)
 

@@ -5,8 +5,9 @@ How project-born skills and agents enter the shared plugins. Audience: the platf
 
 ## Governance
 
-- The platform team owns `plugins/**` (enforced via CODEOWNERS) — every promotion PR needs
-  one platform-team approval. Project teams cannot merge into the shared plugins directly.
+- The platform team owns `plugins/**` — every promotion PR needs one platform-team approval.
+  Project teams cannot merge into the shared plugins directly (enforced by repo write access:
+  only the maintainer can merge).
 - Promotions bump the target plugin's **minor** version and carry a CHANGELOG entry crediting
   the source project and originating work item.
 - Rejected promotions get a reason on the PR; the source project keeps the extension as
