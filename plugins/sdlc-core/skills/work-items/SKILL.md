@@ -56,12 +56,28 @@ Every adapter normalizes to and from this shape:
 | Operation | Semantics |
 |---|---|
 | `fetch(id)` | One item → WorkItem. Error clearly if not found. |
-| `query(filter)` | Ready items by priority. filter = `{status?, type?, label?, limit?}`. "Ready" = status `todo`, has ≥1 AC (except task/spike), parent not blocked. |
+| `query(filter)` | Ready items by priority. filter = `{status?, type?, label?, limit?}`. "Ready" = status `todo`, has ≥1 AC (except task/spike), parent not blocked. `limit` bounds **one page**, not the whole set — a full sweep pages to completion (see *Full-backlog sweeps* below). |
 | `create(item)` | Create a new item (epic decomposition, spike creation). Returns assigned id. |
 | `transition(id, status)` | Map canonical status → source workflow state. Each adapter documents its state map; project overrides live in config `statusMap`. |
 | `comment(id, markdown)` | Append a progress milestone comment (external progress signal for humans). |
 | `link(id, {branch?, pr?})` | Attach branch/PR references to the item. |
 | `updateAC(id, criteria[])` | Write refined acceptance criteria back to the item. |
+
+### Full-backlog sweeps — never silently truncate (F34)
+
+`query`'s `limit` is a **page size**, not a licence to drop the rest of the backlog. A caller doing a
+**full sweep** — grooming, a backlog count, anything that must "operate on every ready item" — has to
+cover the whole set, not just the first page:
+
+1. **Count first.** Get the total number of matching items (a cheap count — `COUNT(*)` in WIQL/JQL, a
+   file tally for markdown) *before* iterating, so the caller knows the real size.
+2. **Page to completion, or cap out loud.** Either page through all matches (`limit`/offset, or the
+   source's continuation token) until exhausted, or — if the caller deliberately caps a session — **say
+   so explicitly**: "N items match, sweeping the first K." Never let the tail vanish unremarked.
+3. **Adapters must not hard-cap.** `query` with **no `limit`** returns *all* matches (paging internally
+   as the API requires). A `limit` bounds one page, and the adapter must let the caller tell more remain
+   (a returned/logged total count, or a next-page marker). The live trap this fixes: a groom sweep at
+   `limit:25` over a ~120-item backlog silently refined ~20% of it and reported "groomed."
 
 ### Write verification (every mutation) — reported success ≠ persisted
 

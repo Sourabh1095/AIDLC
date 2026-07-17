@@ -116,7 +116,12 @@ apply the tag fallback and comment what happened.
 - **fetch(id)** — `az boards work-item show --id {n} --expand relations -o json` (or MCP equivalent); map as above.
 - **query(filter)** — WIQL:
   `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ('New','To Do','Approved') AND [System.WorkItemType] NOT IN ('Epic','Feature') ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
-  via `az boards query --wiql "..."`, then fetch + map the first `limit + few` and apply the "ready" rule client-side.
+  via `az boards query --wiql "..."`. The WIQL returns the **full** ordered id list — for a full sweep
+  (no `limit`) batch-fetch and map **all** of them (`wit_get_work_items_batch_by_ids` / `az` in chunks
+  of ~200), apply the "ready" rule client-side, and **report the total count**; slice to a page only when
+  the caller passed `limit`, and then signal how many more remain. **Never hard-cap at a default page
+  size (e.g. 50) on a full-backlog sweep** (F34 — see `sdlc:work-items` → *Full-backlog sweeps*). A cheap
+  count is `SELECT [System.Id] FROM WorkItems WHERE …` run for its row count, or the query tool's total.
 - **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`. A canonical `epic` creates an ADO **Epic** by default; when decomposing a fetched **Feature**, create its children as **User Story** parented under it (see *Hierarchy*) — don't recreate the parent. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
 - **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above). **Then read back and assert** the state landed (see *Write verification*) — the `az.cmd` fallback can return cleanly without persisting.
 - **comment(id, markdown)** — `az boards work-item update --id {n} --discussion "SDLC: ..."` (HTML allowed; keep it simple).

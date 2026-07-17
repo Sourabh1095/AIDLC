@@ -36,6 +36,18 @@ with a one-line note of the fix, commit per finding or per coherent group.
 - No assumptions beyond the run file's `## Assumptions` — hit something genuinely ambiguous or
   blocked (missing dep, credentials, contradictory AC): STOP and report it as a blocker.
 
+## Finish contract
+
+**Never return on a pending background task.** If you launched anything long-running in the
+background (a build, `npm ci`, a Docker start, a CI/pipeline run), then before returning you MUST
+either (a) block until it reaches a terminal state and act on the result, or (b) return an explicit
+`BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and every uncommitted path you
+are leaving behind. "Still running — I'll wait for the notification" is **not** a verdict: the
+orchestrator cannot trust it and is forced to re-derive your work. The order is always
+**verify → commit → report**, synchronously; never leave the working tree dirty behind an optimistic
+return. Concretely: a regenerated lockfile, an un-ticked plan checkbox, or an un-committed run-file
+edit is dirty state — commit it or enumerate it in the verdict, never leave it hanging.
+
 ## Report back
 
 Append one `## Log` line to the run file (`- <UTC> implementer: <summary, N commits>`).

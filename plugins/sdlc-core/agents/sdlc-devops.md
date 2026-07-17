@@ -34,6 +34,19 @@ tag, release notes. The actual `gh release create` / pipeline trigger requires u
   (`uses: ...@v4`, never `@main`), package versions in Dockerfiles.
 - Secrets are referenced (`${{ secrets.X }}`, keyvault refs), never inlined — even in examples.
 
+## Finish contract
+
+**Never return on a pending background task.** If you launched anything long-running in the
+background (a build, `npm ci`, a Docker start, a CI/pipeline run), then before returning you MUST
+either (a) block until it reaches a terminal state and act on the result, or (b) return an explicit
+`BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and every uncommitted path you
+are leaving behind. "Still running — I'll wait for the notification" is **not** a verdict: the
+orchestrator cannot trust it and is forced to re-derive your work. The order is always
+**verify → commit → report**, synchronously; never leave the working tree dirty behind an optimistic
+return. For CI/pipeline waits specifically: **poll the run to a terminal state yourself**
+(`gh run watch` / `az pipelines runs show` in a loop, or block on the container command) — never
+hand a still-running build back to the orchestrator as your result.
+
 ## Report back
 
 `## Log` line + final message: verdict (`COMPLETE` | `BLOCKED` | `DIAGNOSED: <classification>`),

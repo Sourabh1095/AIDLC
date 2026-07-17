@@ -63,6 +63,34 @@ Decide publish-vs-checkout **before** fanning a shared-config pattern out to con
 `sdlc:run` (poly pilot): piloting the *dependency* repo's own green does NOT prove the *consumers'*
 resolution path. `sdlc-stack-web:project-structure` documents the consumption rule at design time.
 
+### Local CI-parity for a `file:`-sibling consumer (F38)
+
+When you must **ground-truth** a consumer's CI gate locally — e.g. an implementer's/devops' verdict
+can't be trusted (F37/F40) and you're reproducing the gate yourself — a `file:../sibling` consumer
+needs a **two-step install in the right order**, or the result is a false one:
+
+```bash
+set -euo pipefail          # and NO '&& echo OK' / '|| true' tails anywhere — they mask a non-zero
+                           # exit under set -e (the FALSE GREEN this recipe exists to prevent)
+# 1. Install the SIBLING FIRST — its exported eslint/tsconfig/depcruise configs must resolve THEIR
+#    own deps, or the consumer's lint dies with "Cannot find package '@eslint/js'".
+( cd ../dev-config && npm ci )
+# 2. THEN install the consumer.
+npm ci
+# 3. Run the exact gate steps CI runs — each on its OWN line, exit code standing on its own:
+npm run typecheck
+npm run lint
+npm run format:check
+npx depcruise src          # + assert a non-empty module graph (F30)
+npm test
+```
+
+Run it in the **CI image** (`docker run node:22 …`, F31) for true parity. The two failure modes this
+kills: (a) skipping the sibling install (→ `Cannot find package …` — the wrong order gives a false
+red); (b) an `&& echo OK` tail that swallows a real non-zero exit (→ a false green). This is the
+"trust-but-verify a phase result" recipe the orchestrator uses when a subagent returns a non-verdict —
+see `sdlc:run` §7 and the orchestrator invariants.
+
 ## Conventions (both hosts)
 
 - **Pin versions**: `uses: actions/checkout@v4` / `task: NodeTool@0` — never `@main`/`@latest`.

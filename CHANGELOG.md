@@ -2,6 +2,73 @@
 
 All notable changes to the Bee-Logical Claude SDLC marketplace.
 
+## [0.18.0] — 2026-07-17
+
+### Dogfood batch F34–F40 (Authentication / Identity Platform, Cycle 3) — reliability hardening
+
+Seven findings drained from the Authentication dogfood inbox, all in `sdlc` (core orchestration, agent
+contracts, adapters). This batch is about the *reliability of the pipeline itself*: trustworthy
+subagent hand-offs, no silently-truncated backlog sweeps, a clean approval path, a coherent run-file
+archival story in remote/poly, and an encoded CI-parity recipe. Designed and implemented together.
+Versions: `sdlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`sdlc-stack-web` 0.9.0 / `sdlc-ux`
+0.3.0 unchanged). Full record: `docs/dogfood-findings.md`.
+
+#### `sdlc` — subagent finish-contract (F37, F40 — a cross-agent recurrence)
+
+- **F37 / F40 — a subagent must never return on a pending self-launched background task.** The
+  implementer (F37), then the devops agent (F40), each returned a bare "still running — I'll wait for
+  the background-task notification" instead of a `COMPLETE`/`BLOCKED` verdict, leaving uncommitted state
+  (a half-regenerated lockfile, un-ticked plan, un-archived run file) for the orchestrator to discover
+  and finish. A shared **`## Finish contract`** now sits on **all nine agents + the agent template**:
+  block on the background task to a terminal state and act on the result, or return an explicit
+  `BLOCKED`/`INCOMPLETE` verdict enumerating every pending task and uncommitted path — order is always
+  **verify → commit → report**, synchronously. devops additionally must **poll a CI/pipeline run to a
+  terminal state itself**. Orchestrator side (`run` invariants): a non-verdict is **not** a phase result
+  — ground-truth the working tree, drive the remaining deterministic steps, and never blindly re-resume
+  a yielding agent.
+
+#### `sdlc` — backlog sweeps no longer silently truncate (F34)
+
+- **F34 — full-backlog operations count-first and page to completion.** `groom` opened its sweep at
+  `query({status:"todo", limit:25})`; on a ~120-item backlog that refined ~20% and reported "groomed."
+  New **_Full-backlog sweeps_** contract in `work-items`: `limit` is a **page size, not a silent cap** —
+  a full sweep counts the total first, then pages to completion or **states the cap out loud**. All
+  three adapters updated (`wi-ado` batch-fetches the full WIQL id list; `wi-jira` pages
+  `startAt`/`maxResults` and reads `total`; `wi-markdown` returns all matches when no `limit`), and
+  `groom`'s sweep protocol now counts-then-covers.
+
+#### `sdlc` — grooming approval path (F35)
+
+- **F35 — gated actions are applied by the coordinator, not a re-dispatched subagent.** A fresh analyst
+  subagent correctly refused to act on the coordinator's *claim* that the user had approved — a peer's
+  assertion of consent is not consent. `groom` now states it: the approval gate lives in the coordinator
+  turn, the analyst sweep is **propose-only** for gated actions, and the **coordinator itself** applies
+  the approved decompositions / splits / priority / routing writes (each read-back-verified).
+
+#### `sdlc` — run-file archival in remote/poly (F36, F39)
+
+- **F36 — blocked→resolved runs get a real archival path.** A run resolved via a follow-up PR could
+  ride into `main` still stamped `phase: blocked` and then linger as a blocked *active* run forever,
+  because archiving it needed a forbidden direct-to-`main` commit. `run` §10 now folds the archive into
+  the **resolving PR** so it merges in already archived; `run-state` documents the remote post-merge
+  fallback (a `chore(sdlc): archive` **branch → PR**, never a direct push to the protected branch — the
+  guard blocks that correctly and stays untouched).
+- **F39 — batch archival: cost warned, husky unblocked, empty-branch trap closed.** `status` post-merge
+  cleanup now **warns of the per-repo PR cost** ("N run files across M repos → M PRs") before starting;
+  the framework's own `.sdlc/**`-only bookkeeping commits use **`git commit --no-verify`** so a
+  repo-local husky/lint-staged hook (which assumes `node_modules`) can't block them; and `git-workflow`
+  now requires **verifying a commit actually landed before pushing** (a hook-aborted commit otherwise
+  leaves an empty pushed branch).
+
+#### `sdlc` — CI-parity recipe (F38)
+
+- **F38 — encoded local CI-parity recipe for a `file:`-sibling consumer.** When the orchestrator must
+  ground-truth a consumer's CI gate (e.g. after a non-verdict), a `file:../sibling` consumer needs a
+  **two-step install** — `npm ci` in the sibling first (so its exported eslint/tsconfig/depcruise
+  configs resolve their own deps), then the consumer — run in the CI image, with **each gate step's exit
+  code standing on its own** (no `&& echo OK` tail that fakes a green). Shipped in `sdlc:ci-cd`
+  (_Local CI-parity for a `file:`-sibling consumer_), referenced from `run` §7.
+
 ## [0.17.0] — 2026-07-14
 
 ### `sdlc` — poly cross-repo split tier (`story` default, `task` supported)

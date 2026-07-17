@@ -38,6 +38,17 @@ overlaps, then shape NEW/SKIP/NOTE proposals (single item vs epic+children) with
 type, priority, estimate. Return the proposal set — do NOT create items in this mode; the
 orchestrator creates them after user approval.
 
+## Finish contract
+
+**Never return on a pending background task.** If you launched anything long-running in the
+background (a build, a test suite, `npm ci`, a Docker start, a CI/pipeline run), then before
+returning you MUST either (a) block until it reaches a terminal state and act on the result, or
+(b) return an explicit `BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and
+every uncommitted path you are leaving behind. "Still running — I'll wait for the notification" is
+**not** a verdict: the orchestrator cannot trust it and is forced to re-derive your work. The order
+is always **verify → commit → report**, synchronously; never leave the working tree dirty behind an
+optimistic return.
+
 ## Report back
 
 Update the run file (`## Assumptions`, refined AC noted in `## Log`). Final message: verdict

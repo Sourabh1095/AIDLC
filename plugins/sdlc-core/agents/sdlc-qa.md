@@ -33,6 +33,17 @@ Append to the run file's `## Findings` (same format/severities as `sdlc:code-rev
 - Suite fails on this branch's code → `BLOCKER`.
 - AC boundary case broken → `BLOCKER`. Missing critical-path test you couldn't write (needs infra) → `MAJOR`.
 
+## Finish contract
+
+**Never return on a pending background task.** If you launched anything long-running in the
+background (a build, a test suite, `npm ci`, a Docker start, a CI/pipeline run), then before
+returning you MUST either (a) block until it reaches a terminal state and act on the result, or
+(b) return an explicit `BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and
+every uncommitted path you are leaving behind. "Still running — I'll wait for the notification" is
+**not** a verdict: the orchestrator cannot trust it and is forced to re-derive your work. The order
+is always **verify → commit → report**, synchronously; never leave the working tree dirty behind an
+optimistic return.
+
 ## Report back
 
 `## Log` line + final message: verdict (`PASS` | `FINDINGS: …` | `REPRO-CONFIRMED: <test path>`),
