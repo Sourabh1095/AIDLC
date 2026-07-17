@@ -1,0 +1,112 @@
+name: Bug report
+description: Something in the pipeline or a plugin misbehaves
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues here are public and permanent. **Redact secrets, tokens, connection strings,
+        internal endpoints, and project-identifying detail** from everything you paste below.
+
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Which plugin?
+      options:
+        - aidlc (core orchestrator)
+        - aidlc-stack-web (web stack pack)
+        - aidlc-ux (design pod)
+        - marketplace / install itself
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: From `/plugin` in Claude Code, or the `version` in `.claude-plugin/marketplace.json`.
+      placeholder: aidlc 0.19.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: workspace
+    attributes:
+      label: Workspace layout
+      description: "`workspace.layout` in `.claude/aidlc.config.json`."
+      options:
+        - mono (single repo)
+        - poly (multi-repo workspace)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tracker
+    attributes:
+      label: Work-item source
+      description: "`workItems.source` in your config."
+      options:
+        - markdown backlog
+        - Jira
+        - Azure DevOps
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gitmode
+    attributes:
+      label: Git mode
+      description: "`git.mode` — whether the project has a remote."
+      options:
+        - remote (branch → PR)
+        - local (no remote, approval-gated merge)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Which `/aidlc:*` command you ran, and the shape of the work item it was given
+        (type, size, whether it touches UI). Include the command that started the run.
+      placeholder: |
+        1. /aidlc:intake "..."
+        2. /aidlc:run PROJ-12
+        3. Pipeline stopped at ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: runfile
+    attributes:
+      label: Run file excerpt
+      description: >
+        The relevant part of `.aidlc/runs/<ID>.md` — usually the most useful thing in the report,
+        since it records what the orchestrator decided and where it stopped. Redact first.
+      render: markdown
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have removed secrets, credentials, internal endpoints, and project-identifying detail.
+          required: true
+        - label: I checked `docs/user-guide.md` and this is not configured behaviour.
+          required: false

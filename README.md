@@ -37,7 +37,7 @@ remote yet (`git.mode: local`), **approving the local merge** the pipeline propo
 /plugin install aidlc-stack-web@bee-logical          # Next.js/NestJS/PG/Mongo expertise (optional per stack)
 ```
 
-For local development of this repo: `claude --plugin-dir D:\AIDLC\plugins\aidlc-core`
+For local development of this repo: `claude --plugin-dir <your-clone>/plugins/aidlc-core`
 
 ## Adopt in a project
 
@@ -83,6 +83,15 @@ agent, behind a justification bar) in `.claude/`, tracks its reuse in `.aidlc/ex
 and — once proven — `/aidlc:promote` PRs it into this repo for platform-team review
 (`docs/promotion-policy.md`). `/aidlc:sync` closes the loop after merge. The framework grows
 itself, curated.
+
+## Contributing
+
+Issues and pull requests are welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+Anything under `plugins/**` ships to everyone who installs the marketplace, so it is reviewed
+against the acceptance bar in [`docs/promotion-policy.md`](docs/promotion-policy.md): reusable to
+≥2 projects, generalized, no secrets, right kind, right home, and safe. Read that before building a
+skill you intend to contribute — it is cheaper than finding out afterwards.
 
 ## Status
 

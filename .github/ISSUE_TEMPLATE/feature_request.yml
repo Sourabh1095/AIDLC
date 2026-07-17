@@ -1,0 +1,87 @@
+name: Feature request
+description: Propose a capability for the pipeline or a plugin
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Already built this as a project-local skill or agent and proven it?** Then `/aidlc:promote`
+        is the path, not this form — see [the promotion policy](https://github.com/bee-logical/AIDLC/blob/main/docs/promotion-policy.md).
+
+        Use this form to propose something that does not exist yet, or to check an idea against the
+        acceptance bar before you spend effort building it.
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: Where would this live?
+      description: Stack-specific belongs in the matching stack pack; universal belongs in core.
+      options:
+        - aidlc (core — universal to every project)
+        - aidlc-stack-web (web stack specific)
+        - aidlc-ux (design / motion)
+        - A new stack pack
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of thing is it?
+      description: >
+        Skills carry procedural knowledge and are loaded on demand. An agent needs a justification —
+        isolated context, a distinct tool surface, or independent judgment.
+      options:
+        - Skill (procedural knowledge)
+        - Agent (isolated context / tool surface / independent judgment)
+        - Orchestrator or pipeline behaviour
+        - Hook or permission change
+        - Tracker / git-host adapter
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What does the pipeline fail to do today, or do badly? Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: What should happen instead, concretely. Which command or stage changes?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reuse
+    attributes:
+      label: Who else needs this?
+      description: >
+        The acceptance bar asks that a change be plausibly useful to at least two projects.
+        A project-quirk used five times is still a quirk — make the case for generality.
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing
+    attributes:
+      label: Why not extend an existing skill?
+      description: >
+        If something close already exists, extending it is preferred over adding a neighbour.
+        Say what you looked at and why it does not fit.
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: This does not require widening permissions, weakening hooks, or bypassing guardrails.
+          required: false
+        - label: I have removed project-identifying detail, internal URLs, and secrets.
+          required: true

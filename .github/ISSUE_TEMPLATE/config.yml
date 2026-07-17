@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Adoption & usage questions
+    url: https://github.com/bee-logical/AIDLC/blob/main/docs/user-guide.md
+    about: How to adopt AIDLC in a project and drive the pipeline. Start here before filing a bug.
+  - name: New to the framework?
+    url: https://github.com/bee-logical/AIDLC/blob/main/docs/example-walkthrough.md
+    about: Empty folder to working full-stack app, every command included.
+  - name: Contributing a skill or agent
+    url: https://github.com/bee-logical/AIDLC/blob/main/docs/promotion-policy.md
+    about: The acceptance bar your contribution is reviewed against. Read before building.
+  - name: Report a security vulnerability
+    url: https://github.com/bee-logical/AIDLC/security/advisories/new
+    about: Report privately. Do not open a public issue for security problems.
