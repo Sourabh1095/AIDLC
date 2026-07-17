@@ -87,10 +87,18 @@ mode/layout (F23):**
   would require a forbidden direct-to-`main` commit — that's the trap this avoids. `/sdlc:run` §10
   owns this step.
 - **Local mode** — the branch is merged in-session (`/sdlc:run` §8), so archive via `/sdlc:status`
-  post-merge cleanup (a local commit on the default branch is acceptable here — the user already
-  confirmed the merge).
+  post-merge cleanup. A **local commit** on the default branch is acceptable here — the user already
+  confirmed the merge, and the protected-branch guard is a *push* guard, so a commit that is never
+  pushed doesn't trip it. (Remote is different — see *Remote post-merge fallback* below.)
 - **Control-plane** — the epic coordination file isn't on any product branch; archive it at the
   control plane `.sdlc/runs/archive/`.
+- **Remote post-merge fallback (F36/F39).** If a remote run's file merged into the default branch
+  **un-archived** (F23's on-branch archive didn't happen — e.g. a blocked→resolved-via-separate-PR run),
+  it can NOT be archived by a direct commit+push to the protected default branch: the guard blocks that,
+  correctly. Archive it via a dedicated `chore(sdlc): archive run {ID}` **branch → PR** (docs-only, so
+  `--no-verify`; verify the commit landed before pushing — `sdlc:git-workflow`), or fold it into the
+  resolving PR pre-merge (`sdlc:run` §10). In **poly+remote** this is one branch+PR **per repo**, so it
+  is not free — `/sdlc:status` post-merge cleanup warns of the cost before starting.
 
 Resume + status therefore look for a run file in **both** `runs/` and `runs/archive/`; a file found
 only in `archive/` means the run already completed (suggest `/sdlc:status` cleanup / confirm the

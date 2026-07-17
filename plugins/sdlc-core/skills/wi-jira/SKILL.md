@@ -49,7 +49,7 @@ Canonical → Jira defaults (override per project in `workItems.jira.statusMap`)
 - **fetch(id)** — get the issue, map fields as above. Include the last ~5 comments in `sourceRaw` context when refining requirements.
 - **query(filter)** — JQL:
   `project = {project} AND statusCategory = "To Do" AND issuetype IN (Story, Task, Bug, Spike) ORDER BY priority DESC, rank ASC`
-  (+ `AND labels = {label}` when filtered). Apply the "ready" rule (≥1 AC except task/spike; parent not blocked) client-side after mapping. Respect `limit`.
+  (+ `AND labels = {label}` when filtered). Apply the "ready" rule (≥1 AC except task/spike; parent not blocked) client-side after mapping. When a `limit` is given it bounds one page; with **no `limit`** (a full sweep) page through **all** matches via JQL `startAt`/`maxResults` until exhausted and report the total (`searchJiraIssuesUsingJql` returns `total`) — **never hard-cap a full-backlog sweep** (F34 — see `sdlc:work-items` → *Full-backlog sweeps*).
 - **create(item)** — create with mapped type/summary/description (AC embedded per the project's detected convention); set parent/epic link when given; add the `repo:<name>` label (or Component) when `repo` is set, and create "Depends on" issue links for each `dependsOn` ID (skip links to not-yet-created siblings and add them once all children exist). Return the new key.
 - **transition(id, status)** — Jira transitions are by ID, not name: first get available transitions, pick the one whose TARGET status matches the mapped name (case-insensitive); if none matches, apply the documented fallback and comment what happened. Never guess transition IDs.
 - **comment(id, markdown)** — add comment, prefixed `SDLC:` so pipeline comments are filterable.
@@ -59,5 +59,5 @@ Canonical → Jira defaults (override per project in `workItems.jira.statusMap`)
 ## Cautions
 
 - Respect the site's required fields on create (fetch createmeta if creation fails; report unfillable required fields to the user rather than inventing values).
-- Batch reads where the MCP tools allow it; never page through more than `limit + 10` issues for a query.
+- Batch reads where the MCP tools allow it. When a `limit` is set, don't over-fetch (stop at ~`limit + 10`); but a **full sweep passes no `limit`** and must page to completion (see the `query` op above) — the cap applies per page, not to the whole backlog.
 - All writes are idempotent-by-check: re-read before transition/updateAC to avoid clobbering human edits made mid-run.

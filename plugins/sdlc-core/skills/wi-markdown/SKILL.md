@@ -25,7 +25,10 @@ Glob `backlog/{items,epics}/{id}-*.md`, parse frontmatter + sections into a Work
 ### query(filter)
 Glob all item files, parse frontmatter only. Apply filter, drop non-ready items
 (ready = `status: todo` AND ≥1 AC (task/spike exempt) AND parent not `blocked` — check parent
-files when `parent` is set). Sort by priority (P1 first), then by numeric id ascending. Respect `limit`.
+files when `parent` is set). Sort by priority (P1 first), then by numeric id ascending. A `limit`
+bounds the returned page; with **no `limit`** return *all* ready items (the glob already has them —
+never truncate a full sweep) and the total count is just the match count (F34 — see
+`sdlc:work-items` → *Full-backlog sweeps*).
 
 ### create(item)
 1. Read `backlog/.sequence` → n. Write back n+1 immediately (before creating the file).

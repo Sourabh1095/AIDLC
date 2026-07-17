@@ -12,8 +12,12 @@ adapter (`sdlc:work-items`), then dispatch **Agent → sdlc-analyst** with this 
 
 ## Sweep protocol (analyst)
 
-`query({status: "todo", limit: 25})` plus, for markdown source, epics too. For each item, in
-priority order:
+**Count first, then cover the whole backlog — don't groom only the first page (F34).** Get the total
+count of `todo` items, then either page through *all* of them or, if you deliberately cap this pass,
+say so out loud ("N items ready — grooming the first K this pass"). A silent `limit` that refines 20%
+of a 120-item backlog and reports "groomed" is exactly the bug this guards against (see
+`sdlc:work-items` → *Full-backlog sweeps*). Fetch with `query({status: "todo"})` (all matches, paged to
+completion) plus, for markdown source, epics too. For each item, in priority order:
 
 1. **AC quality** (per `sdlc:requirements`): weak/missing AC on stories and bugs → refine and
    `updateAC(...)`. Log what changed via `comment` (`SDLC groom: AC refined — <n> criteria`).
@@ -42,9 +46,18 @@ priority order:
 
 ## Autonomy boundaries
 
-Applied automatically: AC refinement, sizing, factual comments/flags.
-Proposed only (require human approval): epic decomposition into new items, XL splits,
-priority changes, closing duplicates.
+- **Applied automatically (by the analyst, inline):** AC refinement, sizing, factual comments/flags.
+- **Proposed only — require human approval:** epic decomposition into new items, XL/cross-repo splits,
+  priority changes, repo-routing writes, closing/superseding duplicates.
+
+**Who applies the approved actions (F35).** The human-approval gate lives in the **coordinator turn** —
+the main session that asked the user (e.g. via AskUserQuestion). So the **coordinator applies the gated
+actions itself** after approval. Do NOT re-dispatch the analyst to "execute — the user approved": a
+fresh subagent cannot verify consent it never received first-hand, and correctly will not act on a
+peer's *claim* of consent. Therefore the analyst's sweep is **propose-only for gated actions**; the
+approved epic decompositions, splits, priority changes and routing writes are performed by the
+coordinator through the adapter (each write read-back-verified per `sdlc:work-items` → *Write
+verification*). Re-involve the analyst only for fresh analysis, never as a post-approval executor.
 
 ## Report
 
@@ -62,4 +75,5 @@ Needs your call:
 - Priority suggestions: PROJ-135 P4→P2 (auth-path bug)
 ```
 
-Apply the "needs your call" actions only after the user picks them.
+Apply the "needs your call" actions only after the user picks them — and the **coordinator** applies
+them directly (never a re-dispatched analyst; see *Autonomy boundaries* → F35).

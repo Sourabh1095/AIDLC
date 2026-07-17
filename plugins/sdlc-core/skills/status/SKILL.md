@@ -114,6 +114,16 @@ Apply fixes only on the user's pick; every applied transition is read-back-verif
 For any run in phase `done`/`in_review` that is integrated — **remote mode:** its PR is merged
 (`gh pr view --json state` / `az repos pr show`); **local mode:** `pr:` is a `local-merge:<sha>`
 (the merge already happened at §8, so it's integrated by definition):
+
+**Poly+remote costs one archive PR per repo — warn first (F39).** Archiving in poly+remote is not a
+free in-place move: each run file lives in its own repo, and a commit there reaches the default branch
+only through the gate — i.e. **one `chore(sdlc): archive` branch → PR per repo**. Before starting a
+batch, count the run files needing archival and state the cost to the user ("N run files across M repos
+→ M PRs"). Prefer that each run was already archived on its delivering PR pre-merge (F23, `sdlc:run`
+§10), so this batch path stays the exception. Each archive commit is `.sdlc/**`-only → commit it
+`--no-verify` (husky can't block bookkeeping) and confirm it landed before pushing — the empty-branch
+trap (`sdlc:git-workflow` → bookkeeping commits).
+
 1. `adapter.transition(id, done)` and `adapter.comment(id, "PR merged: <url>")` (remote) /
    `adapter.comment(id, "Integrated locally: <sha>")` (local).
 2. **Parent rollup (F19/F22).** After closing the item, roll its parent up if all the parent's
@@ -124,7 +134,11 @@ For any run in phase `done`/`in_review` that is integrated — **remote mode:** 
 3. Move the run file to `archive/` **in its own location** — `<repo.path>/.sdlc/runs/archive/<ID>.md`
    for a poly per-repo run, else `.sdlc/runs/archive/<ID>.md`. (Poly+remote: the per-repo run file was
    ideally archived **on the branch pre-merge** so it rode into `main` already archived — F23; this
-   step is the control-plane / local-mode fallback.)
+   step is the control-plane / local-mode fallback.) **Remote:** the move commit reaches the default
+   branch via a `chore(sdlc): archive` branch → PR — never a direct push to the protected branch (the
+   guard blocks it, correctly). It's a `.sdlc/**`-only commit, so `--no-verify`, and verify it landed
+   before pushing (F36/F39; `sdlc:run-state` → *Remote post-merge fallback*). **Local:** a local commit
+   on the default branch (no push) is fine — the user confirmed the merge at §8.
 4. Delete the local feature branch if fully merged (in that repo). In local mode §8 usually deleted
    it already — skip if gone.
 

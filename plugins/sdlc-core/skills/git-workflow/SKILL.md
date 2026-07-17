@@ -37,6 +37,17 @@ in poly — always `cd` into the target repo first.
 - Body references the item: `Refs: PROJ-123`
 - One logical change per commit; the build/tests must pass at every commit.
 - The run file (`.sdlc/runs/<ID>.md`) is committed along with the work it describes.
+- **Bookkeeping commits (`.sdlc/**` only) — `--no-verify` + verify-before-push (F39).** A docs-only
+  `.sdlc/` commit (a `chore(sdlc): archive run <id>` run-file move, a run-file checkpoint) carries no
+  code to lint or test, so commit it with `git commit --no-verify`. That stops a repo-local quality hook
+  (husky/lint-staged) that assumes `node_modules` is installed from blocking the framework's own
+  bookkeeping — the exact trap where `lint-staged: not recognized` aborted every archive commit on a
+  machine that hadn't run `npm ci`. The exemption is **only** for `.sdlc/**`-only commits; product-code
+  commits always run the hooks.
+- **Verify a commit landed before you push (F39).** A pre-commit hook that fails *aborts the commit*,
+  but a following `git push` still runs — pushing an **empty branch** and masking the failure. After
+  every commit, confirm it actually landed (`git rev-parse HEAD` advanced / `git status` clean /
+  `git log -1` shows it) **before** pushing. Never push assuming the commit succeeded.
 
 ## Push + PR (remote mode)
 
@@ -109,6 +120,11 @@ branch first — never resolve conflicts blind on the default branch.
 - Push rejected (non-fast-forward): `git pull --rebase <remote> <branch>` requires approval — ask; never force.
 - PR already exists for the branch: reuse it (`gh pr view --json url`), update the body if stale.
 - Detached HEAD or dirty default branch: stop and report; never stash-and-hope on the default branch.
+- Bookkeeping (run-file archival) never justifies a direct push to the protected default branch — the
+  guard blocks that correctly, and it's not a bug to work around. Archive **on the feature/resolving
+  branch pre-merge** (it rides in via the PR), or via a dedicated `chore(sdlc): archive` branch → PR;
+  never poke a hole in branch protection to move a markdown file. (See `sdlc:run` §10 and
+  `sdlc:run-state` → *Archive*.)
 - Remote mode but no remote is configured (`git remote` is empty): stop and report — either add the
   remote, or set the repo's `mode: local` in `sdlc.config.json` to use the local-merge flow. Never
   invent a remote.

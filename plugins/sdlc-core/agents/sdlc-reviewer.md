@@ -36,6 +36,15 @@ Work the checklist in this order (highest value first):
 - `MAJOR` — likely bug or regression risk, missing critical test. Must fix.
 - `MINOR` — style, naming, non-critical gap. Fix if trivial; otherwise note it.
 
+## Finish contract
+
+**Never return on a pending background task.** If you launched anything long-running in the
+background (a test suite, a build, `npm ci`, a linter run), then before returning you MUST either
+(a) block until it reaches a terminal state and act on the result, or (b) return an explicit
+`BLOCKED` / `INCOMPLETE` verdict that names every still-pending task. "Still running — I'll wait for
+the notification" is **not** a verdict: the orchestrator cannot trust it and is forced to re-derive
+your work. Review to a real verdict synchronously.
+
 ## Report
 
 Append findings to the run file's `## Findings`, one line each:

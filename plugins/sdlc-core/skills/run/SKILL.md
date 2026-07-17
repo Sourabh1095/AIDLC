@@ -253,7 +253,11 @@ Read `pipeline.verification`. Defaults are **economical**: `mode` `auto`; `revie
 `qa` `on-demand`; `security` `per-epic`; `securityConfirm` true. This is the *extra*, agent-driven
 review — and it never runs over nothing: the implementer already ran lint + typecheck + tests green,
 and CI re-runs them as a hard gate, so per-item quality always has that floor. Each agent carries its
-own **cadence** so tokens are spent only where they earn it.
+own **cadence** so tokens are spent only where they earn it. **When you must reproduce that gate
+yourself** — a subagent returned a non-verdict (see the orchestrator invariants), or you can't take a
+`file:`-sibling consumer's CI parity on trust — follow `sdlc:ci-cd` → *Local CI-parity for a
+`file:`-sibling consumer* (F38): two-step sibling install, each gate step's exit code standing on its
+own (no `&& echo` masking that fakes a green).
 
 **Cadence values** (per agent): `per-item` (every item) · `per-epic` (defer to the epic's
 consolidated pass, §2) · `on-demand` (run ONLY when this run was explicitly asked — the user's prompt
@@ -342,6 +346,17 @@ cleanup in `/sdlc:status` archives it in-session instead. The **control-plane** 
 (`.sdlc/runs/{EPIC-ID}.md`) is NOT committed to any product branch and archives normally at the control
 plane. See `sdlc:run-state` → *Archive*.
 
+**Blocked→resolved runs archive the same way — on the resolving branch (F36).** A run that completes
+through a `blocked` → resolved cycle (fixed via a **follow-up PR**, not the original branch) hits the
+same trap: if its run file already rode into `main` still stamped `phase: blocked`, it can only be
+"archived" by a forbidden direct-to-`main` commit, so it lingers as a blocked *active* run in
+`/sdlc:status` indefinitely. Handle it identically — **fold the archive into the resolving PR**: on that
+PR's branch flip the run file to `phase: done`, `git mv` it into `runs/archive/`, and commit
+`chore(sdlc): archive run {ID}` (`--no-verify` — a `.sdlc/**`-only bookkeeping commit, see
+`sdlc:git-workflow`) so it merges in already archived. If the run file already merged un-archived, do
+**not** direct-push to `main` (the guard blocks it, correctly) — open a small `chore(sdlc): archive`
+branch → PR, or let `/sdlc:status` post-merge cleanup batch it.
+
 Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
 resolved, anything needing human eyes.
 - **Remote mode:** **Humans review and merge the PR — never merge it yourself.** The item stays at
@@ -379,6 +394,15 @@ a recurring procedure):
 - Agent briefs always include: run-file path, the section(s) they may append to, and
   "return a short verdict + pointer, not a transcript".
 - Keep your own context lean: read agents' verdicts, not their full output; the run file is the record.
+- **A subagent's non-verdict is NOT a phase result (F37/F40).** Every agent's finish contract forbids
+  returning on a pending self-launched background task. So if an agent returns without an explicit
+  terminal verdict (`COMPLETE`/`BLOCKED`/`DIAGNOSED`/`APPROVE`/`FINDINGS`) — e.g. "still running, I'll
+  wait for the background-task notification" — treat the phase as **unverified**: ground-truth the
+  working tree yourself (`git status`, and re-run the phase's gate — tests/lint/CI-parity), commit or
+  enumerate any leftover state, and drive the remaining deterministic steps directly. Do **not** stamp
+  the phase complete on the agent's word, and do **not** blindly re-resume a yielding agent expecting a
+  different result (resume once at most; if it yields again, take over). This pattern has recurred across
+  the implementer and devops agents — it is a contract issue, not one agent's prompt.
 - Any unexpected state (dirty tree at start, wrong branch, adapter errors) → report precisely; never improvise around safety rules.
 - **Plugin self-feedback (when `pluginFeedback.enabled`).** If you — or a dispatched agent whose report
   says so — hit friction with the **plugin itself** (a gap you worked around, wrong/missing guidance, a
