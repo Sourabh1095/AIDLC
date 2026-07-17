@@ -1,6 +1,6 @@
 ---
 name: wi-ado
-description: Work-item adapter for Azure DevOps Boards via the ADO MCP server with az boards CLI fallback. Implements fetch, query, create, transition, comment, link and updateAC using WIQL and the project's status map. Load when workItems.source is "ado".
+description: Work-item adapter for Azure DevOps Boards via the ADO MCP server, with an az boards CLI fallback and a PAT+REST last-resort. Implements fetch, query, create, transition, comment, link and updateAC using WIQL and the project's status map. Load when workItems.source is "ado".
 user-invocable: false
 ---
 
@@ -9,11 +9,17 @@ user-invocable: false
 Implements the `aidlc:work-items` contract over Azure Boards. Config:
 `.claude/aidlc.config.json → workItems.ado` = `{ org, project, statusMap }`.
 
-**Tool preference:** the `azure-devops` MCP server (bundled) first — discover tool names via
-ToolSearch for `work item` (typical: `wit_get_work_item`, `wit_create_work_item`,
-`wit_update_work_item`, `wit_add_work_item_comment`, WIQL query tools). If the MCP server is
-not connected, fall back to the `az` CLI (`az boards ...`, already permitted) — it covers every
-operation below. If neither works, tell the user (`az login`, `az extension add --name azure-devops`).
+**Tool preference (three tiers — prefer the first that works):**
+1. **`azure-devops` MCP server** (bundled) — discover tool names via ToolSearch for `work item`
+   (typical: `wit_get_work_item`, `wit_create_work_item`, `wit_update_work_item`,
+   `wit_add_work_item_comment`, WIQL query tools).
+2. **`az boards` CLI** (`az ...`, already permitted) — covers every operation below. Use when the MCP
+   server isn't connected.
+3. **PAT + REST last-resort** (off by default — see below). Use only when **neither** the MCP nor
+   `az` is available (a locked-down box with no Azure CLI, an offline-signed environment) **and** the
+   user has explicitly supplied a PAT. Before falling this far, tell the user the normal fixes
+   (`az login`, `az extension add --name azure-devops`, set `ADO_MCP_ORG` + relaunch) — the PAT path
+   is a workaround, not the recommended route.
 
 CLI defaults: `az devops configure --defaults organization=https://dev.azure.com/{org} project={project}`
 once per session, then omit `--org/--project` flags.
@@ -149,6 +155,31 @@ PATH; a full relaunch from a shell with both is required. If board reads fail th
 tell the user): `echo $ADO_MCP_ORG` is set, `az account show` succeeds, `az devops configure --defaults
 organization=… project=…` ran — all in the launching shell — then relaunch. (`/aidlc:status` surfaces
 this as a doctor check.)
+
+## PAT + REST last-resort (tier 3 — off by default)
+
+When **neither** the MCP nor `az` can reach the board and the user has explicitly provided a
+Personal Access Token, the same seven operations can run over the ADO REST API directly. This is a
+deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
+
+- **Gate it.** Use this tier only when (a) tiers 1–2 are confirmed unavailable, and (b) a PAT is
+  present. A PAT needs **Work Items: Read & Write** + **Project & Team: Read** at minimum. Never
+  invent or persist one.
+- **Secret handling — never write the token to a file.** Read it from the environment
+  (`AZURE_DEVOPS_EXT_PAT`, the same var `az` honors) or accept it for in-session use only. **Do not
+  echo it, commit it, or embed it in any generated artifact.** In particular, **never generate a
+  self-contained HTML file with the PAT baked in** — that browser-pusher pattern (from the standalone
+  claude.ai planner skill) is for sandboxes with no network and no CLI; here the write path is a
+  direct, verified REST call, and a token-in-a-file is an avoidable leak.
+- **Transport.** Basic auth header `Authorization: Basic base64(":" + PAT)`; create via
+  `POST {org}/{project}/_apis/wit/workitems/${type}?api-version=7.1` with a
+  `application/json-patch+json` body of `{op:add, path:/fields/<field>, value}` ops; iterations via
+  `POST .../_apis/wit/classificationnodes/iterations`; parent/child via a `PATCH` adding a
+  `System.LinkTypes.Hierarchy-Forward` relation. Field/type names per process are in the bootstrap
+  skill's `references/work_item_types.md`.
+- **Same contract still applies.** REST writes are subject to the identical **write-verification**
+  (read back, assert, retry, hard-error on mismatch) and per-type **status-category** resolution as
+  the MCP/`az` tiers — the transport changes, the guarantees do not.
 
 ## Cautions
 

@@ -7,6 +7,43 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.20.0] — 2026-07-17
+
+### `aidlc` — new `/aidlc:bootstrap`: whole-backlog setup from a requirements document
+
+- **New skill `aidlc:bootstrap`** — a **bulk front door** that turns a client's requirements (an
+  uploaded Word/PDF, a chat brief, or both) into a complete, populated backlog in one reviewed pass:
+  ingest → work-breakdown (Epic→Feature→Story→Task, every item described, every story ≥3 testable
+  AC) → contribution-aware team assignment → capacity-planned sprints → create it all in the active
+  tracker. It sits alongside `/aidlc:intake` (one requirement at a time) and `/aidlc:init` (which
+  must run first to seed the config). Adapted from the standalone `azure-devops-planner` skill built
+  for the claude.ai web app, but **moulded to the AIDLC architecture** rather than copied:
+  - **Tracker-agnostic via the adapter.** The original was ADO-only and pushed via a self-contained
+    HTML file with an **embedded PAT** (a workaround for the web sandbox, where `dev.azure.com` is
+    unreachable and users may lack a CLI). Bootstrap instead routes every write through
+    `aidlc:work-items` → the source adapter, so the same command populates **ADO, Jira, or the
+    markdown backlog**, with full **write-verification**, dedup against the existing board, and
+    provenance stamping (`bootstrap` label + dated note). **No HTML file, no token in a file.**
+  - **Inputs the platform already owns are not re-collected** — no ADO URL, no process template, no
+    PAT prompt: org/project come from `aidlc.config.json`, the adapter authenticates itself, and
+    `aidlc:wi-ado` auto-detects the process and owns type/field mapping. Repo topology (mono/poly +
+    `crossRepoSplit`) is read from config, not re-asked.
+  - **Net-new capability kept** — document ingestion (PDF/DOCX via `pdftotext`/`pandoc`), a
+    **contribution-aware team model** (Primary/Secondary/Guidance + %, with assignment rules that
+    keep critical-path work off part-time contributors), FTE **capacity-based sprint planning**, and
+    work-stream filtering. The team roster is **per-run only** — used to plan and assign this pass,
+    not persisted to config. Ships `scripts/parse_team_file.py` (CSV/Excel roster importer) and
+    `references/work_item_types.md` (per-template hierarchy/field reference for planning).
+- **`aidlc:wi-ado` — added a PAT+REST last-resort tier.** The ADO write path is now an explicit
+  three tiers: **`azure-devops` MCP → `az boards` CLI → PAT+REST (off by default)**. The PAT tier
+  fires only when neither MCP nor `az` is reachable **and** the user supplied a token; it reads the
+  PAT from the environment (never writes it to a file, never bakes it into a generated HTML pusher)
+  and is bound by the identical write-verification and per-type status-category rules as the other
+  tiers. This gives the standalone skill's PAT approach a home as a genuine escape hatch without
+  regressing the MCP-first posture.
+- Versions: `aidlc` 0.19.0 → **0.20.0**, marketplace → **0.20.0** (`aidlc-stack-web` 0.10.0 /
+  `aidlc-ux` 0.4.0 unchanged).
+
 ## [0.19.0] — 2026-07-17
 
 ### Marketplace-wide rename: **SDLC → AIDLC**

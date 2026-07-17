@@ -76,6 +76,7 @@ to run it as one repo.
 | Situation | Command |
 |---|---|
 | New project, first time | `/aidlc:init` |
+| **A whole project from a requirements doc/brief** (Word/PDF or chat) → populated board + sprint plan | `/aidlc:bootstrap ./requirements.docx` |
 | **"I want X" — requirement in your head, not in the backlog yet** | `/aidlc:intake add avatar upload, max 5MB` |
 | Describe it AND build it in one go | `/aidlc:run add avatar upload, max 5MB` (free text → items → pipeline) |
 | "Just work on the next most important thing" | `/aidlc:next` |
