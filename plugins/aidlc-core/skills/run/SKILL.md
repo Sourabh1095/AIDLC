@@ -112,8 +112,28 @@ unset on the run file. With several:
 (control-plane → explicit `repo` → label match → single default → analyst grounding → undeclared-repo →
 ask). Record the resolved repo on the run file's `repo:` and write it back via
 `adapter.link`/`adapter.updateAC` where the source supports it. From here **every
-git/branch/commit/push/PR/verify step for this run runs with cwd = `workspace.root`/`<repo.path>`**,
-using THAT repo entry's `host`/`remote`/`defaultBranch`/`branchPattern`. The run file lives at
+git/branch/commit/push/PR/verify step for this run targets `workspace.root`/`<repo.path>`**,
+using THAT repo entry's `host`/`remote`/`defaultBranch`/`branchPattern`.
+
+**How to target it (F43) — the session cwd stays at the control plane; you do NOT get to change it.**
+The mechanism differs by command family, and getting it wrong walls the run on permission prompts:
+
+- **git → `git -C "<abs repo path>" <verb> …`.** Never `cd <path> && git …`: Claude Code prompts for
+  *every* compound command that `cd`s into a different directory and then runs `git`, regardless of
+  the allowlist, because git in a new directory can execute that directory's hooks. `git -C` is the
+  only form that runs unprompted, and the shipped template allows the poly verbs in both bare and
+  `-C` form (with the force-push/hard-reset denies mirrored in `-C` form too).
+- **everything else (npm, pnpm, docker, test/lint/build) → `cd "<abs repo path>" && <cmd>`.** A `cd`
+  into a path under the workspace root is read-only and each half is matched independently, so the
+  bare `Bash(npm run:*)`-style rules keep applying. There is no `-C` equivalent for these, and
+  `npm --prefix` would miss the allowlist the same way `git -C` did. Avoid output redirects in the
+  same compound command as the `cd` (they prompt when the redirect target's directory is ambiguous);
+  `2>/dev/null` alone is fine.
+- **`gh` / `az repos` →** pass the repo explicitly (`gh -R <owner>/<repo>`, `az repos pr … --repository`)
+  rather than relying on cwd.
+
+In mono the session cwd already *is* the repo, so bare `git <verb>` is correct there and no `-C` is
+needed. The run file lives at
 `<repo.path>/.aidlc/runs/{ID}.md` and is committed to the branch (so the PR still carries the full audit
 trail). Two routing outcomes are first-class, not ad-hoc:
 - **`control-plane`** (F8) — a workspace-level item (README, cross-repo docs, control-plane config)

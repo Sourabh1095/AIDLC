@@ -7,6 +7,41 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.24.0] — 2026-07-19
+
+### `aidlc` — unblock poly runs at the first git call (F43) + drop no-op `Write(...)` denies (F44)
+
+F42 fixed `/aidlc:sprint` launching in a poly workspace and, in doing so, moved the wall one step
+later. Pre-F42 the run couldn't start; post-F42 it starts, resolves the item, routes to the repo —
+and then blocks on **every** git call. The launch cwd is now the control plane and a session can't
+change its cwd, so poly git calls are necessarily `git -C "<repo path>" <verb>`, whose permission
+prefix matches **none** of the template's bare-verb rules (`Bash(git status:*)`, …). Every poly item
+hit this identically, before any write.
+
+- **Template allows the poly git verbs in `-C` form**, alongside the bare forms mono still uses.
+- **The denies are mirrored in `-C` form, not left behind.** Widening allow without widening deny would
+  have let `git -C <path> push --force` bypass `Bash(git push --force:*)`. Bash rules support
+  mid-pattern wildcards, so the mirror is exact: `Bash(git -C * push --force:*)`, `… -f`,
+  `… reset --hard origin`, plus `Bash(git -C * rebase:*)` in `ask`. A bare `Bash(git -C:*)` was
+  rejected for precisely the bypass it would open.
+- **A pre-existing deny gap is closed while here:** `Bash(git push --force:*)` never matched
+  `git push origin --force`, where the flag follows the remote. Added `Bash(git push * --force:*)`
+  and `-f`, in both bare and `-C` form.
+- **Added `Bash(az rest:*)`** — `wi-ado` needs it for the work-item-type states API and it was absent
+  from the template entirely. (Observed symptom: `az boards` worked, `az rest` didn't.)
+- **`aidlc:run` §2.5 now states the routing mechanism per command family** rather than the ambiguous
+  "cwd = `<repo.path>`" that produced the mismatch: git → `git -C`; npm/docker/test/lint →
+  `cd "<path>" && <cmd>`; `gh`/`az repos` → pass the repo explicitly. **`cd … && git …` is explicitly
+  ruled out for git**: Claude Code prompts for any compound command that `cd`s into a different
+  directory and then runs git — regardless of the allowlist — since git can execute that directory's
+  hooks. Mono is unaffected; its cwd already is the repo.
+- **Dropped the template's two `Write(...)` denies (F44).** File permission checks match only
+  `Edit(path)`/`Read(path)`; a `Write(path)` rule is accepted but never matched, so each one printed a
+  startup warning on every headless run while enforcing nothing. The adjacent `Edit(...)` denies
+  already cover both settings files, so enforcement is unchanged.
+- Versions: `aidlc` 0.23.0 → **0.24.0**, marketplace → **0.24.0** (`aidlc-stack-web` 0.10.0 /
+  `aidlc-ux` 0.4.0 unchanged).
+
 ## [0.23.0] — 2026-07-19
 
 ### `aidlc` — own the control plane's git story in a polyrepo workspace
