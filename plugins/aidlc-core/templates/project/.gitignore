@@ -1,0 +1,32 @@
+# AIDLC control plane — workspace-root .gitignore
+#
+# This folder is the control plane and SHOULD be its own git repo: it versions
+# backlog/, .claude/aidlc.config.json, epic coordination files and cross-repo
+# ADRs, and it is the branch/merge target for `control-plane`-routed work items.
+#
+# Product repos are SEPARATE git repos living in subfolders here, and must never
+# be tracked from this repo. An untracked nested repo picked up by `git add -A`
+# is staged as a mode-160000 gitlink — a submodule with no .gitmodules entry —
+# which clones as an empty directory and reports no error.
+
+# --- product repo checkouts (one line per repos[] entry) ---
+# Managed block: /aidlc:init writes these at scaffold time and /aidlc:repo add
+# appends to it. Use explicit paths, never a blanket `*/` — root-level folders
+# that are NOT repos (docs/, scripts/) must stay tracked.
+# AIDLC:REPOS
+# AIDLC:REPOS-END
+
+# --- local / machine-specific ---
+.claude/settings.local.json
+
+# --- ephemeral control-plane state (pids, absolute paths, logs) ---
+.aidlc/sprint-*.json
+.aidlc/staged-claude/
+.aidlc/logs/
+
+# --- tooling ---
+node_modules/
+*.log
+
+# Durable state stays TRACKED on purpose: backlog/, .aidlc/runs/,
+# .aidlc/extensions.json, .claude/aidlc.config.json.

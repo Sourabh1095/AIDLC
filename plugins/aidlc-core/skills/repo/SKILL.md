@@ -43,6 +43,15 @@ default yet.
 Append the assembled entry to `repos[]`. Re-read the file after writing and confirm the entry is
 present and valid JSON (write-verification discipline — a silent bad write here breaks routing).
 
+### 3b · Ignore the checkout at the control plane — BEFORE creating the folder
+Append `/<path>/` to the control-plane `.gitignore`, inside its managed `# AIDLC:REPOS` block (create
+the block if the workspace predates it; see `/aidlc:init` Step 4.4). Do this **before** Step 4 creates
+the folder, so the new repo is never visible to the control-plane index even briefly. Verify with
+`git -C <workspace.root> check-ignore -q <path>`. Without it, the next `git add -A` at the control
+plane commits the repo as a mode-160000 gitlink — a submodule with no `.gitmodules`, which clones as
+an empty directory and reports no error. The `guard` hook blocks that commit, but this is the fix that
+stops it from arising.
+
 ### 4 · Bootstrap the folder (so the pipeline can branch into it — F4)
 If `<path>` is missing or not a git repo:
 1. Create the folder.

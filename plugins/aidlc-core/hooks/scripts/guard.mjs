@@ -9,6 +9,7 @@
 // for `git` segments — git executes no SQL, cluster, filesystem or credential ops,
 // so those tokens in a git command can only be message/branch text.
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { execSync } from "node:child_process";
 
 let data;
@@ -50,6 +51,38 @@ function branchInfo() {
   return { branch: _branch, onProtected: /^(main|master|develop|release\/.+)$/.test(_branch) };
 }
 
+// Gitlinks (mode 160000) newly staged in this repo's index, excluding paths
+// registered as real submodules in .gitmodules. Only called for an actual
+// `git commit`, so non-commit commands never pay for the subprocesses. Any
+// failure (not a repo, git missing) returns [] — never block on uncertainty.
+function stagedGitlinks() {
+  let top, raw;
+  try {
+    const opts = { cwd, stdio: ["ignore", "pipe", "ignore"], timeout: 5000 };
+    top = execSync("git rev-parse --show-toplevel", opts).toString().trim();
+    // ":<srcmode> <dstmode> <srcsha> <dstsha> <status>\t<path>" — works on an
+    // unborn branch too (diffed against the empty tree). dstmode 160000 = a
+    // gitlink being written; a deletion has dstmode 000000 and is fine.
+    raw = execSync("git diff --cached --raw", opts).toString();
+  } catch {
+    return [];
+  }
+  const links = [];
+  for (const line of raw.split("\n")) {
+    const m = line.match(/^:\d{6} 160000 \S+ \S+ \S+\t(.+)$/);
+    if (m) links.push(m[1].trim());
+  }
+  if (!links.length) return [];
+  let modules = "";
+  try {
+    modules = readFileSync(join(top, ".gitmodules"), "utf8");
+  } catch {
+    /* no .gitmodules — every staged gitlink is unregistered */
+  }
+  const registered = new Set([...modules.matchAll(/^\s*path\s*=\s*(.+?)\s*$/gm)].map((m) => m[1]));
+  return links.filter((p) => !registered.has(p));
+}
+
 // Blank the contents of quoted strings so words inside an argument (e.g. a -m
 // commit message) can't masquerade as command tokens.
 const stripQuotes = (s) => s.replace(/'[^']*'/g, " ").replace(/"[^"]*"/g, " ");
@@ -70,6 +103,8 @@ const PROTECTED = String.raw`(?:main|master|develop)(?![\w\/-])`;
 // `git push` as an ACTUAL invocation: git, optional global options (-c x=y, -C path,
 // --opt[=val], -p …), then the `push` subcommand — not the word "push" in an argument.
 const GIT_PUSH = String.raw`\bgit\b(?:\s+(?:-c\s+\S+|-C\s+\S+|--[\w-]+(?:=\S+)?|-\w+))*\s+push\b`;
+// Same shape for `git commit` — the gitlink check below inspects the index.
+const GIT_COMMIT = String.raw`\bgit\b(?:\s+(?:-c\s+\S+|-C\s+\S+|--[\w-]+(?:=\S+)?|-\w+))*\s+commit\b`;
 
 // Segment per shell separator so flags/tokens from OTHER commands in a compound line
 // (`rm -f x && git push`) don't leak across the checks.
@@ -99,6 +134,24 @@ for (const rawSeg of cmd.split(/[|;&]+/)) {
   // --- 2. History rewriting (git-specific) ---
   if (/\bgit\s+(filter-branch|filter-repo)\b/.test(skel))
     block("git history rewriting is not allowed in the pipeline.");
+
+  // --- 2b. Accidental gitlink (a nested repo staged as a submodule) ---
+  // In a poly workspace the control plane holds each product repo as a subfolder
+  // with its own .git. If one isn't ignored, `git add -A` at the control plane
+  // stages it as a mode-160000 gitlink with no .gitmodules entry — it clones as
+  // an empty directory and git reports no error, so nothing else catches it.
+  // The index is already written by the time a commit runs, so inspect it here.
+  if (new RegExp(GIT_COMMIT).test(skel)) {
+    const links = stagedGitlinks();
+    if (links.length)
+      block(
+        `staging a nested git repository as a gitlink (${links.join(", ")}). This would commit a ` +
+          `submodule reference with no .gitmodules entry, which clones as an empty directory. ` +
+          `Product repos are versioned independently — add the path to this repo's .gitignore ` +
+          `(the # AIDLC:REPOS block), then \`git reset -- <path>\` to unstage it (index only; your ` +
+          `checkout is untouched). If it was already committed, \`git rm --cached -rf <path>\`.`,
+      );
+  }
 
   // The content checks below are dangerous only when NOT run by git — git executes
   // no SQL, cluster, filesystem or credential operations. Skipping git segments is

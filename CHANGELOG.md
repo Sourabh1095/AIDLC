@@ -7,6 +7,39 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.23.0] — 2026-07-19
+
+### `aidlc` — own the control plane's git story in a polyrepo workspace
+
+A poly workspace is a control-plane git repo with other git repos nested inside it as subfolders.
+That arrangement has one sharp edge, and nothing in the framework addressed it: if a product repo
+isn't ignored, a single `git add -A` at the control plane stages it as a **mode-160000 gitlink** — a
+submodule reference with no `.gitmodules` entry. Git reports no error, the commit succeeds, and the
+repo clones with an empty directory where the product code should be. `/aidlc:run` reaches this path
+in normal operation, because `control-plane` is a first-class routing target that branches and commits
+at the workspace root.
+
+- **The project template now ships a `.gitignore`** (it previously shipped none). It ignores product
+  repo checkouts via a managed `# AIDLC:REPOS` block, plus machine-local state — `settings.local.json`,
+  `.aidlc/sprint-*.json` (pids and absolute paths), `staged-claude/`, logs. Durable state stays
+  tracked: `backlog/`, `.aidlc/runs/`, `extensions.json`, `aidlc.config.json`.
+- **`/aidlc:init` Step 4.4 now specifies the whole posture** instead of one ambiguous sentence: the
+  control plane **should** be its own git repo (rule-0 routing has nowhere to commit otherwise, and the
+  backlog carries no history), repos are ignored by **explicit path, never a blanket `*/`** (a
+  root-level `docs/` or `scripts/` must stay tracked), and the result is **verified** with
+  `check-ignore` + `status --porcelain` rather than assumed. Step 2.1 no longer says the control plane
+  being a repo is optional.
+- **`/aidlc:repo add` writes the ignore line before creating the folder** (new §3b), so a new repo is
+  never visible to the control-plane index even briefly.
+- **Ignored, not submodules** — stated explicitly in `docs/architecture.md` D8, because it's the
+  obvious alternative and it's wrong here: a submodule pins each repo to a commit recorded in the
+  control plane, destroying the independent release cadence D8 requires.
+- **`guard` hook backstop.** A `git commit` that would write an unregistered gitlink is now blocked
+  (exit 2), with the remedy in the message. Paths registered in `.gitmodules` are real submodules and
+  pass untouched; the check runs only for actual `git commit` invocations, reads the index that git
+  has already written, and returns "allow" on any uncertainty. 8 regression tests added (40/40 pass),
+  including one asserting the prescribed remedy actually clears the block.
+
 ## [0.22.0] — 2026-07-19
 
 ### `aidlc` — fix `/aidlc:sprint` being dead on arrival in a polyrepo workspace (F42)

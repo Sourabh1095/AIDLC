@@ -34,9 +34,13 @@ improvise replacement files: the permission posture and rules must be the review
    `git symbolic-ref HEAD refs/heads/<defaultBranch>` on an empty repo) so it matches
    `git.defaultBranch` — don't leave a `master` control plane while every repo config says `main` (F6).
    If they diverge and it's not empty, flag the mismatch rather than renaming silently. (In **poly** the
-   workspace-root control plane may or may not be its own git repo — that's fine; what matters is that
-   each declared repo path in Step 3 is a git repo. Verify each after Step 3 and flag/bootstrap any that
-   need it — see Step 4.)
+   workspace-root control plane **should be its own git repo** — it versions `backlog/`,
+   `aidlc.config.json`, epic coordination files and cross-repo ADRs, and it is the branch/merge target
+   for `control-plane`-routed items (`aidlc:work-items` → *Repos & routing*, rule 0); without it that
+   routing target has nowhere to commit and the backlog carries no history. Offer to `git init` it if
+   it isn't one. Each declared repo path in Step 3 is a **separate** git repo nested inside it — verify
+   each after Step 3 and flag/bootstrap any that need it (Step 4.1), and make sure the control plane
+   ignores every one of them (Step 4.4).)
 2. Check for collisions: `CLAUDE.md`, `.claude/settings.json`, `.claude/aidlc.config.json`, `backlog/`, `.aidlc/`.
    - If `CLAUDE.md` exists: do NOT overwrite. Merge — append the template's "AIDLC workflow" and "Configuration" sections to the existing file.
    - If `.claude/settings.json` exists: do NOT overwrite. Show the user the template's permission posture and ask whether to merge `allow`/`deny`/`ask` arrays (union, dedupe) or skip.
@@ -161,8 +165,23 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      populate `repos[]` in `aidlc.config.json` from Step 3 (the `aidlc.config.poly.example.json` shipped in
      the template is a filled reference). **mono**: set `{{WORKSPACE_FACT}}` to empty and leave `repos: []`.
 3. If source is not markdown, you may delete `backlog/` (or keep it — it is harmless; ask the user).
-4. Ensure `.gitignore` contains `.claude/settings.local.json` (append if missing). In poly, also ignore the
-   product-repo checkouts if the control plane is its own git repo, or leave each repo self-managed.
+4. **`.gitignore` at the control plane.** The template ships one — keep it (merge, don't overwrite, if
+   the workspace already has one) and fill its managed `# AIDLC:REPOS` block.
+   - **poly:** write one `/<path>/` line per `repos[]` entry between the `# AIDLC:REPOS` and
+     `# AIDLC:REPOS-END` markers. Use **explicit paths, never a blanket `*/`** — root-level folders that
+     aren't repos (`docs/`, `scripts/`) must stay tracked. Then **verify**, don't assume:
+     `git -C <workspace.root> check-ignore -q <path>` for each repo, and
+     `git -C <workspace.root> status --porcelain` must not list any repo folder. A product repo showing
+     as untracked at the control plane is one `git add -A` away from being committed as a mode-160000
+     **gitlink** — a submodule reference with no `.gitmodules`, which clones as an empty directory and
+     reports no error. (The `guard` hook blocks such a commit, but the ignore rule is what prevents it.)
+   - **Ignored, not submodules.** Ignoring keeps each repo independently versioned, which is what D8's
+     per-repo release cadence requires; a submodule would pin every repo to a commit recorded here.
+   - **mono:** leave the `# AIDLC:REPOS` block empty; everything else applies unchanged.
+   - Leave `.aidlc/runs/` **tracked** in every product repo — the run file is committed to the feature
+     branch deliberately, so each PR carries its own audit trail (`aidlc:run-state` → *Location*).
+     Only machine-local state is ignored (`.aidlc/sprint-*.json`, `staged-claude/`, logs,
+     `.claude/settings.local.json`).
 5. **Tooling baseline (TypeScript repos only).** If the `aidlc-stack-web` plugin is installed AND a
    repo's stack is TypeScript-based (`stack.frontend`/`stack.backend` is `nextjs`/`nestjs`/another TS
    framework), scaffold its strict baseline so quality is machine-enforced from day one, not left to

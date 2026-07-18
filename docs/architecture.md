@@ -80,7 +80,13 @@ The design that keeps both on one code path with zero migration:
   (Resolver spec: `aidlc:work-items` → *Repos & routing*.)
 - **The control plane is the workspace root.** `.claude/`, the shared `backlog/` and `.aidlc/` live at
   the top; the product repos are subfolders under `workspace.root`. One backlog and one board span all
-  repos — the home for cross-repo features.
+  repos — the home for cross-repo features. **The control plane is itself a git repo** (it versions the
+  backlog, config, epic coordination files and cross-repo ADRs, and rule 0 routing branches there), and
+  it **ignores every product-repo checkout by explicit path** — the `# AIDLC:REPOS` block in its
+  `.gitignore`, maintained by `init` and `repo add`. Nested-and-ignored, never submodules: each product
+  repo keeps its own remote and release cadence, which a submodule pin would destroy. Committing one
+  from the control plane instead writes a mode-160000 gitlink with no `.gitmodules` — it clones as an
+  empty directory and git reports no error — so the `guard` hook blocks that commit as a backstop.
 - **The orchestrator owns routing.** The user states a requirement in plain language; the orchestrator
   grounds it against the actual repos (their `role`/`stack`/`labels`) and routes each item to exactly one
   repo (explicit `repo` → label → default → ground → ask). Users never hand-tag repos.
