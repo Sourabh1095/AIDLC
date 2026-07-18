@@ -224,9 +224,10 @@ contradictory AC): the run file's `## Findings` section and the work-item commen
 why. Fix the underlying issue (or amend the item), then `/aidlc:run PROJ-123` again — on
 resuming a blocked run it asks whether to retry, adjust, or abandon.
 
-**If a sprint was interrupted:** each item's worktree and run file survive independently.
-`/aidlc:status` shows them; resume any item inside its worktree, or re-launch `/aidlc:sprint`
-to fill free slots.
+**If a sprint was interrupted:** each item's run file survives independently — `/aidlc:status`
+shows them. In **mono**, resume an item inside its worktree; in **poly**, resume it with
+`/aidlc:run <ID>` from the control plane as usual (there is no worktree — the run already lives in
+its own repo checkout). Either way you can re-launch `/aidlc:sprint` to fill free slots.
 
 ## 5. Scope changes mid-flight (the memory model at work)
 

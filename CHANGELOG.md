@@ -7,6 +7,48 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.22.0] — 2026-07-19
+
+### `aidlc` — fix `/aidlc:sprint` being dead on arrival in a polyrepo workspace (F42)
+
+In a poly workspace every `/aidlc:sprint` launch failed instantly and **silently**: each item's
+worktree run exited within seconds at **rc=0** with a 28-byte log reading only
+`Unknown command: /aidlc:run` — no run files, no commits, no board writes, and nothing an
+exit-code check would catch.
+
+- **Root cause: the launch cwd, not trust.** Sprint §2 assumed a git worktree is a self-contained
+  AIDLC workspace. That holds in mono (the repo *is* the workspace, so `.claude/` and `backlog/` are
+  tracked and ride into the worktree) but never in poly, where AIDLC lives entirely at the control
+  plane — `.claude/settings.json` (plugin enablement + permissions), `.claude/aidlc.config.json`
+  (tracker + `repos[]`), `backlog/`, `CLAUDE.md` — and the product repos have no `.claude/` at all.
+  A worktree of one is a bare project with no `/aidlc:*` commands. The existing trust step was
+  necessary but not sufficient: **plugin enablement is a `settings.json` concern**, while
+  `hasTrustDialogAccepted` in `~/.claude.json` only clears the trust prompt.
+- **Poly now launches from the control plane with the cwd unchanged — no worktree.** This costs
+  nothing, because `/aidlc:run` already routes every git/branch/commit/push/PR step into
+  `workspace.root/<repo.path>` (`aidlc:run` §2.5). Items in different repos are isolated by
+  construction, so per-repo worktrees were adding contention risk without adding isolation. Seeding
+  the worktree instead was rejected: a product-repo worktree can never be a complete AIDLC workspace
+  (no `backlog/` for the markdown adapter, and `repos[]` paths are workspace-relative), so seeding
+  would mean maintaining a second, degraded workspace shape.
+- **Mono keeps worktrees** — there the worktree genuinely is the workspace — along with the trust
+  step, plus a new note that `.claude/settings.local.json` is gitignored and therefore does *not*
+  ride into a worktree (seed a copy if enablement/permissions live only there).
+- **New invariant (§1.3): one in-flight item per working tree.** Without per-item worktrees, two poly
+  items resolving to the same repo — or two `control-plane` items — must serialize; the second queues.
+- **New §2b preflight** — before launching anything, verify the launch cwd deterministically by file
+  read: `aidlc.config.json` present, `aidlc` enabled for that cwd (project or user scope), marketplace
+  known, and (mono) the worktree trusted. A failure names the missing piece instead of launching.
+- **New §2c launch verification — rc=0 is no longer accepted as "started."** A launch counts only on a
+  run file appearing or real pipeline output. The first item runs as a **canary**: if it is dead on
+  arrival, the sprint **aborts** and prints the log verbatim rather than burning the remaining slots
+  on an identical environment fault.
+- Docs updated to stop describing worktree-per-item as universal: `docs/architecture.md` (D7),
+  `docs/adoption-guide.md` §7, `docs/user-guide.md` (interrupted sprint), `docs/example-walkthrough.md`,
+  README command table.
+- Versions: `aidlc` 0.21.0 → **0.22.0**, marketplace → **0.22.0** (`aidlc-stack-web` 0.10.0 /
+  `aidlc-ux` 0.4.0 unchanged).
+
 ## [0.21.0] — 2026-07-18
 
 ### `aidlc` — requirements drive the architecture: init-lite + bootstrap infers topology/stack

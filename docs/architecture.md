@@ -45,12 +45,17 @@ projects with an origin.
 is *isolation, not just similarity* — two units run concurrently only when they cannot collide on
 files or on each other's outputs. This applies at three levels:
 
-- **Item level (`/aidlc:sprint`).** Independent backlog items each get their own **git worktree** and
-  a headless `claude -p "/aidlc:run <ID>"` background process, aggregated into one board. An
-  `aidlc-analyst` **independence check** (file/subsystem overlap, cross-referencing AC, parent-epic
-  ordering — the same detection `aidlc:planning` uses) selects a conflict-free set; conflicting items
-  queue behind their counterpart. Worktrees are what make this safe: separate working trees mean no
-  mid-flight collisions on the index or files.
+- **Item level (`/aidlc:sprint`).** Independent backlog items each get a headless
+  `claude -p "/aidlc:run <ID>"` background process, aggregated into one board. An `aidlc-analyst`
+  **independence check** (file/subsystem overlap, cross-referencing AC, parent-epic ordering — the
+  same detection `aidlc:planning` uses) selects a conflict-free set; conflicting items queue behind
+  their counterpart. What makes it safe is **one in-flight item per working tree**, achieved
+  differently per layout: in **mono** each item gets its own **git worktree**; in **poly** the runs
+  launch from the **control plane** and `/aidlc:run` routes each into its own repo checkout (§2.5),
+  which is already separate — so a worktree would add contention without adding isolation. A poly
+  worktree of a *product* repo is not a viable launch target at all: AIDLC's plugin enablement,
+  permissions, config and backlog all live at the control plane, so such a worktree has no
+  `/aidlc:*` commands (F42).
 - **Phase level (`/aidlc:run` §verify).** The reviewer, QA and (conditional) security agents are
   dispatched in **one parallel batch** — they only read the diff, so there's nothing to collide on.
   Fix cycles that follow are serial (one implementer mutates the branch).

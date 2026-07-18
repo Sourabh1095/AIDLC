@@ -43,7 +43,15 @@ files at the harness level, so this one file always asks. Review the scaffold wi
 **Trust the workspace.** Claude Code ignores a project's `permissions.allow` rules until the
 workspace is trusted — an untrusted headless run has every git/npm command denied. Opening
 Claude Code interactively in the repo once (accepting the trust dialog) fixes it permanently.
-This matters for CI/headless usage and for `/aidlc:sprint` worktrees.
+This matters for CI/headless usage and for `/aidlc:sprint` worktrees in mono.
+
+Trust is *not* the same as plugin enablement, and mixing them up produces a confusing failure.
+Enablement lives in `settings.json` (`enabledPlugins` + a known marketplace), at user scope
+(`~/.claude/settings.json`) or project scope (`<workspace>/.claude/settings.json`); trust lives in
+`~/.claude.json`. A headless run in a path where the plugin isn't *enabled* exits **rc=0** with
+`Unknown command: /aidlc:run` — it looks like a clean success. If you enable AIDLC at project scope
+in a poly workspace, only the control plane has it: the product repos do not, which is why sprint
+launches poly runs from the control plane rather than from a per-repo worktree (F42).
 
 ### What lands in your repo
 
@@ -163,5 +171,11 @@ into the shared plugin for platform review; after it merges, `/plugin marketplac
 ## 7. Working several items at once
 
 `/aidlc:sprint 3` picks the top independent ready items (an analyst checks they don't touch the
-same code), runs each in its own git worktree via a headless pipeline, and shows a live board.
-Conflicting items queue automatically. Blocked runs keep their worktree for resumption.
+same code), runs each through a headless pipeline, and shows a live board. Conflicting items queue
+automatically.
+
+How each run is isolated depends on your layout. In **mono**, every item gets its own **git
+worktree**, and a blocked run keeps that worktree for resumption. In **poly**, the runs launch from
+the **control plane** with the cwd unchanged — `/aidlc:run` already routes each item into its own
+repo checkout, so separate repos provide the isolation and no worktree is created. The constraint
+there is one in-flight item per repo: a second item targeting the same repo queues behind the first.

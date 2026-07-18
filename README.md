@@ -62,7 +62,7 @@ requirement → working full-stack app, every command included.
 | `/aidlc:status` | Dashboard: active runs + backlog snapshot |
 | `/aidlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
 | `/aidlc:release` | Cut a release: semver from commits, changelog, tag, notes (publish is approval-gated) |
-| `/aidlc:sprint N` | Run N independent items in parallel worktrees with a live board |
+| `/aidlc:sprint N` | Run N independent items in parallel (mono: worktrees · poly: per-repo) with a live board |
 | `/aidlc:repo add <name>` | Declare + bootstrap a repo in a poly workspace (config entry + `git init` + base commit) |
 | `/aidlc:promote` | PR a proven project-local skill/agent into the shared plugin |
 | `/aidlc:sync` | Reconcile local extensions after plugin updates (kill drift) |

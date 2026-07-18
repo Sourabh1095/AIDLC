@@ -143,7 +143,8 @@ That's the only human gate. After merging:
 ```
 
 Repeat until the epic's children are done. Prefer parallel? Once the skeleton story is merged,
-`/aidlc:sprint 2` runs independent stories in separate worktrees simultaneously.
+`/aidlc:sprint 2` runs independent stories simultaneously, each isolated in its own working tree
+(a git worktree in mono; its own repo checkout in poly).
 
 ### 6a. The UI story goes through the design pod automatically
 
