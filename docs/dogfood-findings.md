@@ -18,7 +18,7 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F45**._
+_Numbering continues across cycles — the next finding is **F46**._
 
 ### F42 🔴 — Poly: `/aidlc:sprint` worktree launches are dead on arrival (`Unknown command: /aidlc:run`), silently at rc=0
 **Symptom.** (RTO Tool, poly, 5 repos, ADO, `git.mode: remote`.) Sprint selected 5 independent items
@@ -98,6 +98,42 @@ accepted but never matched, and `Edit` already covers all file-editing tools inc
 `Write(.claude/settings.local.json)`, but the identical no-op existed one line above at
 `Write(.claude/settings.json)` and would warn the same way. The two `Edit(...)` denies already cover
 both files, so enforcement is unchanged. Noise, not a functional hole.
+
+### F45 🔴 — F43's `Bash(git -C * <verb>:*)` rules matched nothing; shipped without ever being executed
+**Symptom.** (RTO Tool, poly, ADO, aidlc@0.24.0, run RTO-9118.) All 14 F43 allow rules verified present
+in the live `.claude/settings.json`, yet no git command ran. Reporter probed five forms: every
+`git -C …` spelling DENIED (quoted, unquoted, spaced path — ruling out the path and its space), while
+bare `git status` ALLOWED (proving the allowlist loads). With F42 pinning cwd to the control plane and
+F43 forbidding `cd`, a poly run had **no permitted route to git at all**.
+**Root cause — narrower than reported, and the reporter's guess was wrong.** They concluded
+`Bash(<prefix>:*)` is "a prefix match, not a glob," so mid-pattern `*` can never work. Mid-pattern
+globs *do* work. Two undocumented matcher constraints, both established here by running headless
+probes against a scratch workspace (CC 2.1.215) rather than by reading:
+1. **`:*` does not compose with a mid-pattern `*`.** Probed identically: `Bash(git -C * add:*)` →
+   DENIED, `Bash(git -C * add *)` → ALLOWED, `Bash(git * add *)` → ALLOWED, `Bash(git -C:*)` →
+   ALLOWED, `Bash(git add:*)` → DENIED for a `-C` command. So F43's whole rule set was one wrong
+   suffix away from working — every rule, allow and deny alike.
+2. **Trailing ` *` does not match end-of-string** (the docs claim "space or end-of-string"). Caught
+   only because the first corrected battery still failed two rows: bare `git -C <p> status` blocked,
+   and — far worse — `git -C <p> push origin --force` **ran**, i.e. a deny that looked right and
+   wasn't. Fixed with no-space `*`, plus exact-match rules for the bare-verb denies so
+   `--force-with-lease` stays in `ask`.
+**Security note.** The reporter's warning was correct and is why the allow side was not simply patched
+with `Bash(git -C:*)`: that spelling works, so it would have produced a *working* allow beside a
+*dead* deny — unguarded force-push. Failure modes are asymmetric: a dead allow rule blocks the run
+loudly; a dead deny rule is silent. Deny coverage must be probed directly, never inferred from a
+green run.
+**Resolution.** All mid-glob rules moved to the `*` form and **verified by a 15-command battery
+against the real template file**: legitimate poly calls (`status`/`fetch`/`add`/`commit`/`branch`,
+with and without trailing args) RAN; every force-push and hard-reset variant BLOCKED in both bare and
+`-C` form — including `push origin --force` and `reset --hard origin/main`; benign push and the mono
+bare form unaffected. `aidlc:run` §2.5 now records both constraints inline so the next editor of
+those rules doesn't rediscover them.
+**Process.** The reporter's core criticism is accepted: F43 was authored against documentation and
+shipped unexecuted, and the documentation is wrong on both points above. The architectural change they
+proposed (per-repo `.claude/`, launch with cwd = repo) was **not** taken — it is a large change aimed
+at a defect that turned out to be a one-suffix bug — but it is the right fallback if these rules prove
+fragile again.
 
 _Add further findings here as they surface during dogfooding._
 

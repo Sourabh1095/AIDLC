@@ -123,6 +123,21 @@ The mechanism differs by command family, and getting it wrong walls the run on p
   the allowlist, because git in a new directory can execute that directory's hooks. `git -C` is the
   only form that runs unprompted, and the shipped template allows the poly verbs in both bare and
   `-C` form (with the force-push/hard-reset denies mirrored in `-C` form too).
+
+  **If you edit those rules, two matcher constraints are load-bearing — both verified by running
+  headless probes, not by reading docs (F45; the docs describe neither):**
+  1. **`:*` does not compose with a mid-pattern `*`.** `Bash(git -C * add:*)` matches **nothing**.
+     Where a rule has a wildcard in the middle, the trailing wildcard must be written `*`, not `:*`.
+  2. **A trailing ` *` (space-star) does not match end-of-string.** `Bash(git -C * status *)` misses a
+     bare `git -C <path> status`, and a deny written `Bash(git -C * push * --force *)` misses
+     `git -C <path> push origin --force` — the dangerous form. Use no-space `*` on these rules; for
+     bare-verb denies where no path varies, add an exact-match rule (`Bash(git push --force)`)
+     alongside the ` *` form so the argument-less spelling is covered without swallowing
+     `--force-with-lease`, which must stay in `ask`.
+
+  Re-verify any change by running it. A rule that matches nothing fails **open** on the allow side
+  (the run blocks, loudly) but fails **closed** on the deny side (force-push protection silently
+  disappears) — the deny half cannot be validated by watching a run succeed.
 - **everything else (npm, pnpm, docker, test/lint/build) → `cd "<abs repo path>" && <cmd>`.** A `cd`
   into a path under the workspace root is read-only and each half is matched independently, so the
   bare `Bash(npm run:*)`-style rules keep applying. There is no `-C` equivalent for these, and

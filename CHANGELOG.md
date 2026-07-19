@@ -7,6 +7,38 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.25.0] — 2026-07-19
+
+### `aidlc` — make F43's `git -C` rules actually match (F45)
+
+**0.24.0's fix did not work.** Every `Bash(git -C * <verb>:*)` rule shipped in F43 matched nothing, so
+a poly run still could not execute a single git command — and because F42 pins cwd to the control
+plane and F43 rules out `cd`, there was no permitted route to git at all. The rules were authored
+against the permission docs and shipped without ever being executed; the docs are wrong on the two
+points that mattered. Both constraints below were established by running headless probes against a
+scratch workspace on CC 2.1.215, and the final rule set was verified by a 15-command battery against
+the real template file:
+
+- **`:*` does not compose with a mid-pattern `*`.** `Bash(git -C * add:*)` → denied;
+  `Bash(git -C * add *)` → allowed. Every mid-glob rule now uses the `*` form. This single wrong
+  suffix disabled all 14 allow rules *and* all 5 mirrored denies in 0.24.0.
+- **A trailing ` *` does not match end-of-string**, contrary to the documented "space or
+  end-of-string". This silently broke two things: bare `git -C <path> status` was blocked, and the
+  deny for `git -C <path> push origin --force` **did not fire**. Mid-glob rules now use no-space `*`,
+  and the bare-verb force-push denies gained exact-match spellings so the argument-less form is
+  covered without swallowing `--force-with-lease`, which stays in `ask`.
+- **Deny coverage is now verified directly, not inferred.** The failure modes are asymmetric: a dead
+  allow rule blocks the run loudly, a dead deny rule is silent. Confirmed blocked in both bare and
+  `-C` form: `push --force` (with args, and bare), `push origin --force`, `reset --hard origin/main`.
+  Confirmed still allowed: `status`/`fetch`/`add`/`commit`/`branch` with and without trailing args,
+  benign `push origin main`, and every mono bare-verb form.
+- **A pre-existing deny gap is closed:** `Bash(git reset --hard origin:*)` never matched
+  `git reset --hard origin/main` — the boundary after `origin` fails on `/`. Now `origin*`.
+- `aidlc:run` §2.5 records both matcher constraints inline, so the next editor of those rules doesn't
+  rediscover them, along with the asymmetry that makes the deny half untestable by watching a run
+  succeed.
+- Versions: `aidlc` 0.24.0 → **0.25.0**, marketplace → **0.25.0**.
+
 ## [0.24.0] — 2026-07-19
 
 ### `aidlc` — unblock poly runs at the first git call (F43) + drop no-op `Write(...)` denies (F44)
