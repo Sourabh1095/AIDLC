@@ -14,7 +14,13 @@ Implements the `aidlc:work-items` contract over Azure Boards. Config:
    (typical: `wit_get_work_item`, `wit_create_work_item`, `wit_update_work_item`,
    `wit_add_work_item_comment`, WIQL query tools).
 2. **`az boards` CLI** (`az ...`, already permitted) — covers every operation below. Use when the MCP
-   server isn't connected.
+   server isn't connected. **Headless runs land here by design, not by failure.** The project
+   template allowlists `az boards`/`az rest` but no `mcp__*` tools, and a headless run cannot answer
+   a permission prompt, so tier 1 is DENIED and tier 2 carries the run. That is expected — report
+   ADO as working, not as "gated", and do not escalate to tier 3 on a tier-1 denial alone. To take
+   tier 1 headless, add the ADO MCP tools to the project's `permissions.allow`; the rule must carry
+   the literal `mcp__<server>__` prefix exactly as the tool appears in that session (check `/mcp` or
+   run with `--verbose` — a bare `mcp__*` allow rule is skipped with a warning and grants nothing).
 3. **PAT + REST last-resort** (off by default — see below). Use only when **neither** the MCP nor
    `az` is available (a locked-down box with no Azure CLI, an offline-signed environment) **and** the
    user has explicitly supplied a PAT. Before falling this far, tell the user the normal fixes

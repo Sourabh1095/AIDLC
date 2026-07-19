@@ -7,6 +7,53 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.26.0] — 2026-07-19
+
+### `aidlc` — guard resolves repo state from the `-C` target, and fails closed on a parse miss (F46)
+
+With F45's `git -C` permissions working, poly runs reached the push step and were blocked by the
+pipeline's own guard: *"push while on protected branch 'main'"* — while the target repo was on its
+feature branch. `guard.mjs` resolved every repo-state check against the session cwd, which F42 pins
+at the control plane, and the control plane sits on `main` permanently. Harmless in mono, where cwd
+*is* the repo; in poly it blocked the one verb the pipeline needs, twice per item, on the *correct*
+and safe case.
+
+- **`-C` is now parsed and every repo-state check resolves against that repo** — `branchInfo()` and
+  `stagedGitlinks()` alike. The latter is a third instance of the same bug: `git -C <repo> commit`
+  was inspecting the control plane's index instead of the target's.
+- **Fixed a fail-OPEN bypass found while reproducing.** Command identity was matched by regex over
+  quote-blanked text, so an **unquoted** `-C` path containing a space split into two tokens, the
+  pattern missed, and **every push check was skipped**: force-push, `push origin HEAD:main` and
+  `filter-branch` all returned rc=0. The workspace root in the report is literally `D:\RTO Tool`, so
+  this shape is reachable. Command identity now comes from a quote-aware tokenizer plus a real
+  `git [global-opts] <subcommand> [args]` parse, and a subcommand slot landing on a path fragment
+  triggers a fail-closed rescan rather than an allow.
+- **Refspec checks parse actual refspecs** (`HEAD:main`, `:main`, `+main`, `--delete main`) instead of
+  matching a protected name anywhere in the line. Quoted arguments are single opaque tokens, so a
+  commit message mentioning `push` or `DROP TABLE` can never read as a command — the previous
+  `stripQuotes` workaround is gone.
+- **Blocking all pushes from a protected HEAD was kept deliberately.** The report suggested checking
+  the refspec instead of the checked-out branch; refspec checking already existed and passes tests,
+  and the HEAD rule is defence-in-depth that becomes correct — not over-broad — once HEAD is read
+  from the right repo.
+- **12 poly regression tests added** against a control-plane fixture whose path contains a space:
+  legitimate `-C` feature push/status/commit allowed; `-C` push targeting `main`, `HEAD:main`,
+  force-push and `filter-branch` blocked; bare push from the control plane still blocked; both
+  unquoted-spaced-path bypasses blocked. **52/52 pass** (40 pre-existing, unchanged).
+
+### `aidlc` — `wi-ado`: headless ADO runs land on the `az` CLI tier by design (F47)
+
+The template allowlists no `mcp__*` tools, so a headless run can't call the ADO MCP server and falls
+to `az boards`/`az rest` — which carried every tracker and PR operation successfully. The defect was
+that this *read* as breakage: one run reported ADO as "gated". Tier 2 now states this is expected,
+that ADO should be reported as working, and that a tier-1 denial alone must not escalate to the PAT
+tier. **No allow rule was added** — an MCP allow rule needs the literal `mcp__<server>__` prefix as it
+appears in that session, a plugin-provided server's exact prefix could not be confirmed here, and a
+bare `mcp__*` allow rule is skipped with a warning. The skill tells the user how to read the real
+name (`/mcp`, `--verbose`) instead.
+
+- Versions: `aidlc` 0.25.0 → **0.26.0**, marketplace → **0.26.0**.
+
 ## [0.25.0] — 2026-07-19
 
 ### `aidlc` — make F43's `git -C` rules actually match (F45)

@@ -134,6 +134,72 @@ writeFileSync(join(repo, ".gitignore"), "/backend/\n");
 g("git add -A");
 check('git commit -m "chore: after un-staging the nested repo"', "allow", "allowed once gitlink removed");
 
+// ================= POLY: cwd = control plane, git reached via `git -C` (F46) =================
+// The control plane sits on main permanently while the product repo is on a feature
+// branch. Reading HEAD from the session cwd blocked every legitimate poly push.
+// The workspace dir deliberately contains a SPACE — an unquoted spaced path used to
+// defeat the old `-C\s+\S+` regex and skip every push check (fail-open).
+const polyRoot = mkdtempSync(join(tmpdir(), "guardpoly-"));
+const plane = join(polyRoot, "RTO Tool");
+mkdirSync(plane);
+const cp = (a) => execSync(a, { cwd: plane, stdio: ["ignore", "pipe", "ignore"] });
+cp("git init");
+cp("git symbolic-ref HEAD refs/heads/main");
+cp("git config user.email t@t.co");
+cp("git config user.name test");
+writeFileSync(join(plane, "README.md"), "control plane");
+cp("git add -A");
+cp("git commit -m init");
+
+const prod = join(plane, "core-api");
+mkdirSync(prod);
+const pr = (a) => execSync(a, { cwd: prod, stdio: ["ignore", "pipe", "ignore"] });
+pr("git init");
+pr("git config user.email t@t.co");
+pr("git config user.name test");
+writeFileSync(join(prod, "app.ts"), "x");
+pr("git add -A");
+pr("git commit -m init");
+pr("git checkout -b feature/RTO-9118-x");
+
+function checkPoly(command, expected, label) {
+  n++;
+  let got;
+  try {
+    execFileSync("node", [GUARD], {
+      input: JSON.stringify({ tool_input: { command }, cwd: plane }),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    got = 0;
+  } catch (e) {
+    got = typeof e.status === "number" ? e.status : -1;
+  }
+  const ok = expected === "block" ? got === 2 : got === 0;
+  if (!ok) {
+    fails++;
+    console.log(`FAIL [${label}] expected=${expected} exit=${got}\n       cmd: ${command}`);
+  } else console.log(`ok   [${label}] ${expected}`);
+}
+
+// The reported bug: legitimate feature-branch push from a control-plane cwd.
+checkPoly("git -C core-api push -u origin feature/RTO-9118-x", "allow", "poly: relative -C feature push");
+checkPoly(`git -C "${prod}" push -u origin feature/RTO-9118-x`, "allow", "poly: quoted spaced -C feature push");
+checkPoly("git -C core-api status", "allow", "poly: -C status");
+checkPoly('git -C core-api commit -m "feat: work"', "allow", "poly: -C commit");
+// Protections must still bite through -C, resolved against the TARGET repo.
+checkPoly("git -C core-api push origin main", "block", "poly: -C push targeting main");
+checkPoly("git -C core-api push origin HEAD:main", "block", "poly: -C push HEAD:main");
+checkPoly("git -C core-api push --force origin feature/RTO-9118-x", "block", "poly: -C force push");
+checkPoly("git -C core-api filter-branch --tree-filter x HEAD", "block", "poly: -C filter-branch");
+// No -C → the control plane itself, which IS on main: still blocked.
+checkPoly("git push -u origin feature/RTO-9118-x", "block", "poly: bare push from control plane on main");
+// Fail-closed: an unquoted spaced -C path must not disable the checks.
+checkPoly(`git -C ${prod} push --force origin main`, "block", "poly: unquoted spaced -C force push");
+checkPoly(`git -C ${prod} push origin HEAD:main`, "block", "poly: unquoted spaced -C HEAD:main");
+// A commit message mentioning a subcommand still parses as `commit`, not `push`.
+checkPoly('git -C core-api commit -m "docs: explain push to main"', "allow", "poly: -C commit msg mentions push main");
+
+rmSync(polyRoot, { recursive: true, force: true });
 rmSync(repo, { recursive: true, force: true });
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

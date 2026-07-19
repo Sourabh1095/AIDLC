@@ -18,7 +18,7 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F46**._
+_Numbering continues across cycles — the next finding is **F48**._
 
 ### F42 🔴 — Poly: `/aidlc:sprint` worktree launches are dead on arrival (`Unknown command: /aidlc:run`), silently at rc=0
 **Symptom.** (RTO Tool, poly, 5 repos, ADO, `git.mode: remote`.) Sprint selected 5 independent items
@@ -134,6 +134,59 @@ shipped unexecuted, and the documentation is wrong on both points above. The arc
 proposed (per-repo `.claude/`, launch with cwd = repo) was **not** taken — it is a large change aimed
 at a defect that turned out to be a one-suffix bug — but it is the right fallback if these rules prove
 fragile again.
+
+### F46 🔴 — Guard read HEAD from the session cwd, so every poly feature-branch push was blocked (and an unquoted spaced `-C` path silently disabled the guard)
+**Symptom.** (RTO Tool, poly, ADO, aidlc@0.25.0, run RTO-9118.) With F45's `git -C` permissions
+working, the run reached the push step and was blocked: *"push while on protected branch 'main'"* —
+while `core-api` was verifiably on `feature/RTO-9118-seed-governance-files`. The only repo on `main`
+was the control plane, i.e. the session cwd. Fires twice per item (feature push, then run-archive
+push), and it fires on the *correct* case, which trains users to bypass a safety hook.
+**Root cause.** `guard.mjs` resolved every repo-state check against `data.cwd`: `branchInfo()` ran
+`git symbolic-ref --short HEAD` there, and `stagedGitlinks()` inspected that index. Harmless in mono,
+where cwd *is* the repo; always wrong in poly, where F42 pins cwd at the control plane (permanently on
+`main`) and F43 mandates `git -C`. Reproduced exactly against a fixture before any edit.
+**Second defect, found while reproducing — a fail-OPEN bypass the report didn't reach.** Command
+identity was matched by regex over quote-blanked text (`git(?:\s+(?:-C\s+\S+|…))*\s+push`). An
+**unquoted** `-C` path containing a space splits into two tokens, the pattern fails, and **every push
+check is skipped**: `git -C <spaced path> push --force origin main`, `… push origin HEAD:main`, and
+`git -C <spaced path> filter-branch` all returned rc=0. The workspace root is literally `D:\RTO Tool`,
+so this shape is reachable. A guard must fail closed on a parse miss.
+**Resolution.** Replaced the regex identity layer with a quote-aware tokenizer plus a real
+`git [global-opts] <subcommand> [args]` parse:
+- `-C` is extracted and every repo-state check resolves against **that** repo (`resolve(cwd, dashC)`),
+  including `stagedGitlinks()` — a third instance of the same bug, which had `git -C <repo> commit`
+  inspecting the control plane's index instead of the target's.
+- A quoted argument is one opaque token, so a commit message mentioning `push`/`DROP TABLE` can never
+  be read as a command — the old `stripQuotes` hack is gone.
+- Refspec checks now parse actual refspecs (`HEAD:main`, `:main`, `+main`, `--delete main`) instead of
+  matching a protected name anywhere in the line.
+- **Fail-closed rescan:** if the subcommand slot lands on a path fragment (the unquoted-spaced-`-C`
+  anomaly), the guard rescans for a guarded subcommand and checks it with the repo target treated as
+  unknown, rather than allowing.
+**On the reporter's suggested fix (2)** — "check the pushed refspec, not the checked-out branch":
+refspec checking already existed (`targetsProtected`, covering `HEAD:main`/`:main`/`--delete`, with
+passing tests). Blocking *all* pushes from a protected HEAD is deliberate defence-in-depth, and it
+becomes correct — not over-broad — once HEAD is read from the right repo, so it was kept. Fix (1) was
+the whole bug.
+**Verification.** 12 poly regression tests added to `guard.test.mjs` against a control-plane fixture
+whose path contains a space: legitimate `-C` feature push / status / commit allowed; `-C` pushes
+targeting `main`, `HEAD:main`, force-push and `filter-branch` blocked; bare push from the control
+plane on `main` still blocked; both unquoted-spaced-path bypasses now blocked. **52/52 pass** (40
+pre-existing, unchanged).
+
+### F47 🟢 — Headless ADO runs use the `az` CLI tier because no `mcp__*` tools are allowlisted
+**Symptom.** The template carries no `mcp__*` allow entries, so a headless run cannot call
+`mcp__…azure-devops__wit_get_work_item`; one run reported ADO as "gated" despite everything working.
+**Assessment — documentation, not a defect.** `az boards`/`az rest` are allowlisted and carried every
+tracker and PR operation for the whole run; that is exactly the tier-2 fallback `wi-ado` documents.
+The real problem was that a tier-1 denial *reads* as breakage.
+**Resolution.** `wi-ado` tier 2 now states that headless runs land there **by design**, that ADO should
+be reported as working rather than gated, and that a tier-1 denial alone must not escalate to the PAT
+tier. **No allow rule was added:** an MCP allow rule needs the literal `mcp__<server>__` prefix as it
+appears in that session, and a plugin-provided server's exact prefix could not be confirmed here — a
+bare `mcp__*` allow rule is skipped with a warning and grants nothing. Guessing a permission pattern
+unverified is precisely what caused F43 and F45, so the skill instead tells the user how to read the
+real name (`/mcp`, `--verbose`) and add it themselves.
 
 _Add further findings here as they surface during dogfooding._
 

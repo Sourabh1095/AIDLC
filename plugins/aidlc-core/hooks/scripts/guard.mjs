@@ -3,13 +3,19 @@
 // patterns cannot express (branch-aware force-push, prod DB ops, secret exfil).
 // Exit 2 = block (stderr shown to the model). Exit 0 = allow. Never throw.
 //
-// Principle: inspect the COMMAND BEING EXECUTED, not free text. Quoted argument
-// text (a commit message that mentions "push", "DROP TABLE", "filter-branch", …)
-// is stripped before command-identity detection, and the content checks are skipped
-// for `git` segments — git executes no SQL, cluster, filesystem or credential ops,
-// so those tokens in a git command can only be message/branch text.
+// Principle: inspect the COMMAND BEING EXECUTED, not free text. A git segment is
+// tokenized into argv and parsed (global options → subcommand → args), so a commit
+// message that merely mentions "push", "DROP TABLE" or "filter-branch" is one opaque
+// argument and can never be read as a command. Content checks are skipped for `git`
+// segments — git executes no SQL, cluster, filesystem or credential ops.
+//
+// Poly workspaces: the session cwd is the control plane, and the pipeline reaches a
+// product repo with `git -C <path> …` (aidlc:run §2.5). Every repo-state check below
+// therefore resolves against the `-C` target, NOT the session cwd — the control plane
+// sits on `main` permanently, so reading HEAD from cwd blocks every legitimate
+// feature-branch push (F46).
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { execSync } from "node:child_process";
 
 let data;
@@ -28,37 +34,40 @@ function block(reason) {
   process.exit(2);
 }
 
-// Current branch, computed lazily and once — only push checks need it, so
-// non-git commands never pay for the subprocess.
-let _branch;
-let _branchDone = false;
-function branchInfo() {
-  if (!_branchDone) {
-    _branchDone = true;
+const PROTECTED_RE = /^(?:main|master|develop|release\/.+)$/;
+
+// Current branch of a specific repo, computed lazily and cached per path — only push
+// checks need it, so non-git commands never pay for the subprocess.
+const _branches = new Map();
+function branchInfo(repoCwd) {
+  if (!_branches.has(repoCwd)) {
+    let b = "";
     try {
       // symbolic-ref works even on an unborn branch (fresh repo, no commits)
-      _branch = execSync("git symbolic-ref --short HEAD", {
-        cwd,
+      b = execSync("git symbolic-ref --short HEAD", {
+        cwd: repoCwd,
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 5000,
       })
         .toString()
         .trim();
     } catch {
-      _branch = "";
+      b = "";
     }
+    _branches.set(repoCwd, b);
   }
-  return { branch: _branch, onProtected: /^(main|master|develop|release\/.+)$/.test(_branch) };
+  const branch = _branches.get(repoCwd);
+  return { branch, onProtected: PROTECTED_RE.test(branch) };
 }
 
 // Gitlinks (mode 160000) newly staged in this repo's index, excluding paths
 // registered as real submodules in .gitmodules. Only called for an actual
 // `git commit`, so non-commit commands never pay for the subprocesses. Any
 // failure (not a repo, git missing) returns [] — never block on uncertainty.
-function stagedGitlinks() {
+function stagedGitlinks(repoCwd) {
   let top, raw;
   try {
-    const opts = { cwd, stdio: ["ignore", "pipe", "ignore"], timeout: 5000 };
+    const opts = { cwd: repoCwd, stdio: ["ignore", "pipe", "ignore"], timeout: 5000 };
     top = execSync("git rev-parse --show-toplevel", opts).toString().trim();
     // ":<srcmode> <dstmode> <srcsha> <dstsha> <status>\t<path>" — works on an
     // unborn branch too (diffed against the empty tree). dstmode 160000 = a
@@ -83,80 +92,143 @@ function stagedGitlinks() {
   return links.filter((p) => !registered.has(p));
 }
 
-// Blank the contents of quoted strings so words inside an argument (e.g. a -m
-// commit message) can't masquerade as command tokens.
-const stripQuotes = (s) => s.replace(/'[^']*'/g, " ").replace(/"[^"]*"/g, " ");
-
-// Leading executable of a segment, ignoring env assignments and sudo, path-stripped.
-function leadingExe(seg) {
-  const s = seg
-    .trim()
-    .replace(/^(?:\w+=\S+\s+)*/, "")
-    .replace(/^sudo\s+(?:-\S+\s+)*/, "");
-  const m = s.match(/^\S+/);
-  if (!m) return "";
-  return m[0].replace(/^['"]|['"]$/g, "").split(/[\\/]/).pop();
+// Split a shell segment into argv, honouring quotes. A quoted argument stays ONE
+// token, so its contents can never be mistaken for a flag or a subcommand. Parsing
+// (rather than regex-matching quote-blanked text) is what makes the checks below
+// fail closed: a path containing a space used to defeat the old `-C\s+\S+` pattern
+// and silently skip every push check (F46).
+function tokenize(seg) {
+  const out = [];
+  let cur = "";
+  let quote = null;
+  let quoted = false;
+  for (const c of seg) {
+    if (quote) {
+      if (c === quote) quote = null;
+      else cur += c;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      quoted = true;
+    } else if (/\s/.test(c)) {
+      if (cur || quoted) out.push(cur);
+      cur = "";
+      quoted = false;
+    } else cur += c;
+  }
+  if (cur || quoted) out.push(cur);
+  return out;
 }
 
-// PROTECTED requires end-of-word (branch "develop-feature" must not match "develop").
-const PROTECTED = String.raw`(?:main|master|develop)(?![\w\/-])`;
-// `git push` as an ACTUAL invocation: git, optional global options (-c x=y, -C path,
-// --opt[=val], -p …), then the `push` subcommand — not the word "push" in an argument.
-const GIT_PUSH = String.raw`\bgit\b(?:\s+(?:-c\s+\S+|-C\s+\S+|--[\w-]+(?:=\S+)?|-\w+))*\s+push\b`;
-// Same shape for `git commit` — the gitlink check below inspects the index.
-const GIT_COMMIT = String.raw`\bgit\b(?:\s+(?:-c\s+\S+|-C\s+\S+|--[\w-]+(?:=\S+)?|-\w+))*\s+commit\b`;
+// argv with leading env assignments and sudo removed.
+function commandArgv(seg) {
+  const argv = tokenize(seg);
+  while (argv.length && /^\w+=/.test(argv[0])) argv.shift();
+  if (argv.length && argv[0].split(/[\\/]/).pop() === "sudo") {
+    argv.shift();
+    while (argv.length && argv[0].startsWith("-")) argv.shift();
+  }
+  return argv;
+}
+
+// git global options that consume a SEPARATE following value.
+const GIT_VALUE_OPTS = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix"]);
+
+// Parse `git [global-opts] <subcommand> [args…]`, returning the -C target so repo
+// state is read from the repo actually being acted on.
+// Subcommands with a dedicated check below; also the fail-closed rescan set.
+const GUARDED_SUBS = new Set(["push", "commit", "filter-branch", "filter-repo"]);
+
+function parseGit(argv) {
+  let i = 1;
+  let dashC = null;
+  while (i < argv.length && argv[i].startsWith("-")) {
+    if (GIT_VALUE_OPTS.has(argv[i])) {
+      if (argv[i] === "-C" && i + 1 < argv.length) dashC = argv[i + 1];
+      i += 2;
+    } else i += 1;
+  }
+  let sub = argv[i] || "";
+  let args = argv.slice(i + 1);
+  // Parse anomaly: an UNQUOTED -C path containing spaces splits into several tokens,
+  // so the subcommand slot lands on a path fragment. Never fail open — rescan for a
+  // guarded subcommand and check it with the repo target treated as unknown. (A real
+  // subcommand never contains a path separator, so normal commands can't take this
+  // branch, and `git commit -m push` still parses as `commit` above.)
+  if (/[\\/]/.test(sub)) {
+    const j = argv.findIndex((t) => GUARDED_SUBS.has(t));
+    if (j >= 0) return { dashC: null, sub: argv[j], args: argv.slice(j + 1), unresolved: true };
+  }
+  return { dashC, sub, args, unresolved: false };
+}
+
+// Destination ref of a refspec: `HEAD:main` / `:main` / `+main` → `main`.
+const refDest = (r) => (r.includes(":") ? r.slice(r.lastIndexOf(":") + 1) : r).replace(/^\+/, "");
 
 // Segment per shell separator so flags/tokens from OTHER commands in a compound line
 // (`rm -f x && git push`) don't leak across the checks.
 for (const rawSeg of cmd.split(/[|;&]+/)) {
-  const skel = stripQuotes(rawSeg); // quotes blanked — command-identity checks
-  const isGit = leadingExe(rawSeg) === "git";
+  const argv = commandArgv(rawSeg);
+  const isGit = argv.length > 0 && argv[0].split(/[\\/]/).pop() === "git";
 
-  // --- 1. Push protection (branch-aware; static deny rules are layer 1) ---
-  if (new RegExp(GIT_PUSH).test(skel)) {
-    const { branch, onProtected } = branchInfo();
-    const hasForce = /(\s--force\b(?!-with-lease))|(\s-f\b)|(\s['"]?\+\S+)/.test(skel);
-    const hasForceWithLease = /--force-with-lease/.test(skel);
-    // `push origin main`, `push origin HEAD:main`, delete forms `push origin :main` / `--delete main`
-    const targetsProtected =
-      new RegExp(String.raw`\bpush\b[^]*\s(?:\S+\s+)?(?:\S*:)?${PROTECTED}`).test(skel) ||
-      new RegExp(String.raw`--delete\s+${PROTECTED}`).test(skel);
+  if (isGit) {
+    const { dashC, sub, args } = parseGit(argv);
+    // Every repo-state check resolves against the -C target, not the session cwd.
+    const repoCwd = dashC ? resolve(cwd, dashC) : cwd;
 
-    if (hasForce) block("force-push is never allowed by the AIDLC pipeline.");
-    if (hasForceWithLease && (onProtected || targetsProtected))
-      block(`force-with-lease to a protected branch ('${branch || "target"}') is not allowed.`);
-    if (onProtected)
-      block(`push while on protected branch '${branch}' — work on a {type}/{id}-{slug} branch and open a PR.`);
-    if (targetsProtected)
-      block("push explicitly targeting a protected branch — all changes reach it through PRs.");
-  }
+    // --- 1. Push protection (branch-aware; static deny rules are layer 1) ---
+    if (sub === "push") {
+      const { branch, onProtected } = branchInfo(repoCwd);
+      const hasForce = args.some(
+        (a) => a === "--force" || (/^-[a-zA-Z]*f[a-zA-Z]*$/.test(a) && !a.startsWith("--")) || a.startsWith("+"),
+      );
+      const hasForceWithLease = args.some((a) => a === "--force-with-lease" || a.startsWith("--force-with-lease="));
+      // Refspecs are the positional args after the remote: `push origin main`,
+      // `push origin HEAD:main`, `push origin :main`, plus the `--delete main` form.
+      const positional = args.filter((a) => !a.startsWith("-"));
+      const di = args.findIndex((a) => a === "--delete" || a === "-d");
+      const targetsProtected =
+        positional.slice(1).some((r) => PROTECTED_RE.test(refDest(r))) ||
+        (di >= 0 && di + 1 < args.length && PROTECTED_RE.test(refDest(args[di + 1])));
 
-  // --- 2. History rewriting (git-specific) ---
-  if (/\bgit\s+(filter-branch|filter-repo)\b/.test(skel))
-    block("git history rewriting is not allowed in the pipeline.");
+      if (hasForce) block("force-push is never allowed by the AIDLC pipeline.");
+      if (hasForceWithLease && (onProtected || targetsProtected))
+        block(`force-with-lease to a protected branch ('${branch || "target"}') is not allowed.`);
+      if (onProtected)
+        block(
+          `push while on protected branch '${branch}'${dashC ? ` in ${dashC}` : ""} — work on a ` +
+            `{type}/{id}-{slug} branch and open a PR.`,
+        );
+      if (targetsProtected)
+        block("push explicitly targeting a protected branch — all changes reach it through PRs.");
+    }
 
-  // --- 2b. Accidental gitlink (a nested repo staged as a submodule) ---
+    // --- 2. History rewriting (git-specific) ---
+    if (sub === "filter-branch" || sub === "filter-repo")
+      block("git history rewriting is not allowed in the pipeline.");
+
+    // --- 2b. Accidental gitlink (a nested repo staged as a submodule) ---
   // In a poly workspace the control plane holds each product repo as a subfolder
   // with its own .git. If one isn't ignored, `git add -A` at the control plane
   // stages it as a mode-160000 gitlink with no .gitmodules entry — it clones as
   // an empty directory and git reports no error, so nothing else catches it.
   // The index is already written by the time a commit runs, so inspect it here.
-  if (new RegExp(GIT_COMMIT).test(skel)) {
-    const links = stagedGitlinks();
-    if (links.length)
-      block(
-        `staging a nested git repository as a gitlink (${links.join(", ")}). This would commit a ` +
-          `submodule reference with no .gitmodules entry, which clones as an empty directory. ` +
-          `Product repos are versioned independently — add the path to this repo's .gitignore ` +
-          `(the # AIDLC:REPOS block), then \`git reset -- <path>\` to unstage it (index only; your ` +
-          `checkout is untouched). If it was already committed, \`git rm --cached -rf <path>\`.`,
-      );
-  }
+    if (sub === "commit") {
+      const links = stagedGitlinks(repoCwd);
+      if (links.length)
+        block(
+          `staging a nested git repository as a gitlink (${links.join(", ")}). This would commit a ` +
+            `submodule reference with no .gitmodules entry, which clones as an empty directory. ` +
+            `Product repos are versioned independently — add the path to this repo's .gitignore ` +
+            `(the # AIDLC:REPOS block), then \`git reset -- <path>\` to unstage it (index only; your ` +
+            `checkout is untouched). If it was already committed, \`git rm --cached -rf <path>\`.`,
+        );
+    }
 
-  // The content checks below are dangerous only when NOT run by git — git executes
-  // no SQL, cluster, filesystem or credential operations. Skipping git segments is
-  // what stops a commit message that merely mentions these from tripping the guard.
-  if (isGit) continue;
+    // The content checks below are dangerous only when NOT run by git — git executes
+    // no SQL, cluster, filesystem or credential operations. Skipping git segments is
+    // what stops a commit message that merely mentions these from tripping the guard.
+    continue;
+  }
 
   // --- 3. Destructive DB operations outside localhost ---
   if (/\b(DROP\s+(DATABASE|SCHEMA)|TRUNCATE\s+TABLE|db\.dropDatabase)\b/i.test(rawSeg)) {
