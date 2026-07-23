@@ -75,8 +75,6 @@
       "Bash(git -C * push * -f*)",
       "Bash(git -C * reset --hard origin*)",
       "Bash(gh repo delete:*)",
-      "Read(./.env)",
-      "Read(./.env.*)",
       "Read(**/secrets/**)",
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",

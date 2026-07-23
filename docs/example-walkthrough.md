@@ -21,7 +21,7 @@ Share this file with anyone onboarding onto the framework.
 
 In **pgAdmin**, create an empty database for the project now (e.g. `todo_app`), and note your
 username/password. The pipeline never reads your real credentials — you'll put them in a local
-`.env` later (which the pipeline is deliberately *denied* from reading).
+`.env` later (which the pipeline is deliberately *denied* from reading by default).
 
 ---
 
@@ -114,14 +114,17 @@ What happens (this is the thinking-before-doing you asked for):
 ## 5. Give the app its database credentials
 
 The pipeline will scaffold the code to read `DATABASE_URL` from the environment. Create the
-local `.env` yourself (the pipeline can't read or write it — that's a guardrail):
+local `.env` yourself (by default the pipeline can't read or write it — that's a guardrail):
 
 ```powershell
 # D:\todo-app\.env  (gitignored)
 DATABASE_URL=postgresql://postgres:YOURPASSWORD@localhost:5432/todo_app
 ```
 
-The pipeline maintains `.env.example` with the required variable *names* only.
+By default the pipeline also leaves `.env.example` alone. If you want it to maintain the file
+(the required variable *names* only, never values), opt in per workspace by setting
+`"pipeline.envFileAccess": "ask"` in `.claude/aidlc.config.json` — it will then ask you to
+approve every env-file read or change before it happens.
 
 ## 6. Build — one item at a time, hands-off
 

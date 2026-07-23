@@ -129,6 +129,11 @@
         "maxFixCycles": { "type": "integer" },
         "architectThreshold": { "enum": ["S", "M", "L", "XL"] },
         "securityReviewPaths": { "type": "array", "items": { "type": "string" } },
+        "envFileAccess": {
+          "enum": ["deny", "ask"],
+          "default": "deny",
+          "description": "Whether the pipeline may read or change env files (.env, .env.example, .env.local, …). \"deny\" (default): the env-guard hook hard-blocks every read/edit/write of an env file — they can carry secrets, and non-secret variable names/shape are meant to live in a human-maintained .env.example. \"ask\": the pipeline may touch env files, but EVERY read/change is surfaced to the user to approve or reject (the confirmation prompt shows the exact diff/content), keeping the human in the loop. Enforced by hooks/scripts/env-guard.mjs and fails closed (a missing/malformed config is treated as \"deny\"). This replaces the old static Read(.env*) deny rule, which could never be relaxed."
+        },
         "gates": { "type": "object" },
         "verification": {
           "type": "object",

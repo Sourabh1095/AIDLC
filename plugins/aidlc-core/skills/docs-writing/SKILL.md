@@ -13,7 +13,7 @@ user-invocable: false
 | New user-facing feature | CHANGELOG entry · README feature list if one exists · API docs if it adds endpoints |
 | Behavior change | CHANGELOG (call out if breaking) · every doc that stated the old behavior (grep for it) |
 | New endpoint | The project's API doc mechanism (OpenAPI spec, route JSDoc, docs/api/*) — match what exists |
-| New env var / config | README setup section + `.env.example` (name and shape only, never values) |
+| New env var / config | README setup section. Also `.env.example` (name and shape only, never values) — but only if the workspace opted in via `pipeline.envFileAccess: "ask"`; env files are blocked by default, so otherwise document the variable in the README and note it needs adding to `.env.example`. |
 | New command/script | README commands section |
 | Internal refactor | Usually nothing — CHANGELOG only if perf/compat visible |
 

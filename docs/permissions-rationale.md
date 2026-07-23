@@ -5,9 +5,9 @@ review + anyone tuning a project's posture. The posture implements **high autono
 guardrails**: everything on the story→PR path is allowed; anything destructive,
 production-touching, or guardrail-modifying is denied; ambiguous blast radius asks.
 
-Defense in depth: static rules here are layer 1; the `guard.mjs` / `protect-paths.mjs` hooks
-are layer 2 (they understand context — current branch, targets, exfil patterns — that static
-patterns cannot express).
+Defense in depth: static rules here are layer 1; the `guard.mjs` / `protect-paths.mjs` /
+`env-guard.mjs` hooks are layer 2 (they understand context — current branch, targets, exfil
+patterns, and per-workspace switches — that static patterns cannot express).
 
 ## ALLOW — the autonomous story→PR path
 
@@ -29,7 +29,8 @@ patterns cannot express).
 |---------|-----|
 | `git push --force / -f`, `git reset --hard origin` | History destruction. No pipeline scenario needs it; `--force-with-lease` exists in ask as the human-approved escape hatch. |
 | `gh repo delete` | Obvious. |
-| `Read(.env*, **/secrets/**, ~/.ssh, ~/.aws)` | The pipeline never needs secret VALUES — only names/shape, which belong in `.env.example`. Removes the exfiltration surface. |
+| `Read(**/secrets/**, ~/.ssh, ~/.aws)` | The pipeline never needs the VALUES in secret stores. Removes the exfiltration surface. |
+| `.env` files — handled by the `env-guard.mjs` hook, not a static rule | Env files (`.env`, `.env.example`, `.env.local`, …) can carry secrets, so by default the pipeline may neither read nor change them. This is a hook rather than a `Read(.env*)` deny because it's a **switch**: a static deny can never be relaxed, but `pipeline.envFileAccess` in `.claude/aidlc.config.json` lets a workspace opt in. `"deny"` (default) hard-blocks; `"ask"` lets the pipeline touch env files with the user approving every individual read/change (the prompt shows the exact diff). The hook fails closed — a missing or malformed config is treated as `"deny"`. See [`env-guard.mjs`](../plugins/aidlc-core/hooks/scripts/env-guard.mjs). |
 | `gh secret *`, `az keyvault *` | Secret stores are human-managed. |
 | `kubectl apply/delete`, `terraform apply/destroy`, `az webapp deploy`, `az deployment` | Deployments and infra mutation are release-process actions, not pipeline actions. Phase 4's devops agent will get scoped, per-project exceptions if a project's process allows it. |
 | `Edit/Write(.claude/settings*.json)` | The agent must not be able to widen its own permissions. Also enforced by `protect-paths.mjs` (which additionally covers hook scripts). |

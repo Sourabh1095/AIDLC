@@ -7,6 +7,37 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.27.0] — 2026-07-23
+
+### `aidlc` — env-file access is now an opt-in switch, not a hard wall
+
+Previously the only `.env` rule was a static `Read(./.env)` / `Read(./.env.*)` **deny** — it blocked
+reads (including `.env.example`) but, surprisingly, never blocked *writes*, and a static deny can
+never be relaxed, so there was no way to let the pipeline maintain env files even when a user wanted
+it to. This adds a real switch: **`pipeline.envFileAccess`** in `.claude/aidlc.config.json`.
+
+- **New hook `hooks/scripts/env-guard.mjs`** (PreToolUse on `Read|Edit|Write`) owns all env-file
+  access — `.env`, `.env.example`, `.env.local`, `.env.production.local`, … matched by basename
+  anywhere in the tree (so poly product subfolders and monorepo `apps/*` are covered too, which the
+  old root-only `./.env*` rule missed). `.envrc` and `.env-sample` are deliberately *not* env files.
+- **`"deny"` (the default) hard-blocks** every read and every change to an env file (exit 2, with a
+  reason telling the model to ask the user rather than edit the config itself).
+- **`"ask"` opts in with the human in the loop** — the pipeline may touch env files, but *every*
+  individual read/edit/write is surfaced for the user to approve or reject, and for an Edit/Write the
+  confirmation prompt shows the exact diff/content. Flip it back to `"deny"` to lock env files again.
+- **Fails closed.** A missing, unreadable, or malformed config — or any value other than the literal
+  `"ask"` — is treated as `"deny"`.
+- **Why a hook, not a static rule:** a static `deny` always wins and can't be conditionally relaxed
+  (verified against the permission-precedence docs), so the two `Read(./.env*)` deny rules were
+  **removed** from the project `settings.json` template and their protection folded into the hook.
+  Non-env secret paths (`**/secrets/**`, `~/.ssh`, `~/.aws`) stay statically denied.
+- Config schema (`envFileAccess`), both config templates (default `"deny"`), and the docs that stated
+  the old behavior (`permissions-rationale.md`, `example-walkthrough.md`, the implementer agent's hard
+  rules, the docs-writing skill) were all updated. **New regression suite `env-guard.test.mjs`** — 20
+  cases covering deny/ask/allow, poly + monorepo paths, the `.envrc`/`.env-sample`/`foo.env`
+  non-matches, and all three fail-closed config states.
+- Versions: `aidlc` 0.26.0 → **0.27.0**, marketplace → **0.27.0**.
+
 ## [0.26.0] — 2026-07-19
 
 ### `aidlc` — guard resolves repo state from the `-C` target, and fails closed on a parse miss (F46)

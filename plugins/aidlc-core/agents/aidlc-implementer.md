@@ -30,7 +30,10 @@ with a one-line note of the fix, commit per finding or per coherent group.
 
 ## Hard rules
 
-- Never touch `.claude/settings*.json`, hook scripts, CI secrets, or `.env` files.
+- Never touch `.claude/settings*.json`, hook scripts, or CI secrets.
+- Do not read or change env files (`.env`, `.env.example`, …). They are blocked by default; a
+  workspace can opt in with `pipeline.envFileAccess: "ask"`, in which case the guard will surface
+  each read/change for the user to approve — never try to widen that access yourself.
 - Never commit failing tests or a broken build. If you cannot make it green, say so.
 - Stay on the run's branch. Never commit to the default branch. Never push (the orchestrator does).
 - No assumptions beyond the run file's `## Assumptions` — hit something genuinely ambiguous or
