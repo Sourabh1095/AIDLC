@@ -200,6 +200,59 @@ checkPoly(`git -C ${prod} push origin HEAD:main`, "block", "poly: unquoted space
 checkPoly('git -C core-api commit -m "docs: explain push to main"', "allow", "poly: -C commit msg mentions push main");
 
 rmSync(polyRoot, { recursive: true, force: true });
+
+// ================= ENV-FILE ACCESS ON THE BASH PATH (backstop) =================
+// Two workspaces differing only in pipeline.envFileAccess. No git needed — the env
+// check only reads the config. A missing config = fail-closed "deny" (see below).
+function envWorkspace(access) {
+  const dir = mkdtempSync(join(tmpdir(), "guardenv-"));
+  mkdirSync(join(dir, ".claude"));
+  writeFileSync(join(dir, ".claude", "aidlc.config.json"), JSON.stringify({ pipeline: { envFileAccess: access } }));
+  return dir;
+}
+function checkEnv(command, cwd, expected, label) {
+  n++;
+  let got = 0;
+  try {
+    execFileSync("node", [GUARD], { input: JSON.stringify({ tool_input: { command }, cwd }), stdio: ["pipe", "pipe", "pipe"] });
+  } catch (e) {
+    got = typeof e.status === "number" ? e.status : -1;
+  }
+  const res = got === 2 ? "block" : got === 0 ? "allow" : `exit${got}`;
+  if (res !== expected) {
+    fails++;
+    console.log(`FAIL [${label}] expected=${expected} got=${res}\n       cmd: ${command}`);
+  } else console.log(`ok   [${label}] ${expected}`);
+}
+
+const envDeny = envWorkspace("deny");
+const envAsk = envWorkspace("ask");
+
+// deny → block every shell read/write of an env file
+checkEnv("echo X > .env", envDeny, "block", "bash deny: redirect write .env");
+checkEnv("echo X >> config/.env", envDeny, "block", "bash deny: append nested .env");
+checkEnv("printf %s v > .env.local", envDeny, "block", "bash deny: write .env.local");
+checkEnv("cat .env", envDeny, "block", "bash deny: read .env");
+checkEnv("cat backend/.env.example", envDeny, "block", "bash deny: read nested .env.example");
+checkEnv("tee .env.example", envDeny, "block", "bash deny: tee .env.example");
+checkEnv("cp template .env", envDeny, "block", "bash deny: cp into .env");
+checkEnv("sed -i s/a/b/ .env", envDeny, "block", "bash deny: sed -i .env");
+// deny, but NOT an env read/write → allow
+checkEnv('echo "write to > .env in the docs"', envDeny, "allow", "bash deny: quoted >.env not a redirect");
+checkEnv("echo hi > output.txt", envDeny, "allow", "bash deny: redirect to non-env file");
+checkEnv("cat README.md", envDeny, "allow", "bash deny: read non-env file");
+checkEnv("docker compose --env-file .env up", envDeny, "allow", "bash deny: --env-file passthrough allowed");
+checkEnv("npm run build", envDeny, "allow", "bash deny: unrelated command");
+checkEnv('git commit -m "note: echo X > .env"', envDeny, "allow", "bash deny: git segment skips env check");
+// ask → step aside (normal permission flow handles it)
+checkEnv("echo X > .env", envAsk, "allow", "bash ask: redirect write .env");
+checkEnv("cat .env", envAsk, "allow", "bash ask: read .env");
+checkEnv("tee .env.example", envAsk, "allow", "bash ask: tee .env.example");
+// fail-closed: no config at all in the original git repo fixture (cwd=repo) → deny
+checkEnv("echo X > .env", repo, "block", "bash no-config: write .env → deny (fail closed)");
+
+rmSync(envDeny, { recursive: true, force: true });
+rmSync(envAsk, { recursive: true, force: true });
 rmSync(repo, { recursive: true, force: true });
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

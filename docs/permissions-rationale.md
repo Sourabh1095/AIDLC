@@ -30,7 +30,7 @@ patterns, and per-workspace switches — that static patterns cannot express).
 | `git push --force / -f`, `git reset --hard origin` | History destruction. No pipeline scenario needs it; `--force-with-lease` exists in ask as the human-approved escape hatch. |
 | `gh repo delete` | Obvious. |
 | `Read(**/secrets/**, ~/.ssh, ~/.aws)` | The pipeline never needs the VALUES in secret stores. Removes the exfiltration surface. |
-| `.env` files — handled by the `env-guard.mjs` hook, not a static rule | Env files (`.env`, `.env.example`, `.env.local`, …) can carry secrets, so by default the pipeline may neither read nor change them. This is a hook rather than a `Read(.env*)` deny because it's a **switch**: a static deny can never be relaxed, but `pipeline.envFileAccess` in `.claude/aidlc.config.json` lets a workspace opt in. `"deny"` (default) hard-blocks; `"ask"` lets the pipeline touch env files with the user approving every individual read/change (the prompt shows the exact diff). The hook fails closed — a missing or malformed config is treated as `"deny"`. See [`env-guard.mjs`](../plugins/aidlc-core/hooks/scripts/env-guard.mjs). |
+| `.env` files — enforced by the `env-guard.mjs` + `guard.mjs` hooks (see the env-file note below), NOT a static deny | Env files can carry secrets, so by default the pipeline may neither read nor change them. This is a hook, not a `Read(.env*)` deny, because it must be a **switch** — and a static `deny` can never be relaxed by anything (that is the whole discovery this design corrects). |
 | `gh secret *`, `az keyvault *` | Secret stores are human-managed. |
 | `kubectl apply/delete`, `terraform apply/destroy`, `az webapp deploy`, `az deployment` | Deployments and infra mutation are release-process actions, not pipeline actions. Phase 4's devops agent will get scoped, per-project exceptions if a project's process allows it. |
 | `Edit/Write(.claude/settings*.json)` | The agent must not be able to widen its own permissions. Also enforced by `protect-paths.mjs` (which additionally covers hook scripts). |
@@ -44,6 +44,34 @@ patterns, and per-workspace switches — that static patterns cannot express).
 | `npm publish`, `docker push`, `gh release create`, `az pipelines run` | Registry/release mutations — visible outside the repo. |
 | `docker system prune` | Deletes shared local state beyond the project. |
 | `psql`, `mongosh` | Raw DB shells can mutate anything they can reach. Guard hook blocks prod-looking targets outright; localhost usage just needs a click. Prefer read-only MCP servers (Phase 3/4) for queries. |
+| `Read/Edit/Write(**/.env)`, `(**/.env.*)` | The **fail-safe floor** for env files (see the note below). Never a `deny` and never a silent `allow` — so even if the `env-guard` hook is not running (plugin disabled), touching an env file prompts rather than being silently readable. |
+
+## Env-file access — two layers that must agree
+
+Env-file access exposed a subtlety worth stating plainly, because it governs the whole design:
+
+- **`.claude/settings*.json` is the harness's hard gate.** A `deny` here always wins — no hook and
+  no config can relax it. The permission precedence is `deny → ask → allow`, and a PreToolUse hook
+  can only *tighten* (add a block or a prompt), never open what settings denies.
+- **`pipeline.envFileAccess` (in `aidlc.config.json`) is a switch the hooks read at runtime.** It is
+  therefore *subordinate* to the harness gate — it can only take effect within what settings permits.
+
+So a hard `Read(.env*)` **deny** and an opt-in switch are mutually exclusive: the deny would make the
+switch inert. The resolution:
+
+1. Settings carries env paths in **`ask`**, not `deny` — the fail-safe floor above.
+2. `env-guard.mjs` (PreToolUse `Read|Edit|Write`) enforces the real default: `envFileAccess: "deny"`
+   → **exit 2 hard block** (which bypasses the settings `ask`); `"ask"` → a `permissionDecision: "ask"`
+   prompt that shows the exact diff/content. Fails closed (missing/malformed config ⇒ `deny`).
+3. `guard.mjs` (PreToolUse `Bash`) mirrors the switch on the **shell path** — a `> .env` redirect,
+   `tee`/`cp`/`sed -i` write, or `cat .env` read is blocked under `deny` and stepped past under `ask`.
+   Without this, a shell command would bypass the tool-level hook.
+
+Net: the default is a hard deny (via the hook), opting in is a single edit to `aidlc.config.json`, and
+the two layers agree. **Migration:** projects scaffolded before 0.28 still have the old
+`Read(./.env)` / `Read(./.env.*)` **deny** in their `settings.json`; that hard deny overrides the
+switch, so it must be removed (and the `ask` rules added) — `/aidlc:init`'s settings merge does this,
+or edit the file by hand. The agent cannot: `settings.json` is protected by `protect-paths.mjs`.
 
 ## Per-project tuning
 

@@ -7,6 +7,48 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.28.0] — 2026-07-23
+
+### `aidlc` — env switch: reconcile it with the harness permission gate (fixes the switch)
+
+0.27's `envFileAccess` switch didn't actually work in the field. A plugin user set
+`envFileAccess: "ask"` and the harness still denied the read: *"denied by your permission settings."*
+Root cause — **two permission layers that disagreed**:
+
+- `.claude/settings*.json` is the harness's **hard gate**; a `deny` there always wins and a hook can
+  never relax it (precedence is `deny → ask → allow`, and a PreToolUse hook can only *tighten*).
+- The `envFileAccess` hook is **subordinate** to that gate.
+
+So a hard `Read(.env*)` deny and an opt-in switch are mutually exclusive — and every project scaffolded
+before 0.28 still carries that deny in its own `settings.json` (updating the plugin never rewrites a
+project's already-copied settings). The switch was inert there. 0.27 had also removed the static deny
+from the *template* without a replacement, leaving the default-deny resting entirely on the hook
+(fail-open if the hook wasn't running) and the **Bash path** (`> .env`, `cat .env`) ungoverned.
+
+The fix makes the layers agree, with the hook authoritative:
+
+- **Settings template now lists env paths in `ask`, not `deny`** (`Read/Edit/Write(**/.env)` +
+  `(**/.env.*)`). This is a fail-safe *floor*: even if the hook isn't running, touching an env file
+  prompts — never silently readable, never hard-denied.
+- **`env-guard.mjs` enforces the real default** — `"deny"` → **exit 2** (a hard block that bypasses
+  the settings `ask`); `"ask"` → a prompt showing the exact diff. Unchanged from 0.27, now correct
+  because no static deny sits above it.
+- **`guard.mjs` mirrors the switch on the Bash path (new).** Reading or writing an env file from a
+  shell command — `>`/`>>` redirects, `tee`/`cp`/`mv`/`install`/`dd`/`truncate`/`sed -i` writes, and
+  `cat`/`type`/`Get-Content`/`head`/… reads — is blocked under `"deny"` and stepped past under `"ask"`
+  (quote-aware, so a quoted `">.env"` in an echo string isn't mistaken for a redirect; git segments
+  and `--env-file` passthrough are not caught). Fails closed. **+18 guard regression tests (52 → 70).**
+- **`/aidlc:init` now migrates** an existing `settings.json` instead of blind-unioning: it drops the
+  deprecated `Read(./.env)` / `Read(./.env.*)` denies and adds the `ask` rules, flagging the
+  deny-list edit to the user for approval.
+
+**Migration for existing projects:** update + reload the plugin, then either re-run `/aidlc:init`
+(accept the settings merge) or manually remove `Read(./.env)` and `Read(./.env.*)` from that project's
+`.claude/settings.json` `deny` array. The agent can't do it — `settings.json` is protected by
+`protect-paths.mjs`. Until then the switch stays inert in that project.
+
+- Versions: `aidlc` 0.27.0 → **0.28.0**, marketplace → **0.28.0**.
+
 ## [0.27.0] — 2026-07-23
 
 ### `aidlc` — env-file access is now an opt-in switch, not a hard wall

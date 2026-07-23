@@ -44,6 +44,14 @@ improvise replacement files: the permission posture and rules must be the review
 2. Check for collisions: `CLAUDE.md`, `.claude/settings.json`, `.claude/aidlc.config.json`, `backlog/`, `.aidlc/`.
    - If `CLAUDE.md` exists: do NOT overwrite. Merge — append the template's "AIDLC workflow" and "Configuration" sections to the existing file.
    - If `.claude/settings.json` exists: do NOT overwrite. Show the user the template's permission posture and ask whether to merge `allow`/`deny`/`ask` arrays (union, dedupe) or skip.
+     - **Migrate the deprecated env deny rules (do NOT just union).** A plain union keeps stale
+       rules. If the existing `deny` list contains `Read(./.env)` or `Read(./.env.*)` (the pre-0.28
+       hard deny), **remove them** and add the template's env rules to `ask`
+       (`Read/Edit/Write(**/.env)` + `(**/.env.*)`). Those old denies are a *hard* gate that the
+       `envFileAccess` switch can never relax — leaving them in place makes the switch do nothing
+       (reads of `.env` stay denied even with `pipeline.envFileAccess: "ask"`). Enforcement moved to
+       the `env-guard.mjs` hook; settings now only carries the `ask` fail-safe floor. Call this out to
+       the user explicitly since it edits the `deny` list downward (security-relevant, needs their ok).
    - Anything else existing: ask before overwriting.
 
 ## Step 3 — Ask the user (use AskUserQuestion where available)

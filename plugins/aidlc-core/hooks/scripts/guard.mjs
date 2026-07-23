@@ -164,6 +164,101 @@ function parseGit(argv) {
 // Destination ref of a refspec: `HEAD:main` / `:main` / `+main` → `main`.
 const refDest = (r) => (r.includes(":") ? r.slice(r.lastIndexOf(":") + 1) : r).replace(/^\+/, "");
 
+// --- Env-file access backstop -------------------------------------------------------
+// The env-guard hook governs the Read|Edit|Write TOOLS; a shell command that reads or
+// writes an env file bypasses it. This mirrors the same switch on the Bash path. The
+// harness `deny` on env was removed so the switch could work, so this is what keeps the
+// default-deny honest for shell commands. Reads pipeline.envFileAccess once; fails closed.
+const isEnvBase = (t) => {
+  const b = String(t)
+    .replace(/^['"]|['"]$/g, "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .pop();
+  return /^\.env(\.|$)/.test(b);
+};
+
+let _access;
+function envFileAccess(dir) {
+  if (_access !== undefined) return _access;
+  _access = "deny";
+  try {
+    const cfg = JSON.parse(readFileSync(join(dir, ".claude", "aidlc.config.json"), "utf8"));
+    if (cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask") _access = "ask";
+  } catch {
+    /* no/unreadable config → deny */
+  }
+  return _access;
+}
+
+// Target of an output redirection whose basename is an env file — quote-aware, so a
+// quoted ">.env" inside an echo string is NOT read as a real redirect (the same
+// parse-don't-regex principle the git checks use). Returns the path, or "".
+function envRedirectTarget(seg) {
+  let quote = null;
+  for (let i = 0; i < seg.length; i++) {
+    const c = seg[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === ">") {
+      let j = i + 1;
+      if (seg[j] === ">") j++; // >>
+      while (j < seg.length && /\s/.test(seg[j])) j++;
+      let target = "";
+      let q = null;
+      for (; j < seg.length; j++) {
+        const d = seg[j];
+        if (q) {
+          if (d === q) q = null;
+          else target += d;
+          continue;
+        }
+        if (d === '"' || d === "'") {
+          q = d;
+          continue;
+        }
+        if (/[\s|;&<>()]/.test(d)) break;
+        target += d;
+      }
+      if (target && isEnvBase(target)) return target.replace(/^['"]|['"]$/g, "");
+    }
+  }
+  return "";
+}
+
+// A command that writes a file to an env path: tee/cp/mv/install/dd of=/truncate, or an
+// in-place sed. Returns the env path, or "".
+function envCmdWriteTarget(argv) {
+  const cmd = argv[0] ? argv[0].split(/[\\/]/).pop() : "";
+  if (["tee", "cp", "mv", "install", "dd", "truncate"].includes(cmd)) {
+    for (const a of argv.slice(1)) {
+      if (isEnvBase(a)) return a.replace(/^['"]|['"]$/g, "");
+      if (/^of=/.test(a) && isEnvBase(a.slice(3))) return a.slice(3);
+    }
+  }
+  if (cmd === "sed" && argv.some((a) => a === "-i" || /^-i\S*$/.test(a))) {
+    const t = argv.slice(1).find(isEnvBase);
+    if (t) return t.replace(/^['"]|['"]$/g, "");
+  }
+  return "";
+}
+
+// A file-dumping reader (cat/type/Get-Content/head/…) pointed at an env file. Returns
+// the env path, or "".
+const ENV_READERS = new Set(["cat", "type", "Get-Content", "gc", "bat", "less", "more", "head", "tail", "nl", "xxd", "od"]);
+function envReadTarget(argv) {
+  const cmd = argv[0] ? argv[0].split(/[\\/]/).pop() : "";
+  if (!ENV_READERS.has(cmd)) return "";
+  const t = argv.slice(1).find(isEnvBase);
+  return t ? t.replace(/^['"]|['"]$/g, "") : "";
+}
+
 // Segment per shell separator so flags/tokens from OTHER commands in a compound line
 // (`rm -f x && git push`) don't leak across the checks.
 for (const rawSeg of cmd.split(/[|;&]+/)) {
@@ -228,6 +323,28 @@ for (const rawSeg of cmd.split(/[|;&]+/)) {
     // no SQL, cluster, filesystem or credential operations. Skipping git segments is
     // what stops a commit message that merely mentions these from tripping the guard.
     continue;
+  }
+
+  // --- 2c. Env-file access on the Bash path (backstop for the env-guard hook) ---
+  // Unless the workspace opted in with pipeline.envFileAccess: "ask", block reading or
+  // writing an env file from a shell command. Under "ask" we step aside and let the
+  // normal permission flow prompt (the Read/Edit/Write tools are the governed path).
+  if (envFileAccess(cwd) !== "ask") {
+    const wt = envRedirectTarget(rawSeg) || envCmdWriteTarget(argv);
+    if (wt)
+      block(
+        `writing env file '${wt}' from a shell command is blocked by default — env files can ` +
+          `hold secrets. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to allow ` +
+          `it with your per-change approval (default "deny"); prefer the Write/Edit tools, which ` +
+          `prompt per change. Do not edit that config yourself — ask the user to.`,
+      );
+    const rt = envReadTarget(argv);
+    if (rt)
+      block(
+        `reading env file '${rt}' from a shell command is blocked by default — the pipeline never ` +
+          `needs secret values. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to ` +
+          `allow it (default "deny"). Ask the user to flip it — do not edit that config yourself.`,
+      );
   }
 
   // --- 3. Destructive DB operations outside localhost ---
