@@ -5,14 +5,14 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AIDLC (AI Development Life Cycle) framework for all projects.",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "plugins": [
     {
       "name": "aidlc",
       "source": "./plugins/aidlc-core",
       "displayName": "AIDLC Core",
       "description": "AIDLC (AI Development Life Cycle) orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — across one repo or a multi-repo workspace, with or without a git remote, end to end.",
-      "version": "0.28.1",
+      "version": "0.28.2",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["aidlc", "orchestration", "agile", "automation"],

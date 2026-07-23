@@ -14,8 +14,8 @@
 // therefore resolves against the `-C` target, NOT the session cwd — the control plane
 // sits on `main` permanently, so reading HEAD from cwd blocks every legitimate
 // feature-branch push (F46).
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
 import { execSync } from "node:child_process";
 
 let data;
@@ -168,7 +168,7 @@ const refDest = (r) => (r.includes(":") ? r.slice(r.lastIndexOf(":") + 1) : r).r
 // The env-guard hook governs the Read|Edit|Write TOOLS; a shell command that reads or
 // writes an env file bypasses it. This mirrors the same switch on the Bash path. The
 // harness `deny` on env was removed so the switch could work, so this is what keeps the
-// default-deny honest for shell commands. Reads pipeline.envFileAccess once; fails closed.
+// default-deny honest for shell commands. Fails closed.
 const isEnvBase = (t) => {
   const b = String(t)
     .replace(/^['"]|['"]$/g, "")
@@ -178,18 +178,40 @@ const isEnvBase = (t) => {
   return /^\.env(\.|$)/.test(b);
 };
 
-let _access;
-function envFileAccess(dir) {
-  if (_access !== undefined) return _access;
-  _access = "deny";
-  try {
-    const cfg = JSON.parse(readFileSync(join(dir, ".claude", "aidlc.config.json"), "utf8"));
-    if (cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask") _access = "ask";
-  } catch {
-    /* no/unreadable config → deny */
+// Resolve pipeline.envFileAccess by walking UP from a starting directory to the nearest
+// .claude/aidlc.config.json — the same layout-independent resolution the env-guard hook
+// uses (mono: the repo root; poly: the control plane, reached from a product subrepo of
+// any depth). The first config found governs; only the exact string "ask" opens the
+// gate; anything else — none found, unreadable, unknown value — is "deny" (fail closed).
+// Cached per starting directory.
+const _accessCache = new Map();
+function envFileAccess(startDir) {
+  if (_accessCache.has(startDir)) return _accessCache.get(startDir);
+  let access = "deny";
+  let dir = startDir;
+  for (;;) {
+    const cfgPath = join(dir, ".claude", "aidlc.config.json");
+    if (existsSync(cfgPath)) {
+      try {
+        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+        if (cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask") access = "ask";
+      } catch {
+        /* present but unreadable/malformed → keep deny */
+      }
+      break; // nearest config governs, opted-in or not
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break; // filesystem root, no config found
+    dir = parent;
   }
-  return _access;
+  _accessCache.set(startDir, access);
+  return access;
 }
+
+// Access for a specific env path a command touches: resolve the switch from that path's
+// OWN directory (relative paths resolved against cwd), not from cwd — so a poly
+// product-repo env file finds the control-plane opt-in regardless of the session cwd.
+const envAccessFor = (envPath) => envFileAccess(dirname(resolve(cwd, envPath)));
 
 // Target of an output redirection whose basename is an env file — quote-aware, so a
 // quoted ">.env" inside an echo string is NOT read as a real redirect (the same
@@ -329,23 +351,23 @@ for (const rawSeg of cmd.split(/[|;&]+/)) {
   // Unless the workspace opted in with pipeline.envFileAccess: "ask", block reading or
   // writing an env file from a shell command. Under "ask" we step aside and let the
   // normal permission flow prompt (the Read/Edit/Write tools are the governed path).
-  if (envFileAccess(cwd) !== "ask") {
-    const wt = envRedirectTarget(rawSeg) || envCmdWriteTarget(argv);
-    if (wt)
-      block(
-        `writing env file '${wt}' from a shell command is blocked by default — env files can ` +
-          `hold secrets. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to allow ` +
-          `it with your per-change approval (default "deny"); prefer the Write/Edit tools, which ` +
-          `prompt per change. Do not edit that config yourself — ask the user to.`,
-      );
-    const rt = envReadTarget(argv);
-    if (rt)
-      block(
-        `reading env file '${rt}' from a shell command is blocked by default — the pipeline never ` +
-          `needs secret values. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to ` +
-          `allow it (default "deny"). Ask the user to flip it — do not edit that config yourself.`,
-      );
-  }
+  // The switch is resolved from each env path's OWN location, so a poly product-repo
+  // env file sees the control-plane opt-in regardless of the session cwd.
+  const wt = envRedirectTarget(rawSeg) || envCmdWriteTarget(argv);
+  if (wt && envAccessFor(wt) !== "ask")
+    block(
+      `writing env file '${wt}' from a shell command is blocked by default — env files can ` +
+        `hold secrets. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to allow ` +
+        `it with your per-change approval (default "deny"); prefer the Write/Edit tools, which ` +
+        `prompt per change. Do not edit that config yourself — ask the user to.`,
+    );
+  const rt = envReadTarget(argv);
+  if (rt && envAccessFor(rt) !== "ask")
+    block(
+      `reading env file '${rt}' from a shell command is blocked by default — the pipeline never ` +
+        `needs secret values. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to ` +
+        `allow it (default "deny"). Ask the user to flip it — do not edit that config yourself.`,
+    );
 
   // --- 3. Destructive DB operations outside localhost ---
   if (/\b(DROP\s+(DATABASE|SCHEMA)|TRUNCATE\s+TABLE|db\.dropDatabase)\b/i.test(rawSeg)) {

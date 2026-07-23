@@ -7,6 +7,37 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.28.2] — 2026-07-24
+
+### `aidlc` — env switch: resolve `envFileAccess` from the env file up to the control plane (F50)
+
+Found in a live poly workspace. 0.28.x's env-file switch read `pipeline.envFileAccess` from a single
+fixed path — `<cwd>/.claude/aidlc.config.json`. That is correct only when the session cwd is the
+workspace root. In a **poly workspace** the switch lives once at the control plane while each product
+repo is a subfolder with its own env files, so a tool call whose cwd was a product subrepo found no
+config there and **fell back to `deny`** — hard-blocking env reads/writes in a workspace that had
+explicitly opted into `"ask"`. The block message then told the user to *"set `envFileAccess: \"ask\"`"*
+— which was already set — so the pipeline, seeing no valid path forward, invented a non-existent
+`"allow"` value. (There is no `"allow"`: the enum is `["deny","ask"]` and both hooks fail closed on
+anything else, so setting it would have blocked *harder*, not opened the gate.)
+
+- **Both hooks now resolve the switch by walking UP from the ENV FILE'S OWN directory** to the nearest
+  `.claude/aidlc.config.json` — `env-guard.mjs` for the Read/Edit/Write tools, `guard.mjs` for the Bash
+  path (each detected env target). Layout-independent: mono finds it at the repo root; poly finds it at
+  the control plane from a product subrepo of any depth. **The session cwd no longer matters, and each
+  repo may carry its own env files under one control-plane switch.**
+- **Still fails closed** — no config anywhere up the tree, an unreadable/malformed one, or any value
+  other than the exact string `"ask"` ⇒ `"deny"`. The nearest config on the path governs (opted-in or
+  not), so an unrelated ancestor can't silently override a workspace.
+- **The deny message no longer misleads.** If the switch is *already* `"ask"`, it now says the config
+  could not be found by searching up from the env file's location — pointing at a misplaced config
+  rather than implying a stronger setting exists.
+- **Regression suites extended** — `env-guard.test.mjs` (20 → 26 cases) and `guard.test.mjs`
+  (+4 cases, 74 total) now cover subrepo-cwd / control-plane-config resolution and its fail-closed
+  edges. The gap was previously untested: every case anchored cwd on the config's own directory.
+
+- Versions: `aidlc` 0.28.1 → **0.28.2**, marketplace → **0.28.2**.
+
 ## [0.28.1] — 2026-07-23
 
 ### `aidlc` — drop the re-introduced no-op `Write(path)` rules (F48) + strict-JSON migration warning (F49)

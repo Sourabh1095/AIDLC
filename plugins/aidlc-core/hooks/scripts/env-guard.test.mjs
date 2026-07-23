@@ -67,6 +67,23 @@ const absent = workspace(null); // config present but no envFileAccess key
 const noConfig = workspace("none"); // no config file at all
 const bad = workspace("bad"); // malformed config
 
+// A poly workspace: the switch lives once at the control-plane root; product repos are
+// subfolders that each carry their own env files but NO config of their own.
+function polyWorkspace(access) {
+  const root = mkdtempSync(join(tmpdir(), "envguard-poly-"));
+  mkdirSync(join(root, ".claude"), { recursive: true });
+  writeFileSync(join(root, ".claude", "aidlc.config.json"), JSON.stringify({ pipeline: { envFileAccess: access } }));
+  const sub = join(root, "core-api");
+  mkdirSync(join(sub, "config"), { recursive: true });
+  return { root, sub };
+}
+const polyAsk = polyWorkspace("ask");
+const polyDeny = polyWorkspace("deny");
+// An orphan tree with no config anywhere up to the filesystem root.
+const orphanRoot = mkdtempSync(join(tmpdir(), "envguard-orphan-"));
+const orphanSub = join(orphanRoot, "svc");
+mkdirSync(orphanSub, { recursive: true });
+
 try {
   // ===== envFileAccess = "deny" (explicit) → block every env file, allow the rest =====
   check("Read", ".env", deny, "block", "deny: read .env");
@@ -95,8 +112,19 @@ try {
   check("Write", ".env", bad, "block", "malformed config → deny");
   // …but non-env files still pass even when the config is unreadable.
   check("Read", "src/index.ts", noConfig, "allow", "no config, non-env → allow");
+
+  // ===== poly / subfolder cwd: the switch is resolved from the env file's OWN location,
+  // walking up to the nearest (control-plane) config — the session cwd is irrelevant.
+  // The 0.28.x cwd-anchored read blocked these even in a workspace that opted in (F50). =====
+  check("Edit", join(polyAsk.sub, ".env.example"), polyAsk.sub, "ask", "poly ask: edit subrepo env, cwd=subrepo");
+  check("Read", ".env", polyAsk.sub, "ask", "poly ask: read subrepo env by basename, cwd=subrepo");
+  check("Edit", "core-api/.env.example", polyAsk.root, "ask", "poly ask: edit subrepo env, cwd=control plane");
+  check("Write", join(polyAsk.sub, "config", ".env.local"), polyAsk.sub, "ask", "poly ask: deep subrepo env resolves up");
+  check("Edit", join(polyDeny.sub, ".env.example"), polyDeny.sub, "block", "poly deny: control-plane deny blocks subrepo env");
+  check("Edit", join(orphanSub, ".env"), orphanSub, "block", "poly: no config anywhere up the tree → deny (fail closed)");
 } finally {
-  for (const d of [deny, ask, absent, noConfig, bad]) rmSync(d, { recursive: true, force: true });
+  for (const d of [deny, ask, absent, noConfig, bad, polyAsk.root, polyDeny.root, orphanRoot])
+    rmSync(d, { recursive: true, force: true });
 }
 
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);

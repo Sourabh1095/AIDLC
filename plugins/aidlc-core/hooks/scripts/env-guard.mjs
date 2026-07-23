@@ -10,12 +10,20 @@
 //                                              read/change to the user to approve or
 //                                              reject (permissionDecision "ask").
 //
+// The switch is resolved by walking UP from the ENV FILE'S OWN directory to the nearest
+// .claude/aidlc.config.json — the layout is irrelevant: mono finds it at the repo root;
+// a poly workspace keeps the switch once at the control plane while the product repos
+// are subfolders (each with its own env files), so an env file at any depth still sees
+// the workspace's opt-in regardless of what the session cwd is. (A cwd-anchored read
+// missed this: a tool call whose cwd was a product subrepo found no config there and
+// fell back to deny, hard-blocking env writes in a workspace that HAD opted in — F50.)
+//
 // Why a hook and not a static settings `deny`: a static deny rule ALWAYS wins and can
 // never be relaxed by a hook, so a user-flippable switch has to live where its value
 // can be read at runtime. This hook is that switch. It fails CLOSED — any doubt about
-// the config (missing file, parse error, unknown value) is treated as "deny".
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+// the config (none found up the tree, parse error, unknown value) is treated as "deny".
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
 
 let data;
 try {
@@ -36,15 +44,33 @@ if (!/^\.env(\.|$)/.test(base)) process.exit(0);
 
 const cwd = data.cwd || process.cwd();
 
-// Resolve the switch. ONLY the exact string "ask" opens the gate; anything else —
-// including a missing or malformed config — is treated as "deny" (fail closed).
-let access = "deny";
-try {
-  const cfg = JSON.parse(readFileSync(join(cwd, ".claude", "aidlc.config.json"), "utf8"));
-  if (cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask") access = "ask";
-} catch {
-  /* no config / unreadable / parse error → deny */
+// Resolve the switch by walking UP from `startDir` to the nearest aidlc.config.json.
+// The first config found governs (opted-in or not); ONLY the exact string "ask" opens
+// the gate. No config anywhere up the tree, an unreadable/malformed one, or any other
+// value → "deny" (fail closed).
+function resolveAccess(startDir) {
+  let dir = startDir;
+  for (;;) {
+    const cfgPath = join(dir, ".claude", "aidlc.config.json");
+    if (existsSync(cfgPath)) {
+      try {
+        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+        return cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask" ? "ask" : "deny";
+      } catch {
+        return "deny"; // present but unreadable/malformed → fail closed
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return "deny"; // reached the filesystem root, no config found
+    dir = parent;
+  }
 }
+
+// Anchor the search on the env file's own directory (relative paths resolved against
+// cwd), NOT on cwd itself — that is what lets a poly product-repo env file find the
+// control-plane switch no matter where the session cwd sits.
+const searchStart = dirname(resolve(cwd, raw));
+const access = resolveAccess(searchStart);
 
 const isRead = data.tool_name === "Read";
 const verb = isRead ? "read" : "change";
@@ -73,7 +99,9 @@ if (access === "ask") {
 process.stderr.write(
   `AIDLC env guard: ${gerund} env files ('${base}') is blocked by default — env files can hold ` +
     `secrets. To let the pipeline read and change env files (.env and .env.example) WITH your ` +
-    `explicit per-change approval, set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json ` +
-    `(the default is "deny"). Ask the user to flip it — do not attempt to edit it yourself.`,
+    `explicit per-change approval, set "pipeline.envFileAccess": "ask" in the workspace's ` +
+    `.claude/aidlc.config.json (the default is "deny"). If it is ALREADY set to "ask", the pipeline ` +
+    `could not find that config by searching up from '${searchStart}' — confirm it sits at the ` +
+    `workspace control plane. Ask the user to handle the config — do not edit it yourself.`,
 );
 process.exit(2);

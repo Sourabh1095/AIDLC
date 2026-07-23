@@ -228,6 +228,19 @@ function checkEnv(command, cwd, expected, label) {
 const envDeny = envWorkspace("deny");
 const envAsk = envWorkspace("ask");
 
+// poly: the switch lives once at the control-plane root; product repos are subfolders
+// with their own env files but no config of their own.
+function envPolyWorkspace(access) {
+  const root = mkdtempSync(join(tmpdir(), "guardenv-poly-"));
+  mkdirSync(join(root, ".claude"));
+  writeFileSync(join(root, ".claude", "aidlc.config.json"), JSON.stringify({ pipeline: { envFileAccess: access } }));
+  const sub = join(root, "core-api");
+  mkdirSync(sub);
+  return { root, sub };
+}
+const envPolyAsk = envPolyWorkspace("ask");
+const envPolyDeny = envPolyWorkspace("deny");
+
 // deny → block every shell read/write of an env file
 checkEnv("echo X > .env", envDeny, "block", "bash deny: redirect write .env");
 checkEnv("echo X >> config/.env", envDeny, "block", "bash deny: append nested .env");
@@ -250,9 +263,17 @@ checkEnv("cat .env", envAsk, "allow", "bash ask: read .env");
 checkEnv("tee .env.example", envAsk, "allow", "bash ask: tee .env.example");
 // fail-closed: no config at all in the original git repo fixture (cwd=repo) → deny
 checkEnv("echo X > .env", repo, "block", "bash no-config: write .env → deny (fail closed)");
+// poly: resolve the switch from the env path's OWN location, walking up to the
+// control-plane config — cwd (subrepo OR control plane) is irrelevant (F50).
+checkEnv("cat .env", envPolyAsk.sub, "allow", "bash poly ask: read subrepo env, cwd=subrepo");
+checkEnv("echo X > .env.example", envPolyAsk.sub, "allow", "bash poly ask: write subrepo env, cwd=subrepo");
+checkEnv("cat core-api/.env", envPolyAsk.root, "allow", "bash poly ask: read subrepo env, cwd=control plane");
+checkEnv("cat .env", envPolyDeny.sub, "block", "bash poly deny: control-plane deny blocks subrepo env");
 
 rmSync(envDeny, { recursive: true, force: true });
 rmSync(envAsk, { recursive: true, force: true });
+rmSync(envPolyAsk.root, { recursive: true, force: true });
+rmSync(envPolyDeny.root, { recursive: true, force: true });
 rmSync(repo, { recursive: true, force: true });
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
