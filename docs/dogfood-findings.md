@@ -18,7 +18,41 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F48**._
+_Numbering continues across cycles — the next finding is **F50**._
+
+### F48 🟡 — Reintroduced F44's no-op `Write(path)` rules in the env `ask` floor
+**Symptom.** (RTO Tool, aidlc@0.28.0.) Every session start prints: *"Permission ask rule
+(.claude\settings.json): `Write(**/.env)` is not matched by file permission checks — only `Edit(path)`
+rules are. Use `Edit(**/.env)` instead."* — twice, once per `Write(...)` rule.
+**Root cause.** 0.28's env fail-safe floor was authored as `Read/Edit/Write(**/.env)`, assuming
+`Write(path)` is separately enforceable. **This is exactly F44**, found and fixed one cycle earlier in
+the *deny* list; the same wrong assumption was reapplied to the *ask* list by someone (me) who had the
+finding in the repo and didn't check it. File permission checks match only `Read(path)` and
+`Edit(path)`; `Edit` already covers every file-editing tool including Write.
+**Resolution.** Dropped both `Write(...)` rules from the template's `ask` list. Enforcement is
+unchanged — the `Edit(**/.env)` rules already covered the Write tool — so this was noise, not a hole.
+**Lesson worth keeping:** a fixed finding is only fixed where it was applied. When adding permission
+rules, grep `dogfood-findings*.md` for the rule *shape* first — the archive is the regression suite for
+config, and nothing mechanical enforces it. Consider a template lint that rejects any `Write(<path>)`
+rule outright.
+
+### F49 🔴 — Hand-migrating `settings.json` with `//` comments silently disabled every plugin
+**Symptom.** (RTO Tool.) After the 0.28 migration instruction *"remove `Read(./.env)` and
+`Read(./.env.*)`"*, the two rules were **commented out with `//`** rather than deleted. Claude Code then
+reported *"Invalid or malformed JSON — files with errors are skipped entirely"* at startup, and **all
+`/aidlc:*` commands disappeared** while `/plugin` still listed the plugins as installed. Time was lost
+chasing a stale, unrelated marketplace error (`Marketplace file not found … \D:\SDLC`, leftover from
+pre-rebrand `sdlc` installs) before the real cause surfaced.
+**Root cause.** Two compounding gaps: (1) the migration guidance said "remove" without stating that
+`settings.json` is **strict JSON with no comment support**; (2) the blast radius is invisible — that
+file also carries `enabledPlugins`, so one malformed line disables every plugin for the project, and
+the symptom (missing commands) points nowhere near the cause.
+**Resolution.** Init's migration step now says delete outright, never comment out, and requires a
+`JSON.parse` re-read after any settings edit to prove it still parses. The CHANGELOG migration note
+carries the same warning.
+**Lesson worth keeping:** any user-facing instruction to edit a settings file must name the format
+constraint and the failure mode. Prefer pointing users at the programmatic `/aidlc:init` merge (which
+cannot introduce comments) over hand-editing.
 
 ### F42 🔴 — Poly: `/aidlc:sprint` worktree launches are dead on arrival (`Unknown command: /aidlc:run`), silently at rc=0
 **Symptom.** (RTO Tool, poly, 5 repos, ADO, `git.mode: remote`.) Sprint selected 5 independent items

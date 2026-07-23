@@ -44,7 +44,7 @@ patterns, and per-workspace switches — that static patterns cannot express).
 | `npm publish`, `docker push`, `gh release create`, `az pipelines run` | Registry/release mutations — visible outside the repo. |
 | `docker system prune` | Deletes shared local state beyond the project. |
 | `psql`, `mongosh` | Raw DB shells can mutate anything they can reach. Guard hook blocks prod-looking targets outright; localhost usage just needs a click. Prefer read-only MCP servers (Phase 3/4) for queries. |
-| `Read/Edit/Write(**/.env)`, `(**/.env.*)` | The **fail-safe floor** for env files (see the note below). Never a `deny` and never a silent `allow` — so even if the `env-guard` hook is not running (plugin disabled), touching an env file prompts rather than being silently readable. |
+| `Read(**/.env)`, `Read(**/.env.*)`, `Edit(**/.env)`, `Edit(**/.env.*)` | The **fail-safe floor** for env files (see the note below). Never a `deny` and never a silent `allow` — so even if the `env-guard` hook is not running (plugin disabled), touching an env file prompts rather than being silently readable. **`Edit` only, never `Write(path)`** — file permission checks match only `Read(path)` and `Edit(path)`; a `Write(path)` rule is accepted but never matched and warns at startup, and `Edit` already covers every file-editing tool including Write (F44, re-broken and re-fixed as F48). |
 
 ## Env-file access — two layers that must agree
 

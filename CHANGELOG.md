@@ -7,6 +7,34 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.28.1] — 2026-07-23
+
+### `aidlc` — drop the re-introduced no-op `Write(path)` rules (F48) + strict-JSON migration warning (F49)
+
+Two follow-ups from 0.28 landing in a live poly workspace.
+
+- **F48 — `Write(**/.env)` / `Write(**/.env.*)` removed from the template's `ask` list.** They warned
+  at every session start (*"not matched by file permission checks — only `Edit(path)` rules are"*).
+  File permission checks match only `Read(path)` and `Edit(path)`; `Edit` already covers every
+  file-editing tool including Write, so **enforcement is unchanged** — this was noise, not a hole.
+  Notably this is **a regression of F44**, which fixed the identical no-op in the `deny` list one cycle
+  earlier: the same wrong assumption was reapplied to the `ask` list. Logged as its own finding so the
+  pattern is visible; the archive is effectively the regression suite for config rules, and nothing
+  mechanical enforces it yet.
+- **F49 — migration guidance now names the format constraint.** Following 0.28's *"remove
+  `Read(./.env)` and `Read(./.env.*)`"*, the rules were commented out with `//`. `settings.json` is
+  **strict JSON**, so the file became unparseable and Claude Code **skipped it entirely** — including
+  its `enabledPlugins` block, which silently disabled every AIDLC plugin for that project: all
+  `/aidlc:*` commands vanished while `/plugin` still showed them installed. `/aidlc:init`'s migration
+  step now says **delete outright, never comment out**, and requires a `JSON.parse` re-read after any
+  settings edit. Prefer the programmatic init merge (which cannot introduce comments) over hand-editing.
+
+**If you hand-migrated to 0.28 and lost the `/aidlc:*` commands:** your `.claude/settings.json` is
+almost certainly malformed. Validate it (`node -e "JSON.parse(require('fs').readFileSync('.claude/settings.json','utf8'))"`),
+delete any `//` lines, and drop any `Write(<path>)` rules.
+
+- Versions: `aidlc` 0.28.0 → **0.28.1**, marketplace → **0.28.1**.
+
 ## [0.28.0] — 2026-07-23
 
 ### `aidlc` — env switch: reconcile it with the harness permission gate (fixes the switch)
@@ -27,8 +55,9 @@ from the *template* without a replacement, leaving the default-deny resting enti
 
 The fix makes the layers agree, with the hook authoritative:
 
-- **Settings template now lists env paths in `ask`, not `deny`** (`Read/Edit/Write(**/.env)` +
-  `(**/.env.*)`). This is a fail-safe *floor*: even if the hook isn't running, touching an env file
+- **Settings template now lists env paths in `ask`, not `deny`** (`Read(**/.env)`, `Read(**/.env.*)`,
+  `Edit(**/.env)`, `Edit(**/.env.*)` — corrected in 0.28.1, see F48).
+  This is a fail-safe *floor*: even if the hook isn't running, touching an env file
   prompts — never silently readable, never hard-denied.
 - **`env-guard.mjs` enforces the real default** — `"deny"` → **exit 2** (a hard block that bypasses
   the settings `ask`); `"ask"` → a prompt showing the exact diff. Unchanged from 0.27, now correct

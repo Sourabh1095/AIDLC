@@ -47,11 +47,18 @@ improvise replacement files: the permission posture and rules must be the review
      - **Migrate the deprecated env deny rules (do NOT just union).** A plain union keeps stale
        rules. If the existing `deny` list contains `Read(./.env)` or `Read(./.env.*)` (the pre-0.28
        hard deny), **remove them** and add the template's env rules to `ask`
-       (`Read/Edit/Write(**/.env)` + `(**/.env.*)`). Those old denies are a *hard* gate that the
+       (`Read(**/.env)`, `Read(**/.env.*)`, `Edit(**/.env)`, `Edit(**/.env.*)` — **`Edit` only; a
+       `Write(path)` rule is never matched and warns at startup, F44/F48**). Those old denies are a
+       *hard* gate that the
        `envFileAccess` switch can never relax — leaving them in place makes the switch do nothing
        (reads of `.env` stay denied even with `pipeline.envFileAccess: "ask"`). Enforcement moved to
        the `env-guard.mjs` hook; settings now only carries the `ask` fail-safe floor. Call this out to
        the user explicitly since it edits the `deny` list downward (security-relevant, needs their ok).
+     - **`settings.json` is STRICT JSON — delete removed rules outright, never comment them out.**
+       A `//` comment makes the whole file unparseable, and Claude Code then **skips the entire file**
+       — including its `enabledPlugins` block, which silently disables every AIDLC plugin for that
+       project (the `/aidlc:*` commands vanish while the marketplace still reports them installed).
+       After ANY edit to a settings file, re-read it and `JSON.parse` it to prove it still parses.
    - Anything else existing: ask before overwriting.
 
 ## Step 3 — Ask the user (use AskUserQuestion where available)
