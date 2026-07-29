@@ -58,6 +58,8 @@ For local development of this repo: `claude --plugin-dir <your-clone>/plugins/ai
 See `docs/adoption-guide.md` for the full walkthrough, including MCP authentication.
 **New to the framework?** Start with `docs/example-walkthrough.md` — empty folder → typed
 requirement → working full-stack app, every command included.
+**Existing codebase?** `docs/brownfield-walkthrough.md` — a four-year-old GitFlow service and a
+squash-only web app, from first scan through a merged PR to a drift report six weeks later.
 
 ## Commands
 
@@ -73,9 +75,10 @@ requirement → working full-stack app, every command included.
 | Command | In | Out |
 |---------|----|-----|
 | `/aidlc:bootstrap <doc \| brief>` | a requirements document | a whole populated backlog + inferred architecture (greenfield) |
-| `/aidlc:adopt` | the existing code | an evidence-backed profile of the workspace, **read-only** (brownfield) |
+| `/aidlc:adopt` | the existing code | an evidence-backed profile of the workspace, **read-only** (brownfield); on a re-scan, a drift report |
 | `/aidlc:adopt-apply` | an approved profile | config, `CLAUDE.md`, the project's real gate + git conventions + monorepo `packages[]` + runtime constraints — behind a shown diff |
 | `/aidlc:adopt-adr` | an approved profile | retroactive ADRs for decisions already in the code, rationale left for a human |
+| `/aidlc:adopt-backlog` | an approved profile | the debt the scan found, as items on your board — capped, deduped, each shown first |
 | `/aidlc:intake <text>` | one requirement, in plain language | well-formed backlog items, deduped against the board |
 
 **Then the pipeline:**
@@ -91,6 +94,7 @@ requirement → working full-stack app, every command included.
 | `/aidlc:repo add <name>` | Declare + bootstrap a repo in a poly workspace (config entry + `git init` + base commit) |
 | `/aidlc:promote` | PR a proven project-local skill/agent into the shared plugin |
 | `/aidlc:sync` | Reconcile local extensions after plugin updates (kill drift) |
+| `/aidlc:remove` | Remove AIDLC from the project: deletes its own files, reverts only the sections it merged, keeps everything you authored |
 
 ## Design principles
 

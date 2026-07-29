@@ -66,7 +66,13 @@ claude
 /aidlc:adopt            # read-only scan; or: /aidlc:adopt --depth quick
 /aidlc:adopt-apply      # shows the diff, writes only what you approve
 /aidlc:adopt-adr        # optional: record the decisions your code already embodies
+/aidlc:adopt-backlog    # optional: file the debt the scan found as tracked work
 ```
+
+Later, and equally part of the lifecycle: `/aidlc:adopt` again for a **drift report** against the last
+scan, `/aidlc:adopt-apply --only <repo>` to widen a **pilot** one repo at a time, and `/aidlc:remove` if
+the evaluation ends. A full worked example of the whole sequence on an existing repo is
+`docs/brownfield-walkthrough.md`.
 
 `/aidlc:adopt` is **read-only**. It writes exactly two files — `.aidlc/adoption/profile.json` (a
 versioned, machine-readable profile) and `.aidlc/adoption/report.md` — and touches nothing else: no
@@ -160,9 +166,45 @@ sentence in an ADR marked `accepted` becomes history nobody authored and everybo
 decision records elsewhere (Confluence, Notion, `RFCs/`) are **linked** from the ADR index, never copied
 or moved — they are your files, in the place you keep them.
 
-Still not part of adoption: a debt backlog seeded from the findings, drift detection on re-scan, and a
-documented clean-removal path (`docs/brownfield-adoption.md`, Phase 4). And nothing here fixes what the
-scan finds — adopt reports and proposes; fixing is normal pipeline work through the normal doors.
+**`/aidlc:adopt-backlog`** then turns the debt the scan found — absent gates, an untested tenant-isolation
+path, an end-of-life runtime, a TODO cluster, docs contradicted by the code — into items on your board.
+It is opt-in, capped, and every item is shown before anything is created, with the evidence beside it.
+Two things it deliberately does *not* do: it does not propose volume (twenty items appearing overnight is
+a mess somebody has to close, not a gift), and it does not put a finding's *location* on an item where
+that location is itself the disclosure. A credential in your git history becomes *"Rotate a credential
+found in git history — details in `.aidlc/adoption/report.md`"*, because a tracker item may be a public
+issue and the report stays in your repo. Every created item carries the **`adopted`** label plus a dated
+provenance note naming the scan commit, so months later the board can answer *"what did adopting AIDLC
+actually put on our plate?"*.
+
+### Adoption is a lifecycle, not an event
+
+Four things happen after the first adoption, and all four are first-class:
+
+- **Re-scan for drift.** `/aidlc:adopt` on an already-adopted workspace reads the previous profile before
+  overwriting it and reports a **drift** section: what moved in the code, what the config no longer
+  matches, and — kept strictly separate — **what you changed by hand**, which it reports and never
+  proposes to overwrite. That last distinction is the one that matters: a hand-tuned gate command
+  reverted under a diff that looks like routine convergence is a change nobody catches in review. A
+  re-scan at the same commit and depth **writes nothing at all** and leaves `git status` clean.
+- **Pilot on one repo, then widen.** `--only <repo|package>` on both commands scopes adoption to a
+  subset. The config records the scope (`adoption.only`) *and* the exclusions (`adoption.unmanaged`), so
+  later scans report the rest as unmanaged-by-choice instead of re-proposing them every time — the
+  difference between "not adopted" and "missed".
+- **Upgrade an older config in place.** A config written by an earlier plugin version is detected (by its
+  version stamp, or by shape where it predates the stamp), and its keys are **relocated, never
+  rewritten** — every command you authored stays verbatim — as its own small diff you approve before
+  anything else. The moves are recorded in `adoption.upgrades[]`.
+- **Remove it cleanly.** `/aidlc:remove` reads the manifest `adopt-apply` wrote (`adoption.writes[]`:
+  which files were *created*, which were *merged into*, and which sections were added) and reverses
+  exactly that: deletes the framework's own files, reverts only our sections of `CLAUDE.md` and
+  `.claude/settings.json`, and **keeps everything you authored** — your ADRs, your backlog, your run
+  history, the adoption report. It shows the whole plan before deleting anything and then verifies with
+  `git diff` against the pre-adoption commit that your own files are untouched. It does not uninstall the
+  plugin; that is `/plugin uninstall`.
+
+Nothing in any of this fixes what the scan finds — adopt reports and proposes; fixing is normal pipeline
+work through the normal doors.
 
 ### What lands in your repo
 
@@ -174,6 +216,7 @@ scan finds — adopt reports and proposes; fixing is normal pipeline work throug
 | `.claude/rules/` | Tiny always-on rules: git workflow, safety |
 | `backlog/` | Markdown work-item tracker (if source = markdown) |
 | `.aidlc/runs/` | Pipeline run state — one file per in-flight item |
+| `.aidlc/adoption/` | Brownfield only: the scan's `profile.json` (the drift baseline — commit it) and `report.md` |
 | `docs/adr/` | Architecture Decision Records |
 | `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`, `.npmrc` | Strict web-stack tooling baseline (TypeScript repos only, from `aidlc-stack-web`; merge-aware — skipped if you already have configs). Makes the coding standards a machine-enforced CI gate. Run the printed `npm i -D …` to activate. |
 | Enterprise skeleton + `.dependency-cruiser.cjs` | Canonical folder structure (NestJS backend; Next.js App-Router or RTK-Query SPA frontend — you pick at init) with `store/`, `common/constants`, feature modules, plus a boundary-lint config that fails CI on layering violations. From `aidlc-stack-web:project-structure`; merge-aware. |

@@ -47,7 +47,7 @@ const reference = () => ({
       filesInspected: 812,
       directoriesInspected: 190,
       durationSeconds: 47.5,
-      caps: { maxFiles: 5000, maxFileBytes: 262144, maxDepth: 6, maxAdrCandidates: 8, hitCap: false },
+      caps: { maxFiles: 5000, maxFileBytes: 262144, maxDepth: 6, maxAdrCandidates: 8, maxDebtFindings: 20, hitCap: false },
     },
     skipped: [
       { path: "D:\\ws\\api\\node_modules", reason: "vendored" },
@@ -347,6 +347,153 @@ const reference = () => ({
       evidence: [pathEv("D:\\ws\\api\\package.json", 22)],
     },
   ],
+  // ADOPT-11 — what the scan found that is WORK, ranked by severity, capped. Two entries are
+  // `sensitive`: naming their location IS the disclosure, so they carry a tracker-safe title and no
+  // paths, and the specifics stay in the report, which stays in the repo.
+  debtFindings: [
+    {
+      kind: "committed-secret",
+      severity: "high",
+      title: "Rotate the credential committed to the api deploy script and purge it from history",
+      sensitive: true,
+      trackerSafeTitle: "Rotate a credential found in git history (details in .aidlc/adoption/report.md)",
+      root: "api",
+      suggestedType: "task",
+      suggestedSize: "M",
+      evidence: [cmdEv('git -C "D:/ws/api" log --all --format=%H -- scripts/deploy.sh', "9ac31be")],
+      confidence: "high",
+    },
+    {
+      kind: "unreviewed-sensitive-path",
+      severity: "high",
+      title: "Add test and review coverage for the tenant-scoping middleware",
+      root: "api",
+      paths: ["src/common/tenant.middleware.ts"],
+      suggestedType: "story",
+      suggestedSize: "S",
+      evidence: [cmdEv('git -C "D:/ws/api" log --format=%s -- src/common/tenant.middleware.ts', "feat: scope queries by tenant")],
+      confidence: "medium",
+      note: "the file that enforces tenant isolation has one commit and no test file beside it",
+    },
+    {
+      kind: "absent-gate",
+      severity: "medium",
+      title: "Add a formatting gate to the api service so style stops arriving in review",
+      root: "api",
+      gate: "format",
+      suggestedType: "task",
+      suggestedSize: "S",
+      evidence: [absEv("no format/prettier script in package.json scripts and no .prettierrc*")],
+      confidence: "high",
+    },
+    {
+      kind: "eol-dependency",
+      severity: "medium",
+      title: "Move the payments app off Ruby 2.7",
+      root: "payments-hg",
+      paths: ["Gemfile"],
+      suggestedType: "story",
+      suggestedSize: "L",
+      evidence: [pathEv("D:\\ws\\payments-hg\\Gemfile", 3, "ruby '2.7.8'")],
+      confidence: "medium",
+      note: "Ruby 2.7 reached end of life — confirm against ruby-lang.org, since this scan makes no network calls",
+    },
+    {
+      kind: "cross-platform-hazard",
+      severity: "low",
+      title: "Add a .gitattributes to the platform monorepo to stop CRLF churn in every diff",
+      root: "platform",
+      paths: [".gitattributes"],
+      suggestedType: "task",
+      suggestedSize: "S",
+      evidence: [cmdEv('git -C "C:/src/platform" ls-files --eol', "i/crlf w/crlf attr/ packages/web/src/app.tsx")],
+      confidence: "high",
+    },
+    {
+      kind: "pii-in-fixtures",
+      severity: "low",
+      title: "Replace the customer seed fixture with generated data",
+      sensitive: true,
+      trackerSafeTitle: "Replace a seed fixture that appears to carry personal data (path in .aidlc/adoption/report.md)",
+      root: "api",
+      suggestedType: "task",
+      suggestedSize: "S",
+      evidence: [absEv("header row declares columns email, phone, date_of_birth; contents were not read")],
+      confidence: "medium",
+    },
+  ],
+  // ADOPT-12 — this run had a baseline. Note the mix: code drift proposes, an unmanaged root is
+  // report-only, and a value a human changed after the last apply is left alone.
+  drift: {
+    baseline: {
+      kind: "previous-profile",
+      path: ".aidlc/adoption/profile.json",
+      scannedAt: "2026-06-02T11:00:00Z",
+      commit: "0b7e5d2",
+      profileVersion: 1,
+      depth: "standard",
+      appliedAt: "2026-06-02T11:40:00Z",
+    },
+    depthChanged: false,
+    comparedAgainstConfig: true,
+    unmanaged: ["legacy-billing"],
+    changes: [
+      {
+        kind: "package-added",
+        surface: "repos[].platform.packages[].acme-worker",
+        root: "platform",
+        package: "acme-worker",
+        was: null,
+        now: "packages/worker",
+        source: "code",
+        action: "propose",
+        evidence: [pathEv("C:\\src\\platform\\packages\\worker\\pyproject.toml", 2)],
+      },
+      {
+        kind: "gate-changed",
+        surface: "repos[].api.pipeline.gates.verify.steps.test",
+        root: "api",
+        was: "pnpm test",
+        now: "pnpm test --runInBand",
+        source: "code",
+        action: "propose",
+        evidence: [pathEv("D:\\ws\\api\\package.json", 9)],
+      },
+      {
+        // A human tightened this after the last apply. Reported, never proposed for overwrite.
+        kind: "convention-changed",
+        surface: "repos[].api.commitStyle",
+        root: "api",
+        was: "conventional",
+        now: "id-prefixed",
+        source: "human-edit",
+        action: "leave-alone",
+        note: "changed in config after adoption.appliedAt; history still reads conventional, so the team decided this deliberately",
+      },
+      {
+        // The root is gone, so it is not in workspace.roots — the one case where that is correct.
+        kind: "root-removed",
+        surface: "repos[].website",
+        root: "website",
+        was: "D:\\ws\\website",
+        now: null,
+        source: "code",
+        action: "propose",
+        evidence: [cmdEv('ls "D:/ws/website"', "ls: cannot access 'D:/ws/website': No such file or directory")],
+      },
+      {
+        // legacy-billing is unmanaged by choice: stated once, never re-proposed.
+        kind: "stack-changed",
+        surface: "repos[].legacy-billing.stack.backend",
+        root: "legacy-billing",
+        was: "PHP 7.4 / Laravel 8",
+        now: "PHP 8.2 / Laravel 10",
+        source: "code",
+        action: "report-only",
+        evidence: [pathEv("D:\\ws\\legacy-billing\\composer.json", 12)],
+      },
+    ],
+  },
   safety: {
     envFiles: [
       { path: "D:\\ws\\api\\.env", contentsRead: false, gitTracked: false },
@@ -377,6 +524,14 @@ platform holds 3 packages: @acme/shared, @acme/web (depends on shared), acme-wor
 ## Decisions with no ADR
 4 proposed, ranked by reversibility cost. 1 already recorded (framework → Confluence).
 Rationale is left blank in each — the scan read code, not the decision.
+
+## Debt the scan found
+6 findings, ranked by severity. Two are withheld from any tracker item — their location is the
+disclosure — and read as "details in this report". \`/aidlc:adopt-backlog\` proposes them as items.
+
+## Drift since the last scan
+Baseline 2026-06-02 at 0b7e5d2, same depth. 5 differences: 3 to propose, 1 reported for an unmanaged
+root, 1 left alone because a human changed it after the last apply.
 
 ## Supported / partial / unsupported
 | Surface | Support | Consequence |
@@ -834,6 +989,103 @@ try {
     (p) => { delete p.adrCandidates; },
     "ok");
 
+  // ---- 8h. debt findings (ADOPT-11) ----
+  // The severe one first: a finding whose location is the disclosure must never carry that location
+  // into something a tracker may publish.
+  check("a sensitive finding carrying paths is rejected (a tracker item may be a public issue)",
+    (p) => { p.debtFindings[0].paths = ["scripts/deploy.sh"]; },
+    "must not carry `paths`");
+  check("a sensitive finding with no tracker-safe title is rejected",
+    (p) => { delete p.debtFindings[0].trackerSafeTitle; },
+    "require `trackerSafeTitle`");
+  check("a committed-secret finding that is not marked sensitive is rejected",
+    (p) => { p.debtFindings[0].sensitive = false; p.debtFindings[0].paths = ["scripts/deploy.sh"]; },
+    "turns adoption into a disclosure");
+  check("a pii-in-fixtures finding that is not marked sensitive is rejected",
+    (p) => { delete p.debtFindings[5].sensitive; },
+    "must set `sensitive: true`");
+  check("a finding shipping its own fix is rejected (the scan sampled the code, it did not design the change)",
+    (p) => { p.debtFindings[2].fix = "add \"format\": \"prettier --write .\" to package.json"; },
+    "carries `fix`");
+  check("a finding shipping a patch is rejected",
+    (p) => { p.debtFindings[2].patch = "--- a/package.json\n+++ b/package.json"; },
+    "carries `patch`");
+  check("an absent-gate finding for a gate the project actually has is rejected",
+    (p) => { p.debtFindings[2].gate = "lint"; },
+    "records it as status=present");
+  check("an absent-gate finding without a gate name is rejected",
+    (p) => { delete p.debtFindings[2].gate; },
+    "requires `gate`");
+  check("findings not ranked by severity are rejected (the cap would drop the wrong ones)",
+    (p) => { p.debtFindings.reverse(); },
+    "is not ranked by severity");
+  check("findings over the recorded cap are rejected",
+    (p) => { p.scan.budget.caps.maxDebtFindings = 3; },
+    "the cap is 3");
+  check("a finding with no evidence is rejected",
+    (p) => { delete p.debtFindings[1].evidence; },
+    "evidence must be a non-empty array");
+  check("a finding with no title is rejected",
+    (p) => { delete p.debtFindings[1].title; },
+    "must state the OUTCOME");
+  check("a finding naming a root that does not exist is rejected",
+    (p) => { p.debtFindings[1].root = "billing-v2"; },
+    "is not a declared root");
+  check("a finding naming a package the root does not have is rejected",
+    (p) => { p.debtFindings[4].package = "@acme/mobile"; },
+    "is not a package in root");
+  check("a bogus finding kind is rejected",
+    (p) => { p.debtFindings[4].kind = "tech-debt"; },
+    "must be one of absent-gate");
+
+  // ---- 8i. drift on re-adoption (ADOPT-12) ----
+  // The rule everything else serves: a value a human changed is reported, never proposed away.
+  check("drift attributed to a human edit but proposed for overwrite is rejected",
+    (p) => { p.drift.changes[2].action = "propose"; },
+    "carries intent the scan cannot see");
+  check("drift attributed to a human edit but reported as report-only is still rejected",
+    (p) => { p.drift.changes[2].action = "report-only"; },
+    "must be `leave-alone`");
+  check("code drift with no evidence is rejected",
+    (p) => { delete p.drift.changes[1].evidence; },
+    "evidence must be a non-empty array");
+  check("a human-edit attribution without having read the config is rejected",
+    (p) => { p.drift.comparedAgainstConfig = false; },
+    "the config was never read");
+  check("re-proposing a surface adoption.unmanaged excludes is rejected",
+    (p) => { p.drift.changes[4].action = "propose"; },
+    "deliberately excludes");
+  check("a drift entry whose was equals now is rejected (that is not drift)",
+    (p) => { p.drift.changes[1].now = p.drift.changes[1].was; },
+    "`was` equals `now`");
+  check("changes recorded against no baseline are rejected",
+    (p) => { p.drift.baseline.kind = "none"; },
+    "there is no drift");
+  check("a depth change that is not flagged is rejected (it would bury the real drift)",
+    (p) => { p.drift.baseline.depth = "quick"; },
+    "must be true");
+  check("a depth change IS accepted once flagged",
+    (p) => { p.drift.baseline.depth = "quick"; p.drift.depthChanged = true; },
+    "ok");
+  check("a drift block with no baseline is rejected",
+    (p) => { delete p.drift.baseline; },
+    "must say what it compared itself against");
+  check("a drift change with no surface is rejected",
+    (p) => { delete p.drift.changes[0].surface; },
+    "drift a reader cannot locate is a rumour");
+  check("a bogus drift source is rejected",
+    (p) => { p.drift.changes[0].source = "probably-us"; },
+    "must be one of code | config | human-edit");
+  check("a re-adoption with no drift block at all is rejected",
+    (p) => { p.scan.controlPlane.alreadyAdopted = true; delete p.drift; },
+    "no `drift` block");
+  check("an unchanged re-adoption is clean with an empty changes[] (idempotency, observable)",
+    (p) => { p.scan.controlPlane.alreadyAdopted = true; p.drift.changes = []; },
+    "ok");
+  check("a drift change naming an undeclared root is rejected — except for a removed one",
+    (p) => { p.drift.changes[0].root = "website"; },
+    "is not a declared root in this profile");
+
   // ---- 8g. the report must show what the profile carries ----
   check("a profile with runtime constraints whose report omits them is rejected",
     null, 'missing "runtime constraints"',
@@ -844,6 +1096,12 @@ try {
   check("a profile with packages whose report never mentions one is rejected",
     null, 'missing "package"',
     { report: referenceReport.replace(/## Per root[\s\S]*?\n\n/, "").replace(/packages/gi, "units").replace(/package/gi, "unit") });
+  check("a profile with debt findings whose report omits them is rejected",
+    null, 'missing "debt"',
+    { report: referenceReport.replace(/## Debt the scan found[\s\S]*?\n\n/, "") });
+  check("a re-adoption whose report never mentions drift is rejected",
+    null, 'missing "drift"',
+    { report: referenceReport.replace(/## Drift since the last scan[\s\S]*?\n\n/, "").replace(/drift/gi, "movement") });
 
   // ---- 9. schema agreement ----
   // The validator duplicates the schema's enums so it can run offline inside an installed
@@ -885,6 +1143,14 @@ try {
       ["ADR_DECISION_KINDS", "definitions.adrCandidate.properties.decisionKind.enum"],
       ["ADR_CANDIDATE_STATUSES", "definitions.adrCandidate.properties.status.enum"],
       ["REVERSIBILITY_COSTS", "definitions.adrCandidate.properties.reversibilityCost.enum"],
+      ["DEBT_KINDS", "definitions.debtFinding.properties.kind.enum"],
+      ["DEBT_SEVERITIES", "definitions.debtFinding.properties.severity.enum"],
+      ["DEBT_ITEM_TYPES", "definitions.debtFinding.properties.suggestedType.enum"],
+      ["DEBT_SIZES", "definitions.debtFinding.properties.suggestedSize.enum"],
+      ["DRIFT_BASELINE_KINDS", "properties.drift.properties.baseline.properties.kind.enum"],
+      ["DRIFT_CHANGE_KINDS", "definitions.driftChange.properties.kind.enum"],
+      ["DRIFT_SOURCES", "definitions.driftChange.properties.source.enum"],
+      ["DRIFT_ACTIONS", "definitions.driftChange.properties.action.enum"],
     ];
     for (const [name, pointer] of PAIRS) {
       n++;
@@ -902,6 +1168,16 @@ try {
     n++;
     if (at("properties.profileVersion.const") === 1) console.log("ok    schema agreement: profileVersion const");
     else { fails++; console.log(`FAIL  schema agreement: profileVersion const is ${JSON.stringify(at("properties.profileVersion.const"))}, validator knows 1`); }
+
+    // The drift baseline's depth is a second copy of the scan's depth enum, inside the same schema.
+    // The whole depthChanged rule compares the two, so they have to be the same set.
+    n++;
+    const scanDepths = at("properties.scan.properties.depth.enum");
+    const baseDepths = at("properties.drift.properties.baseline.properties.depth.enum");
+    const depthsAgree = Array.isArray(scanDepths) && Array.isArray(baseDepths) &&
+      scanDepths.length === baseDepths.length && scanDepths.every((v, i) => v === baseDepths[i]);
+    if (depthsAgree) console.log("ok    schema agreement: drift.baseline.depth matches scan.depth");
+    else { fails++; console.log(`FAIL  schema agreement: drift.baseline.depth ${JSON.stringify(baseDepths)} != scan.depth ${JSON.stringify(scanDepths)}`); }
   }
 } finally {
   rmSync(work, { recursive: true, force: true });

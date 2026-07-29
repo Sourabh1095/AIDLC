@@ -88,7 +88,8 @@ improvise replacement files: the permission posture and rules must be the review
      per-repo `stack`, `packages[]`, `pipeline.gates.verify`, the `saas` block and the security-review paths
      it seeds, the git conventions, `CLAUDE.md`'s Commands block and `rules/git-workflow.md`) → optionally
      **`/aidlc:adopt-adr`** (records the decisions the code already embodies as ADRs, rationale left for a
-     human — so `docs/adr/` is not empty on a project that has been making decisions for years). Write the config with
+     human — so `docs/adr/` is not empty on a project that has been making decisions for years) and
+     optionally **`/aidlc:adopt-backlog`** (files the debt the scan found as tracked items). Write the config with
      `"architecture": { "status": "pending", "resolvedBy": "/aidlc:adopt" }` and leave the `{{*_CMD}}`
      placeholders as "tbd" — same deferral mechanism as the bootstrap path, different resolver.
      **Skip Step 4.5–4.7's stack scaffolding**: an existing project already has its tooling, structure and

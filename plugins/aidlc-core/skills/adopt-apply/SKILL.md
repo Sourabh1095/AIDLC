@@ -1,6 +1,6 @@
 ---
 name: adopt-apply
-description: Turn an approved adoption profile into configuration — aidlc.config.json (topology, repos, monorepo packages[], per-repo and per-package stack, pipeline.gates.verify, git conventions, the SaaS runtime constraints and the security-review paths they seed), CLAUDE.md's project facts and Commands block, and .claude/rules/git-workflow.md — behind a full shown diff and an explicit approval, merging rather than overwriting anything a human authored. The write half of brownfield adoption: /aidlc:adopt reads the code and derives the facts, this applies them. Use after /aidlc:adopt, or to re-apply an updated profile.
+description: Turn an approved adoption profile into configuration — aidlc.config.json (topology, repos, monorepo packages[], per-repo and per-package stack, pipeline.gates.verify, git conventions, the SaaS runtime constraints and the security-review paths they seed), CLAUDE.md's project facts and Commands block, and .claude/rules/git-workflow.md — behind a full shown diff and an explicit approval, merging rather than overwriting anything a human authored. Applies drift deltas on a re-adoption, upgrades a config written by an older plugin version in place, supports partial adoption with --only, and records what it wrote so removal can be clean. The write half of brownfield adoption: /aidlc:adopt reads the code and derives the facts, this applies them. Use after /aidlc:adopt, or to re-apply an updated profile.
 argument-hint: "[--only <repo|package>] [path to profile.json]"
 disable-model-invocation: true
 ---
@@ -42,13 +42,64 @@ node "<plugin>/skills/adopt/validate-profile.mjs" .aidlc/adoption/profile.json
   chooses to.
 - If the profile records `scan.writes.sessionOnly: true` there is no file to load — ask the user to
   re-run the scan in a writable workspace.
-- `--only <repo|package>` scopes this run to one surface. Everything else is left **unmanaged** and
-  recorded in `adoption.unmanaged`, so a later run neither re-proposes it nor mistakes it for missed.
+- `--only <repo|package>` scopes this run to one surface. Record the scope **positively** in
+  `adoption.only` and every excluded surface in `adoption.unmanaged` — a pilot on one repo of six leaves
+  five roots that are neither configured nor excluded, and without both lists a later reader cannot tell
+  a deliberate pilot from an adoption that fell over halfway.
+- **If the profile carries a `drift` block, read it first — it changes what you may propose.** A
+  `changes[]` entry is not a value to apply; it is an instruction about one:
+
+  | `action` | What this command does |
+  |---|---|
+  | `propose` | Include it in the diff, with its `was → now` and evidence |
+  | `report-only` | List it in the summary and **propose nothing** — an unmanaged surface, or a difference configuration cannot express |
+  | `leave-alone` | **Do not touch that key, and do not show it as a conflict.** `source: "human-edit"` means somebody changed it deliberately after the last apply. Name it once in the summary as *"left as you set it"* so the silence is legible, then move on |
+
+  Getting the last row wrong is the failure this block exists to prevent: a hand-tuned gate command
+  reverted under a diff that reads like routine convergence is a change nobody catches in review.
 
 ## 2 · Read what already exists — the merge baseline
 
 Before proposing anything, read the current state of every file you would touch: `.claude/aidlc.config.json`,
-`CLAUDE.md`, `.claude/rules/git-workflow.md`. Classify every value you intend to write:
+`CLAUDE.md`, `.claude/rules/git-workflow.md`.
+
+### 2.1 · Upgrade an older config first, as its own diff
+
+A config written by an earlier plugin version may not have the shape this command writes into. Merging
+new keys beside stale ones produces a file that is half one contract and half another — which reads as
+working and fails at the first consumer that trusts the wrong half. So resolve the version **before**
+the merge, and as a **separate, smaller diff** the user can approve on its own.
+
+Classify the file:
+
+- **`configVersion` present and current** ⇒ nothing to do.
+- **`configVersion` present and older** ⇒ upgrade to the current shape.
+- **Absent** ⇒ the file predates the stamp, which is the common case — a version cannot be applied
+  retroactively to files already in the wild. Classify it **by shape** instead: a `pipeline.gates` block
+  holding `steps`/`repos` **directly** rather than under `verify` (the pre-0.31 spelling), no `adoption`
+  block on a project whose config was clearly derived, `repos[]` entries with no `stack`. Say which
+  signal you used.
+
+Then, for an upgrade:
+
+1. **Relocate; never rewrite.** An upgrade moves a key to where the current contract reads it and
+   changes **no value a human authored**. `pipeline.gates.{steps,repos}` → `pipeline.gates.verify.…`
+   keeps every command verbatim. If a genuine value change is unavoidable, that is not an upgrade — it
+   is a conflict for the table below, defaulting to keep.
+2. **Leave `pipeline.gates.ambiguousRequirements` exactly where it is.** It is a requirements-phase
+   policy that has always lived at `pipeline.gates`, and moving it under `verify` would silently disable
+   it (`run` §4 reads the original path).
+3. **Show the moves as a list**, one line per key: `pipeline.gates.steps → pipeline.gates.verify.steps
+   (3 commands, unchanged)`. Then get approval for the upgrade before proposing anything else.
+4. **Record it** in `adoption.upgrades[]` with `from` (`"unstamped"` where the file carried no version),
+   `to`, both `configVersion`s, and the change lines — so somebody six months from now can see which
+   keys moved without diffing releases.
+5. **An upgrade is worth doing alone.** If the user approves the upgrade and declines the rest, write
+   the upgrade, stamp `configVersion` + `aidlcVersion`, and stop. That is a complete, useful outcome.
+
+Stamp `configVersion` and `aidlcVersion` on every write from here on, upgrade or not.
+
+### 2.2 · Classify every value you intend to write
 
 | Situation | What to do |
 |---|---|
@@ -195,11 +246,26 @@ Two consequences to state explicitly in the summary, because they change how run
   stay a tracked devops task; say that rather than implying it is handled. `unknown` (the API was not
   readable) is **not** the same finding and must not be reported as ungated.
 
-### 3.5 · Provenance
+### 3.5 · Provenance, and the manifest that makes removal possible
 
 Write the `adoption` block: `scannedAt`, `commit`, `profileVersion`, `profilePath`, `depth`, `appliedAt`,
-and `unmanaged[]` for anything `--only` left out. This is what makes the next run idempotent and the run
-after that able to tell drift from a rewrite. Never hand-author these values — copy them from the profile.
+`only[]` and `unmanaged[]` for a partial adoption, and `upgrades[]` from §2.1. This is what makes the next
+run idempotent and the run after that able to tell drift from a rewrite. Never hand-author these values —
+copy them from the profile.
+
+**Also record `adoption.writes[]` — one entry per file you touched, with how you touched it.** This is
+the manifest `/aidlc:remove` reads, and without it a clean removal is impossible rather than merely hard:
+
+| `ownership` | Meaning | What removal may then do |
+|---|---|---|
+| `created` | The file did not exist; adoption made it | Delete it |
+| `merged` | The file was the project's; adoption added sections or keys | Revert **those sections**, listed in `sections[]` — and nothing else |
+| `rendered` | AIDLC-owned, generated from config (`rules/git-workflow.md`) | Delete, after showing any drift from what was last rendered |
+
+The `merged` row is the whole point. Without `sections[]`, removing AIDLC from a project means guessing
+which `CLAUDE.md` lines and which `permissions.allow` entries were ours — and the safe-looking guess
+(delete the file) destroys content the team wrote. Be specific: `"CLAUDE.md ## Commands"`,
+`"CLAUDE.md ## Project facts (4 bullets)"`, `"permissions.allow[+12 entries]"`.
 
 **`appliedAt` is a timestamp, so it would break idempotency if written unconditionally.** Compare the
 proposal to the file on disk **with `adoption.appliedAt` excluded from the comparison**:
@@ -248,6 +314,12 @@ Say this plainly at the end:
   `git status`, and a "no changes" report (§3.5). Against a later commit it proposes the deltas only.
 - **Next, if the scan proposed ADRs:** `/aidlc:adopt-adr` writes the approved ones into `docs/adr/`, each
   with its rationale left for a human. This command does not touch `docs/adr/`.
-- **Still not done by adoption:** a debt backlog, drift detection and clean removal
-  (`docs/brownfield-adoption.md`, Phase 4). And nothing here remediates a finding — fixing is normal
-  pipeline work through the normal doors.
+- **Next, if the scan found debt:** `/aidlc:adopt-backlog` proposes it as work items, deduped against the
+  board. This command does not touch a tracker.
+- **If this was a partial adoption**, say which surfaces are unmanaged and that a later scan will report
+  them as unmanaged-by-choice rather than re-proposing them. Widening the scope is another
+  `/aidlc:adopt-apply --only <surface>`.
+- **If the evaluation ends**, `/aidlc:remove` reverses this: it reads the `adoption.writes[]` manifest
+  written above, deletes what adoption created, reverts only the sections it merged, and leaves the
+  project's own files untouched.
+- Nothing here remediates a finding — fixing is normal pipeline work through the normal doors.

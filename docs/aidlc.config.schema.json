@@ -9,6 +9,16 @@
   "properties": {
     "$schema": { "type": "string" },
     "$comment": { "type": "string" },
+    "configVersion": {
+      "type": "integer",
+      "default": 1,
+      "description": "Contract version of THIS file, bumped only when a key changes meaning or is removed (additive keys do not bump it, which is why every object here allows additional properties). Written by /aidlc:init and /aidlc:adopt-apply so a later plugin version can tell an old config from a current one and upgrade it in place. Absent means the file predates the stamp: it is then classified by SHAPE — a flat pipeline.gates with no `verify`, no adoption block, no configVersion — because a version stamp cannot be applied retroactively to files already in the wild. Nothing reads this to decide behaviour; it exists so an upgrade is a deliberate, shown diff rather than a guess about which keys a reader may trust.",
+      "minimum": 1
+    },
+    "aidlcVersion": {
+      "type": "string",
+      "description": "The aidlc plugin version that last wrote this file, e.g. '0.33.0'. Diagnostic, and the input to upgrade detection: a config written by an older plugin may lack blocks the current one reads, and saying which version wrote it turns 'why is this key missing' into one lookup."
+    },
     "project": {
       "type": "object",
       "required": ["key", "name"],
@@ -74,6 +84,46 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Surfaces deliberately left OUT of AIDLC's management (a repo or package the team is not piloting on). Named here so a later scan does not keep proposing them and a reader can tell 'not adopted' from 'missed'."
+        },
+        "only": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The surfaces a PARTIAL adoption was scoped to (`/aidlc:adopt-apply --only <repo|package>`), recorded positively rather than only as the inverse. A pilot on one repo of six leaves five roots that are neither configured nor listed as excluded, and without this a later reader cannot tell a deliberate pilot from an adoption that fell over halfway. Absent means the whole workspace was in scope."
+        },
+        "upgrades": {
+          "type": "array",
+          "description": "One entry per in-place upgrade of this file by a newer plugin version. Recorded because an upgrade rewrites configuration a team depends on: the diff was shown and approved at the time, and this is what lets somebody six months later see WHICH keys were moved and by what. Never hand-authored.",
+          "items": {
+            "type": "object",
+            "required": ["at", "to"],
+            "additionalProperties": true,
+            "properties": {
+              "at": { "type": "string", "format": "date-time" },
+              "from": { "type": "string", "description": "The plugin version (or 'unstamped' where the file carried no aidlcVersion and was classified by shape)." },
+              "to": { "type": "string", "description": "The plugin version that performed the upgrade." },
+              "fromConfigVersion": { "type": "integer" },
+              "toConfigVersion": { "type": "integer" },
+              "changes": { "type": "array", "items": { "type": "string" }, "description": "One line per key added, moved or renamed, e.g. 'pipeline.gates.{steps,repos} → pipeline.gates.verify.{steps,repos}'. A value a human authored is never rewritten by an upgrade — only relocated, and only with the move shown." }
+            }
+          }
+        },
+        "writes": {
+          "type": "array",
+          "description": "What adoption actually wrote, per file — the manifest that makes clean removal possible. Without it, removing AIDLC means guessing which lines in CLAUDE.md and settings.json were the team's and which were ours, and the safe guess (delete the file) destroys the team's own content. Written by /aidlc:adopt-apply for every file it touched; /aidlc:remove reads it and asks about anything not listed.",
+          "items": {
+            "type": "object",
+            "required": ["path", "ownership"],
+            "additionalProperties": true,
+            "properties": {
+              "path": { "type": "string", "description": "Relative to the control plane." },
+              "ownership": {
+                "enum": ["created", "merged", "rendered"],
+                "description": "created: the file did not exist and adoption made it — removal may delete it outright. merged: the file was the project's and adoption added sections or keys to it — removal reverts THOSE sections and nothing else. rendered: an AIDLC-owned file generated from config (rules/git-workflow.md) — removal deletes it, but a human may have edited it since, so removal shows the diff against what was rendered before deleting."
+              },
+              "sections": { "type": "array", "items": { "type": "string" }, "description": "For ownership=merged, the specific sections or keys that were added — 'CLAUDE.md ## Commands', 'permissions.allow[+12 entries]'. This is the whole value of the manifest: it is the difference between reverting our edit and reverting the file." },
+              "at": { "type": "string", "format": "date-time" }
+            }
+          }
         },
         "adrs": {
           "type": "array",

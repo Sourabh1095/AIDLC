@@ -1,7 +1,7 @@
 ---
 name: adopt
-description: Scan an existing workspace — one repo or several, in one folder or a multi-root VS Code workspace — and derive an evidence-backed profile of its topology, languages, package managers, frameworks, monorepo packages, gates, CI, VCS state, SaaS runtime constraints (tenancy, feature flags, migrations, API contracts, compliance), undocumented architecture decisions and capability gaps. Read-only: writes only .aidlc/adoption/profile.json and report.md. The brownfield counterpart to /aidlc:bootstrap, which infers a project's shape from a requirements document — adopt infers it from the code that is already there. Use when adopting AIDLC on a project that already has code, before answering /aidlc:init's topology and stack questions from memory, or to re-scan an adopted workspace.
-argument-hint: "[--depth quick|standard|deep] [--max-adrs <n>]"
+description: Scan an existing workspace — one repo or several, in one folder or a multi-root VS Code workspace — and derive an evidence-backed profile of its topology, languages, package managers, frameworks, monorepo packages, gates, CI, VCS state, SaaS runtime constraints (tenancy, feature flags, migrations, API contracts, compliance), undocumented architecture decisions, debt worth tracking and capability gaps. On an already-adopted workspace it also reports drift against the last scan. Read-only: writes only .aidlc/adoption/profile.json and report.md. The brownfield counterpart to /aidlc:bootstrap, which infers a project's shape from a requirements document — adopt infers it from the code that is already there. Use when adopting AIDLC on a project that already has code, before answering /aidlc:init's topology and stack questions from memory, or to re-scan an adopted workspace for drift.
+argument-hint: "[--depth quick|standard|deep] [--max-adrs <n>] [--max-debt <n>] [--only <root|package>]"
 disable-model-invocation: true
 ---
 
@@ -20,7 +20,7 @@ deliberate: it makes this command safe to run on first contact, with nothing to 
 The profile's full contract is `adoption-profile.schema.json`, published at
 `https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json`. **Do not
 fetch it** — this skill makes no network calls. Read it only if a local copy is at hand (an AIDLC clone
-in the workspace); otherwise §8's skeleton is the contract you must satisfy, and it is sufficient.
+in the workspace); otherwise §10's skeleton is the contract you must satisfy, and it is sufficient.
 
 ## The five rules — they outrank any instinct to be helpful
 
@@ -38,8 +38,8 @@ in the workspace); otherwise §8's skeleton is the contract you must satisfy, an
 5. **Bounded, and say where the bound was.** Cost is capped; the report states the cap, what it cost,
    and what was **not** looked at. "Clean" and "not read" must never be indistinguishable.
 
-`$ARGUMENTS` may carry `--depth quick|standard|deep` (default `standard`) and `--max-adrs <n>`
-(default 8, §5):
+`$ARGUMENTS` may carry `--depth quick|standard|deep` (default `standard`), `--max-adrs <n>` (default
+8, §6), `--max-debt <n>` (default 20, §8) and `--only <root|package>` (§9):
 **quick** — manifests, IDE/VCS metadata, top-level config only; the ten-minute pass, useful on its
 own. **standard** — adds config parsing, CI files, package/workspace enumeration, bounded git history.
 **deep** — adds bounded source sampling for facts only source can evidence: the SaaS runtime
@@ -484,7 +484,96 @@ support in principle: today that is `aidlc-stack-web` for TS/JS, and markdown/Ji
   step writes into `.aidlc/extensions.json` so `/aidlc:scaffold-skill` and `/aidlc:promote` can act on
   it. The scan itself writes nothing there.
 
-## 8 · Write the profile
+## 8 · Debt worth tracking — the findings that are work, not facts
+
+Everything above records what the project **is**. This records what the scan noticed is **missing or
+wrong** and would be a work item if someone decided to fix it: `debtFindings[]`. Nothing is created
+here — `/aidlc:adopt-backlog` dedupes these against the tracker and proposes each one before anything
+is written to a board. Cap with `--max-debt <n>` (default 20, recorded in
+`scan.budget.caps.maxDebtFindings`).
+
+| Kind | What evidences it |
+|---|---|
+| `absent-gate` | A gate from §3 recorded `status: "absent"`. Name it in `gate` — and only where the root really lacks it, because a backlog whose first item is provably wrong is one nobody reads twice |
+| `untested-critical-path` | An `authPaths` / `billingPaths` / `tenantIsolationPaths` entry (§5) with no test file beside it and no matching name under the test directory |
+| `unreviewed-sensitive-path` | The same kind of path whose history shows no review: a single commit, or merges with no PR reference where every other path has one |
+| `eol-dependency` | The **declared** runtime or dependency version (`.nvmrc`, `engines`, `requires-python`, `<java.version>`, `go 1.x`, a Gemfile ruby line). The evidence is the declaration; the end-of-life judgement is **not evidence** — put it in `note` as something to confirm, because this scan makes no network calls and cannot read a release calendar. Confidence `medium` at best |
+| `todo-cluster` | A concentration of `TODO`/`FIXME`/`HACK`/`XXX` dense enough to be a backlog item rather than a comment — a count per directory, not a list of every marker in the repo |
+| `docs-drift` | Documentation contradicted by the code it describes: a README command that no longer exists in any manifest, a documented env var absent from every config, an ADR whose decision the code no longer follows |
+| `cross-platform-hazard` | The §3 findings — mixed CRLF/LF with no `.gitattributes`, two paths differing only by case, a lockfile generated on a different OS than CI runs |
+| `ungated-integration` | `conventions.protectedBranches` came back **`absent`** — the host API answered and there is no protection, so PRs merge ungated. `unknown` is *not* this finding |
+| `committed-secret`, `pii-in-fixtures` | The `safety` findings, promoted to work because rotating a leaked credential is a task somebody has to own |
+
+Four rules:
+
+1. **A finding states the debt; it never ships the change.** No `fix`, `remedy`, `patch`, `diff` or
+   `solution` — the validator rejects all five. You sampled this code; you did not design the change,
+   and a finding carrying its own patch invites the item to be closed by applying it unread, routing
+   around the plan → implement → review → verify path that is the point of the pipeline.
+2. **`sensitive` is not a formality.** A tracker item may be a **public GitHub issue**. A finding that
+   names where an unfixed credential lives, or which fixture holds real customer data, would publish
+   an exploit to the internet under an adoption banner. So `committed-secret` and `pii-in-fixtures`
+   are **always** `sensitive: true`, carry a `trackerSafeTitle` that discloses nothing, and carry
+   **no `paths`** — the specifics stay in the report, which stays in the repo. Evidence may cite the
+   location, because the profile is a local file and never travels to the board.
+3. **Rank by severity, highest first,** then cap. `high` is what can cause customer-visible or
+   security-relevant harm; `medium` degrades the pipeline's ability to verify; `low` is hygiene. The
+   cap truncates the tail, so an unranked list drops an unreviewed auth path to keep a formatting nit.
+4. **Every finding gets `suggestedType` and `suggestedSize`.** A finding whose remedy is genuinely
+   unclear is a **spike**, not a story with invented acceptance criteria. `XL` means it must be
+   decomposed before it is created.
+
+**Do not manufacture volume.** Twenty findings on a healthy repo means the bar was set at "anything I
+would have done differently". The useful output is the handful a team would thank you for.
+
+## 9 · Drift — when this is a re-adoption
+
+If §1 found an existing `aidlc.config.json` (`alreadyAdopted: true`) or a previous
+`.aidlc/adoption/profile.json`, this run is not a first contact and a fresh full profile is not the
+answer: nobody diffs two thousand-line JSON files by eye. **Read the previous profile before you
+overwrite it**, and record the comparison in `drift`.
+
+**The comparison is three-way, and two of the three legs must be handled in opposite directions:**
+
+| Leg | `source` | What it means | `action` |
+|---|---|---|---|
+| Baseline vs. the code now | `code` | The project moved. The ordinary case | `propose` |
+| The code now vs. the config | `config` | Configuration no longer matches reality — a renamed gate command, a package deleted but still registered | `propose` |
+| The config vs. **what the last apply wrote** | `human-edit` | Somebody changed it deliberately after adoption. This is **intent the scan cannot see** | **`leave-alone`, always** |
+
+That third row is the one that matters. A hand-tuned gate command, a deliberately narrowed
+`securityReviewPaths`, a `mergeStrategy` the team changed on purpose — proposing to "correct" any of
+them produces a diff that looks exactly like routine convergence and reverts a decision nobody will
+notice in review. Compare against `adoption.appliedAt`: a config value that differs from the baseline
+profile's derived value, in a file last applied before it changed, was changed by a person. The
+validator pins `source: "human-edit"` to `action: "leave-alone"`.
+
+Three more rules:
+
+- **No baseline, no drift.** `baseline.kind: "none"` means `changes[]` is **empty**. Reporting an
+  entire project as "new drift" on first contact is noise that teaches people to skip the section, and
+  then the one real change next quarter goes unread. On a first adoption this section says so in one
+  line: *this profile is the baseline for next time* — which is why both artifacts are meant to be
+  **git-tracked**. An untracked profile leaves a re-scan with nothing to compare against, and that
+  degradation must be stated (`baseline.kind: "config-only"`, or `"none"`).
+- **A depth change is not drift.** A `quick` baseline re-scanned at `deep` turns dozens of `unknown`s
+  into facts — new *knowledge*, not new movement. Set `depthChanged: true` whenever the depths differ
+  and say so at the top of the section, or the two changes that really are drift drown in forty that
+  are not.
+- **An unmanaged surface is reported once, not re-proposed.** Echo the config's `adoption.unmanaged`
+  into `drift.unmanaged` and give those surfaces `action: "report-only"`. A pilot on one repo of six
+  must stay quiet about the other five, or "not adopted" becomes indistinguishable from "missed".
+
+**`--only <root|package>`** scopes this run: profile the named surface, and record every other root at
+its classification with a `scan.skipped` entry (`reason: "out-of-scope"`) so silence about it reads as
+*not looked at* rather than *nothing there*. `/aidlc:adopt-apply --only` then records the scope in
+`adoption.only` and the exclusions in `adoption.unmanaged`.
+
+**Idempotency is observable here.** A re-scan at the same commit and the same depth must produce
+`changes: []`. That empty array is the proof, and it is why the block is present even when nothing
+moved — its absence would be indistinguishable from a scan that never looked.
+
+## 10 · Write the profile
 
 Write `.aidlc/adoption/profile.json` with `profileVersion: 1` and `$schema` set to the published URL
 above. This is the shape — every leaf fact is one of the three `fact` forms, and there is no fourth:
@@ -553,6 +642,21 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
                   "detected": "…", "root": "…", "support": "…", "providedBy": "…",
                   "consequence": "<one line — required>", "evidence": [] } ],
   "gaps":     [ { "name": "…", "kind": "skill|agent|plugin|adapter", "surface": "…", "why": "…", "workaround": "…" } ],
+  "debtFindings": [ { "kind": "absent-gate", "title": "<the work as an OUTCOME>", "severity": "high|medium|low",
+                      "root": "…", "package": "…", "gate": "<required iff kind=absent-gate>",
+                      "paths": ["…"], "suggestedType": "story|task|bug|spike", "suggestedSize": "S|M|L|XL",
+                      "sensitive": false, "trackerSafeTitle": "<required iff sensitive>",
+                      "evidence": [], "confidence": "…", "note": "<what still needs confirming>"
+                      /* NO fix/remedy/patch/diff/solution — state the debt, not the change */ } ],
+  "drift": { /* re-adoption only */
+    "baseline": { "kind": "previous-profile|config-only|none", "path": "…", "scannedAt": "…",
+                  "commit": "…", "profileVersion": 1, "depth": "standard", "appliedAt": "…" },
+    "depthChanged": false, "comparedAgainstConfig": true, "unmanaged": ["…"],
+    "changes": [ { "kind": "gate-changed", "surface": "repos[].api…verify.steps.test", "root": "…",
+                   "package": "…", "was": "…", "now": "…",
+                   "source": "code|config|human-edit|scan-depth|unknown",
+                   "action": "propose|report-only|leave-alone", "evidence": [], "note": "…" } ]
+  },
   "adrCandidates": [ { "decisionKind": "tenancy-model", "title": "<the decision as a statement>",
                        "status": "propose|already-recorded", "existingAdr": "<required iff already-recorded>",
                        "reversibilityCost": "high|medium|low", "root": "…", "decidedAt": { /* fact */ },
@@ -591,11 +695,13 @@ guess this whole design exists to prevent), evidence on every `known` and `absen
 evidence kind requires, `writes[]` never leaving `.aidlc/adoption/`, an unreachable root naming its
 remedy, an unsupported surface naming its gap, redaction invariants on secret/PII findings, the required
 report sections — and, as a backstop, that **no credential-shaped string appears anywhere in either
-file**. It also enforces the three §5/§6 rules that would otherwise fail invisibly: **no ADR candidate
-carries a rationale** in any spelling, **every auth / tenant-isolation / billing path reaches
-`securityReviewPathSeeds`**, and a **multi-tenant root with migrations answers the expand/contract
-question** — plus that candidates are ranked and capped, and that a package's `dependsOn` resolves to
-siblings with no cycle. A profile that does not pass is not a profile: fix it and re-run, and never
+file**. It also enforces the rules that would otherwise fail invisibly: **no ADR candidate carries a
+rationale** in any spelling, **every auth / tenant-isolation / billing path reaches
+`securityReviewPathSeeds`**, a **multi-tenant root with migrations answers the expand/contract
+question**, a **`sensitive` debt finding never carries the location** that a public tracker item would
+publish, and **drift attributed to a human's edit is never proposed for overwrite** — plus that
+candidates and findings are ranked and capped, and that a package's `dependsOn` resolves to siblings
+with no cycle. A profile that does not pass is not a profile: fix it and re-run, and never
 report a scan as complete over a failing validation. (If the validator is missing — an unusual install —
 say so, and fall back to re-reading and `JSON.parse`ing the file, the F49 floor.)
 
@@ -604,10 +710,24 @@ of asserting it: `git status --porcelain` at the control plane **and at every re
 not) must show nothing but those two paths. If it shows anything else, say so in the report; do not
 quietly move on.
 
-Both files are meant to be **tracked**: the profile is the baseline every later drift scan compares
-against, so it needs history.
+Both files are meant to be **tracked**, and §9 depends on it: the profile is the baseline every later
+drift scan compares against, so it needs history. Say so when you write it — an untracked profile
+silently degrades the next re-adoption from a diff to a guess.
 
-## 9 · The report
+**Converge; do not churn.** Because the profile is a tracked baseline, rewriting it on every scan would
+put a timestamp-only commit in front of the team each time and, worse, move the baseline the *next* scan
+compares against. So compare what you are about to write against what is already there, **excluding the
+inherently variable fields** (`scan.scannedAt`, `scan.budget.durationSeconds`, and `drift`, which merely
+echoes this comparison):
+
+- **Nothing else differs ⇒ write neither file.** Report *"no drift — this profile already describes the
+  workspace at `<commit>`"*, and leave `git status` clean. The artifacts describe **state**, not events;
+  a scan that found nothing new has nothing to record. This is the same rule `/aidlc:adopt-apply` §3.5
+  applies to `appliedAt`, and it is what makes two consecutive runs produce a literally empty diff
+  rather than an almost-empty one.
+- **Something differs ⇒ write both**, with the drift section naming what moved.
+
+## 11 · The report
 
 `.aidlc/adoption/report.md`, written for a human seeing AIDLC for the first time, in this order:
 
@@ -636,19 +756,30 @@ against, so it needs history.
 7. **Decisions with no ADR** (§6) — the ranked candidate list: decision, reversibility cost, evidence,
    and the count already recorded elsewhere. State plainly that each proposed ADR will leave its rationale
    blank for a human, because the scan read code and not the conversation. Point at `/aidlc:adopt-adr`.
-8. **Supported / partial / unsupported** — the matrix from §7, one consequence per row.
-9. **Not determined** — every `unknown` fact with its reason, counted. A short list here is a quality
-   claim; a long one is honest and fine. Never pad it away by guessing.
-10. **Safety** — env files by path, redacted secret findings, PII-suspect fixtures.
-11. **Scan budget and coverage** — files and directories inspected, elapsed time, the caps that
-    applied and whether one was hit (including the ADR cap), the sampling strategy and coverage percent,
-    and the explicit list of what was skipped and why.
-12. **Next step** — `/aidlc:adopt-apply`, which turns this profile into configuration behind a shown
-    diff and an explicit approval, then `/aidlc:adopt-adr` for the decisions above. List here the facts
-    whose confidence is `low` and the `unknown`s that matter, since those become the questions apply will
-    ask rather than values it will propose.
+8. **Debt the scan found** (§8) — the ranked findings: severity, what it is, where, and the suggested
+   type and size. The two `sensitive` kinds appear here **in full** (this file stays in the repo) and are
+   marked as withheld from any tracker item. Say that nothing has been created and point at
+   `/aidlc:adopt-backlog`. On a healthy repo a short list is the honest answer, not a weak one.
+9. **Drift since the last scan** (§9) — *only on a re-adoption*, and near the top of what a returning
+   reader cares about: the baseline (when, which commit, which depth), whether the depth changed, and the
+   change table with `source` and `action` per row. Group it so the three kinds do not blur: *the project
+   moved* · *config no longer matches* · *you changed this by hand, and we left it alone* · *unmanaged by
+   choice*. **When nothing moved, say that in one line** — "no drift: same commit, same depth" is the
+   result the reader came for.
+10. **Supported / partial / unsupported** — the matrix from §7, one consequence per row.
+11. **Not determined** — every `unknown` fact with its reason, counted. A short list here is a quality
+    claim; a long one is honest and fine. Never pad it away by guessing.
+12. **Safety** — env files by path, redacted secret findings, PII-suspect fixtures.
+13. **Scan budget and coverage** — files and directories inspected, elapsed time, the caps that
+    applied and whether one was hit (including the ADR and debt caps), the sampling strategy and coverage
+    percent, and the explicit list of what was skipped and why — including anything `--only` put out of
+    scope.
+14. **Next step** — `/aidlc:adopt-apply`, which turns this profile into configuration behind a shown
+    diff and an explicit approval, then `/aidlc:adopt-adr` for the decisions above and
+    `/aidlc:adopt-backlog` for the debt. List here the facts whose confidence is `low` and the `unknown`s
+    that matter, since those become the questions apply will ask rather than values it will propose.
 
-## 10 · What adopt does not do
+## 12 · What adopt does not do
 
 Say this at the end, so nobody waits for a write that is not coming:
 
@@ -658,14 +789,17 @@ Say this at the end, so nobody waits for a write that is not coming:
   contact: this command cannot change a file the team owns, so there is nothing to undo.
 - It does **not** write ADRs. §6 *proposes* them; **`/aidlc:adopt-adr`** writes the approved ones into
   `docs/adr/`, one at a time, each with its rationale left for a human.
-- It does **not** seed a backlog from what it found — that is ADOPT-11
-  (`docs/brownfield-adoption.md`, Phase 4).
+- It does **not** create work items. §8 *proposes* debt findings; **`/aidlc:adopt-backlog`** dedupes them
+  against the board and creates only what you approve. Nothing here touches a tracker.
 - It does **not** remediate anything it finds. Missing tests, absent gates and stale dependencies are
   reported; fixing them is normal pipeline work through the normal doors.
+- It does **not** *fix* drift. §9 reports it; `/aidlc:adopt-apply` proposes the deltas that are
+  configuration, and leaves anything a human authored alone.
 - It does **not** replace `/aidlc:init`. Init owns the permission posture and the scaffold; adopt owns
   the derived facts. On a brownfield project, running adopt **first** means init's topology, stack and
   command questions get answered from evidence instead of from memory.
 
-Idempotency is a promise: on an unchanged commit at the same depth, a second run produces an identical
-profile apart from the inherently variable fields (`scan.scannedAt`, `scan.budget.durationSeconds`) and
-an identical report. If anything else differs, that is a bug in the scan, not drift in the project.
+Idempotency is a promise, and since §10 it is a literal one: on an unchanged commit at the same depth, a
+second run **writes nothing at all** and leaves `git status` clean. If it produces a diff, that is a bug
+in the scan, not drift in the project — and the drift section will have mislabelled it, which makes the
+bug worse than the churn.

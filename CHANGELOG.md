@@ -7,6 +7,97 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.33.0] — 2026-07-30
+
+### `aidlc` — brownfield Phase 4: keeping an adoption true after the first day
+
+Phases 1–3 taught AIDLC to read a brownfield project: its shape, its gate, its conventions, its runtime
+constraints and the decisions its code already embodies. All of it assumed adoption happens **once**. It
+does not. Codebases drift from their recorded profile, teams pilot on one repo before rolling out, configs
+outlive the plugin version that wrote them, findings sit in a report nobody re-reads, and some evaluations
+end in removal. This phase makes all five first-class. Spec: `docs/brownfield-adoption.md` (ADOPT-12,
+ADOPT-11, ADOPT-13).
+
+**ADOPT-12 — drift, partial adoption, in-place upgrade, clean removal.** `/aidlc:adopt` on an
+already-adopted workspace now reads the previous profile **before overwriting it** and reports a `drift`
+block. The comparison is deliberately three-way, because two of the three legs must be handled in
+opposite directions:
+
+- **Code that moved** and **config that no longer matches the code** are drift to propose.
+- **Config that differs from what the last apply wrote** is a human's deliberate edit — intent no scan can
+  see. It is reported as *"left as you set it"* and **never proposed for overwrite**. That is the failure
+  the block exists to prevent: a hand-tuned gate command reverted under a diff that reads like routine
+  convergence is the one drift outcome nobody catches in review. `source: "human-edit"` is pinned to
+  `action: "leave-alone"` by the validator, not by the skill's good intentions.
+- A **depth change is not drift.** A `quick` baseline re-scanned at `deep` turns dozens of `unknown`s into
+  facts — new knowledge, not new movement — so `depthChanged` must be set when the depths differ, or forty
+  non-changes bury the two real ones.
+- **No baseline, no drift.** On first contact `changes[]` is empty and the profile says so: reporting a
+  whole project as "new drift" is noise that teaches people to skip the section.
+
+Three more lifecycle pieces land with it. **Partial adoption** — `--only <repo|package>` on both commands,
+with the config recording the scope (`adoption.only`) *and* the exclusions (`adoption.unmanaged`), so later
+scans report the rest as unmanaged-by-choice rather than re-proposing it; a re-proposal of an unmanaged
+surface is a validation error. **In-place upgrade** — a config from an older plugin version is detected by
+its new `configVersion` stamp, or by *shape* where it predates the stamp (files already in the wild cannot
+be stamped retroactively), and upgraded as its own small approved diff in which keys are **relocated,
+never rewritten**: every command a human authored stays verbatim, `pipeline.gates.ambiguousRequirements`
+stays exactly where `run` §4 reads it, and the moves are recorded in `adoption.upgrades[]`. **Clean
+removal** — the new `/aidlc:remove`.
+
+- `/aidlc:adopt-apply` now records `adoption.writes[]`: per file, whether adoption **created** it, **merged
+  into** it (with the sections added), or **rendered** it. That manifest is what makes removal possible
+  rather than merely careful — without it, "which `CLAUDE.md` lines were ours" is a guess, and the
+  safe-looking guess destroys the team's own content.
+- `/aidlc:remove` classifies every path into three tiers and treats them differently. The rule it is built
+  around: **deleting a container AIDLC created is not the same as deleting AIDLC's content.** `init` made
+  `docs/adr/`, `backlog/` and `.aidlc/runs/`; what is *inside* them is the team's — decision records they
+  will cite for years, work items that are their plan of record, an audit trail a regulated project may be
+  required to retain. Those are kept by default and asked about individually. Stack tooling
+  (`tsconfig.base.json`, the enterprise skeleton) is kept too, because by now their code depends on it.
+  Afterwards it verifies with `git diff` against the pre-adoption commit that the project's own files are
+  untouched, and says plainly when verification was not possible.
+
+**ADOPT-11 — a debt backlog seeded from the findings, opt-in.** The scan gains `debtFindings[]` (§8):
+absent gates, an auth or tenant-isolation path with no test or no review history, an end-of-life declared
+runtime, TODO clusters, docs the code contradicts, cross-platform hazards, a repo whose PRs merge ungated,
+and the safety findings promoted to work. The new `/aidlc:adopt-backlog` turns approved ones into items —
+deduped against the board with the bounded-sweep discipline and its scope stated, each with ≥3 testable
+acceptance criteria and a size, each carrying the `adopted` label and a provenance note naming the scan
+commit. Three rules earn their keep:
+
+- **A finding states the debt; it never ships the change.** `fix`, `remedy`, `patch`, `diff` and `solution`
+  are rejected outright. The scan sampled the code; it did not design the change, and a finding carrying
+  its own patch invites the item to be closed by applying it unread — routing around the plan → implement
+  → review → verify path that is the point of the pipeline.
+- **A tracker item may be a public GitHub issue.** So a finding whose *location* is itself the disclosure
+  is `sensitive`: it carries a `trackerSafeTitle`, **no paths**, and points at the adoption report, which
+  stays in the repo. `committed-secret` and `pii-in-fixtures` are forced sensitive by the validator.
+  Publishing "AWS key at `scripts/deploy.sh:14` in commit 9ac31be" to the internet under an adoption
+  banner turns a helpful scan into an incident.
+- **An EOL judgement is not evidence.** The declared version is evidence; "that version is end-of-life"
+  goes in `note` as something to confirm, because this scan makes no network calls and cannot read a
+  release calendar. And an `absent-gate` finding must name a gate the root really lacks — a backlog whose
+  first item is provably wrong is one nobody reads twice.
+
+**ADOPT-13 — documentation.** New `docs/brownfield-walkthrough.md`: a four-year-old GitFlow Django service
+beside a squash-only Next.js app in a multi-root workspace, from first scan through apply, retroactive
+ADRs and a debt backlog to a run that branches from `develop` and verifies with `tox`, then a drift report
+six weeks later and a clean removal. `docs/adoption-guide.md` gains the lifecycle section; the README and
+the user-guide cheat-sheet gain the two new doors.
+
+**Also in this release**
+
+- **`/aidlc:adopt` now converges instead of churning.** Because the profile is a tracked drift baseline,
+  rewriting it every scan would both spam the team with timestamp-only commits and move the baseline the
+  *next* scan compares against. A re-scan at the same commit and depth now **writes neither file** and
+  leaves `git status` clean — the same rule `adopt-apply` §3.5 already applied to `appliedAt`, and it makes
+  the idempotency promise literal rather than nearly-true.
+- Config gains `configVersion` and `aidlcVersion` at the top level, written by `init` and `adopt-apply`.
+- `validate-profile.test.mjs` is at **197 cases** (up from 156), including the eight new enums
+  cross-checked against the published schema and a check that the drift baseline's depth enum still
+  matches the scan's — the whole `depthChanged` rule compares the two.
+
 ## [0.32.0] — 2026-07-30
 
 ### `aidlc` — brownfield Phase 3: what the project actually is, beyond its shape

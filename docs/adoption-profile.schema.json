@@ -63,6 +63,7 @@
                 "maxFileBytes": { "type": "integer" },
                 "maxDepth": { "type": "integer" },
                 "maxAdrCandidates": { "type": "integer", "minimum": 1, "default": 8, "description": "Cap on how many retroactive-ADR candidates the scan proposes (adrCandidates[] with status=propose). Ranked by reversibility cost, so the cap drops the cheapest-to-change decisions first. Recorded here rather than assumed so a reader can tell a short list from a truncated one." },
+                "maxDebtFindings": { "type": "integer", "minimum": 1, "default": 20, "description": "Cap on debtFindings[]. Ranked by severity, so the cap drops hygiene before it drops an unreviewed auth path. Twenty is already more than most teams will triage in one sitting; the point of recording the cap is that a reader can tell a short list from a truncated one." },
                 "hitCap": { "type": "boolean", "description": "True if a cap terminated the scan early. When true the report must say which cap and what was left unread." }
               }
             }
@@ -185,6 +186,55 @@
           "surface": { "type": "string", "description": "The surfaces[] entry this closes." },
           "why": { "type": "string" },
           "workaround": { "type": "string", "description": "What the project uses until then, e.g. 'markdown backlog as the tracker adapter'." }
+        }
+      }
+    },
+    "debtFindings": {
+      "type": "array",
+      "description": "What the scan found that is WORK rather than a fact about the project — the debt-backlog proposals of ADOPT-11. Ordered by severity, HIGHEST FIRST, and capped by scan.budget.caps.maxDebtFindings, for the same reason adrCandidates is ranked: a capped unranked list drops exactly the findings worth tracking. Seeding a backlog from these is a separate opt-in step (/aidlc:adopt-backlog) which dedupes against the tracker and proposes every item before creating it; the scan writes nothing to any tracker.\n\nA finding is an observation with evidence, not a remedy. It carries no fix, patch or diff: how to close the debt is normal pipeline work, decided when the item is run, and a scan that also prescribed the solution would be guessing about code it only sampled.\n\nThe `sensitive` flag is the one field with teeth. A tracker item may be a PUBLIC GitHub issue, so a finding that names where an unfixed credential or a PII fixture lives would turn adoption into a disclosure. Sensitive findings therefore carry a trackerSafeTitle and no paths, and point the reader at the adoption report — which stays in the repo.",
+      "items": { "$ref": "#/definitions/debtFinding" }
+    },
+    "drift": {
+      "type": "object",
+      "description": "Present only on a RE-ADOPTION: the comparison between what a previous scan recorded, what the code shows now, and what the config currently says. Adoption is not a one-shot event — codebases drift from their recorded profile, and a re-scan whose only output was a fresh full profile would leave a reader to diff two large JSON files by eye.\n\nThe comparison is deliberately three-way, because two of the three differences must be treated in opposite ways. Code that moved since the last scan is drift to propose. A config value that no longer matches the code is drift to propose. A config value that differs from what the last apply WROTE is a human's deliberate edit — intent the scan cannot see and must never offer to overwrite. Collapsing the third case into the first is how a re-adoption quietly reverts a hand-tuned gate, with a diff that looks like routine convergence.",
+      "required": ["baseline"],
+      "additionalProperties": true,
+      "properties": {
+        "baseline": {
+          "type": "object",
+          "description": "What this scan compared itself against. The previous profile.json is the preferred baseline, which is why both adoption artifacts are meant to be git-tracked — an untracked profile leaves a re-scan with nothing to diff.",
+          "required": ["kind"],
+          "additionalProperties": true,
+          "properties": {
+            "kind": {
+              "enum": ["previous-profile", "config-only", "none"],
+              "description": "previous-profile: a prior .aidlc/adoption/profile.json was read before being overwritten — the full baseline. config-only: no previous profile survived, so only the config's recorded values could be compared, and facts the config does not carry are unknown-not-unchanged. none: first adoption, or no baseline was readable — then changes[] MUST be empty, because reporting a whole project as 'new drift' on first contact is noise that teaches people to skip the section."
+            },
+            "path": { "type": "string", "description": "Where the baseline came from, e.g. '.aidlc/adoption/profile.json' or '.claude/aidlc.config.json'." },
+            "scannedAt": { "type": "string", "format": "date-time", "description": "When the baseline scan ran." },
+            "commit": { "type": "string", "description": "The commit the baseline was taken at. Equal to scan.commit means the code has not moved, so any change recorded here comes from config or from a change in the scan itself." },
+            "profileVersion": { "type": "integer" },
+            "depth": {
+              "enum": ["quick", "standard", "deep"],
+              "description": "The baseline scan's depth. A different depth explains most apparent movement: facts the earlier run never sampled come back known now, which is new KNOWLEDGE, not new drift. This enum must stay identical to scan.depth — the validator's test suite checks both against each other."
+            },
+            "appliedAt": { "type": "string", "format": "date-time", "description": "From the config's adoption.appliedAt — when the baseline profile was last applied. A config value that changed after this timestamp was changed by a human." }
+          }
+        },
+        "depthChanged": {
+          "type": "boolean",
+          "description": "True when this scan's depth differs from the baseline's. Required to be true when they differ, because it changes how the whole section reads: a quick→deep re-scan turns dozens of `unknown`s into facts, and presenting those as project drift buries the two or three changes that really are."
+        },
+        "comparedAgainstConfig": { "type": "boolean", "description": "Whether the current .claude/aidlc.config.json was read as the third leg of the comparison. False means config drift and human edits could not be distinguished, which must be said rather than silently reported as no drift." },
+        "unmanaged": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Surfaces the config's adoption.unmanaged deliberately excluded (a repo or package the team is not piloting on). Echoed here so this run reports them once as 'unmanaged by choice' instead of re-proposing them every scan — the difference between 'not adopted' and 'missed'."
+        },
+        "changes": {
+          "type": "array",
+          "description": "One entry per difference found. An empty array is the good outcome and the observable proof of idempotency: a re-scan at the same commit and depth must produce none.",
+          "items": { "$ref": "#/definitions/driftChange" }
         }
       }
     },
@@ -407,6 +457,87 @@
       "allOf": [
         { "if": { "required": ["status"], "properties": { "status": { "const": "already-recorded" } } }, "then": { "required": ["existingAdr"] } },
         { "if": { "required": ["status"], "properties": { "status": { "const": "propose" } } }, "then": { "not": { "required": ["existingAdr"] } } }
+      ]
+    },
+    "debtFinding": {
+      "type": "object",
+      "description": "One piece of debt the scan can evidence — an absent gate, an untested critical path, an end-of-life runtime, a TODO cluster, a sensitive path with no review history, documentation that contradicts the code. It is a candidate work item, not a work item: /aidlc:adopt-backlog dedupes it against the tracker, writes the acceptance criteria and proposes it before anything is created.",
+      "required": ["kind", "title", "severity", "evidence"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "enum": [
+            "absent-gate", "untested-critical-path", "eol-dependency", "todo-cluster",
+            "unreviewed-sensitive-path", "docs-drift", "committed-secret", "pii-in-fixtures",
+            "cross-platform-hazard", "ungated-integration", "other"
+          ],
+          "description": "absent-gate: a verification step the project does not have (must name the gate). untested-critical-path: an auth/billing/tenant-isolation path with no test covering it. eol-dependency: a declared runtime or dependency past end of life — the evidence is the DECLARATION in the repo, and the EOL judgement must be stated as needing confirmation, because this scan makes no network calls and cannot check a release calendar. todo-cluster: a concentration of TODO/FIXME/HACK markers dense enough to be a backlog item rather than a comment. unreviewed-sensitive-path: a security-review path whose history shows no review. docs-drift: documentation contradicted by the code it describes. committed-secret / pii-in-fixtures: derived from safety findings, and always sensitive. cross-platform-hazard: mixed line endings with no .gitattributes, a case-colliding pair of paths, an OS-specific lockfile. ungated-integration: a repo whose PRs merge with no required check, where the host API actually answered."
+        },
+        "title": { "type": "string", "description": "The work as an OUTCOME, in the voice of a work item — 'Add a typecheck gate to the payments service', not 'No typecheck'. It becomes the item's title, and a title that only names the symptom produces an item nobody can tell is finished." },
+        "severity": {
+          "enum": ["high", "medium", "low"],
+          "description": "The ranking key, so the cap drops the cheapest findings rather than an arbitrary tail. high: it can cause customer-visible or security-relevant harm (an unreviewed auth path, a committed secret, no tests around billing). medium: it degrades the pipeline's ability to verify (an absent gate, an EOL runtime). low: hygiene."
+        },
+        "root": { "type": "string", "description": "The root this belongs to, by name; omit for a workspace-wide finding. It resolves to the item's `repo`." },
+        "package": { "type": "string", "description": "The package inside a monorepo root, when the finding is package-scoped. It resolves to the item's `package`." },
+        "gate": { "type": "string", "description": "Which gate is missing. REQUIRED when kind is absent-gate, and it must name a gate the root actually records as status=absent — otherwise the finding proposes work for a gate the project already has, which is how a debt backlog loses its credibility on the first item somebody checks." },
+        "paths": { "type": "array", "items": { "type": "string" }, "description": "Where the debt lives, so the item is actionable. Forbidden when `sensitive` is true — see trackerSafeTitle." },
+        "suggestedType": { "enum": ["story", "task", "bug", "spike"], "description": "The item type this would become. A finding whose remedy is genuinely unclear is a spike, not a story with invented acceptance criteria." },
+        "suggestedSize": { "enum": ["S", "M", "L", "XL"], "description": "Rough size, so the created item is never a bare title. XL means it should be decomposed before it is created." },
+        "sensitive": {
+          "type": "boolean",
+          "description": "True when naming the finding's location would itself disclose something — a credential still in history, a fixture full of personal data, an exploitable path with no review. A tracker item may be a PUBLIC issue, and 'AWS key at scripts/deploy.sh:14 in commit 9ac31be' published to the internet turns adoption into an incident. True is REQUIRED for kind committed-secret and pii-in-fixtures."
+        },
+        "trackerSafeTitle": { "type": "string", "description": "A title that discloses nothing and points at the adoption report instead — 'Rotate a credential found in git history (details in .aidlc/adoption/report.md)'. Required when `sensitive` is true; it is what /aidlc:adopt-backlog puts on the item, and the specifics stay in the repo where the report lives." },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" }, "description": "Required, as everywhere else. Note the asymmetry with `paths`: evidence lives in the profile, which is a file in the team's own repo, and it never travels to the tracker item — so a sensitive finding may cite where it looked here while still disclosing nothing outward." },
+        "confidence": { "enum": ["high", "medium", "low"], "description": "An EOL claim or a docs-drift reading is rarely `high` — say so, and the proposed item then says so too rather than asserting a fact the team may already know to be wrong." },
+        "note": { "type": "string", "description": "One line the fields do not carry — most usefully, what still needs confirming. An EOL finding belongs here: 'Ruby 2.7 reached end of life in 2023 — confirm against ruby-lang.org, since this scan makes no network calls.'" },
+        "fix": { "not": {}, "description": "FORBIDDEN, with `remedy`, `patch`, `diff` and `solution`. The scan sampled the code; it did not design the change. A finding that ships its own remedy invites the item to be closed by applying it unread, and the pipeline's whole point is that a change is planned, implemented, reviewed and verified. State the debt; let /aidlc:run decide the fix." },
+        "remedy": { "not": {}, "description": "FORBIDDEN — see `fix`. (`reachable.remedy` and `trust.remedy` are a different thing entirely: they tell the USER how to make a root readable, and are required there.)" },
+        "patch": { "not": {}, "description": "FORBIDDEN — see `fix`." },
+        "diff": { "not": {}, "description": "FORBIDDEN — see `fix`." },
+        "solution": { "not": {}, "description": "FORBIDDEN — see `fix`." }
+      },
+      "allOf": [
+        { "if": { "required": ["kind"], "properties": { "kind": { "const": "absent-gate" } } }, "then": { "required": ["gate"] } },
+        { "if": { "required": ["sensitive"], "properties": { "sensitive": { "const": true } } }, "then": { "required": ["trackerSafeTitle"], "not": { "required": ["paths"] } } },
+        { "if": { "required": ["kind"], "properties": { "kind": { "enum": ["committed-secret", "pii-in-fixtures"] } } }, "then": { "properties": { "sensitive": { "const": true } }, "required": ["sensitive"] } }
+      ]
+    },
+    "driftChange": {
+      "type": "object",
+      "description": "One difference between the baseline, the code and the config. `source` and `action` together are the whole point of the record: they say whose change this was and therefore what may be done about it.",
+      "required": ["kind", "surface", "source", "action"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "enum": [
+            "root-added", "root-removed", "classification-changed", "package-added", "package-removed",
+            "gate-added", "gate-removed", "gate-changed", "stack-changed", "convention-changed",
+            "saas-changed", "topology-changed", "release-tooling-changed", "surface-support-changed",
+            "adr-superseded", "other"
+          ],
+          "description": "What moved. root-added/root-removed cover the VS Code case where a user adds or drops a folder after adoption. adr-superseded: the code no longer matches a decision a recorded ADR describes — reported for a human, never resolved by the scan, because superseding an ADR is a decision and not a detection."
+        },
+        "surface": { "type": "string", "description": "The specific thing, named the way config names it — 'repos[].api.pipeline.gates.verify.steps.test', 'packages[].@acme/web', 'git.integrationBranch'. A drift entry a reader cannot locate is a rumour." },
+        "root": { "type": "string", "description": "Root name, where the change is root-scoped." },
+        "package": { "type": "string" },
+        "was": { "description": "The baseline value. null where the thing did not exist then." },
+        "now": { "description": "The current value. null where it no longer exists. Equal to `was` is not drift and must not be recorded." },
+        "source": {
+          "enum": ["code", "config", "human-edit", "scan-depth", "unknown"],
+          "description": "code: the project moved — the ordinary case, and drift worth proposing. config: configuration no longer matches the code (a gate command renamed, a package deleted but still registered). human-edit: the config differs from what the last apply wrote, so somebody changed it deliberately after adoption — INTENT the scan cannot see. scan-depth: explained by this run looking deeper (or less deep) than the baseline, which is a change in knowledge rather than in the project. unknown: the baseline could not establish which, which must be said rather than assumed to be code."
+        },
+        "action": {
+          "enum": ["propose", "report-only", "leave-alone"],
+          "description": "What the apply step may do. propose: offer the change as a config diff. report-only: state it and stop (an unmanaged surface, an ADR the code has outgrown, a finding whose remedy is not configuration). leave-alone: REQUIRED for source=human-edit — a hand-authored value is never proposed for overwrite, because a diff that reverts a deliberate edit looks exactly like routine convergence and is the one drift outcome nobody would catch in review."
+        },
+        "evidence": { "type": "array", "items": { "$ref": "#/definitions/evidence" }, "description": "Required when source=code: the citation proving the project actually moved. A config or human-edit difference is evidenced by the two values themselves." },
+        "note": { "type": "string", "description": "One line a reader needs that the fields do not carry." }
+      },
+      "allOf": [
+        { "if": { "required": ["source"], "properties": { "source": { "const": "human-edit" } } }, "then": { "properties": { "action": { "const": "leave-alone" } } } },
+        { "if": { "required": ["source"], "properties": { "source": { "const": "code" } } }, "then": { "required": ["evidence"] } }
       ]
     },
     "saasProfile": {

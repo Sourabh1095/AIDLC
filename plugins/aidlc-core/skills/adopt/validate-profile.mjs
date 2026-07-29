@@ -21,6 +21,8 @@
 //   * no ADR candidate carries a rationale — the scan never saw the why
 //   * every auth / tenant-isolation / billing path reaches the security-review seeds
 //   * a package's dependsOn resolves to siblings and the graph is acyclic
+//   * a sensitive debt finding never names where the secret is — a tracker item may be public
+//   * drift attributed to a human's edit is never proposed for overwrite
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -82,6 +84,23 @@ export const ADR_DECISION_KINDS = [
 ];
 export const ADR_CANDIDATE_STATUSES = ["propose", "already-recorded"];
 export const REVERSIBILITY_COSTS = ["high", "medium", "low"];
+export const DEBT_KINDS = [
+  "absent-gate", "untested-critical-path", "eol-dependency", "todo-cluster",
+  "unreviewed-sensitive-path", "docs-drift", "committed-secret", "pii-in-fixtures",
+  "cross-platform-hazard", "ungated-integration", "other",
+];
+export const DEBT_SEVERITIES = ["high", "medium", "low"];
+export const DEBT_ITEM_TYPES = ["story", "task", "bug", "spike"];
+export const DEBT_SIZES = ["S", "M", "L", "XL"];
+export const DRIFT_BASELINE_KINDS = ["previous-profile", "config-only", "none"];
+export const DRIFT_CHANGE_KINDS = [
+  "root-added", "root-removed", "classification-changed", "package-added", "package-removed",
+  "gate-added", "gate-removed", "gate-changed", "stack-changed", "convention-changed",
+  "saas-changed", "topology-changed", "release-tooling-changed", "surface-support-changed",
+  "adr-superseded", "other",
+];
+export const DRIFT_SOURCES = ["code", "config", "human-edit", "scan-depth", "unknown"];
+export const DRIFT_ACTIONS = ["propose", "report-only", "leave-alone"];
 
 // Tenancy models where migrations run against data real tenants already have. Not a schema enum —
 // a derived set the expand/contract rule keys off.
@@ -90,6 +109,13 @@ const LIVE_TENANCY = ["shared-schema", "schema-per-tenant", "database-per-tenant
 // produced it, and a plausible sentence in an `accepted` ADR becomes history nobody authored.
 const INVENTED_RATIONALE_FIELDS = ["rationale", "why", "because", "alternatives", "alternativesConsidered"];
 const DEFAULT_ADR_CAP = 8;
+// A debt finding states the debt; it never ships the change. The scan sampled the code and did not
+// design the fix, and a finding carrying its own patch invites the item to be closed by applying it
+// unread — which routes around the plan/implement/review/verify path the pipeline exists to run.
+const INVENTED_REMEDY_FIELDS = ["fix", "remedy", "patch", "diff", "solution"];
+// Kinds whose very location is the disclosure. A tracker item may be a public GitHub issue.
+const SENSITIVE_DEBT_KINDS = ["committed-secret", "pii-in-fixtures"];
+const DEFAULT_DEBT_CAP = 20;
 
 // Credential shapes that must never reach a profile or a report. The scan is required to
 // redact secret findings and to strip credentials from remote URLs; this is the backstop
@@ -531,6 +557,160 @@ function checkAdrCandidates(list, profile) {
     err("adrCandidates", `proposes ${proposals.length} ADRs but the cap is ${cap} — raise scan.budget.caps.maxAdrCandidates deliberately or keep the top ${cap}; an uncapped list is a review nobody finishes`);
 }
 
+// ---- ADOPT-11: debt findings, the backlog seed ----
+// Three failures here are invisible rather than loud. A sensitive finding that names its location
+// becomes a public tracker item disclosing an unfixed credential. An absent-gate finding for a gate
+// the project actually has discredits the whole backlog on the first item somebody checks. And an
+// unranked list under a cap drops an unreviewed auth path to keep a formatting nit.
+function checkDebtFindings(list, profile) {
+  if (!Array.isArray(list)) return err("debtFindings", "must be an array");
+  const roots = Array.isArray(profile?.workspace?.roots) ? profile.workspace.roots : [];
+  const byName = new Map(roots.filter((r) => nonEmptyStr(r?.name)).map((r) => [r.name, r]));
+
+  list.forEach((f, i) => {
+    const at = `debtFindings[${i}]`;
+    if (!isObj(f)) return err(at, "must be an object");
+    enumField(f, "kind", DEBT_KINDS, at);
+    enumField(f, "severity", DEBT_SEVERITIES, at);
+    if (!nonEmptyStr(f.title))
+      err(at, "missing `title` — it becomes the item's title and must state the OUTCOME ('Add a typecheck gate to the payments service'), not the symptom");
+    checkEvidence(f.evidence, at);
+    if (f.confidence !== undefined) enumField(f, "confidence", CONFIDENCES, at);
+    if (f.suggestedType !== undefined) enumField(f, "suggestedType", DEBT_ITEM_TYPES, at);
+    if (f.suggestedSize !== undefined) enumField(f, "suggestedSize", DEBT_SIZES, at);
+
+    for (const field of INVENTED_REMEDY_FIELDS)
+      if (f[field] !== undefined)
+        err(at, `carries \`${field}\` — a finding states the debt, never the change. The scan sampled this code; it did not design the fix, and a remedy shipped with the finding invites the item to be closed by applying it unread`);
+
+    // The disclosure rule. `sensitive` means naming the location IS the leak.
+    const mustBeSensitive = SENSITIVE_DEBT_KINDS.includes(f.kind);
+    if (mustBeSensitive && f.sensitive !== true)
+      err(at, `kind=${f.kind} must set \`sensitive: true\` — a tracker item may be a public issue, and one naming where an unfixed credential or a PII fixture lives turns adoption into a disclosure`);
+    if (f.sensitive === true) {
+      if (!nonEmptyStr(f.trackerSafeTitle))
+        err(at, "sensitive findings require `trackerSafeTitle` — the title that goes on the item, disclosing nothing and pointing at the adoption report, which stays in the repo");
+      if (f.paths !== undefined)
+        err(at, "sensitive findings must not carry `paths` — the location is the disclosure; it belongs in the report, not in an item that may be world-readable");
+    } else if (f.paths !== undefined && !Array.isArray(f.paths)) {
+      err(`${at}.paths`, "must be an array");
+    } else if (!Array.isArray(f.paths) && f.kind !== "absent-gate" && f.kind !== "ungated-integration") {
+      warn(at, "carries neither `paths` nor `sensitive` — an item with no location is one nobody can start");
+    }
+
+    // An absent-gate finding must correspond to a gate the root really lacks.
+    if (f.kind === "absent-gate") {
+      if (!nonEmptyStr(f.gate)) {
+        err(at, "kind=absent-gate requires `gate` naming which one");
+      } else if (nonEmptyStr(f.root) && byName.has(f.root)) {
+        const gates = Array.isArray(byName.get(f.root).gates) ? byName.get(f.root).gates : [];
+        const match = gates.find((g) => g?.name === f.gate);
+        if (match && match.status !== "absent")
+          err(at, `proposes adding the \`${f.gate}\` gate but root \`${f.root}\` records it as status=${match.status} — the project already has it, and a backlog whose first item is provably wrong is one nobody reads twice`);
+        else if (!match && gates.length)
+          warn(at, `\`${f.gate}\` is not among root \`${f.root}\`'s recorded gates — say in the evidence what was searched, or the finding is unverifiable`);
+      }
+    }
+
+    if (nonEmptyStr(f.root) && byName.size && !byName.has(f.root))
+      err(`${at}.root`, `\`${f.root}\` is not a declared root — the finding's root resolves to the item's repo, so a name that matches nothing routes nowhere`);
+    if (nonEmptyStr(f.package) && nonEmptyStr(f.root) && byName.has(f.root)) {
+      const pkgs = Array.isArray(byName.get(f.root).packages) ? byName.get(f.root).packages : [];
+      if (pkgs.length && !pkgs.some((pk) => pk?.name === f.package))
+        err(`${at}.package`, `\`${f.package}\` is not a package in root \`${f.root}\` — it resolves to the item's package, which scopes the gate and the PR label`);
+    }
+  });
+
+  // Ranked by severity, highest first — the cap must drop hygiene, never an unreviewed auth path.
+  const rank = (f) => DEBT_SEVERITIES.indexOf(f?.severity);
+  for (let i = 1; i < list.length; i++) {
+    const prev = rank(list[i - 1]), cur = rank(list[i]);
+    if (prev >= 0 && cur >= 0 && cur < prev) {
+      err("debtFindings", `is not ranked by severity — \`${list[i].kind}\` (${list[i].severity}) follows \`${list[i - 1].kind}\` (${list[i - 1].severity}). The cap truncates the tail, so an unranked list drops the findings that matter first`);
+      break;
+    }
+  }
+
+  const cap = profile?.scan?.budget?.caps?.maxDebtFindings ?? DEFAULT_DEBT_CAP;
+  if (list.length > cap)
+    err("debtFindings", `carries ${list.length} findings but the cap is ${cap} — raise scan.budget.caps.maxDebtFindings deliberately or keep the top ${cap}; an uncapped debt list is a triage nobody finishes`);
+}
+
+// ---- ADOPT-12: drift on re-adoption ----
+// The comparison is three-way and two of the three legs must be handled in opposite directions.
+// Code that moved is drift to propose; a config value a HUMAN changed after adoption is intent the
+// scan cannot see. Proposing to "fix" the second is how a re-adoption reverts a hand-tuned gate with
+// a diff that looks like routine convergence — which is why source=human-edit is pinned to
+// action=leave-alone here rather than left to the apply step's judgement.
+function checkDrift(d, profile) {
+  if (!isObj(d)) return err("drift", "must be an object");
+
+  const b = d.baseline;
+  if (!isObj(b)) {
+    err("drift.baseline", "missing — a drift report must say what it compared itself against, or its changes are unattributable");
+  } else {
+    enumField(b, "kind", DRIFT_BASELINE_KINDS, "drift.baseline");
+    if (b.depth !== undefined) enumField(b, "depth", DEPTHS, "drift.baseline");
+    if (b.scannedAt !== undefined && Number.isNaN(Date.parse(b.scannedAt)))
+      err("drift.baseline.scannedAt", "not an ISO-8601 timestamp");
+  }
+
+  const changes = d.changes;
+  if (changes !== undefined && !Array.isArray(changes)) return err("drift.changes", "must be an array");
+  const list = Array.isArray(changes) ? changes : [];
+
+  // No baseline, no drift. Reporting a whole project as "new" on first contact is noise that teaches
+  // people to skip the section — and then the one real change later goes unread.
+  if (b?.kind === "none" && list.length)
+    err("drift.changes", `baseline.kind is "none" but ${list.length} change(s) are recorded — with nothing to compare against there is no drift; on a first adoption this section is empty and the profile itself is the baseline for next time`);
+
+  // A depth change explains most apparent movement. Unlabelled, it buries the real drift.
+  const scanDepth = profile?.scan?.depth;
+  if (nonEmptyStr(b?.depth) && nonEmptyStr(scanDepth) && b.depth !== scanDepth && d.depthChanged !== true)
+    err("drift.depthChanged", `must be true — the baseline ran at depth \`${b.depth}\` and this run at \`${scanDepth}\`, so facts that were never sampled before now read as changes. Unlabelled, that buries the differences that really are drift`);
+
+  const comparedConfig = d.comparedAgainstConfig === true;
+  const unmanaged = Array.isArray(d.unmanaged) ? d.unmanaged.filter(nonEmptyStr) : [];
+  const rootNames = new Set(
+    (Array.isArray(profile?.workspace?.roots) ? profile.workspace.roots : [])
+      .map((r) => r?.name).filter(nonEmptyStr),
+  );
+
+  list.forEach((c, i) => {
+    const at = `drift.changes[${i}]`;
+    if (!isObj(c)) return err(at, "must be an object");
+    enumField(c, "kind", DRIFT_CHANGE_KINDS, at);
+    enumField(c, "source", DRIFT_SOURCES, at);
+    enumField(c, "action", DRIFT_ACTIONS, at);
+    if (!nonEmptyStr(c.surface))
+      err(at, "missing `surface` — name the thing the way config names it (`repos[].api…verify.steps.test`); drift a reader cannot locate is a rumour");
+
+    // THE rule: a human's deliberate edit is reported, never proposed for overwrite.
+    if (c.source === "human-edit" && c.action !== "leave-alone")
+      err(at, `source=human-edit with action=${JSON.stringify(c.action)} — a value somebody changed by hand after adoption carries intent the scan cannot see. It must be \`leave-alone\`: a diff that reverts a deliberate edit is indistinguishable from routine convergence in review`);
+
+    // Code drift needs a citation, exactly as every other derived claim does.
+    if (c.source === "code") checkEvidence(c.evidence, at);
+    else if (c.evidence !== undefined) checkEvidence(c.evidence, at);
+
+    // Classifying a difference as config-side or hand-authored requires having read the config.
+    if (!comparedConfig && (c.source === "config" || c.source === "human-edit"))
+      err(at, `source=${c.source} while drift.comparedAgainstConfig is not true — the config was never read, so this difference cannot be attributed to it. Record it as \`unknown\` and say the config was unreadable`);
+
+    if (c.was !== undefined && c.now !== undefined && JSON.stringify(c.was) === JSON.stringify(c.now))
+      err(at, "`was` equals `now` — that is not drift, and a no-op entry inflates the section until nobody reads it");
+
+    // An unmanaged surface is reported once, never re-proposed. That is what makes a pilot quiet.
+    const touchesUnmanaged = unmanaged.some((u) => u === c.root || u === c.package || u === c.surface ||
+      (nonEmptyStr(c.surface) && c.surface.includes(u)));
+    if (touchesUnmanaged && c.action === "propose")
+      err(at, `proposes a change to \`${c.surface}\`, which adoption.unmanaged deliberately excludes — an unmanaged surface is reported once as unmanaged, not re-proposed every scan; that difference is what separates "not adopted" from "missed"`);
+
+    if (nonEmptyStr(c.root) && rootNames.size && c.kind !== "root-removed" && !rootNames.has(c.root))
+      err(`${at}.root`, `\`${c.root}\` is not a declared root in this profile`);
+  });
+}
+
 function validate(p, profileText) {
   // ---- version ----
   if (p.profileVersion !== 1)
@@ -734,6 +914,12 @@ function validate(p, profileText) {
   // ---- retroactive ADR candidates ----
   if (p.adrCandidates !== undefined) checkAdrCandidates(p.adrCandidates, p);
 
+  // ---- debt findings (the backlog seed) and drift (re-adoption) ----
+  if (p.debtFindings !== undefined) checkDebtFindings(p.debtFindings, p);
+  if (p.drift !== undefined) checkDrift(p.drift, p);
+  else if (p.scan?.controlPlane?.alreadyAdopted === true)
+    err("drift", "scan.controlPlane.alreadyAdopted is true but there is no `drift` block — a re-scan of an adopted workspace that reports no comparison leaves the reader to diff two large profiles by eye. An unchanged project produces a drift block with an empty changes[], which is the observable proof of idempotency, not the absence of the block");
+
   // ---- safety ----
   const sf = p.safety;
   if (isObj(sf)) {
@@ -794,6 +980,16 @@ const CONDITIONAL_REPORT_PHRASES = [
     (p) => (p?.workspace?.roots ?? []).some((r) => Array.isArray(r?.packages) && r.packages.length > 0),
     "package",
     "the per-root package list — routing, gates and release all key off it",
+  ],
+  [
+    (p) => Array.isArray(p?.debtFindings) && p.debtFindings.length > 0,
+    "debt",
+    "the section listing what the scan found that is WORK rather than a fact, and the /aidlc:adopt-backlog door for it",
+  ],
+  [
+    (p) => isObj(p?.drift),
+    "drift",
+    "the re-adoption comparison — including when nothing moved, since \"no drift\" is the result a reader came for",
   ],
 ];
 

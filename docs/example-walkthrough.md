@@ -7,6 +7,10 @@ plans it, creates the work items, and builds it. Target app: a simple todo app w
 
 Share this file with anyone onboarding onto the framework.
 
+> **Adopting onto code that already exists?** This walkthrough starts from an empty folder, so it never
+> has to *learn* a project. For the brownfield sequence — scan, review, apply, then a first run against
+> the project's own gate and branch conventions — read `brownfield-walkthrough.md` instead.
+
 ---
 
 ## 0. Prerequisites (one-time, per machine)

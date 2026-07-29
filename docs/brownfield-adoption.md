@@ -1,7 +1,9 @@
 # Brownfield Adoption — spec
 
 **Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** (+ **0.31.1** fixes); Phase 3 in
-**0.32.0** — see *Implementation status* below. Phase 4 remains a proposal. **Authored:** 2026-07-29.
+**0.32.0**; Phase 4 in **0.33.0** — see *Implementation status* below. All four phases are now
+implemented; what remains open is **verification against real projects**, tracked per phase.
+**Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
 (`plugins/aidlc-core/skills/init/SKILL.md:44-61`), the web tooling and enterprise skeleton are
@@ -228,11 +230,100 @@ real changesets/Lerna tooling; and whether `securityReviewPaths` seeding produce
 rather than flagging every second diff. The Phase 2 lesson applies unchanged: **each of those would fail
 by producing a plausible result rather than an error**, which is why only execution will surface them.
 
-**Phase 4 is unstarted.** Nothing yet seeds a debt backlog from the findings, produces a drift report on
-re-scan, supports scoped/partial adoption beyond `--only`, upgrades an older config in place, or documents
-clean removal. `/aidlc:adopt` reports and proposes; `/aidlc:adopt-apply` writes config behind a diff;
-`/aidlc:adopt-adr` writes ADRs behind per-ADR approval; none of them remediates anything, and all three
-say so.
+**Phase 4 landed in `aidlc` 0.33.0** — keeping an adoption true after the first day:
+
+| Story | Landed as |
+|---|---|
+| ADOPT-12 · drift, partial adoption, upgrade, removal | profile `drift` + `definitions.driftChange` · `adopt` §9 (three-way comparison) + §10 (*converge, don't churn*) · `adopt-apply` §1 (the action table), §2.1 (in-place upgrade), §3.5 (`adoption.writes[]`) · config `configVersion` / `aidlcVersion` / `adoption.only` / `adoption.upgrades[]` / `adoption.writes[]` · **new `skills/remove/SKILL.md`** |
+| ADOPT-11 · debt backlog from the findings | profile `debtFindings[]` + `definitions.debtFinding` + `scan.budget.caps.maxDebtFindings` · `adopt` §8 (detection table + the four rules) · **new `skills/adopt-backlog/SKILL.md`** · `init` Step 3.0 |
+| ADOPT-13 · documentation and a walkthrough | **new `docs/brownfield-walkthrough.md`** · `docs/adoption-guide.md` (*Adoption is a lifecycle, not an event*) · `docs/user-guide.md` cheat-sheet (6 new rows) · README (the doors table + the pipeline table) · `docs/example-walkthrough.md` cross-link · CHANGELOG 0.33.0 |
+
+**Three design calls worth recording, because each was the non-obvious option.**
+
+1. **A re-scan at the same commit now writes *nothing*, rather than an identical file.** Adding `drift`
+   created a problem the earlier phases did not have: the profile is a *tracked baseline*, so rewriting it
+   every scan would both put timestamp-only commits in front of the team and — worse — move the baseline
+   the *next* scan compares against, since `drift.baseline` echoes the previous run's provenance. Chasing
+   that with a longer list of "inherently variable fields" would have made the idempotency promise
+   permanently almost-true. Instead `adopt` §10 borrows `adopt-apply` §3.5's rule: compare, and write only
+   on a real difference. The artifacts describe **state**, not events. ADOPT-12's last criterion is now
+   literal — two consecutive runs leave `git status` clean.
+2. **`human-edit` is a first-class drift source, pinned by the validator.** The obvious model is two-way:
+   recorded profile vs. current reality. That model has no way to express *the config says something else
+   because a person put it there*, so every hand-tuned value reads as config drift to be corrected — and
+   the resulting diff is indistinguishable from routine convergence. So the comparison is three-way, and
+   `source: "human-edit"` ⇒ `action: "leave-alone"` is enforced in code rather than left to the apply
+   step's judgement.
+3. **Clean removal needed a manifest, not a heuristic.** ADOPT-12 asks for a documented removal path;
+   documenting it exposed that it was not *possible*. Nothing recorded which `CLAUDE.md` sections and
+   which `permissions.allow` entries were ours, so removal could only guess — and the safe-looking guess
+   (delete the file) destroys the team's own content. Hence `adoption.writes[]`, with `created` /
+   `merged` (+ `sections[]`) / `rendered` per file. The second insight came out of the same exercise:
+   **an AIDLC-created container is not AIDLC-owned content.** `init` made `docs/adr/`, `backlog/` and
+   `.aidlc/runs/`; what is inside them is the team's, and a removal that deleted them would destroy the
+   most valuable thing adoption produced. `/aidlc:remove` keeps all three by default.
+
+**What Phase 4 deliberately did not do.** `/aidlc:remove` is **not** scoped to adoption. It removes AIDLC
+from a project whether the project was adopted or scaffolded greenfield, which is why it is not named
+`adopt-remove` — a greenfield team that wants out needs the same command, and pointing them at something
+called *adopt-*anything would read as the wrong door. The cost is that it must work with **no manifest**
+(a config written before `adoption.writes[]` existed, or an `init`-only project): it then classifies by the
+documented three-tier table and shows every merged-file edit as a diff to confirm individually, saying
+plainly that it is inferring rather than reading a record. Two other deliberate omissions: the `guard`
+hook is still **not config-aware** (see Phase 2's note — an integration branch named `trunk` is routed
+correctly but not hook-protected), and `/aidlc:status` does **not** surface drift; a drift report is
+something you ask for, not a banner on a dashboard you check ten times a day.
+
+### Phase 4 — what is verified, and what is not
+
+**Mechanically enforced — `node skills/adopt/validate-profile.test.mjs`, 197 cases, green** (up from 156).
+The reference fixture now also carries six ranked debt findings — two of them `sensitive` — and a drift
+block whose five changes deliberately cover every awkward combination at once: code drift that proposes, a
+human edit that must be left alone, an unmanaged root that may only be reported, a `root-removed` entry
+naming a root that is *correctly* absent from `workspace.roots`, and a package addition. Eight new enums
+are cross-checked against the published schema, plus one check the others do not need: the drift baseline's
+`depth` enum must equal `scan.depth`'s, because the whole `depthChanged` rule compares the two.
+
+Five invariants are enforced because each fails **invisibly**:
+
+1. **A `sensitive` finding never carries `paths`, and `committed-secret` / `pii-in-fixtures` are forced
+   sensitive.** A tracker item may be a public GitHub issue. "AWS key at `scripts/deploy.sh:14` in commit
+   9ac31be" published to the internet under an adoption banner is a disclosure the scan created, and it
+   would look like diligence in the diff. Note the asymmetry the rule turns on: `evidence` may cite the
+   location (the profile is a file in the team's repo), `paths` may not (it is what reaches the board).
+2. **Drift attributed to a human's edit is never proposed for overwrite.** The one drift outcome nobody
+   catches in review, because reverting a deliberate edit and converging on a derived value produce the
+   same-shaped diff.
+3. **No finding ships its own remedy** — `fix`, `remedy`, `patch`, `diff`, `solution`, the same
+   five-spelling ban the ADR rationale gets and for a related reason: a finding carrying its own patch
+   invites the item to be closed by applying it unread, routing around plan → implement → review → verify.
+4. **An `absent-gate` finding must name a gate the root actually records as absent.** A debt backlog whose
+   first item is provably wrong is one nobody reads twice, and the cross-check is one lookup.
+5. **`baseline.kind: "none"` ⇒ no changes**, and a depth difference must set `depthChanged`. Both prevent
+   the same failure from opposite directions: a drift section so full of non-drift that the real movement
+   is unfindable. Plus: a re-adoption (`alreadyAdopted: true`) with no `drift` block at all is rejected —
+   an unchanged project produces an empty `changes[]`, which is the *proof* of idempotency, not a reason to
+   omit the block.
+
+**Not verified — no live run, and one criterion knowingly unmet.** Phase 4 ships specified-but-unexercised,
+exactly as Phases 2 and 3 did. What needs a real project rather than a fixture:
+
+- **Every drift path.** Whether a second scan six weeks later actually attributes changes correctly is the
+  central claim, and the `human-edit` leg is the least testable by fixture: it needs a config that was
+  really applied, really hand-edited afterwards, and re-scanned. The failure mode is the usual one — a
+  *plausible* attribution rather than an error.
+- **The upgrade path**, which by definition needs a config written by an older plugin version. The
+  shape-based classification for unstamped files is the part most likely to misfire.
+- **Removal, on a project with a manifest and on one without.** The verification step (`git diff` against
+  the pre-adoption commit) is exactly the test, and it has not been run.
+- **Whether the debt backlog's volume is right.** Two failure modes, opposite and both plausible: twenty
+  items nobody triages, or a bar set so high the command never proposes anything. Only a real board
+  answers it — and the dedup sweep against a genuinely large board is untested.
+- **ADOPT-13's second criterion is knowingly unmet.** `docs/brownfield-walkthrough.md` walks a *realistic*
+  brownfield project — a GitFlow Django service beside a squash-only Next.js app — and its commands are
+  exact, but it is a **worked example, not a transcript**: no genuinely existing third-party repo has been
+  taken from `/aidlc:adopt` to a merged PR. The document says so in its own preamble rather than implying
+  a session that did not happen. That checkbox stays open, and closing it means adopting a real repo.
 
 ### Deviations from this spec, and why
 
@@ -847,8 +938,11 @@ for this epic, with the reason.
 - **Phase 3 — know what it is:** ADOPT-9, ADOPT-10, ADOPT-8. *(Shipped 0.32.0. Note ADOPT-8 turned out to
   be the load-bearing one for the other two: `packages[]` is where per-package gates, stacks and releases
   hang, and it is what the `saas` block resolves against in a monorepo.)*
-- **Phase 4 — keep it true:** ADOPT-12, ADOPT-11, ADOPT-13. *(ADOPT-13's walkthrough now also owes a
-  worked monorepo + SaaS example, and ADOPT-12's drift report has three more blocks to diff.)*
+- **Phase 4 — keep it true:** ADOPT-12, ADOPT-11, ADOPT-13. *(Shipped 0.33.0. ADOPT-12 turned out to be
+  the load-bearing one, and in an unexpected direction: writing the removal path is what revealed that
+  removal was not possible without a per-file provenance manifest, which then had to be written by
+  `adopt-apply` in the same release. ADOPT-11 also came out smaller than specified in one dimension — the
+  scan detects the debt, but the volume it should propose is the open question below.)*
 
 Phase 1 is independently valuable and low-risk; each later phase depends only on the profile contract
 from ADOPT-2, so the phases can be re-ordered if a real adoption forces the issue.
@@ -882,3 +976,19 @@ from ADOPT-2, so the phases can be re-ordered if a real adoption forces the issu
    the blank is the artifact's value — it makes the undocumented reasoning visible as a gap while the
    people who remember it are still around. If the pessimistic reading wins in practice, the fix is
    probably to propose fewer (cap 3, not 8) and only at `reversibilityCost: high`.
+5. **How many debt findings should a scan propose before it stops being a gift?** *Open, and the same
+   shape of question as 4.* The cap is 20 and `/aidlc:adopt-backlog` is told twice to propose few, but a
+   cap is not judgement: the two failure modes are opposite and both plausible. Too many, and a team wakes
+   to a board full of `adopted` items somebody has to close one by one, and concludes the tool has no
+   taste. Too few, and the command never justifies existing — the report already said all of it. The
+   instinct is that the useful number is closer to 3–5 than 20 and that the honest default may be
+   `--dry-run`, but that is a guess about how teams react, and guessing about people is exactly what this
+   epic's design principles refuse to do elsewhere. Measure it on a real board before tightening the cap.
+6. **Should drift ever surface without being asked for?** Currently no: a drift report comes from re-running
+   `/aidlc:adopt`, and `/aidlc:status` says nothing about it. The argument for the current answer is that a
+   dashboard checked ten times a day cannot carry a finding nobody acts on today without becoming noise —
+   the same reasoning that keeps a compliance regime from silently raising the security cadence. The
+   argument against is that undetected drift is exactly what makes a config quietly wrong, and nobody
+   re-runs a scan on a schedule. A cheap middle option exists if this proves wrong: `/aidlc:status` could
+   compare `adoption.commit` to HEAD and say only *"the profile is 400 commits old"* — a staleness signal,
+   not a drift report.
