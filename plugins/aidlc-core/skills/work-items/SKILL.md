@@ -35,6 +35,7 @@ Every adapter normalizes to and from this shape:
   "estimate": "S | M | L | XL | null",
   "parent": "PROJ-100 | null",
   "repo": "string | null",
+  "package": "string | null",
   "dependsOn": ["PROJ-101"],
   "labels": ["string"],
   "assignee": "string | null",
@@ -46,6 +47,11 @@ Every adapter normalizes to and from this shape:
 - `repo` — the git repo (by `repos[].name`) this item is delivered in. `null` for epics (they span
   repos via their children) and for unrouted items (the orchestrator resolves it — see below). In
   **mono** it is always the single repo and can be left `null`.
+- `package` — the package (by `packages[].name`) inside that repo, when the repo is a monorepo. `null`
+  everywhere else, including a monorepo item that genuinely spans packages before decomposition. It
+  narrows the gate, the stack and the PR label; it does **not** add a branch — the leaf is still one
+  repo, one branch, one PR. Most trackers have no field for it, so it usually lives on the run file and
+  in a label rather than round-tripping through the adapter (see *Item → package resolution*).
 - `dependsOn` — other item IDs that must land first. Used to sequence a cross-repo epic's children
   (e.g. the frontend story `dependsOn` the backend story). Empty by default.
 - `links.branch` / `links.pr` stay **singular** — one run = one repo = one branch = one PR. An epic's
@@ -118,8 +124,17 @@ The pipeline operates on **repo entries**, never on a hardcoded "the repo". Buil
   treating it as configured.
 - **`repos[]` empty/absent → mono.** Synthesize ONE repo entry from the top-level `git` + `stack` +
   `ux` blocks: `{ name: project.key-lowercased, path: ".", default: true, host: git.host,
-  remote: git.remote, defaultBranch: git.defaultBranch, branchPattern: git.branchPattern, stack, ux }`.
-  Mono is just a one-entry registry, so everything downstream shares one code path.
+  remote: git.remote, defaultBranch: git.defaultBranch, branchPattern: git.branchPattern, stack, ux }`,
+  carrying the top-level `packages` and `saas` blocks onto it too. Mono is just a one-entry registry, so
+  everything downstream shares one code path.
+- **A repo entry may carry `packages[]`** — one git repo, many independently-owned packages (a monorepo).
+  That is a second dimension, not a second layout: `repos[]` is the git boundary, `packages[]` is the
+  ownership boundary inside one. A workspace can hold a monorepo *beside* single-app repos, and both
+  shapes flow through the same registry. See *Item → package resolution* below.
+- **A repo entry may carry `saas`** — the runtime constraints (tenancy, feature flags, migration
+  constraints, public API contracts, compliance) that decide what a safe change to that repo looks like.
+  Resolve it **per repo**, never workspace-wide: a Node API serving tenants and a static marketing site
+  in the same workspace have nothing in common here.
 
 **Item → repo resolution chain** (stop at the first that resolves; record the result on the run file's
 `repo:` and, when writeable, on the item via `link`):
@@ -145,6 +160,44 @@ The pipeline operates on **repo entries**, never on a hardcoded "the repo". Buil
 
 Epics are never routed to a single repo; they **fan out** to one child per affected repo (each child
 routed by this chain), with `dependsOn` sequencing. See `aidlc:run` §2.
+
+### Item → package resolution (monorepo only; a no-op everywhere else)
+
+A **monorepo is one git repo holding many independently-owned packages**, so resolving the repo does not
+finish the job: `repos[]` marks the git boundary, `packages[]` marks the ownership boundary inside it.
+Once the repo resolves, if that repo entry (or the top-level config, in mono) carries `packages[]`,
+resolve the package too — same chain, one tier down, stopping at the first that resolves:
+
+1. **Explicit** — the item's `package` field names a known `packages[].name`.
+2. **Label** — an item label matches a package's `labels`. Several match → don't guess; fall through.
+3. **Path** — the item names files or directories that sit under exactly one package's `path`. This is
+   the tier that resolves most real items, because a well-written item says where the work is.
+4. **Single default** — one package declared, or exactly one with `default: true`.
+5. **Ground** — read the candidate packages' `role`/`stack` and the code the item describes, and pick.
+   Log the reasoning as an assumption.
+6. **Ask** — still ambiguous → ask, listing the packages.
+
+What resolving it buys, and what it does not:
+
+- **The gate narrows.** `pipeline.gates.verify` resolves with the package name, which **layers** the
+  package's steps over the repo's rather than replacing them (`aidlc:run` §7 / `resolve-gate.mjs`).
+- **Stack and UX narrow.** A monorepo's packages routinely differ — a Next.js app beside a Python
+  worker — so standards, structure guidance and the design pod resolve from the *package's* `stack`/`ux`,
+  falling back to the repo's. Resolving these per repo is how a worker gets handed web coding standards.
+- **The PR is labeled with the package**, so a reviewer sees the ownership boundary the diff crosses.
+- **It adds no branch and no PR.** One item = one repo = one branch = one PR, unchanged. The package is
+  a scope *within* the leaf, not a new leaf.
+
+**An item whose scope spans packages decomposes exactly as cross-repo work does** — per-package children
+with `dependsOn` sequencing, ordered by the packages' own `dependsOn` graph (a shared package's child
+lands before its consumers'). The difference from cross-repo is only that the children share a git repo,
+so they could in principle share a branch: **they must not.** One child, one branch, one PR keeps the
+review unit and the revert unit the same size, which is the whole reason the rule exists. Follow
+*Re-decomposition & supersession* below for the AC coverage map, same as any other split.
+
+Where the tracker has no package field (most do), carry it on the run file's `package:` and as an item
+label — do **not** invent a custom field, and do not fold it into `repo` (`api/web` as a repo name breaks
+every path resolution downstream).
 
 ## Cross-repo split tier (poly) — where a feature's work meets the repos
 

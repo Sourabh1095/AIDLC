@@ -42,6 +42,21 @@ const cfg = {
   },
 };
 
+// mono: ONE git repo holding packages, so there is no repos[] entry to hang per-package gates off.
+// The verify.packages layer is the one a monorepo adopted as `layout: mono` actually uses.
+const monoCfg = {
+  pipeline: {
+    gates: {
+      verify: {
+        steps: [step("lint", "pnpm -w lint"), step("test", "pnpm -w test")],
+        packages: {
+          worker: { steps: [step("test", "uv run pytest", { cwd: "packages/worker", scope: "package" })] },
+        },
+      },
+    },
+  },
+};
+
 // ---- layering ----
 check("workspace-only repo falls back to verify.steps", names(resolveGate(cfg, "unknown")), ["lint", "test"]);
 check("repo steps replace same-named workspace steps in place", cmds(resolveGate(cfg, "api")), ["ruff check .", "pytest", null]);
@@ -75,6 +90,30 @@ check("a package-only step is appended", names(resolveGate(cfg, "platform", "ui"
 // ---- unknown package falls back to the repo ----
 check("unknown package name falls back to the repo's steps",
   names(resolveGate(cfg, "platform", "nope")), ["test", "lint"]);
+
+// ---- the mono package layer (a monorepo has no repos[] entry to key packages under) ----
+check("mono package steps layer over the workspace steps",
+  names(resolveGate(monoCfg, "acme", "worker")), ["test", "lint"]);
+check("mono package replaces the workspace command, and workspace lint survives",
+  cmds(resolveGate(monoCfg, "acme", "worker")), ["uv run pytest", "pnpm -w lint"]);
+check("mono package provenance names the packages layer, not a synthesized repo",
+  resolveGate(monoCfg, "acme", "worker").from.test, "verify.packages.worker.steps");
+check("mono with no package resolves the workspace gate unchanged",
+  cmds(resolveGate(monoCfg, "acme")), ["pnpm -w lint", "pnpm -w test"]);
+// A poly repo's own package block is NARROWER than the mono-level one: both may exist in a config
+// that adopted a monorepo as one poly repo entry, and the repo-scoped one must win.
+const bothLayers = {
+  pipeline: { gates: { verify: {
+    steps: [step("lint", "ws lint")],
+    packages: { worker: { steps: [step("test", "mono-level pytest")] } },
+    repos: { platform: { packages: { worker: { steps: [step("test", "repo-scoped pytest")] } } } },
+  } } },
+};
+check("a repo-scoped package block outranks the mono-level one",
+  cmds(resolveGate(bothLayers, "platform", "worker")), ["repo-scoped pytest", "ws lint"]);
+check("the outranked mono-level layer is still listed as consulted",
+  resolveGate(bothLayers, "platform", "worker").layers,
+  ["verify.repos.platform.packages.worker.steps", "verify.packages.worker.steps", "verify.steps"]);
 
 // ---- fallback when the block is absent entirely ----
 const noGates = { pipeline: { gates: { ambiguousRequirements: "assume-and-log" } } };

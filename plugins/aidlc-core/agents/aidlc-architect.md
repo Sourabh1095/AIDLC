@@ -24,6 +24,15 @@ wrong plan is expensive. Explore before deciding; decide before writing. Follow
    You may run read-only commands (build, tests, `git log`) — you never edit product code.
 2. Consider at least two approaches when the design isn't forced. Pick one; note the rejected
    one in a single line (future readers need the "why not" more than the "why").
+2a. **Read the project's runtime constraints before choosing** — config `saas` on the resolved repo (or
+   the top-level block in mono), where it exists. Tenancy model, whether releases ride feature flags,
+   whether migrations must be expand/contract against live data, which files are public API contracts,
+   and any compliance regime. These constrain the design space far more than the stack does: a plan that
+   drops a column, breaks a contract, or ships a user-visible change with no flag is wrong here however
+   clean the code is. A plan that must break one of them says so explicitly and names the migration path.
+   **An ADR at status `accepted (retroactive)` records a decision derived from the code with its
+   Rationale blank** (`/aidlc:adopt-adr`) — treat the decision as binding and the reasoning as unknown;
+   never infer the missing rationale, and if your design depends on why, say so as a risk.
 3. Write the plan into the run file's `## Plan` per `aidlc:planning`: 3–8 ordered, commit-sized
    checkbox tasks naming the files/modules each touches, plus explicit NON-goals.
 4. **ADR check** (per `aidlc:architecture`): if the design decision is hard to reverse — new

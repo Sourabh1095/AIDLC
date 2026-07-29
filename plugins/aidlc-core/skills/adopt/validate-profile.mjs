@@ -18,6 +18,9 @@
 //   * the read-only guarantee: writes[] never leaves .aidlc/adoption/
 //   * no credential-shaped string appears anywhere in the profile or the report
 //   * an unreachable root names its remedy, and an unsupported surface names its gap
+//   * no ADR candidate carries a rationale — the scan never saw the why
+//   * every auth / tenant-isolation / billing path reaches the security-review seeds
+//   * a package's dependsOn resolves to siblings and the graph is acyclic
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -62,6 +65,31 @@ export const PUSH_ACCESS = ["direct", "fork-only", "unknown"];
 // tracker) — so "every unsupported surface names a gap" stays enforceable without pretending
 // AIDLC could ship a plugin for it.
 export const GAP_KINDS = ["skill", "agent", "plugin", "adapter", "project-action"];
+export const TENANCY_MODELS = [
+  "shared-schema", "schema-per-tenant", "database-per-tenant", "single-tenant", "not-multi-tenant",
+];
+export const LIVE_DATA_CONSTRAINTS = ["expand-contract", "not-required"];
+export const DEPLOY_STRATEGIES = [
+  "rolling", "blue-green", "canary", "recreate", "release-train", "manual", "continuous",
+];
+export const API_CONTRACT_KINDS = ["openapi", "graphql", "proto", "grpc", "asyncapi", "json-schema", "wsdl"];
+export const ENVIRONMENT_KINDS = ["dev", "test", "staging", "production", "preview", "other"];
+export const COMPLIANCE_REGIMES = ["soc2", "hipaa", "gdpr", "pci", "iso27001", "fedramp", "other"];
+export const MESSAGING_KINDS = ["queue", "broker", "stream", "scheduler", "webhook"];
+export const ADR_DECISION_KINDS = [
+  "framework", "data-store", "auth-model", "tenancy-model", "api-style", "deployment-topology",
+  "messaging", "migration-strategy", "frontend-architecture", "build-tooling", "observability", "other",
+];
+export const ADR_CANDIDATE_STATUSES = ["propose", "already-recorded"];
+export const REVERSIBILITY_COSTS = ["high", "medium", "low"];
+
+// Tenancy models where migrations run against data real tenants already have. Not a schema enum —
+// a derived set the expand/contract rule keys off.
+const LIVE_TENANCY = ["shared-schema", "schema-per-tenant", "database-per-tenant"];
+// A candidate may not carry the WHY in any spelling. The scan saw code, not the conversation that
+// produced it, and a plausible sentence in an `accepted` ADR becomes history nobody authored.
+const INVENTED_RATIONALE_FIELDS = ["rationale", "why", "because", "alternatives", "alternativesConsidered"];
+const DEFAULT_ADR_CAP = 8;
 
 // Credential shapes that must never reach a profile or a report. The scan is required to
 // redact secret findings and to strip credentials from remote URLs; this is the backstop
@@ -222,6 +250,287 @@ function checkCommandFact(f, where) {
   }
 }
 
+// A fact whose value is a list of records. Returns the list when it is one, else records the error
+// and returns [] — so callers can inspect entries without re-checking the shape.
+function knownList(f, where) {
+  if (!isObj(f) || f.status !== "known") return [];
+  if (!Array.isArray(f.value)) {
+    err(where, "status=known requires `value` to be an array");
+    return [];
+  }
+  return f.value;
+}
+
+// A fact whose value is a list of path strings (auth paths, tenant-isolation paths, …).
+function pathListFact(f, where) {
+  checkFact(f, where);
+  const list = knownList(f, where);
+  list.forEach((p, i) => {
+    if (!nonEmptyStr(p)) err(`${where}.value[${i}]`, "must be a non-empty path string");
+  });
+  return list.filter(nonEmptyStr);
+}
+
+// ---- ADOPT-9: the runtime constraints that change how code must be written ----
+// The scan's job here is narrow: state a constraint only where the code evidences it. So most of
+// this is the ordinary fact contract. Two rules are not ordinary, and both exist because their
+// violation is invisible: a multi-tenant project with migrations that never answers whether
+// expand/contract applies, and a path recorded as auth-critical that never reaches the seeds the
+// apply step turns into securityReviewPaths.
+function checkSaas(saas, where) {
+  if (!isObj(saas)) return err(where, "must be an object");
+
+  checkFact(saas.tenancy, `${where}.tenancy`, { valueEnum: TENANCY_MODELS });
+  checkFact(saas.liveDataConstraint, `${where}.liveDataConstraint`, { valueEnum: LIVE_DATA_CONSTRAINTS });
+  checkFact(saas.deployStrategy, `${where}.deployStrategy`, { valueEnum: DEPLOY_STRATEGIES });
+
+  const isolation = pathListFact(saas.tenantIsolationPaths, `${where}.tenantIsolationPaths`);
+  const auth = pathListFact(saas.authPaths, `${where}.authPaths`);
+  const billing = pathListFact(saas.billingPaths, `${where}.billingPaths`);
+
+  if (saas.featureFlags !== undefined) {
+    checkFact(saas.featureFlags, `${where}.featureFlags`);
+    if (saas.featureFlags.status === "known" && !nonEmptyStr(saas.featureFlags.value?.provider))
+      err(`${where}.featureFlags`, "status=known requires `value.provider` — name the flag system (or 'homegrown'); an unnamed one cannot be briefed to the implementer");
+  }
+  if (saas.migrations !== undefined) {
+    checkFact(saas.migrations, `${where}.migrations`);
+    if (saas.migrations.status === "known" && !nonEmptyStr(saas.migrations.value?.tool))
+      err(`${where}.migrations`, "status=known requires `value.tool` — the migration tool by name");
+  }
+  if (saas.experimentation !== undefined) checkFact(saas.experimentation, `${where}.experimentation`);
+
+  if (saas.apiContracts !== undefined) {
+    checkFact(saas.apiContracts, `${where}.apiContracts`);
+    knownList(saas.apiContracts, `${where}.apiContracts`).forEach((c, i) => {
+      const at = `${where}.apiContracts.value[${i}]`;
+      if (!isObj(c)) return err(at, "must be {kind, path, public?}");
+      if (!nonEmptyStr(c.path))
+        err(at, "missing `path` — these paths ARE the contract-affecting set the run matches a diff against, so an entry without one triggers nothing");
+      if (c.kind !== undefined) enumField(c, "kind", API_CONTRACT_KINDS, at);
+    });
+  }
+  if (saas.environments !== undefined) {
+    checkFact(saas.environments, `${where}.environments`);
+    knownList(saas.environments, `${where}.environments`).forEach((e, i) => {
+      const at = `${where}.environments.value[${i}]`;
+      if (!isObj(e)) return err(at, "must be {name, kind?}");
+      if (!nonEmptyStr(e.name)) err(at, "missing `name`");
+      if (e.kind !== undefined) enumField(e, "kind", ENVIRONMENT_KINDS, at);
+    });
+  }
+  if (saas.freezeWindows !== undefined) {
+    checkFact(saas.freezeWindows, `${where}.freezeWindows`);
+    knownList(saas.freezeWindows, `${where}.freezeWindows`).forEach((f, i) => {
+      const at = `${where}.freezeWindows.value[${i}]`;
+      if (!isObj(f)) return err(at, "must be {when, source}");
+      if (!nonEmptyStr(f.when)) err(at, "missing `when`");
+      if (!nonEmptyStr(f.source))
+        err(at, "missing `source` — an unsourced freeze window is a rumour, and it would block an integration on nothing");
+    });
+  }
+  if (saas.compliance !== undefined) {
+    checkFact(saas.compliance, `${where}.compliance`);
+    knownList(saas.compliance, `${where}.compliance`).forEach((c, i) => {
+      const at = `${where}.compliance.value[${i}]`;
+      if (!isObj(c)) return err(at, "must be {regime, signal}");
+      enumField(c, "regime", COMPLIANCE_REGIMES, at);
+      if (!nonEmptyStr(c.signal))
+        err(at, "missing `signal` — a compliance regime raises the review cost of every future change, so the thing that evidenced it must be named");
+    });
+  }
+  for (const [key, allowed] of [["messaging", MESSAGING_KINDS]]) {
+    if (saas[key] === undefined) continue;
+    checkFact(saas[key], `${where}.${key}`);
+    knownList(saas[key], `${where}.${key}`).forEach((m, i) => {
+      const at = `${where}.${key}.value[${i}]`;
+      if (!isObj(m)) return err(at, "must be {name, kind?, paths?}");
+      if (!nonEmptyStr(m.name)) err(at, "missing `name`");
+      if (m.kind !== undefined) enumField(m, "kind", allowed, at);
+    });
+  }
+  for (const key of ["observability", "integrations"]) {
+    if (saas[key] === undefined) continue;
+    checkFact(saas[key], `${where}.${key}`);
+    knownList(saas[key], `${where}.${key}`).forEach((o, i) => {
+      const at = `${where}.${key}.value[${i}]`;
+      if (!isObj(o)) return err(at, "must be {name, paths?}");
+      if (!nonEmptyStr(o.name)) err(at, "missing `name`");
+    });
+  }
+
+  // RULE 1 — a multi-tenant project with a migration tool must ANSWER the expand/contract question.
+  // Leaving it unstated disarms the destructive-migration blocker while looking like a clean profile:
+  // the reviewer brief carries no constraint, so a dropped column reads as an ordinary refactor.
+  const tenancyValue = saas.tenancy?.status === "known" ? saas.tenancy.value : null;
+  const multiTenant = tenancyValue !== null && LIVE_TENANCY.includes(tenancyValue);
+  const hasMigrations = saas.migrations?.status === "known";
+  if (multiTenant && hasMigrations) {
+    if (saas.liveDataConstraint?.status !== "known")
+      err(`${where}.liveDataConstraint`, `tenancy is \`${tenancyValue}\` and a migration tool is recorded, so this must be answered (\`expand-contract\` or \`not-required\`, with evidence) — left unstated, the reviewer brief carries no migration constraint and a destructive migration against live tenant data reads as an ordinary refactor`);
+    else if (saas.liveDataConstraint.value === "not-required")
+      warn(`${where}.liveDataConstraint`, `\`not-required\` under \`${tenancyValue}\` tenancy — legitimate only for a pre-launch or upgrade-migrated deployment; the evidence must say which, because this is what switches the destructive-migration blocker off`);
+  }
+
+  // RULE 2 — AC7, mechanically. A path recorded as auth-critical, tenant-isolating or
+  // revenue-critical and missing from the seeds is a path the apply step never adds to
+  // securityReviewPaths: recorded as sensitive, reviewed as ordinary.
+  const seeds = saas.securityReviewPathSeeds;
+  const sensitive = [...isolation, ...auth, ...billing];
+  if (sensitive.length) {
+    if (!Array.isArray(seeds)) {
+      err(`${where}.securityReviewPathSeeds`, `missing while ${sensitive.length} auth/tenant-isolation/billing path(s) are recorded — those paths must trigger security review regardless of cadence, and the seeds are how that reaches config`);
+    } else {
+      const have = new Set(seeds.map(String));
+      const missing = [...new Set(sensitive)].filter((p) => !have.has(p));
+      if (missing.length)
+        err(`${where}.securityReviewPathSeeds`, `does not include ${missing.map((p) => `\`${p}\``).join(", ")} — recorded as auth/tenant-isolation/billing but never seeded, so a diff there would be reviewed on the ordinary cadence`);
+    }
+  }
+  if (Array.isArray(seeds))
+    seeds.forEach((p, i) => {
+      if (!nonEmptyStr(p)) err(`${where}.securityReviewPathSeeds[${i}]`, "must be a non-empty path string");
+    });
+}
+
+// ---- ADOPT-8: the package dimension ----
+// Two silent failures: a dependsOn naming a package that does not exist (sequencing quietly does
+// nothing) and a cycle (there is no answer to "which lands first"). Plus a package claiming its own
+// release cadence with no tooling that could cut one.
+function checkPackages(pkgs, where, root) {
+  if (!Array.isArray(pkgs)) return err(where, "must be an array");
+  const names = new Set();
+  pkgs.forEach((pk, j) => {
+    const at = `${where}[${j}]`;
+    if (!isObj(pk)) return err(at, "must be an object");
+    if (!nonEmptyStr(pk.name)) err(at, "missing `name`");
+    else if (names.has(pk.name)) err(at, `duplicate package name \`${pk.name}\` — names route work items and key per-package gates`);
+    else names.add(pk.name);
+    if (!nonEmptyStr(pk.path)) err(at, "missing `path`");
+    checkEvidence(pk.evidence, at);
+    if (pk.releasable !== undefined && typeof pk.releasable !== "boolean")
+      err(`${at}.releasable`, "must be a boolean");
+    if (pk.dependsOn !== undefined && !Array.isArray(pk.dependsOn))
+      err(`${at}.dependsOn`, "must be an array of sibling package names");
+    if (pk.languages !== undefined && !Array.isArray(pk.languages))
+      err(`${at}.languages`, "must be an array");
+  });
+
+  // dependsOn must resolve to siblings, or sequencing silently sequences nothing.
+  pkgs.forEach((pk, j) => {
+    for (const dep of Array.isArray(pk?.dependsOn) ? pk.dependsOn : []) {
+      if (!names.has(dep))
+        err(`${where}[${j}].dependsOn`, `\`${dep}\` is not a package in this root — a dependency that resolves to nothing sequences nothing, and cross-package ordering silently becomes arbitrary`);
+      if (dep === pk.name)
+        err(`${where}[${j}].dependsOn`, `\`${dep}\` depends on itself`);
+    }
+  });
+
+  // Cycles: iterative DFS with a colour map. A cycle makes "which lands first" unanswerable, so it
+  // must fail loudly rather than produce an arbitrary order at run time.
+  const graph = new Map(pkgs.filter((p) => nonEmptyStr(p?.name)).map((p) => [p.name, (Array.isArray(p.dependsOn) ? p.dependsOn : []).filter((d) => names.has(d))]));
+  const state = new Map(); // 1 = on the current path, 2 = fully explored
+  const reported = new Set();
+  for (const start of graph.keys()) {
+    if (state.get(start) === 2) continue;
+    const stack = [[start, 0]];
+    const onPath = [];
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      const [node, i] = frame;
+      if (i === 0) {
+        if (state.get(node) === 1) {
+          const cycle = onPath.slice(onPath.indexOf(node)).concat(node).join(" -> ");
+          if (!reported.has(cycle)) {
+            reported.add(cycle);
+            err(where, `dependency cycle ${cycle} — "which package lands first" has no answer, so cross-package sequencing would be arbitrary`);
+          }
+          stack.pop();
+          continue;
+        }
+        if (state.get(node) === 2) { stack.pop(); continue; }
+        state.set(node, 1);
+        onPath.push(node);
+      }
+      const deps = graph.get(node) ?? [];
+      if (i < deps.length) {
+        frame[1] = i + 1;
+        stack.push([deps[i], 0]);
+      } else {
+        state.set(node, 2);
+        onPath.pop();
+        stack.pop();
+      }
+    }
+  }
+
+  // A per-package release needs tooling that can cut one; otherwise /aidlc:release would promise a
+  // cadence the repo cannot deliver.
+  const releasable = pkgs.filter((p) => p?.releasable === true).map((p) => p?.name);
+  if (releasable.length && root?.releaseTooling?.status !== "known")
+    err(`${where}`, `package(s) ${releasable.map((n) => `\`${n}\``).join(", ")} are marked \`releasable\` but the root records no \`releaseTooling\` — a per-package release needs tooling that supports independent versioning, and claiming the cadence without it makes /aidlc:release fail at the cut`);
+}
+
+// ---- ADOPT-10: retroactive ADR candidates ----
+function checkAdrCandidates(list, profile) {
+  if (!Array.isArray(list)) return err("adrCandidates", "must be an array");
+  const rootNames = new Set(
+    (Array.isArray(profile?.workspace?.roots) ? profile.workspace.roots : [])
+      .map((r) => r?.name).filter(nonEmptyStr),
+  );
+  const kinds = new Set();
+  list.forEach((c, i) => {
+    const at = `adrCandidates[${i}]`;
+    if (!isObj(c)) return err(at, "must be an object");
+    enumField(c, "decisionKind", ADR_DECISION_KINDS, at);
+    if (nonEmptyStr(c.decisionKind)) {
+      if (kinds.has(c.decisionKind))
+        err(at, `duplicate decisionKind \`${c.decisionKind}\` — one decision would get two ADRs, and the de-duplication that keeps re-adoption quiet keys off this field`);
+      else kinds.add(c.decisionKind);
+    }
+    if (!nonEmptyStr(c.title))
+      err(at, "missing `title` — it becomes the ADR's H1 and must state the decision, not name its topic");
+    enumField(c, "status", ADR_CANDIDATE_STATUSES, at);
+    enumField(c, "reversibilityCost", REVERSIBILITY_COSTS, at);
+    checkEvidence(c.evidence, at);
+
+    if (c.status === "already-recorded" && !nonEmptyStr(c.existingAdr))
+      err(at, "status=already-recorded requires `existingAdr` — the ADR or doc that records it, so a reader can verify the decision really is covered");
+    if (c.status === "propose" && c.existingAdr !== undefined)
+      err(at, "status=propose must not carry `existingAdr` — if a doc already records it, the status is already-recorded and nothing is proposed");
+
+    for (const field of INVENTED_RATIONALE_FIELDS)
+      if (c[field] !== undefined)
+        err(at, `carries \`${field}\` — the scan read code, not the conversation that produced it. The rendered ADR marks the rationale *not recorded — confirm with the team*; a plausible sentence here becomes permanent history nobody authored`);
+
+    if (c.decidedAt !== undefined) checkFact(c.decidedAt, `${at}.decidedAt`);
+    if (c.consequencesObserved !== undefined) {
+      if (!Array.isArray(c.consequencesObserved)) err(`${at}.consequencesObserved`, "must be an array of strings");
+      else c.consequencesObserved.forEach((s, j) => {
+        if (!nonEmptyStr(s)) err(`${at}.consequencesObserved[${j}]`, "must be a non-empty string");
+      });
+    }
+    if (c.root !== undefined && rootNames.size && !rootNames.has(c.root))
+      err(`${at}.root`, `\`${c.root}\` is not a declared root — a candidate must cite the root whose code evidences it`);
+  });
+
+  // Ranked highest-reversibility-cost first: the cap must drop the decisions that are cheap to
+  // change, never the one that would cost a migration to undo.
+  const proposals = list.filter((c) => c?.status === "propose");
+  const rank = (c) => REVERSIBILITY_COSTS.indexOf(c?.reversibilityCost);
+  for (let i = 1; i < proposals.length; i++) {
+    const prev = rank(proposals[i - 1]), cur = rank(proposals[i]);
+    if (prev >= 0 && cur >= 0 && cur < prev) {
+      err("adrCandidates", `is not ranked by reversibility cost — \`${proposals[i].decisionKind}\` (${proposals[i].reversibilityCost}) follows \`${proposals[i - 1].decisionKind}\` (${proposals[i - 1].reversibilityCost}). The cap truncates the tail, so an unranked list drops the expensive decisions first`);
+      break;
+    }
+  }
+
+  const cap = profile?.scan?.budget?.caps?.maxAdrCandidates ?? DEFAULT_ADR_CAP;
+  if (proposals.length > cap)
+    err("adrCandidates", `proposes ${proposals.length} ADRs but the cap is ${cap} — raise scan.budget.caps.maxAdrCandidates deliberately or keep the top ${cap}; an uncapped list is a review nobody finishes`);
+}
+
 function validate(p, profileText) {
   // ---- version ----
   if (p.profileVersion !== 1)
@@ -377,17 +686,11 @@ function validate(p, profileText) {
         }
         if (r.conventions !== undefined) checkConventions(r.conventions, `${at}.conventions`, r);
 
-        if (r.packages !== undefined) {
-          if (!Array.isArray(r.packages)) err(`${at}.packages`, "must be an array");
-          else r.packages.forEach((pk, j) => {
-            const pat = `${at}.packages[${j}]`;
-            if (!nonEmptyStr(pk?.name)) err(pat, "missing `name`");
-            if (!nonEmptyStr(pk?.path)) err(pat, "missing `path`");
-            checkEvidence(pk?.evidence, pat);
-          });
-        }
+        if (r.packages !== undefined) checkPackages(r.packages, `${at}.packages`, r);
         if (r.classification?.value === "monorepo" && !(Array.isArray(r.packages) && r.packages.length))
           warn(`${at}.packages`, "root is classified monorepo but lists no packages — expected at a depth above quick");
+        if (r.releaseTooling !== undefined) checkFact(r.releaseTooling, `${at}.releaseTooling`);
+        if (r.saas !== undefined) checkSaas(r.saas, `${at}.saas`);
 
         if (isObj(r.coverage) && r.coverage.sampled === true) {
           const c = r.coverage.coveragePercent;
@@ -427,6 +730,9 @@ function validate(p, profileText) {
       if (!nonEmptyStr(g?.why)) err(at, "missing `why`");
     });
   }
+
+  // ---- retroactive ADR candidates ----
+  if (p.adrCandidates !== undefined) checkAdrCandidates(p.adrCandidates, p);
 
   // ---- safety ----
   const sf = p.safety;
@@ -470,10 +776,34 @@ const REQUIRED_REPORT_PHRASES = [
   ["supported", "the supported / partial / unsupported matrix"],
 ];
 
-function validateReport(text) {
+// Sections required only when the profile actually carries the block. A report that derived runtime
+// constraints or ADR candidates and then never showed them leaves the human approving the apply step
+// blind to the two findings that most change how their code must be written.
+const CONDITIONAL_REPORT_PHRASES = [
+  [
+    (p) => (p?.workspace?.roots ?? []).some((r) => isObj(r?.saas)),
+    "runtime constraints",
+    "the section stating the SaaS constraints the agent briefs will carry (tenancy, flags, migrations, contracts)",
+  ],
+  [
+    (p) => Array.isArray(p?.adrCandidates) && p.adrCandidates.length > 0,
+    "no adr",
+    "the section listing decisions the code embeds with no ADR recording them",
+  ],
+  [
+    (p) => (p?.workspace?.roots ?? []).some((r) => Array.isArray(r?.packages) && r.packages.length > 0),
+    "package",
+    "the per-root package list — routing, gates and release all key off it",
+  ],
+];
+
+function validateReport(text, profile) {
   const lower = text.toLowerCase();
   for (const [phrase, why] of REQUIRED_REPORT_PHRASES)
     if (!lower.includes(phrase)) err("report.md", `missing "${phrase}" — ${why}`);
+  for (const [applies, phrase, why] of CONDITIONAL_REPORT_PHRASES)
+    if (applies(profile) && !lower.includes(phrase))
+      err("report.md", `missing "${phrase}" — ${why}. The profile carries it, so the report must show it`);
   scanForSecrets(text, "report.md");
 }
 
@@ -490,7 +820,7 @@ export function validateProfileText(profileText, reportText) {
     return { errors: [`profile.json: not valid JSON: ${e.message}`], warnings: [] };
   }
   validate(parsed, profileText);
-  if (reportText !== undefined) validateReport(reportText);
+  if (reportText !== undefined) validateReport(reportText, parsed);
   return { errors: [...errors], warnings: [...warnings] };
 }
 

@@ -1,7 +1,7 @@
 # Brownfield Adoption — spec
 
-**Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** — see *Implementation status*
-below. Phases 3–4 remain proposals. **Authored:** 2026-07-29.
+**Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** (+ **0.31.1** fixes); Phase 3 in
+**0.32.0** — see *Implementation status* below. Phase 4 remains a proposal. **Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
 (`plugins/aidlc-core/skills/init/SKILL.md:44-61`), the web tooling and enterprise skeleton are
@@ -53,7 +53,7 @@ before writing.**
 
 | Story | Landed as |
 |---|---|
-| ADOPT-2 · read-only scan → profile | `plugins/aidlc-core/skills/adopt/SKILL.md` §1–4 · `docs/adoption-profile.schema.json` (`profileVersion: 1`) · `skills/adopt/validate-profile.mjs` + `.test.mjs` (71 cases) |
+| ADOPT-2 · read-only scan → profile | `plugins/aidlc-core/skills/adopt/SKILL.md` §1–4 · `docs/adoption-profile.schema.json` (`profileVersion: 1`) · `skills/adopt/validate-profile.mjs` + `.test.mjs` (71 cases then; 156 today) |
 | ADOPT-14 · the workspace is the unit | `adopt` §1–2 (dual discovery, root classification, control-plane placement, reachability, trust/enablement) · `docs/aidlc.config.schema.json` (`workspace.root`, `repo.path`) · `init` Steps 3.4 / 4.1 / 4.4 (gitlink protection skipped as *inapplicable* off-nest) · `work-items` → *Repos & routing* · `run` (quoting, cross-drive, UNC) |
 | ADOPT-7 · adoption-time safety contract | `adopt` §0 · profile `safety` block · `scan.network` / `scan.writes` |
 | ADOPT-6 · honest degradation | `adopt` §5 · profile `surfaces[]` + `gaps[]` |
@@ -79,7 +79,8 @@ leaving it silent. Making the guard config-aware is the obvious follow-up.
 
 A validation pass ran on 2026-07-30. It split cleanly in two, and so does the confidence:
 
-**Mechanically enforced — `node skills/adopt/validate-profile.test.mjs`, 71 cases, green.** The
+**Mechanically enforced — `node skills/adopt/validate-profile.test.mjs`, 71 cases, green** (the suite has
+since grown to **156** — see *Phase 3 — what is verified, and what is not* below)**.** The
 contract is no longer a document the skill is trusted to honour; it is a check the skill must pass, and
 the skill now runs it before reporting a scan complete. Enforced: the three legal fact forms and the rule
 that an `unknown` fact carries **no value**; evidence on every `known`/`absent` fact and the payload each
@@ -165,7 +166,7 @@ why only execution surfaced them:
    vanished gate is indistinguishable from a passing one. Resolution now **layers narrowest → broadest**,
    each layer claiming only gate names no narrower layer took, so a package inherits the repo's other
    gates while its own ordering still wins. Because this is easy to get wrong silently, it is now
-   **code, not prose**: `skills/run/resolve-gate.mjs` + a 24-case suite, which `run` §7 invokes.
+   **code, not prose**: `skills/run/resolve-gate.mjs` + a 24-case suite (30 today), which `run` §7 invokes.
 
 **Still unexercised**, and honestly so: a fork PR actually opened against an upstream (needs a real host
 and auth — the local push-to-fork mechanics work, the `gh pr create --repo … --head owner:branch` call is
@@ -173,11 +174,84 @@ untested), branch-protection and required-reviewer reads (`gh api` is deliberate
 they prompt and were recorded `unknown` throughout), a genuinely offline/air-gapped run, a read-only
 workspace, and a full `/aidlc:run` with agents dispatched over the derived gate.
 
-**Phases 3–4 are unstarted.** Nothing yet proposes retroactive ADRs, seeds a debt backlog, records the
-SaaS runtime profile, detects drift, or documents clean removal. `/aidlc:adopt` reports and proposes;
-`/aidlc:adopt-apply` writes config behind a diff; neither remediates anything, and both say so.
+**Phase 3 landed in `aidlc` 0.32.0** — the project's own reality, beyond its shape:
 
-### One deviation from this spec, and why
+| Story | Landed as |
+|---|---|
+| ADOPT-9 · SaaS runtime profile | profile `definitions.saasProfile` + `root.saas` · `adopt` §5 (detection table + the four section rules) · config `definitions.saas` on the mono block and every `repos[]` entry · `adopt-apply` §3.3 (write + union-seed `securityReviewPaths` + cadence *recommendation*) · `run` §6 (constraints in the implementer brief) · `run` §7 *Risk triggers that outrank the cadence* · `run` §8 (freeze window, contract-affecting PR label) · `aidlc-implementer` / `aidlc-reviewer` / `aidlc-security` / `aidlc-architect` · `do` §1/§3 |
+| ADOPT-10 · retroactive ADRs | profile `definitions.adrCandidate` + `adrCandidates[]` · `adopt` §6 · **new `skills/adopt-adr/SKILL.md`** · `templates/adr-template.md` (`## Rationale` + `accepted (retroactive)`) · config `adoption.adrs[]` (the re-run dedup key) · `architecture` (*Retroactive ADRs*) · `do` §1 |
+| ADOPT-8 · monorepo packages as a topology | profile `root.packages[]` (+ `stack`, `dependsOn`, `releasable`) + `root.releaseTooling` · config `definitions.packages` on the mono block and every `repos[]` entry · `pipeline.gates.verify.packages` (the mono package layer) + `resolve-gate.mjs` · `work-items` (*Item → package resolution*, `package` on the WorkItem) · `run` §2.5/§7/§8 · `status` (grouped by package) · `release` §0 (per-package, only where the tooling supports it) · `templates/run-file.md` |
+
+**What Phase 3 deliberately did not do.** `/aidlc:adopt-adr` is a **third command** rather than part of
+`adopt-apply`. Folding it in was tempting — one fewer door — but the two have incompatible approval
+shapes: `adopt-apply` proposes one diff over configuration and guarantees a byte-identical no-op on
+re-run, while ADRs are numbered files approved *one at a time*, where skipping one is a normal outcome.
+Sharing a command would have meant either weakening the no-diff guarantee or burying per-ADR approval
+inside a bulk one.
+
+### Phase 3 — what is verified, and what is not
+
+**Mechanically enforced — `node skills/adopt/validate-profile.test.mjs`, 156 cases, green** (up from 93).
+The reference fixture now also carries a shared-schema multi-tenant root with its full runtime profile, a
+three-package monorepo with a dependency edge and changesets release tooling, and a ranked ADR candidate
+list including one already-recorded entry — so the awkward shapes are proven *representable*, not just
+described. Ten new enums are cross-checked against this schema, so the validator's offline copies cannot
+drift. Three invariants are enforced because each fails **invisibly**:
+
+1. **No ADR candidate carries a rationale** — in any of five spellings (`rationale`, `why`, `because`,
+   `alternatives`, `alternativesConsidered`). This is the story's whole point: an ADR marked `accepted`
+   reads as settled history, so one plausible invented sentence becomes a decision record nobody authored
+   and everybody cites. Also enforced: candidates are ranked by reversibility cost (an unranked list plus
+   a cap drops exactly the decisions worth recording) and capped against `scan.budget.caps.maxAdrCandidates`.
+2. **Every auth / tenant-isolation / billing path reaches `securityReviewPathSeeds`.** A path recorded as
+   sensitive but missing from the seeds never reaches `pipeline.securityReviewPaths` — recorded as
+   dangerous, reviewed as routine, in a profile that otherwise looks complete.
+3. **A multi-tenant root with a migration tool must answer the expand/contract question.** Silence there
+   leaves the reviewer brief with no migration constraint, so a dropped column reads as an ordinary
+   refactor — and the gate cannot catch it, because the migration runs clean against an empty test
+   database. `not-required` under multi-tenancy is allowed but warns: it is what switches the
+   destructive-migration blocker off, so its evidence has to justify it.
+
+Plus, for ADOPT-8: a package's `dependsOn` must resolve to siblings (a dependency resolving to nothing
+sequences nothing), the graph must be acyclic (a cycle leaves "which lands first" unanswerable), and a
+package marked `releasable` requires `releaseTooling` — otherwise `/aidlc:release` promises a cadence the
+repo cannot cut. `resolve-gate.test.mjs` is at **30 cases** covering the new mono `verify.packages` layer,
+including that a repo-scoped package block outranks it.
+
+**Not verified — no live run yet.** Phase 3 ships specified-but-unexercised, exactly as Phase 2 did before
+the run that found four defects in it. Everything below needs a real brownfield project rather than a
+fixture: whether tenancy detection actually reads correctly off a real ORM (the `--depth deep` sampling
+path is the least exercised code in the scan); whether the risk triggers fire on real diffs without false
+positives; whether a rendered retroactive ADR is genuinely useful to a team that lived through the
+decision, or reads as a restatement of their own code; whether the per-package release path works against
+real changesets/Lerna tooling; and whether `securityReviewPaths` seeding produces a workable review volume
+rather than flagging every second diff. The Phase 2 lesson applies unchanged: **each of those would fail
+by producing a plausible result rather than an error**, which is why only execution will surface them.
+
+**Phase 4 is unstarted.** Nothing yet seeds a debt backlog from the findings, produces a drift report on
+re-scan, supports scoped/partial adoption beyond `--only`, upgrades an older config in place, or documents
+clean removal. `/aidlc:adopt` reports and proposes; `/aidlc:adopt-apply` writes config behind a diff;
+`/aidlc:adopt-adr` writes ADRs behind per-ADR approval; none of them remediates anything, and all three
+say so.
+
+### Deviations from this spec, and why
+
+**Phase 3 · the ADR template gained a `## Rationale` section.** ADOPT-10 requires a retroactive ADR to
+use `templates/adr-template.md` *and* to leave `## Rationale` marked *"not recorded"* — but that template
+had no such section: its "why" lived in Context and Alternatives. Rather than fork a second ADR format
+(which would have meant retroactive ADRs looking structurally different from the ones the architect
+writes, for no reader's benefit), the shared template gained `## Rationale` after `## Decision`. It is
+useful in the greenfield case too — "why this over the alternatives" is the line a reader wants most in a
+year — and it is the section a retroactive ADR must visibly leave blank. Two smaller notes: the field is
+spelled `**Date:**` (the template's existing key) rather than the story's `Decided:`, and
+`accepted (retroactive)` was added to the status line's enumeration.
+
+**Phase 3 · `--max-adrs` rather than a config key.** ADOPT-10 says the cap is "configurable". It is an
+argument on the scan (recorded in `scan.budget.caps.maxAdrCandidates`), not a config field: the `adoption`
+block is scan-written provenance the schema tells users never to hand-edit, and a knob that belongs to one
+invocation does not belong in permanent configuration.
+
+### One deviation from Phase 2's spec, and why
 
 ADOPT-4 names the config block **`pipeline.gates`**. That key was **already taken**:
 `pipeline.gates.ambiguousRequirements` is live (read by `run` §4's requirements gate), documented in
@@ -770,21 +844,41 @@ for this epic, with the reason.
   ADOPT-6. A read-only scan of every root + honest report. No writes, no config, nothing to roll back.
 - **Phase 2 — run correctly against it:** ADOPT-3, ADOPT-4, ADOPT-5. This is where a brownfield
   project becomes genuinely runnable rather than merely scaffolded.
-- **Phase 3 — know what it is:** ADOPT-9, ADOPT-10, ADOPT-8.
-- **Phase 4 — keep it true:** ADOPT-12, ADOPT-11, ADOPT-13.
+- **Phase 3 — know what it is:** ADOPT-9, ADOPT-10, ADOPT-8. *(Shipped 0.32.0. Note ADOPT-8 turned out to
+  be the load-bearing one for the other two: `packages[]` is where per-package gates, stacks and releases
+  hang, and it is what the `saas` block resolves against in a monorepo.)*
+- **Phase 4 — keep it true:** ADOPT-12, ADOPT-11, ADOPT-13. *(ADOPT-13's walkthrough now also owes a
+  worked monorepo + SaaS example, and ADOPT-12's drift report has three more blocks to diff.)*
 
 Phase 1 is independently valuable and low-risk; each later phase depends only on the profile contract
 from ADOPT-2, so the phases can be re-ordered if a real adoption forces the issue.
 
 ## Open questions
 
-1. **Is `monorepo` a third `workspace.layout` value, or `mono` + `packages[]`?** The latter avoids a
-   breaking schema change and keeps `repos[]`-vs-`packages[]` as the git-boundary distinction; the
-   former is more legible. ADOPT-8 assumes `mono` + `packages[]` — and the hybrid workspace in
-   ADOPT-14 (a monorepo root beside single-app roots) makes that the load-bearing choice, since
-   `packages[]` must then be attachable to a `repos[]` entry rather than to the workspace.
+1. ~~**Is `monorepo` a third `workspace.layout` value, or `mono` + `packages[]`?**~~ **Answered in 0.32.0:
+   `mono` + `packages[]`**, with `packages[]` attachable to a `repos[]` entry. The deciding argument was
+   not the avoided schema break but what the two keys *mean*: `repos[]` is a **git** boundary and
+   `packages[]` is an **ownership** boundary inside one. A third layout value would have conflated them,
+   and the hybrid workspace (a monorepo root beside single-app roots) would then have had no spelling at
+   all. The cost paid is a second resolution tier (`aidlc:work-items` → *Item → package resolution*) and a
+   fourth gate layer (`verify.packages`, for a monorepo adopted as mono, which has no `repos[]` entry to
+   key packages under).
 2. **Does `/aidlc:adopt` subsume `/aidlc:init` for brownfield**, or run after it? This spec assumes
    after (init owns the permission/scaffold posture; adopt owns the derived facts), with init
-   offering adopt as a third path.
-3. **Should the SaaS profile (ADOPT-9) gate anything by default**, or only inform agent briefs until
-   a project opts in? Gating on inferred facts is the higher-risk choice.
+   offering adopt as a third path. *Still open, and still assumed-after — no live run has argued otherwise.*
+3. ~~**Should the SaaS profile (ADOPT-9) gate anything by default**, or only inform agent briefs?~~
+   **Answered in 0.32.0: inform by default; gate in exactly two places, both conditional on an evidenced
+   fact.** The block feeds the implementer/reviewer/security/architect briefs and nothing else. The two
+   exceptions are a **destructive migration** where `liveDataConstraint` is `expand-contract` (a review
+   blocker) and a **diff touching an `apiContracts` / `authPaths` / `tenantIsolationPaths` entry** (review
+   runs regardless of cadence). Both earn the exception on the same grounds: the failure is silent, the
+   gate cannot catch it (a destructive migration passes against an empty test database), and the cost of a
+   miss is a customer-visible incident rather than a defect. Everything else — compliance regimes
+   especially — *recommends* and lets the user decide, because a scan silently making every item more
+   expensive is how a team stops trusting the tool. An absent field asserts nothing.
+4. **Is a retroactive ADR with a blank rationale actually useful to the team that lived through the
+   decision?** *Open, and only a live run can answer it.* The pessimistic case is that it reads as a
+   restatement of the team's own code with the one interesting line missing. The optimistic case is that
+   the blank is the artifact's value — it makes the undocumented reasoning visible as a gap while the
+   people who remember it are still around. If the pessimistic reading wins in practice, the fix is
+   probably to propose fewer (cap 3, not 8) and only at `reversibilityCost: high`.

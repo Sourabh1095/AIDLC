@@ -74,6 +74,21 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Surfaces deliberately left OUT of AIDLC's management (a repo or package the team is not piloting on). Named here so a later scan does not keep proposing them and a reader can tell 'not adopted' from 'missed'."
+        },
+        "adrs": {
+          "type": "array",
+          "description": "Retroactive ADRs written by /aidlc:adopt-adr, one entry per decision. This is the de-duplication key for re-adoption: a later scan proposes an ADR only for a decisionKind that does not appear here, so re-running never offers a second ADR for a decision already recorded. It also lets a reader see which of the code's embedded decisions have been written down and which are still undocumented.",
+          "items": {
+            "type": "object",
+            "required": ["decisionKind", "adr"],
+            "additionalProperties": true,
+            "properties": {
+              "decisionKind": { "type": "string", "description": "The profile's adrCandidates[].decisionKind — framework, data-store, auth-model, tenancy-model, api-style, deployment-topology, messaging, migration-strategy, frontend-architecture, build-tooling, observability, other." },
+              "adr": { "type": "string", "description": "Path of the written ADR, e.g. docs/adr/0007-shared-schema-tenancy.md — or the URL of a pre-existing external doc that already records the decision (then nothing was written; it is linked from the index)." },
+              "repo": { "type": "string", "description": "The repo whose code evidences the decision; omit for a workspace-wide one." },
+              "rationaleConfirmed": { "type": "boolean", "default": false, "description": "False means the ADR still says *rationale not recorded — confirm with the team*. It stays false until a human fills it in: the scan never sets it true, because it never knew the why." }
+            }
+          }
         }
       }
     },
@@ -117,9 +132,19 @@
               "uiPaths": { "type": "array", "items": { "type": "string" } }
             }
           },
+          "packages": { "$ref": "#/definitions/packages" },
+          "saas": { "$ref": "#/definitions/saas" },
           "default": { "type": "boolean", "description": "The fallback repo when routing is otherwise ambiguous. At most one repo should set this." }
         }
       }
+    },
+    "packages": {
+      "$ref": "#/definitions/packages",
+      "description": "Mono-mode package registry — one git repo holding many independently-owned packages (pnpm/npm/yarn workspaces, Nx, Turborepo, Lerna, a Maven multi-module build, a Cargo workspace). In poly, each repos[] entry carries its own packages[] instead. This is deliberately NOT a third workspace.layout value: the git boundary is what repos[] means, and a monorepo has one, so it stays layout=mono (or one poly repo entry) with the package dimension expressed here. That is also what makes the hybrid workspace representable — a monorepo root beside single-app repos, without a new layout."
+    },
+    "saas": {
+      "$ref": "#/definitions/saas",
+      "description": "Mono-mode SaaS runtime constraints. In poly, each repo carries its own saas block."
     },
     "git": {
       "type": "object",
@@ -148,7 +173,11 @@
         "autonomy": { "type": "string" },
         "maxFixCycles": { "type": "integer" },
         "architectThreshold": { "enum": ["S", "M", "L", "XL"] },
-        "securityReviewPaths": { "type": "array", "items": { "type": "string" } },
+        "securityReviewPaths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Path globs whose modification makes a diff security-relevant — read by the run skill's risk-based security cadence. /aidlc:adopt-apply SEEDS this from the scan's saas.securityReviewPathSeeds (tenant isolation, auth, billing, compliance-governed paths) by UNION, never replacement: a path a human added stays, and a seeded path is added beside it. Two entry classes are not merely cadence inputs — a diff touching a tenant-isolation or auth path triggers security review regardless of the configured cadence (see saas.tenantIsolationPaths / saas.authPaths), because 'we only review per-epic' is not an acceptable answer for a cross-tenant data leak."
+        },
         "envFileAccess": {
           "enum": ["deny", "ask"],
           "default": "deny",
@@ -166,7 +195,7 @@
             },
             "verify": {
               "type": "object",
-              "description": "The project's REAL verification gate, replacing the assumption that every repo runs npm scripts. An ordered list of steps the run skill executes top to bottom in the verify phase; a repo with no package.json completes a full run on its own gate (ruff + pytest, mvn -B verify, cargo test) because the gate came from the project rather than from AIDLC. Populated by /aidlc:adopt-apply from a scan, or written by hand. Absent ⇒ the run falls back to the CLAUDE.md Commands block.\n\nRESOLUTION LAYERS, IT DOES NOT REPLACE. Walk from the NARROWEST applicable list to the broadest — the resolved package's steps, then the resolved repo's, then the top-level steps. Each layer contributes its steps in its own declared order, but only for gate names no narrower layer already claimed. So the narrowest layer that mentions a gate owns both its definition and its position, and broader layers top up the gates nobody narrower mentioned.\n\nThis buys two properties, both of which the obvious 'take the narrowest list' reading gets wrong: a package that declares its own `test` still inherits the repo's `lint` (taking only the narrowest list silently loses it, and a gate that vanished is indistinguishable from one that passed — the same class of failure as deleting an `absent` entry), and a repo that declares [test, lint] runs test first, because its ordering is a deliberate statement that a broader default's ordering must not override. To make a package genuinely skip a repo-level gate, declare that gate at the package level with `status: \"absent\"` — an explicit, self-documenting opt-out that still shows up in the run's coverage-hole report. The reference implementation is `skills/run/resolve-gate.mjs` (with `resolve-gate.test.mjs` pinning the semantics).",
+              "description": "The project's REAL verification gate, replacing the assumption that every repo runs npm scripts. An ordered list of steps the run skill executes top to bottom in the verify phase; a repo with no package.json completes a full run on its own gate (ruff + pytest, mvn -B verify, cargo test) because the gate came from the project rather than from AIDLC. Populated by /aidlc:adopt-apply from a scan, or written by hand. Absent ⇒ the run falls back to the CLAUDE.md Commands block.\n\nRESOLUTION LAYERS, IT DOES NOT REPLACE. Walk from the NARROWEST applicable list to the broadest — repos.<repo>.packages.<pkg>.steps, then packages.<pkg>.steps (the mono package layer), then repos.<repo>.steps, then the top-level steps. Each layer contributes its steps in its own declared order, but only for gate names no narrower layer already claimed. So the narrowest layer that mentions a gate owns both its definition and its position, and broader layers top up the gates nobody narrower mentioned.\n\nThis buys two properties, both of which the obvious 'take the narrowest list' reading gets wrong: a package that declares its own `test` still inherits the repo's `lint` (taking only the narrowest list silently loses it, and a gate that vanished is indistinguishable from one that passed — the same class of failure as deleting an `absent` entry), and a repo that declares [test, lint] runs test first, because its ordering is a deliberate statement that a broader default's ordering must not override. To make a package genuinely skip a repo-level gate, declare that gate at the package level with `status: \"absent\"` — an explicit, self-documenting opt-out that still shows up in the run's coverage-hole report. The reference implementation is `skills/run/resolve-gate.mjs` (with `resolve-gate.test.mjs` pinning the semantics).",
               "additionalProperties": true,
               "properties": {
                 "maxItemMinutes": {
@@ -176,6 +205,15 @@
                   "description": "The per-item budget for the whole gate. A step whose scope is repo and whose known duration exceeds this is scoped down per item (affected set, or a changed-paths subset) with the full suite left to CI — and the run file records WHICH subset ran, so a green run is never mistaken for a full-suite green."
                 },
                 "steps": { "$ref": "#/definitions/gateSteps", "description": "The default/mono gate. In poly this is the fallback for a repo that declares none." },
+                "packages": {
+                  "type": "object",
+                  "description": "Mono-mode per-package overrides, keyed by packages[].name — the layer a monorepo needs when there is no repos[] entry to hang them off. Narrower than `steps`, broader than a poly repo's own packages block. In poly, use repos.<repo>.packages instead.",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": { "steps": { "$ref": "#/definitions/gateSteps" } }
+                  }
+                },
                 "repos": {
                   "type": "object",
                   "description": "Per-repo overrides, keyed by repos[].name.",
@@ -234,6 +272,168 @@
     }
   },
   "definitions": {
+    "packages": {
+      "type": "array",
+      "description": "Packages inside ONE git repo — the dimension a monorepo needs and repos[] cannot express, because repos[] means a git boundary and a monorepo has exactly one. Each entry routes work exactly as a repo entry does (labels, role, an optional single default), and the runnable leaf is unchanged: one item = one branch = one PR, now scoped to a package. Per-package gates live at pipeline.gates.verify.packages.<name>.steps (mono) or pipeline.gates.verify.repos.<repo>.packages.<name>.steps (poly), and resolve by LAYERING over the repo's — a package that declares its own test still inherits the repo's lint.",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "description": "The package's own name as its manifest declares it (`@acme/web`, `acme-worker`, a Maven artifactId). It keys the per-package gate overrides and labels the PR, so it must be what the project calls it — never a folder name invented at adoption." },
+          "path": { "type": "string", "description": "Path to the package, relative to its repo root (not to the control plane)." },
+          "role": { "type": "string", "description": "Free-text routing hint, same contract as a repo's role." },
+          "labels": { "type": "array", "items": { "type": "string" }, "description": "Label hints: an item labeled with any of these routes to this package." },
+          "stack": {
+            "type": "object",
+            "description": "Per-package stack, overriding the repo's for this package. A Next.js app beside a Python worker in one repo is the normal case, and resolving stack per repo would hand the worker the web standards.",
+            "properties": {
+              "frontend": { "type": ["string", "null"] },
+              "backend": { "type": ["string", "null"] },
+              "databases": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "ux": {
+            "type": "object",
+            "description": "Per-package UX config for a frontend package, overriding the repo's ux block — the design pod runs against this package's dev server, not the repo's.",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "target": { "type": "string" },
+              "renderBaseUrl": { "type": "string" },
+              "uiPaths": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Sibling package names this one depends on, from the manifests. Cross-package work sequences on this exactly as cross-repo work sequences on item dependsOn: a change to a shared package lands before its consumers. The graph must be acyclic."
+          },
+          "releasable": { "type": "boolean", "description": "True when the repo's tooling versions and publishes this package on its own cadence (changesets, independent Lerna versioning, nx release). False or absent means it releases with the repo — /aidlc:release must then say so plainly instead of cutting a per-package release the tooling does not support." },
+          "default": { "type": "boolean", "description": "The fallback package when routing within this repo is otherwise ambiguous. At most one package per repo should set this." }
+        }
+      }
+    },
+    "saas": {
+      "type": "object",
+      "description": "The runtime constraints that change how code must be WRITTEN — not what the stack is, but what a safe change to it looks like. Derived by /aidlc:adopt from static evidence and applied on approval; fed to the implementer, reviewer and security agents as hard constraints on every item that touches the paths named here. Everything is OPTIONAL and an absent field means no constraint was evidenced, which is different from 'no constraint exists' — the briefs then stay silent rather than asserting one.\n\nThis block informs and triggers review; it does not gate merges by itself. The two exceptions are deliberate and both conditional on evidenced facts: a destructive migration where liveDataConstraint is expand-contract is a review BLOCKER, and a diff touching an apiContracts path or a tenantIsolationPaths/authPaths entry gets reviewed regardless of the configured cadence.",
+      "additionalProperties": true,
+      "properties": {
+        "tenancy": {
+          "enum": ["shared-schema", "schema-per-tenant", "database-per-tenant", "single-tenant", "not-multi-tenant"],
+          "description": "How tenants are isolated. shared-schema is the most constraining: every query must filter by the tenant key, and a missing filter is a cross-tenant data leak rather than a bug. Omit it entirely when the scan could not evidence it — a guess here misdirects every review."
+        },
+        "tenantKey": { "type": "string", "description": "The column/claim that carries tenancy in a shared-schema model, e.g. tenant_id or org_id. Named so a reviewer can check a new query against it." },
+        "tenantIsolationPaths": { "type": "array", "items": { "type": "string" }, "description": "Paths implementing the isolation mechanism (scoping middleware, row-level-security policies, the per-tenant connection resolver). A diff here is security-reviewed regardless of cadence." },
+        "authPaths": { "type": "array", "items": { "type": "string" }, "description": "Paths implementing authentication, authorization, SSO, RBAC or sessions. Security-reviewed regardless of cadence." },
+        "billingPaths": { "type": "array", "items": { "type": "string" }, "description": "Paths implementing billing, subscription, entitlement or metering logic — revenue-critical, so they join securityReviewPaths." },
+        "featureFlags": {
+          "type": "object",
+          "description": "The flag system in use, when flags are how this project releases. When present, the implementer brief states that user-visible changes ship behind a flag — merging is then not the same event as shipping.",
+          "properties": {
+            "provider": { "type": "string", "description": "LaunchDarkly, Unleash, Flagsmith, OpenFeature, or 'homegrown'." },
+            "paths": { "type": "array", "items": { "type": "string" } },
+            "required": { "type": "boolean", "default": false, "description": "True when the project's convention is that every user-visible change ships behind a flag. The implementer is briefed accordingly; a change that cannot be flagged is then something to raise, not to route around." }
+          }
+        },
+        "migrations": {
+          "type": "object",
+          "description": "The migration tool and where its migrations live.",
+          "properties": {
+            "tool": { "type": "string", "description": "Prisma, TypeORM, Alembic, Flyway, Liquibase, EF Core, Rails, Django, golang-migrate." },
+            "directory": { "type": "string" }
+          }
+        },
+        "liveDataConstraint": {
+          "enum": ["expand-contract", "not-required"],
+          "description": "expand-contract: schema changes run against live data (shared by tenants), so they must add → migrate → backfill → remove across releases, and a DESTRUCTIVE migration in one step — a dropped or renamed column, a narrowed type, a NOT NULL added to an existing column — is a review BLOCKER rather than a style note. not-required only where the evidence supports it (a single-tenant install migrated on upgrade, a pre-launch schema)."
+        },
+        "apiContracts": {
+          "type": "array",
+          "description": "Public/consumer contracts. A diff touching one of these paths marks the item CONTRACT-AFFECTING, which triggers breaking-change review regardless of the configured cadence — the whole point of recording them.",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "additionalProperties": true,
+            "properties": {
+              "kind": { "enum": ["openapi", "graphql", "proto", "grpc", "asyncapi", "json-schema", "wsdl"] },
+              "path": { "type": "string" },
+              "public": { "type": "boolean", "description": "True when external consumers depend on it, so a break is a customer-visible incident rather than an internal refactor." }
+            }
+          }
+        },
+        "environments": {
+          "type": "array",
+          "description": "Environments this project deploys to, from CI/CD config.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "kind": { "enum": ["dev", "test", "staging", "production", "preview", "other"] }
+            }
+          }
+        },
+        "deployStrategy": { "enum": ["rolling", "blue-green", "canary", "recreate", "release-train", "manual", "continuous"], "description": "How a change reaches production." },
+        "freezeWindows": {
+          "type": "array",
+          "description": "Declared change freezes or release trains. Surfaced at integration when a merge would violate one — the pipeline reports it and asks; it never merges through a freeze silently, and never blocks on an unevidenced one.",
+          "items": {
+            "type": "object",
+            "required": ["when"],
+            "additionalProperties": true,
+            "properties": {
+              "when": { "type": "string", "description": "In the project's own terms, e.g. 'Fri 16:00 → Mon 09:00 UTC' or 'the last week of each quarter'." },
+              "source": { "type": "string", "description": "Where it is declared — the CI schedule guard, the documented calendar. An unsourced freeze is a rumour." }
+            }
+          }
+        },
+        "compliance": {
+          "type": "array",
+          "description": "Compliance regimes governing change here, each with the SIGNAL that evidenced it. This raises the review cost of every future change, so an inferred regime is an expensive wrong answer — the signal is what makes it auditable.",
+          "items": {
+            "type": "object",
+            "required": ["regime", "signal"],
+            "additionalProperties": true,
+            "properties": {
+              "regime": { "enum": ["soc2", "hipaa", "gdpr", "pci", "iso27001", "fedramp", "other"] },
+              "signal": { "type": "string", "description": "What evidenced it, e.g. 'BAA referenced in docs/security/hipaa.md:12', 'PCI SAQ-A in compliance/'. Never 'the README says the product is secure'." }
+            }
+          }
+        },
+        "messaging": {
+          "type": "array",
+          "description": "Queues, brokers, streams, schedulers and webhooks. Their message shapes are contracts with consumers that no contract file records, so a changed shape is a breaking change a diff review can miss.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "kind": { "enum": ["queue", "broker", "stream", "scheduler", "webhook"] },
+              "paths": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "observability": {
+          "type": "array",
+          "description": "Error tracking / metrics / tracing in use. Recorded because production incidents are a legitimate intake source, and because a diff that drops instrumentation is a regression tests do not catch.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "paths": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "source": {
+          "enum": ["codebase-scan", "human"],
+          "description": "Where this block came from. `codebase-scan`: derived by /aidlc:adopt with evidence in the adoption profile. `human`: someone authored it, and a later scan must surface a disagreement as a choice rather than overwriting it — the same contract as gitConventions.conventionsSource."
+        }
+      }
+    },
     "gateSteps": {
       "type": "array",
       "description": "An ORDERED gate sequence. Order is the contract — the run skill executes it top to bottom and stops at the first required failure.",

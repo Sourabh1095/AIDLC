@@ -32,10 +32,19 @@ Write one when the decision is hard to reverse or someone will ask "why is it li
 year. File: `docs/adr/NNNN-<slug>.md` (NNNN = next number), from
 `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md`:
 Status (proposed/accepted/superseded-by-NNNN) · Context (forces, constraints — why now) ·
-Decision (one paragraph, active voice) · Alternatives considered (one line each + why not) ·
+Decision (one paragraph, active voice) · **Rationale** (why this over the alternatives — the section
+the code can never supply) · Alternatives considered (one line each + why not) ·
 Consequences (good AND bad — an ADR with no downsides wasn't thought through).
 
 Keep it under a page. Link it from the run file's `## Plan` and reference it in the PR body.
+
+**Retroactive ADRs are a different artifact with the same shape.** On a brownfield project,
+`/aidlc:adopt` derives the decisions the code already embodies and `/aidlc:adopt-adr` writes them at
+status `accepted (retroactive)`, dated `unknown` where history cannot establish it, citing `path:line`
+evidence — with **Rationale and Alternatives left as "not recorded — confirm with the team"**. A scan
+sees what was decided, never why, and an invented reason in an accepted ADR is worse than a blank one
+because every later reader trusts it. When you read an ADR marked retroactive with a blank rationale,
+treat the decision as binding and the reasoning as genuinely unknown — do not fill it in by inference.
 
 ## Design review (when reviewing someone else's plan)
 

@@ -1,6 +1,6 @@
 ---
 name: adopt-apply
-description: Turn an approved adoption profile into configuration — aidlc.config.json (topology, repos, per-repo stack, pipeline.gates.verify, git conventions), CLAUDE.md's project facts and Commands block, and .claude/rules/git-workflow.md — behind a full shown diff and an explicit approval, merging rather than overwriting anything a human authored. The write half of brownfield adoption: /aidlc:adopt reads the code and derives the facts, this applies them. Use after /aidlc:adopt, or to re-apply an updated profile.
+description: Turn an approved adoption profile into configuration — aidlc.config.json (topology, repos, monorepo packages[], per-repo and per-package stack, pipeline.gates.verify, git conventions, the SaaS runtime constraints and the security-review paths they seed), CLAUDE.md's project facts and Commands block, and .claude/rules/git-workflow.md — behind a full shown diff and an explicit approval, merging rather than overwriting anything a human authored. The write half of brownfield adoption: /aidlc:adopt reads the code and derives the facts, this applies them. Use after /aidlc:adopt, or to re-apply an updated profile.
 argument-hint: "[--only <repo|package>] [path to profile.json]"
 disable-model-invocation: true
 ---
@@ -55,7 +55,8 @@ Before proposing anything, read the current state of every file you would touch:
 | File/key absent | Propose the derived value, with its evidence. |
 | Present and equal to the derived value | **No diff.** Say nothing; this is what idempotency looks like. |
 | Present and **different** | A conflict. Surface it as `detected X (evidence) · configured Y — keep / replace / merge` and **default to keep**. |
-| Present, and `conventionsSource: "human"` or the config has no `adoption` block | Treat every existing value as hand-authored. Conflicts default to keep, and say why. |
+| Present, and `conventionsSource: "human"` / `saas.source: "human"`, or the config has no `adoption` block | Treat every existing value as hand-authored. Conflicts default to keep, and say why. |
+| An **array** a human may have added to (`pipeline.securityReviewPaths`, `labels`) | **Union, never replace.** Add what is missing, keep what is there, and show each addition as its own line. Replacing an array silently deletes a human's entries while the diff looks like a normal change. |
 | Derived fact has `confidence: low` | Ask it as a question. Never pre-fill it as a proposal. |
 | Derived fact is `unknown` | Ask, or leave absent. Never substitute a default silently. |
 
@@ -83,6 +84,27 @@ overwrite.
 - Never fabricate a path for a `not-cloned` root. Offer a clone step; leave it out of `repos[]` until it
   exists.
 
+**`packages[]` — the monorepo dimension.** A root classified `monorepo` carries its packages onto its
+`repos[]` entry (`repos[].packages[]`); in a single-repo workspace they go at the top level
+(`packages[]`) beside `layout: mono`. Carry `name`, `path`, `role`, `labels`, `stack`, `ux` where the
+package has a frontend, `dependsOn` and `releasable` straight through.
+
+- **Do not invent a third `layout` value.** A monorepo is *one git repo*, so it stays `mono` (or one
+  poly `repos[]` entry): `repos[]` means a git boundary and `packages[]` means an ownership boundary
+  inside it. That is also what makes the hybrid workspace — a monorepo root beside single-app repos —
+  representable with no schema break.
+- **`name` must match the package's own manifest.** It keys `pipeline.gates.verify…packages.<name>` and
+  labels the PR; a folder name substituted here matches nothing and fails silently.
+- **Per-package gates** go under `pipeline.gates.verify.packages.<name>.steps` in mono, or
+  `…verify.repos.<repo>.packages.<name>.steps` in poly. They **layer** over the repo's rather than
+  replacing it (§3.2), so a package that declares its own `test` still inherits the repo's `lint`.
+- **`releasable` needs tooling that can cut a release.** Only carry it where the profile's
+  `releaseTooling` is `known`; say plainly in the summary when the repo releases as one unit, so
+  `/aidlc:release` never promises a per-package cut the project cannot make.
+- **`dependsOn` is the sequencing input** for cross-package work, exactly as item `dependsOn` is for
+  cross-repo work. If the profile recorded a cycle, do not write the block — report it and ask, because
+  an arbitrary order is worse than none.
+
 ### 3.2 · `pipeline.gates.verify` (from each root's `gates[]`)
 
 Copy the **order** verbatim — it is the contract the run skill executes. Per root under
@@ -103,7 +125,42 @@ the two together would overload one key with two meanings.
   installed for it, and why.
 - Name every `alsoInCi: false` gate as a local/CI parity gap. Reconciling it is the project's call.
 
-### 3.3 · Git conventions and `rules/git-workflow.md`
+### 3.3 · The `saas` block and the paths it seeds (from each root's `saas`)
+
+Write the resolved constraints onto the repo entry (or the top-level `saas` block in mono):
+`tenancy`, `tenantKey`, `tenantIsolationPaths`, `authPaths`, `billingPaths`, `featureFlags`,
+`migrations`, `liveDataConstraint`, `apiContracts`, `environments`, `deployStrategy`, `freezeWindows`,
+`compliance`, `messaging`, `observability`, and `source: "codebase-scan"`. The config carries **resolved
+values, not facts** — the evidence stays in the profile, which is where a reader goes to check it.
+
+Three rules decide whether this block helps or misleads:
+
+1. **Only what the profile evidenced.** An `unknown` fact is **omitted**, not defaulted. This block is
+   read as a hard constraint by the implementer, reviewer and security agents, so a guessed `tenancy`
+   would misdirect every review from here on — and the most dangerous direction is the reassuring one
+   (`single-tenant` when nobody looked is worse than saying nothing).
+2. **`source: "human"` means hands off.** As with `conventionsSource`, a block someone authored is never
+   overwritten; a disagreement is surfaced as `detected X · configured Y — keep / replace`.
+3. **State the consequences, not the fields.** In the summary, say what changes about a run:
+   *"tenancy `shared-schema` ⇒ a destructive migration now blocks review"*, *"LaunchDarkly detected ⇒
+   the implementer is briefed that user-visible changes ship behind a flag"*, *"`openapi/public-v1.yaml`
+   is a contract ⇒ a diff touching it triggers breaking-change review regardless of cadence"*. A user
+   approving a list of field names has not been told what they are approving.
+
+**`pipeline.securityReviewPaths` is seeded by UNION, never replaced.** Add every entry of the profile's
+`securityReviewPathSeeds` that is not already there and keep everything a human put in. Show the added
+paths as their own diff lines with the reason beside each (`src/auth/ — authentication`). This is the
+mechanism behind the two criteria that matter most in ADOPT-9: a change to tenant isolation or auth is
+security-reviewed **regardless** of the configured cadence, so a path that never reaches this array is a
+path recorded as dangerous and treated as routine.
+
+**A compliance regime raises a cadence RECOMMENDATION, not the cadence.** Where `compliance` is
+non-empty, recommend raising `pipeline.verification.security` (e.g. `per-epic` → `risk-based` or
+`per-item`) and **name the signal that prompted it** — then let the user decide. Gating on an inferred
+fact is the higher-risk choice, and a compliance regime silently making every item more expensive is
+exactly the surprise that makes a team distrust the tool. Write the new cadence only on an explicit yes.
+
+### 3.4 · Git conventions and `rules/git-workflow.md`
 
 Write the conventions onto the repo entry (or the mono `git` block): `integrationBranch`, `commitStyle`,
 `mergeStrategy`, `longLivedBranches`, `hotfixRoute`, `contribution` (`fork` when
@@ -138,7 +195,7 @@ Two consequences to state explicitly in the summary, because they change how run
   stay a tracked devops task; say that rather than implying it is handled. `unknown` (the API was not
   readable) is **not** the same finding and must not be reported as ungated.
 
-### 3.4 · Provenance
+### 3.5 · Provenance
 
 Write the `adoption` block: `scannedAt`, `commit`, `profileVersion`, `profilePath`, `depth`, `appliedAt`,
 and `unmanaged[]` for anything `--only` left out. This is what makes the next run idempotent and the run
@@ -180,8 +237,17 @@ Say this plainly at the end:
 - **The gate is now the project's own.** `/aidlc:run` executes `pipeline.gates.verify` in order; a repo with no
   `package.json` runs its real gate. Every `absent` gate will appear in each run's `## Findings` as a
   coverage hole until the project fills it — that is deliberate, not noise.
+- **Work now routes to packages, not just repos.** With `packages[]` written, an item resolves to a
+  package inside a repo and its gate, stack and PR label scope to it — the runnable leaf is unchanged
+  (one item, one branch, one PR).
+- **The runtime constraints are now in every agent brief.** Name the two that change outcomes rather
+  than listing the block: a destructive migration is a review blocker where `liveDataConstraint` is
+  `expand-contract`, and a diff touching an `apiContracts` / `authPaths` / `tenantIsolationPaths` entry
+  is reviewed regardless of the configured cadence. Everything else informs; nothing else gates.
 - **Re-running this command against the same commit changes nothing** — literally: no write, a clean
-  `git status`, and a "no changes" report (§3.4). Against a later commit it proposes the deltas only.
-- **Still not done by adoption:** ADRs, a debt backlog, the SaaS runtime profile, drift and removal
-  (`docs/brownfield-adoption.md`, Phases 3–4). And nothing here remediates a finding — fixing is normal
+  `git status`, and a "no changes" report (§3.5). Against a later commit it proposes the deltas only.
+- **Next, if the scan proposed ADRs:** `/aidlc:adopt-adr` writes the approved ones into `docs/adr/`, each
+  with its rationale left for a human. This command does not touch `docs/adr/`.
+- **Still not done by adoption:** a debt backlog, drift detection and clean removal
+  (`docs/brownfield-adoption.md`, Phase 4). And nothing here remediates a finding — fixing is normal
   pipeline work through the normal doors.

@@ -25,7 +25,71 @@
       "branchPattern": "{type}/{id}-{slug}",
       "stack": { "frontend": null, "backend": "nestjs", "databases": ["postgres"] },
       "labels": ["backend", "api", "server"],
-      "default": true
+      "default": true,
+      "$comment2": "saas = the runtime constraints that change how code must be WRITTEN, derived by /aidlc:adopt from static evidence. OMIT any field the scan could not evidence — an absent field means the agent briefs stay silent, and a guessed `tenancy` misdirects every review from here on. It informs the implementer/reviewer/security briefs; the only things it GATES are a destructive migration under liveDataConstraint=expand-contract (review blocker) and a diff touching apiContracts/authPaths/tenantIsolationPaths (reviewed regardless of cadence).",
+      "saas": {
+        "tenancy": "shared-schema",
+        "tenantKey": "tenant_id",
+        "tenantIsolationPaths": ["src/common/tenant.middleware.ts", "prisma/rls/"],
+        "authPaths": ["src/auth/"],
+        "billingPaths": ["src/billing/"],
+        "featureFlags": { "provider": "LaunchDarkly", "paths": ["src/flags/"], "required": true },
+        "migrations": { "tool": "Prisma", "directory": "prisma/migrations" },
+        "liveDataConstraint": "expand-contract",
+        "apiContracts": [{ "kind": "openapi", "path": "openapi/public-v1.yaml", "public": true }],
+        "environments": [{ "name": "staging", "kind": "staging" }, { "name": "production", "kind": "production" }],
+        "deployStrategy": "canary",
+        "freezeWindows": [{ "when": "Fri 16:00 -> Mon 09:00 UTC", "source": ".github/workflows/deploy.yml:8 schedule guard" }],
+        "compliance": [{ "regime": "soc2", "signal": "docs/security/soc2-controls.md lists CC6 evidence owners" }],
+        "messaging": [{ "name": "BullMQ", "kind": "queue", "paths": ["src/jobs/"] }],
+        "observability": [{ "name": "Sentry", "paths": ["src/main.ts"] }],
+        "source": "codebase-scan"
+      }
+    },
+    {
+      "name": "platform",
+      "path": "platform",
+      "role": "Shared platform monorepo — pnpm workspaces + Turborepo",
+      "host": "github",
+      "remote": "origin",
+      "defaultBranch": "main",
+      "branchPattern": "{type}/{id}-{slug}",
+      "stack": { "frontend": null, "backend": null, "databases": [] },
+      "labels": ["platform", "shared"],
+      "$comment2": "MONOREPO EXAMPLE — one git repo, many independently-owned packages. It stays a single repos[] entry on purpose: repos[] is the GIT boundary (this repo has one) and packages[] is the OWNERSHIP boundary inside it. That is also what makes this hybrid workspace — a monorepo beside single-app repos — representable with no new layout value. An item routes to a package (explicit -> label -> path -> default -> grounding -> ask); its gate, stack, ux and PR label scope to it, but it is still ONE branch and ONE PR. `releasable` is only true where the tooling can actually cut a per-package release (here: changesets); `dependsOn` sequences cross-package work so a shared package lands before its consumers.",
+      "packages": [
+        {
+          "name": "@acme/shared",
+          "path": "packages/shared",
+          "role": "Shared TypeScript types and generated API client",
+          "labels": ["shared", "types"],
+          "stack": { "frontend": null, "backend": "typescript-library", "databases": [] },
+          "releasable": true
+        },
+        {
+          "name": "@acme/admin",
+          "path": "packages/admin",
+          "role": "Internal admin console — Next.js",
+          "labels": ["admin", "console", "frontend"],
+          "stack": { "frontend": "nextjs", "backend": null, "databases": [] },
+          "dependsOn": ["@acme/shared"],
+          "ux": {
+            "enabled": true,
+            "target": "desktop-web",
+            "renderBaseUrl": "http://localhost:3002",
+            "uiPaths": ["packages/admin/app/**", "packages/admin/components/**"]
+          },
+          "default": true
+        },
+        {
+          "name": "acme-worker",
+          "path": "packages/worker",
+          "role": "Async job worker — Python + Celery",
+          "labels": ["worker", "python", "jobs"],
+          "stack": { "frontend": null, "backend": "python-celery", "databases": ["postgres"] },
+          "dependsOn": ["@acme/shared"]
+        }
+      ]
     },
     {
       "name": "frontend",
@@ -87,7 +151,7 @@
     "envFileAccess": "deny",
     "gates": {
       "ambiguousRequirements": "assume-and-log",
-      "$comment": "verify = the project's REAL gate, executed IN ORDER by the run skill. Populated by /aidlc:adopt-apply from a scan, or written by hand. Resolution is most-specific-first: package steps, else repo steps, else the top-level steps below. Note the `absent` entries — a gate the project does NOT have is kept on purpose so every run reports it as a coverage hole instead of counting it green.",
+      "$comment": "verify = the project's REAL gate, executed IN ORDER by the run skill. Populated by /aidlc:adopt-apply from a scan, or written by hand. Resolution LAYERS narrowest -> broadest (repos.<repo>.packages.<pkg>.steps, then packages.<pkg>.steps, then repos.<repo>.steps, then the top-level steps); each layer contributes its own order but only for gate names no narrower layer claimed — so a package declaring its own `test` still INHERITS the repo's `lint`. Do not read it as replace: a gate that vanished is indistinguishable from one that passed. Use `node <plugin>/skills/run/resolve-gate.mjs` rather than re-deriving it. Note the `absent` entries — a gate the project does NOT have is kept on purpose so every run reports it as a coverage hole instead of counting it green; that is also how a package deliberately opts OUT of a repo-level gate.",
       "verify": {
         "maxItemMinutes": 10,
         "steps": [
@@ -109,6 +173,26 @@
               { "name": "lint", "status": "present", "cmd": "npm run lint", "required": true, "scope": "repo" },
               { "name": "test", "status": "absent", "required": false, "scope": "repo" }
             ]
+          },
+          "platform": {
+            "$comment": "Monorepo with an affected-graph runner: the repo gate runs AFFECTED targets only, and the run report must name the affected set. The per-package blocks below then LAYER over it — acme-worker's pytest replaces the repo's `test` while still inheriting the repo's `lint` and `typecheck`, and @acme/admin declares `typecheck` absent to opt OUT explicitly (which keeps it visible as a coverage hole rather than erasing it).",
+            "steps": [
+              { "name": "lint", "status": "present", "cmd": "pnpm turbo run lint --filter=...[origin/main]", "required": true, "scope": "affected" },
+              { "name": "typecheck", "status": "present", "cmd": "pnpm turbo run typecheck --filter=...[origin/main]", "required": true, "scope": "affected" },
+              { "name": "test", "status": "present", "cmd": "pnpm turbo run test --filter=...[origin/main]", "required": true, "scope": "affected" }
+            ],
+            "packages": {
+              "acme-worker": {
+                "steps": [
+                  { "name": "test", "status": "present", "cmd": "uv run pytest", "cwd": "packages/worker", "required": true, "scope": "package", "environmentDependent": true, "services": ["postgres"] }
+                ]
+              },
+              "@acme/admin": {
+                "steps": [
+                  { "name": "typecheck", "status": "absent", "required": false, "scope": "package" }
+                ]
+              }
+            }
           }
         }
       }

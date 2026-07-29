@@ -11,10 +11,14 @@
 // loses the repo-wide lint gate, and a gate that vanished is indistinguishable from one that
 // passed. A live adoption run hit exactly that.
 //
-// Rule: walk layers NARROWEST -> BROADEST (package, repo, workspace). Each layer contributes its
-// steps in its own declared order, but only for names no narrower layer already claimed. The
-// narrowest layer that mentions a gate therefore owns both its definition and its position, and
-// broader layers top up the gates nobody narrower mentioned.
+// Rule: walk layers NARROWEST -> BROADEST (repo's package, mono package, repo, workspace). Each
+// layer contributes its steps in its own declared order, but only for names no narrower layer
+// already claimed. The narrowest layer that mentions a gate therefore owns both its definition and
+// its position, and broader layers top up the gates nobody narrower mentioned.
+//
+// The `verify.packages.<pkg>` layer exists for mono: a monorepo is ONE git repo, so it has no
+// repos[] entry to hang per-package gates off, and without this layer a mono monorepo's packages
+// would have to be keyed under a synthesized repo name nobody typed.
 //
 // Two properties this buys, both learned the hard way:
 //   * a package declaring `test` still inherits the repo's `lint` — no silent coverage loss; and
@@ -38,8 +42,10 @@ export function resolveGate(config, repoName, packageName) {
   // narrowest first
   const repo = verify.repos?.[repoName];
   const pkg = packageName ? repo?.packages?.[packageName] : undefined;
+  const monoPkg = packageName ? verify.packages?.[packageName] : undefined;
   const layers = [];
   if (Array.isArray(pkg?.steps)) layers.push({ source: `verify.repos.${repoName}.packages.${packageName}.steps`, steps: pkg.steps });
+  if (Array.isArray(monoPkg?.steps)) layers.push({ source: `verify.packages.${packageName}.steps`, steps: monoPkg.steps });
   if (Array.isArray(repo?.steps)) layers.push({ source: `verify.repos.${repoName}.steps`, steps: repo.steps });
   if (Array.isArray(verify.steps)) layers.push({ source: "verify.steps", steps: verify.steps });
 

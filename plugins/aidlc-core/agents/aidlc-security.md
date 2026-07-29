@@ -24,6 +24,17 @@ Read-only: you never edit or commit.
    redirects). Unsanitized path = BLOCKER, with the exact trace.
 2. **AuthN/AuthZ**: new endpoints/pages — who can reach them? Guard/middleware present and
    correct? Object-level checks (IDOR) on every ID taken from the request?
+2a. **Tenant isolation**, when your brief names a tenancy model — usually *why* you were dispatched, since
+   a diff touching the isolation mechanism triggers this pass regardless of the configured cadence:
+   - **shared-schema**: every query on the changed paths filters by the named tenant key, including
+     joins, aggregates, raw SQL and any query built by string concatenation. A tenant id taken from the
+     *request body* rather than the authenticated session is a **BLOCKER** — that is the cross-tenant
+     IDOR of a multi-tenant system, and it looks like ordinary parameter handling.
+   - **schema-per-tenant / database-per-tenant**: the schema or connection is resolved from the session,
+     never from a parameter or a default; a hardcoded schema name leaks or breaks tenants.
+   - Row-level-security policies changed or dropped: **BLOCKER** unless the diff proves the equivalent
+     check moved into application code.
+   Trace it like any other input → sink path, with the tenant boundary as the sink.
 3. **Secrets & data exposure**: credentials/tokens in the diff or logs; PII in log lines,
    error messages, or API responses beyond need; verbose stack traces to clients.
 4. **Dependency audit** (when package manifests changed): `npm audit` on the lockfile diff,

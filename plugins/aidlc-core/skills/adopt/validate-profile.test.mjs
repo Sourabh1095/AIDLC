@@ -20,7 +20,7 @@ const VALIDATOR = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)
 const HERE = dirname(fileURLToPath(import.meta.url));
 const work = mkdtempSync(join(tmpdir(), "adopt-profile-"));
 
-const pathEv = (p, line) => ({ kind: "path", path: p, ...(line ? { line } : {}) });
+const pathEv = (p, line, excerpt) => ({ kind: "path", path: p, ...(line ? { line } : {}), ...(excerpt ? { excerpt } : {}) });
 const cmdEv = (command, output) => ({ kind: "command", command, output });
 const absEv = (note) => ({ kind: "absence", note });
 const known = (value, evidence, confidence = "high") => ({ status: "known", value, evidence, confidence });
@@ -47,7 +47,7 @@ const reference = () => ({
       filesInspected: 812,
       directoriesInspected: 190,
       durationSeconds: 47.5,
-      caps: { maxFiles: 5000, maxFileBytes: 262144, maxDepth: 6, hitCap: false },
+      caps: { maxFiles: 5000, maxFileBytes: 262144, maxDepth: 6, maxAdrCandidates: 8, hitCap: false },
     },
     skipped: [
       { path: "D:\\ws\\api\\node_modules", reason: "vendored" },
@@ -119,6 +119,44 @@ const reference = () => ({
           protectedBranches: unknown("same offline host API; unknown is not 'unprotected'"),
           pushAccess: known("direct", [cmdEv('git -C "D:/ws/api" remote -v', "origin https://github.com/acme/api.git (push)")], "medium"),
         },
+        // ADOPT-9: the runtime constraints. Shared-schema multi-tenancy + a migration tool means
+        // expand/contract is answered, and every auth/isolation/billing path reaches the seeds.
+        saas: {
+          tenancy: known("shared-schema", [
+            pathEv("D:\\ws\\api\\prisma\\schema.prisma", 22, "tenantId String @map(\"tenant_id\")"),
+            pathEv("D:\\ws\\api\\src\\common\\tenant.middleware.ts", 14),
+          ], "high"),
+          tenantKey: known("tenant_id", [pathEv("D:\\ws\\api\\prisma\\schema.prisma", 22)], "high"),
+          tenantIsolationPaths: known(["src/common/tenant.middleware.ts", "prisma/rls/"], [pathEv("D:\\ws\\api\\src\\common\\tenant.middleware.ts", 1)], "high"),
+          authPaths: known(["src/auth/"], [pathEv("D:\\ws\\api\\src\\auth\\jwt.strategy.ts", 1)], "high"),
+          billingPaths: known(["src/billing/"], [pathEv("D:\\ws\\api\\src\\billing\\subscription.service.ts", 1)], "medium"),
+          featureFlags: known({ provider: "LaunchDarkly", paths: ["src/flags/"] }, [pathEv("D:\\ws\\api\\package.json", 31, "\"launchdarkly-node-server-sdk\": \"^9\"")], "high"),
+          migrations: known({ tool: "Prisma", directory: "prisma/migrations" }, [pathEv("D:\\ws\\api\\prisma\\schema.prisma", 1)], "high"),
+          liveDataConstraint: known("expand-contract", [
+            pathEv("D:\\ws\\api\\prisma\\schema.prisma", 22),
+            cmdEv("ls prisma/migrations", "20250114_add_tenant_id/\n20250220_backfill_tenant_id/"),
+          ], "medium"),
+          apiContracts: known([
+            { kind: "openapi", path: "openapi/public-v1.yaml", public: true },
+            { kind: "graphql", path: "src/schema.graphql", public: false },
+          ], [pathEv("D:\\ws\\api\\openapi\\public-v1.yaml", 1)], "high"),
+          environments: known([
+            { name: "staging", kind: "staging" },
+            { name: "production", kind: "production" },
+            { name: "pr-preview", kind: "preview" },
+          ], [pathEv("D:\\ws\\api\\.github\\workflows\\deploy.yml", 12)], "high"),
+          deployStrategy: known("canary", [pathEv("D:\\ws\\api\\.github\\workflows\\deploy.yml", 41, "strategy: canary")], "medium"),
+          freezeWindows: known([{ when: "Fri 16:00 → Mon 09:00 UTC", source: ".github/workflows/deploy.yml:8 schedule guard" }], [pathEv("D:\\ws\\api\\.github\\workflows\\deploy.yml", 8)], "medium"),
+          compliance: known([{ regime: "soc2", signal: "docs/security/soc2-controls.md lists CC6 evidence owners" }], [pathEv("D:\\ws\\api\\docs\\security\\soc2-controls.md", 3)], "medium"),
+          messaging: known([{ name: "BullMQ", kind: "queue", paths: ["src/jobs/"] }], [pathEv("D:\\ws\\api\\package.json", 33)], "high"),
+          observability: known([{ name: "Sentry", paths: ["src/main.ts"] }], [pathEv("D:\\ws\\api\\src\\main.ts", 9)], "high"),
+          integrations: known([{ name: "Stripe", paths: ["src/billing/stripe.client.ts"] }], [pathEv("D:\\ws\\api\\src\\billing\\stripe.client.ts", 1)], "high"),
+          experimentation: unknown("no A/B or analytics-rollout library in package.json, and no experiment config directory"),
+          securityReviewPathSeeds: [
+            "src/common/tenant.middleware.ts", "prisma/rls/", "src/auth/", "src/billing/",
+            "prisma/migrations/",
+          ],
+        },
       },
       {
         // monorepo root, on ANOTHER DRIVE, beside single-app roots — the hybrid shape.
@@ -147,10 +185,14 @@ const reference = () => ({
           test: known({ cmd: "pnpm turbo run test --filter=...[origin/develop]", source: "turbo.json pipeline.test" }, [pathEv("C:\\src\\platform\\turbo.json", 8)]),
           typecheck: unknown("turbo.json declares no typecheck task and no package defines one; a per-package tsconfig exists but nothing invokes tsc"),
         },
+        // ADOPT-8: the package dimension — per-package stack, an internal dependency edge that
+        // sequences cross-package work, and only the packages the tooling can actually publish.
         packages: [
-          { name: "@acme/web", path: "packages/web", role: "customer-facing Next.js app", labels: ["web", "frontend"], languages: ["TypeScript"], evidence: [pathEv("C:\\src\\platform\\packages\\web\\package.json", 2)] },
-          { name: "acme-worker", path: "packages/worker", role: "Celery worker for async billing jobs", labels: ["worker", "python"], languages: ["Python"], evidence: [pathEv("C:\\src\\platform\\packages\\worker\\pyproject.toml", 2)] },
+          { name: "@acme/shared", path: "packages/shared", role: "shared TypeScript types and API client", labels: ["shared"], languages: ["TypeScript"], stack: { frontend: null, backend: "TypeScript library", databases: [] }, releasable: true, evidence: [pathEv("C:\\src\\platform\\packages\\shared\\package.json", 2)] },
+          { name: "@acme/web", path: "packages/web", role: "customer-facing Next.js app", labels: ["web", "frontend"], languages: ["TypeScript"], stack: { frontend: "Next.js 15", backend: null, databases: [] }, dependsOn: ["@acme/shared"], releasable: false, evidence: [pathEv("C:\\src\\platform\\packages\\web\\package.json", 2)] },
+          { name: "acme-worker", path: "packages/worker", role: "Celery worker for async billing jobs", labels: ["worker", "python"], languages: ["Python"], stack: { frontend: null, backend: "Python 3.12 / Celery", databases: ["postgres"] }, releasable: false, evidence: [pathEv("C:\\src\\platform\\packages\\worker\\pyproject.toml", 2)] },
         ],
+        releaseTooling: known({ tool: "changesets", independentVersioning: true }, [pathEv("C:\\src\\platform\\.changeset\\config.json", 1)], "high"),
         agentConfigs: [{ path: "C:\\src\\platform\\AGENTS.md", tool: "generic", humanAuthored: true }],
         docs: [{ location: "https://acme.atlassian.net/wiki/spaces/PLAT", kind: "wiki", external: true }],
         coverage: { filesInspected: 410, sampled: true, coveragePercent: 48.2 },
@@ -253,6 +295,58 @@ const reference = () => ({
     { name: "vcs-mercurial", kind: "project-action", surface: "Mercurial", why: "the pipeline's git-workflow layer cannot operate on a Mercurial checkout.", workaround: "profile and report only; delivery into this root stays manual." },
     { name: "git-init-dropzone", kind: "project-action", surface: "no version control", why: "the root has no VCS, so no AIDLC delivery step can run there.", workaround: "run git init in D:\\ws\\dropzone, then re-scan." },
   ],
+  // ADOPT-10: decisions the code embeds with nothing recording them. Ranked highest reversibility
+  // cost first, no rationale anywhere, and the one already covered is listed rather than dropped.
+  adrCandidates: [
+    {
+      decisionKind: "tenancy-model",
+      title: "Isolate tenants in one shared Postgres schema keyed by tenant_id",
+      status: "propose",
+      reversibilityCost: "high",
+      root: "api",
+      decidedAt: unknown("the pattern predates the oldest commit in this shallow clone, so no introducing commit can be cited"),
+      consequencesObserved: [
+        "every repository query filters by tenantId; 3 of 11 do it by hand rather than through the base repository",
+        "a missing filter is a cross-tenant read, not a failed test",
+      ],
+      evidence: [pathEv("D:\\ws\\api\\prisma\\schema.prisma", 22), pathEv("D:\\ws\\api\\src\\common\\tenant.middleware.ts", 14)],
+    },
+    {
+      decisionKind: "api-style",
+      title: "Expose a versioned public REST API described by openapi/public-v1.yaml",
+      status: "propose",
+      reversibilityCost: "high",
+      root: "api",
+      decidedAt: known("2025-03-11", [cmdEv('git -C "D:/ws/api" log -1 --format=%ad -- openapi/public-v1.yaml', "2025-03-11")], "medium"),
+      evidence: [pathEv("D:\\ws\\api\\openapi\\public-v1.yaml", 1)],
+    },
+    {
+      decisionKind: "data-store",
+      title: "Use Postgres via Prisma as the single system of record",
+      status: "propose",
+      reversibilityCost: "medium",
+      root: "api",
+      evidence: [pathEv("D:\\ws\\api\\prisma\\schema.prisma", 1), pathEv("D:\\ws\\api\\package.json", 24)],
+    },
+    {
+      decisionKind: "build-tooling",
+      title: "Drive the monorepo with pnpm workspaces plus Turborepo task orchestration",
+      status: "propose",
+      reversibilityCost: "low",
+      root: "platform",
+      evidence: [pathEv("C:\\src\\platform\\turbo.json", 1), pathEv("C:\\src\\platform\\pnpm-workspace.yaml", 1)],
+    },
+    {
+      // already recorded — listed, not proposed, so a re-run's silence is legible
+      decisionKind: "framework",
+      title: "Build the API on NestJS",
+      status: "already-recorded",
+      existingAdr: "https://acme.atlassian.net/wiki/spaces/PLAT/pages/nestjs",
+      reversibilityCost: "medium",
+      root: "api",
+      evidence: [pathEv("D:\\ws\\api\\package.json", 22)],
+    },
+  ],
   safety: {
     envFiles: [
       { path: "D:\\ws\\api\\.env", contentsRead: false, gitTracked: false },
@@ -269,6 +363,20 @@ const reference = () => ({
 });
 
 const referenceReport = `# Adoption report — acme workspace
+
+## Per root
+platform holds 3 packages: @acme/shared, @acme/web (depends on shared), acme-worker.
+
+## Runtime constraints
+| Root | Constraint | Consequence for a change |
+|---|---|---|
+| api | shared-schema tenancy on tenant_id | every query filters by tenant; a miss is a cross-tenant read |
+| api | migrations run against live data | expand/contract + backfill; a destructive migration blocks review |
+| api | releases ride LaunchDarkly flags | user-visible changes ship behind a flag |
+
+## Decisions with no ADR
+4 proposed, ranked by reversibility cost. 1 already recorded (framework → Confluence).
+Rationale is left blank in each — the scan read code, not the decision.
 
 ## Supported / partial / unsupported
 | Surface | Support | Consequence |
@@ -566,6 +674,177 @@ try {
     (p) => { delete p.workspace.roots[0].conventions.commitStyle.evidence; },
     "evidence must be a non-empty array");
 
+  // ---- 8d. SaaS runtime constraints (ADOPT-9) ----
+  check("bad tenancy value is rejected",
+    (p) => { p.workspace.roots[0].saas.tenancy.value = "multi-tenant-ish"; },
+    "must be one of shared-schema | schema-per-tenant");
+  check("bad liveDataConstraint value is rejected",
+    (p) => { p.workspace.roots[0].saas.liveDataConstraint.value = "careful"; },
+    "must be one of expand-contract | not-required");
+  check("bad deployStrategy is rejected",
+    (p) => { p.workspace.roots[0].saas.deployStrategy.value = "yolo"; },
+    "must be one of rolling | blue-green | canary");
+  // THE rule: a multi-tenant project with migrations must answer expand/contract. Silence here
+  // leaves the reviewer brief empty while the profile still looks complete.
+  check("multi-tenant + migrations with the expand/contract question unanswered is rejected",
+    (p) => { delete p.workspace.roots[0].saas.liveDataConstraint; },
+    "left unstated, the reviewer brief carries no migration constraint");
+  check("answering it `unknown` is not answering it",
+    (p) => { p.workspace.roots[0].saas.liveDataConstraint = unknown("did not look at the migration directory"); },
+    "this must be answered");
+  check("`not-required` under shared-schema warns but passes (evidence must justify it)",
+    (p) => { p.workspace.roots[0].saas.liveDataConstraint = known("not-required", [absEv("no migration has run against production yet; the product is pre-launch")], "low"); },
+    "ok");
+  check("single-tenant with migrations needs no expand/contract answer",
+    (p) => { p.workspace.roots[0].saas.tenancy.value = "single-tenant"; delete p.workspace.roots[0].saas.liveDataConstraint; },
+    "ok");
+  // AC7, mechanically: recorded as sensitive but never seeded = reviewed on the ordinary cadence.
+  check("an auth path missing from the security-review seeds is rejected",
+    (p) => { p.workspace.roots[0].saas.securityReviewPathSeeds = p.workspace.roots[0].saas.securityReviewPathSeeds.filter((s) => s !== "src/auth/"); },
+    "recorded as auth/tenant-isolation/billing but never seeded");
+  check("a tenant-isolation path missing from the seeds is rejected",
+    (p) => { p.workspace.roots[0].saas.securityReviewPathSeeds = ["src/auth/", "src/billing/"]; },
+    "`src/common/tenant.middleware.ts`");
+  check("sensitive paths recorded with no seeds array at all is rejected",
+    (p) => { delete p.workspace.roots[0].saas.securityReviewPathSeeds; },
+    "the seeds are how that reaches config");
+  check("a compliance regime with no named signal is rejected",
+    (p) => { delete p.workspace.roots[0].saas.compliance.value[0].signal; },
+    "the thing that evidenced it must be named");
+  check("a bad compliance regime is rejected",
+    (p) => { p.workspace.roots[0].saas.compliance.value[0].regime = "sox"; },
+    "must be one of soc2 | hipaa");
+  check("a freeze window with no source is rejected (an unsourced freeze is a rumour)",
+    (p) => { delete p.workspace.roots[0].saas.freezeWindows.value[0].source; },
+    "it would block an integration on nothing");
+  check("an api contract entry with no path is rejected",
+    (p) => { delete p.workspace.roots[0].saas.apiContracts.value[0].path; },
+    "an entry without one triggers nothing");
+  check("an api contract with a bad kind is rejected",
+    (p) => { p.workspace.roots[0].saas.apiContracts.value[1].kind = "swagger"; },
+    "must be one of openapi | graphql");
+  check("a feature-flag system recorded without naming the provider is rejected",
+    (p) => { delete p.workspace.roots[0].saas.featureFlags.value.provider; },
+    "name the flag system");
+  check("a migration tool recorded without naming the tool is rejected",
+    (p) => { delete p.workspace.roots[0].saas.migrations.value.tool; },
+    "the migration tool by name");
+  check("a bad messaging kind is rejected",
+    (p) => { p.workspace.roots[0].saas.messaging.value[0].kind = "pigeon"; },
+    "must be one of queue | broker");
+  check("a tenancy claim with no evidence is rejected",
+    (p) => { delete p.workspace.roots[0].saas.tenancy.evidence; },
+    "evidence must be a non-empty array");
+  check("a root with no saas block validates (a library is not a SaaS)",
+    (p) => { delete p.workspace.roots[0].saas; },
+    "ok");
+
+  // ---- 8e. the package dimension (ADOPT-8) ----
+  check("a dependsOn naming a package that does not exist is rejected",
+    (p) => { p.workspace.roots[1].packages[1].dependsOn = ["@acme/nope"]; },
+    "a dependency that resolves to nothing sequences nothing");
+  check("a package depending on itself is rejected",
+    (p) => { p.workspace.roots[1].packages[1].dependsOn = ["@acme/web"]; },
+    "depends on itself");
+  check("a dependency cycle is rejected (which lands first has no answer)",
+    (p) => {
+      p.workspace.roots[1].packages[0].dependsOn = ["acme-worker"];
+      p.workspace.roots[1].packages[2].dependsOn = ["@acme/web"];
+    },
+    "dependency cycle");
+  check("a three-package cycle names the loop",
+    (p) => {
+      p.workspace.roots[1].packages[0].dependsOn = ["acme-worker"];
+      p.workspace.roots[1].packages[2].dependsOn = ["@acme/web"];
+    },
+    "@acme/shared -> acme-worker -> @acme/web -> @acme/shared");
+  check("a diamond dependency shape is not mistaken for a cycle",
+    (p) => {
+      p.workspace.roots[1].packages[2].dependsOn = ["@acme/shared"];
+      p.workspace.roots[1].packages.push({ name: "@acme/admin", path: "packages/admin", dependsOn: ["@acme/web", "acme-worker"], evidence: [pathEv("C:\\src\\platform\\packages\\admin\\package.json", 2)] });
+    },
+    "ok");
+  check("duplicate package names are rejected",
+    (p) => { p.workspace.roots[1].packages[2].name = "@acme/web"; },
+    "duplicate package name");
+  check("a package missing its path is rejected",
+    (p) => { delete p.workspace.roots[1].packages[0].path; },
+    "missing `path`");
+  check("a package claiming its own release cadence with no release tooling is rejected",
+    (p) => { delete p.workspace.roots[1].releaseTooling; },
+    "a per-package release needs tooling that supports independent versioning");
+  check("no releasable package needs no release tooling",
+    (p) => { delete p.workspace.roots[1].releaseTooling; p.workspace.roots[1].packages[0].releasable = false; },
+    "ok");
+  check("release tooling recorded absent (no release process at all) validates",
+    (p) => {
+      p.workspace.roots[1].releaseTooling = absent("no .changeset/, lerna.json, semantic-release config or release workflow");
+      p.workspace.roots[1].packages[0].releasable = false;
+    },
+    "ok");
+
+  // ---- 8f. retroactive ADR candidates (ADOPT-10) ----
+  // The one rule the whole story turns on: the scan never saw the why.
+  for (const field of ["rationale", "why", "because", "alternatives", "alternativesConsidered"])
+    check(`an ADR candidate carrying \`${field}\` is rejected — no rationale is invented`,
+      (p) => { p.adrCandidates[0][field] = "the team wanted the simplest thing that could scale"; },
+      "becomes permanent history nobody authored");
+  check("a candidate with no evidence is rejected",
+    (p) => { delete p.adrCandidates[2].evidence; },
+    "evidence must be a non-empty array");
+  check("a bad decisionKind is rejected",
+    (p) => { p.adrCandidates[0].decisionKind = "vibes"; },
+    "must be one of framework | data-store");
+  check("two candidates for the same decision are rejected",
+    (p) => { p.adrCandidates[2].decisionKind = "tenancy-model"; },
+    "one decision would get two ADRs");
+  check("status=propose carrying an existingAdr is rejected",
+    (p) => { p.adrCandidates[0].existingAdr = "docs/adr/0004-tenancy.md"; },
+    "must not carry `existingAdr`");
+  check("status=already-recorded without naming the ADR is rejected",
+    (p) => { delete p.adrCandidates[4].existingAdr; },
+    "requires `existingAdr`");
+  check("a candidate with no title is rejected",
+    (p) => { delete p.adrCandidates[1].title; },
+    "it becomes the ADR's H1");
+  check("a bad reversibilityCost is rejected",
+    (p) => { p.adrCandidates[0].reversibilityCost = "annoying"; },
+    "must be one of high | medium | low");
+  check("an unranked candidate list is rejected (the cap would drop the expensive decisions)",
+    (p) => { const c = p.adrCandidates; [c[0], c[3]] = [c[3], c[0]]; },
+    "is not ranked by reversibility cost");
+  check("more proposals than the recorded cap is rejected",
+    (p) => { p.scan.budget.caps.maxAdrCandidates = 2; },
+    "proposes 4 ADRs but the cap is 2");
+  check("the cap counts proposals only, not already-recorded entries",
+    (p) => { p.scan.budget.caps.maxAdrCandidates = 4; },
+    "ok");
+  check("a candidate citing a root that does not exist is rejected",
+    (p) => { p.adrCandidates[0].root = "billing"; },
+    "is not a declared root");
+  check("decidedAt unknown on a squashed history validates — the ADR's date reads unknown",
+    null, "ok");
+  check("decidedAt carrying a value while unknown is rejected",
+    (p) => { p.adrCandidates[0].decidedAt.value = "2024-06-01"; },
+    "must not carry a `value`");
+  check("a consequence that is not a string is rejected",
+    (p) => { p.adrCandidates[0].consequencesObserved = [{ note: "queries filter by tenant" }]; },
+    "must be a non-empty string");
+  check("no adrCandidates block at all validates (nothing worth recording)",
+    (p) => { delete p.adrCandidates; },
+    "ok");
+
+  // ---- 8g. the report must show what the profile carries ----
+  check("a profile with runtime constraints whose report omits them is rejected",
+    null, 'missing "runtime constraints"',
+    { report: referenceReport.replace(/## Runtime constraints[\s\S]*?\n\n/, "") });
+  check("a profile with ADR candidates whose report omits them is rejected",
+    null, 'missing "no adr"',
+    { report: referenceReport.replace(/## Decisions with no ADR[\s\S]*?\n\n/, "") });
+  check("a profile with packages whose report never mentions one is rejected",
+    null, 'missing "package"',
+    { report: referenceReport.replace(/## Per root[\s\S]*?\n\n/, "").replace(/packages/gi, "units").replace(/package/gi, "unit") });
+
   // ---- 9. schema agreement ----
   // The validator duplicates the schema's enums so it can run offline inside an installed
   // plugin. Silent drift between the two is the only way that duplication can hurt, so when
@@ -596,6 +875,16 @@ try {
       ["COMMIT_STYLES", "definitions.root.properties.conventions.properties.commitStyle.allOf.1.properties.value.enum"],
       ["MERGE_STRATEGIES", "definitions.root.properties.conventions.properties.mergeStrategy.allOf.1.properties.value.enum"],
       ["PUSH_ACCESS", "definitions.root.properties.conventions.properties.pushAccess.allOf.1.properties.value.enum"],
+      ["TENANCY_MODELS", "definitions.saasProfile.properties.tenancy.allOf.1.properties.value.enum"],
+      ["LIVE_DATA_CONSTRAINTS", "definitions.saasProfile.properties.liveDataConstraint.allOf.1.properties.value.enum"],
+      ["DEPLOY_STRATEGIES", "definitions.saasProfile.properties.deployStrategy.allOf.1.properties.value.enum"],
+      ["API_CONTRACT_KINDS", "definitions.saasProfile.properties.apiContracts.allOf.1.properties.value.items.properties.kind.enum"],
+      ["ENVIRONMENT_KINDS", "definitions.saasProfile.properties.environments.allOf.1.properties.value.items.properties.kind.enum"],
+      ["COMPLIANCE_REGIMES", "definitions.saasProfile.properties.compliance.allOf.1.properties.value.items.properties.regime.enum"],
+      ["MESSAGING_KINDS", "definitions.saasProfile.properties.messaging.allOf.1.properties.value.items.properties.kind.enum"],
+      ["ADR_DECISION_KINDS", "definitions.adrCandidate.properties.decisionKind.enum"],
+      ["ADR_CANDIDATE_STATUSES", "definitions.adrCandidate.properties.status.enum"],
+      ["REVERSIBILITY_COSTS", "definitions.adrCandidate.properties.reversibilityCost.enum"],
     ];
     for (const [name, pointer] of PAIRS) {
       n++;

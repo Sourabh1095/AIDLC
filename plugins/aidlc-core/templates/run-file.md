@@ -3,9 +3,11 @@ item: {{ID}}
 source: {{SOURCE}}
 type: {{TYPE}}
 repo: {{REPO}}
+package: null
 branch: {{BRANCH}}
 phase: start
 fixCycles: 0
+contractAffecting: false
 ui: false
 uxScope: null
 uxMode: null

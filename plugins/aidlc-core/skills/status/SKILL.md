@@ -12,18 +12,27 @@ Render a compact status board for this project. Read-only — never mutate state
 Build the repo registry (`aidlc:work-items` → *Repos & routing*). Glob run files from **every**
 location: the control-plane `.aidlc/runs/*.md` (mono runs + poly epic coordination files) **and**,
 in poly, each declared repo's `<repo.path>/.aidlc/runs/*.md`. For each file, read ONLY the
-frontmatter (`item`, `type`, `repo`, `branch`, `phase`, `fixCycles`, `pr`, `started`). **Also scan
+frontmatter (`item`, `type`, `repo`, `package`, `branch`, `phase`, `fixCycles`, `contractAffecting`,
+`pr`, `started`). **Also scan
 `runs/archive/*.md` for `phase: done` runs whose PR is not yet merged** — in poly+remote a completed
 run is archived on the branch pre-merge (F23), so a done-but-awaiting-merge run lives in `archive/`,
 not `runs/`; surface it as "done — PR open (awaiting merge)" so it isn't invisible. Fully
 merged+closed archived runs stay out of the active view.
 
-Render a table (drop the Repo column in mono):
+Render a table (drop the Repo column in mono; drop the Package column when no repo declares `packages[]`):
 
-| Item | Type | Repo | Phase | Fix cycles | Branch | PR |
-|------|------|------|-------|-----------|--------|----|
+| Item | Type | Repo | Package | Phase | Fix cycles | Branch | PR |
+|------|------|------|---------|-------|-----------|--------|----|
 
 Ordering: `blocked` first (flag with ⛔), then in-flight phases (start → requirements → design → implement → verify → pr → docs), then `done`.
+
+**Group by package inside a monorepo repo.** Where a repo carries `packages[]`, nest its runs under the
+package they resolved to and show a package with no in-flight work as absent rather than empty — the
+useful reading is *which parts of the monorepo are being changed right now*, since concurrent runs in
+one package are the ones likely to collide. A run whose `package:` is null in a repo that has packages
+is worth a one-line flag: it will verify on the repo-wide gate, which may be broader or narrower than
+the package's own. Mark `contractAffecting: true` runs with a ⚠ — a PR changing a public contract is
+the one a reviewer should not miss in a long list.
 
 The **PR** column shows the PR URL in remote mode; in **local mode** (`git.mode: local`) it shows
 `local-merge:<sha>` once integrated, or `ready — local merge pending` for a run parked at

@@ -28,6 +28,28 @@ When your brief contains reviewer/QA findings instead of a plan: fix ONLY the li
 No opportunistic refactoring. Mark each finding `[resolved]` in the run file's `## Findings`
 with a one-line note of the fix, commit per finding or per coherent group.
 
+## Runtime constraints (when your brief carries them)
+
+A brief may carry the project's **runtime constraints** from config `saas` — derived from the codebase at
+adoption. They are constraints on the code you write, not context to acknowledge, and the gate will not
+catch a violation of any of them:
+
+- **Multi-tenancy.** Where a tenancy model and tenant key are named, every query you write and every
+  table you add is scoped by that key. A missing filter is a cross-tenant data leak that passes tests.
+- **Feature flags.** Where flags are the project's release mechanism, user-visible changes ship behind
+  one. If your change genuinely cannot be flagged, that is a blocker to report, not to work around.
+- **Migrations against live data.** Where expand/contract applies: add the new shape, backfill, migrate
+  readers, and remove the old shape in a *later* release. Never drop or rename a column, narrow a type,
+  or add `NOT NULL` to an existing column in one migration — it runs clean against an empty test
+  database and destroys production data.
+- **API contracts.** Changes to a named contract file (OpenAPI/GraphQL/proto) are additive unless the
+  item explicitly asks for a break; say so in your report either way.
+- **Message shapes.** A changed queue/event payload is a breaking change with no contract file to fail.
+  Name the consumers you checked, or say you could not find them.
+
+A constraint that is **not** in your brief does not apply — never infer one. Silence means the scan found
+no evidence for it, not that you should assume the strictest case.
+
 ## Hard rules
 
 - Never touch `.claude/settings*.json`, hook scripts, or CI secrets.

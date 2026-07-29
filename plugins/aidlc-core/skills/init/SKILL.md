@@ -82,10 +82,13 @@ improvise replacement files: the permission posture and rules must be the review
      every wrong answer lands in `CLAUDE.md` and `aidlc.config.json` as ground truth and steers every
      later run. Instead: collect only items **1–3 and 6** (key, name, tracker, cadence), scaffold the
      control plane as in Step 4.1–4.4, and then hand off:
-     **`/aidlc:adopt`** (read-only — derives topology, per-root stack, the real gate commands and the
-     project's git conventions, each with `path:line` evidence) → **`/aidlc:adopt-apply`** (shows the diff
-     and, on approval, writes `workspace.layout`, `repos[]`, per-repo `stack`, `pipeline.gates.verify`, the git
-     conventions, `CLAUDE.md`'s Commands block and `rules/git-workflow.md`). Write the config with
+     **`/aidlc:adopt`** (read-only — derives topology, per-root stack, monorepo packages, the real gate
+     commands, the project's git conventions and its runtime constraints, each with `path:line` evidence) →
+     **`/aidlc:adopt-apply`** (shows the diff and, on approval, writes `workspace.layout`, `repos[]`,
+     per-repo `stack`, `packages[]`, `pipeline.gates.verify`, the `saas` block and the security-review paths
+     it seeds, the git conventions, `CLAUDE.md`'s Commands block and `rules/git-workflow.md`) → optionally
+     **`/aidlc:adopt-adr`** (records the decisions the code already embodies as ADRs, rationale left for a
+     human — so `docs/adr/` is not empty on a project that has been making decisions for years). Write the config with
      `"architecture": { "status": "pending", "resolvedBy": "/aidlc:adopt" }` and leave the `{{*_CMD}}`
      placeholders as "tbd" — same deferral mechanism as the bootstrap path, different resolver.
      **Skip Step 4.5–4.7's stack scaffolding**: an existing project already has its tooling, structure and

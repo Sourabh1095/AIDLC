@@ -7,6 +7,109 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.32.0] — 2026-07-30
+
+### `aidlc` — brownfield Phase 3: what the project actually is, beyond its shape
+
+Phases 1–2 taught AIDLC a brownfield project's *shape* (topology, stack, gates, git conventions). This
+phase adds the three things that shape leaves out — and each one closes a gap where the framework was
+previously confident and wrong rather than merely ignorant. Spec: `docs/brownfield-adoption.md`
+(ADOPT-9, ADOPT-10, ADOPT-8).
+
+**ADOPT-9 — the runtime constraints that change how code must be written.** For a live SaaS,
+"TypeScript + Postgres" says almost nothing about what a *safe* change looks like; "shared-schema
+multi-tenant on `tenant_id`, migrations run against live customer data, releases ride LaunchDarkly flags,
+and `openapi/public-v1.yaml` is a published contract" says nearly everything. Nobody writes those down,
+because everyone on the team already knows them — so an agent is the one participant who doesn't.
+`/aidlc:adopt` now derives them per repo into a `saas` block: tenancy model and tenant key, isolation /
+auth / billing paths, feature-flag system, migration tool plus whether expand/contract applies, public API
+contracts, environments and deploy strategy, freeze windows, compliance regimes **with the signal that
+evidenced each**, messaging, observability, integrations. `/aidlc:adopt-apply` writes it and **union-seeds**
+`pipeline.securityReviewPaths` — never replacing what a human put there.
+
+- The constraints reach the implementer, reviewer, security and architect briefs as *constraints*, with the
+  consequence spelled out ("every query filters by `tenant_id`; a miss is a cross-tenant read, and nothing
+  in the gate will catch it") rather than as background to acknowledge.
+- **It informs; it does not gate — with exactly two exceptions**, both conditional on an evidenced fact and
+  both earning it on the same grounds (silent failure, invisible to the gate, customer-visible when
+  missed): a **destructive migration** where migrations run against live tenant data is a review
+  **blocker**, and a diff touching an **API contract, auth path or tenant-isolation path** is reviewed
+  **regardless of the configured cadence**. A detected compliance regime *recommends* raising the security
+  cadence and names the signal; it never raises it silently. An absent field asserts nothing — the pipeline
+  never invents a constraint the scan did not evidence.
+- Mostly a `--depth deep` section, and honest about it: at shallower depths the report says *"not sampled
+  at this depth"* rather than letting silence read as "this project has no runtime constraints". Getting
+  that backwards would be the worst available outcome — it tells every later reviewer that cross-tenant
+  leaks are impossible here.
+
+**ADOPT-10 — retroactive ADRs, with the rationale deliberately left blank.** On a brownfield project
+`docs/adr/` is empty while the decisions are everywhere in the code, which starves `/aidlc:do` and the
+architect of the one thing they cannot re-derive. `/aidlc:adopt` §6 now derives ranked, capped
+`adrCandidates[]` (tenancy model, data store, auth model, API style, deployment topology, messaging,
+build tooling…), and a **new `/aidlc:adopt-adr`** writes the approved ones into `docs/adr/` — one at a
+time, each behind its own approval.
+
+- Each ADR is `accepted (retroactive)` — accepted because the code already runs on it, retroactive because
+  nobody approved the document at the time — dated `unknown` where a squashed or shallow history cannot
+  establish a date, and citing `path:line` evidence.
+- **`## Rationale` and `## Alternatives considered` read "not recorded — confirm with the team", and stay
+  that way.** A scan sees *what* was decided and never *why*; one plausible invented sentence in a document
+  marked `accepted` becomes history nobody authored and everybody cites in reviews for years. The validator
+  rejects a candidate carrying a rationale in any of five spellings, so this is a check rather than an
+  intention. The report frames the blank as a task with a deadline of sorts: fill it while the people who
+  remember are still on the team.
+- Existing decision records elsewhere (Confluence, Notion, `RFCs/`) are **linked** from the ADR index,
+  never copied or relocated. Re-running proposes nothing for a decision already recorded — `adoption.adrs[]`
+  is the dedup key — and lists it as *already covered* rather than dropping it, so a quiet second run is
+  legible as "checked" rather than "never looked".
+- `templates/adr-template.md` gained the `## Rationale` section (useful greenfield too) and
+  `accepted (retroactive)`; `aidlc:architecture` and `aidlc:do` now tell readers that a retroactive ADR's
+  decision is binding while its reasoning is genuinely unknown — never to be filled in by inference.
+
+**ADOPT-8 — a monorepo's packages are a first-class routing dimension.** `mono` meant one repo delivering
+one app and `poly` many repos; a pnpm/Nx/Turbo/Lerna/Maven-modules repo was neither. It stays
+`layout: mono` (or one poly repo entry) with a new `packages[]` — because `repos[]` means a **git**
+boundary and a monorepo has exactly one, while `packages[]` means an **ownership** boundary inside it. A
+third layout value would have conflated the two and left the hybrid workspace (a monorepo root beside
+single-app repos) with no spelling at all.
+
+- `packages[]` carries name (as the package's *own manifest* declares it), path, role, labels, per-package
+  `stack` and `ux`, `dependsOn`, and `releasable`. An item resolves to a package (explicit → label → path →
+  default → grounding → ask), and its gate, stack, standards, design pod and PR label scope to it —
+  resolving stack per *repo* is how a Python worker gets handed the web coding standards.
+- **One item is still one repo, one branch, one PR.** The package narrows scope inside the leaf; it is
+  never a new leaf, and sharing a repo never justifies two packages' work on one branch. Cross-package work
+  decomposes like cross-repo work, sequenced by the packages' own `dependsOn` graph.
+- New `pipeline.gates.verify.packages` layer for a monorepo adopted as mono (which has no `repos[]` entry
+  to key packages under); `resolve-gate.mjs` layers it narrowest → broadest like the rest, and a repo-scoped
+  package block outranks it. `/aidlc:status` groups in-flight work by package and flags contract-affecting
+  runs. `/aidlc:release` cuts a **per-package** release where the tooling supports one (changesets,
+  independent Lerna, `nx release`) — driving the project's own tool rather than hand-bumping versions — and
+  **says plainly that it cannot** where the repo releases as one unit, rather than tagging something the
+  project has no way to publish.
+
+**Verification.** `skills/adopt/validate-profile.test.mjs` is at **156 cases** (from 93) and
+`skills/run/resolve-gate.test.mjs` at **30** (from 24), both green. The reference fixture now carries a
+shared-schema multi-tenant root with its full runtime profile, a three-package monorepo with a dependency
+edge and changesets tooling, and a ranked candidate list including an already-recorded entry — proving the
+shapes representable, not merely described. Ten new enums are cross-checked against
+`docs/adoption-profile.schema.json` so the validator's offline copies cannot drift. The invariants that are
+now checks rather than intentions, each because its violation is **invisible in a profile that otherwise
+looks complete**: no invented ADR rationale; every auth/tenant-isolation/billing path reaches the
+security-review seeds (otherwise: recorded as dangerous, reviewed as routine); a multi-tenant root with a
+migration tool must *answer* the expand/contract question (silence leaves the reviewer with no constraint);
+candidates ranked and capped (an unranked list plus a cap drops exactly the decisions worth recording); a
+package's `dependsOn` resolves to siblings with no cycle; and `releasable` requires release tooling that
+could actually cut one.
+
+**Ships specified-but-unexercised, and says so.** Phase 2 shipped the same way and a live run found four
+defects in it — every one producing a *plausible* result rather than an error. The same exposure applies
+here: real tenancy detection off a real ORM (the `--depth deep` path is the least exercised code in the
+scan), whether the risk triggers fire without false positives, whether a retroactive ADR is useful to the
+team that lived through the decision, the per-package release path against real tooling, and whether the
+seeded review paths produce a workable volume. `docs/brownfield-adoption.md` → *Phase 3 — what is verified,
+and what is not* keeps the list honest.
+
 ## [0.31.1] — 2026-07-30
 
 ### `aidlc` — four defects the first live brownfield adoption found

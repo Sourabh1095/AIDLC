@@ -115,6 +115,29 @@ ask). Record the resolved repo on the run file's `repo:` and write it back via
 git/branch/commit/push/PR/verify step for this run targets `workspace.root`/`<repo.path>`**,
 using THAT repo entry's `host`/`remote`/`defaultBranch`/`branchPattern`.
 
+**Then resolve the PACKAGE, if the repo has any** (`repos[].packages[]`, or top-level `packages[]` in
+mono) — per `aidlc:work-items` → *Item → package resolution* (explicit → label → path → single default →
+grounding → ask). Record it on the run file's `package:`. A monorepo is one git repo with many
+independently-owned packages, so resolving the repo alone leaves the most useful scope unresolved. What
+it changes for the rest of this run:
+
+- **§5 plan and §6 implement** scope to the package's `path`; stack/standards resolve from the
+  **package's** `stack` (falling back to the repo's) — a Python worker must not be handed the web
+  coding standards because its repo's other package is a Next.js app.
+- **§2 UI detection** reads `stack`/`ux` from the resolved **package** first, then the repo. A monorepo's
+  frontend package carries its own `ux.renderBaseUrl`/`uiPaths`, and the design pod runs there.
+- **§7 gate resolution** passes the package name to the resolver, which **layers** the package's steps
+  over the repo's (never replaces them).
+- **§8 PR** carries the package as a label so a reviewer sees which ownership boundary the diff crosses.
+- **Nothing about branching changes.** One item = one repo = one branch = one PR. The package narrows
+  scope *inside* the leaf; it is not a new leaf, and it never justifies two branches in one repo.
+
+**An item spanning packages inside one repo decomposes like cross-repo work** — per-package children,
+sequenced by the packages' own `dependsOn` graph so a shared package lands before its consumers. Do not
+be tempted to do it in one branch because they happen to share a repo: the review unit and the revert
+unit stay the same size, which is the point. Follow `aidlc:work-items` → *Re-decomposition & supersession*
+(AC coverage map, flag uncovered ACs, link + supersede) exactly as for a cross-repo split.
+
 **How to target it (F43) — the session cwd stays at the control plane; you do NOT get to change it.**
 The mechanism differs by command family, and getting it wrong walls the run on permission prompts:
 
@@ -259,9 +282,27 @@ Phase → `implement`. Checkpoint.
 (per `aidlc:debugging`), commit it (`test(scope): failing repro for {ID}`).
 
 Dispatch **Agent → aidlc-implementer** with brief: run-file path, `## Plan`, AC list, stack
-config, **the resolved gate** (below), and: implement per plan, tick plan checkboxes as completed, commits
-per logical unit in the project's own commit style (`aidlc:git-workflow` → *Commits*), **run the resolved
-gate before finishing**, append a summary line to `## Log`.
+config, **the resolved gate** (below), **the runtime constraints** (next paragraph), and: implement per
+plan, tick plan checkboxes as completed, commits per logical unit in the project's own commit style
+(`aidlc:git-workflow` → *Commits*), **run the resolved gate before finishing**, append a summary line to
+`## Log`.
+
+**Runtime constraints go in the brief, as constraints — not as background.** Read `saas` from the
+resolved repo entry (or the top-level block in mono). Where a field is **absent, say nothing** — an
+unevidenced constraint asserted as fact is worse than silence. Where it is set, state the consequence:
+
+| `saas` fact | What the implementer is told |
+|---|---|
+| `tenancy: shared-schema` + `tenantKey` | Every query and every new table filters/carries `<tenantKey>`. A missing filter is a **cross-tenant data leak**, not a failing test — nothing in the gate will catch it. |
+| `tenancy: schema-per-tenant` / `database-per-tenant` | Isolation is structural; a migration must fan out across tenants, and a hardcoded schema/connection breaks every tenant but the first. |
+| `featureFlags` with `required: true` | User-visible changes **ship behind a flag** — merging is not shipping here. If the change cannot be flagged, that is a blocker to raise, not to route around. |
+| `liveDataConstraint: expand-contract` | Schema changes are add → migrate → backfill → remove **across releases**. Never drop or rename a column, narrow a type, or add `NOT NULL` to an existing column in one step. |
+| `apiContracts` | Touching one of these paths is a **contract change**. Additive only unless the item explicitly asks to break it; note it on the run file so verify knows (§7). |
+| `messaging` | A changed message shape is a breaking change with no contract file to fail — name the consumers or say you could not find them. |
+| `compliance` | Named regime(s), so a change that adds data collection or logging is understood as an audit-relevant change. |
+
+Record on the run file which constraints applied, so the audit trail shows the diff was written under
+them rather than merely reviewed against them afterwards.
 
 If implementer reports a hard blocker (missing dependency/credentials/contradictory AC) →
 phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STOP.
@@ -303,8 +344,13 @@ It prints the resolved ordered steps with each step's provenance, the `## Findin
 and which steps need services. Execute the result **in the order printed** — the order is the contract —
 from the repo's checkout, stopping at the first `required` failure.
 
+Pass the **package** name (from §2.5) whenever the item resolved to one — omitting it silently runs the
+repo-wide gate over a package that has its own, which is how a package's real test suite gets skipped
+while the run still reports green.
+
 **Why a script rather than a rule to follow:** the layering is easy to get wrong in a way that fails
-*silently*. It walks **narrowest → broadest** (package, repo, workspace); each layer contributes its steps
+*silently*. It walks **narrowest → broadest** (the repo's package layer, the mono `verify.packages` layer,
+the repo, the workspace); each layer contributes its steps
 in its own order, but only for gate names no narrower layer already claimed. Read only the narrowest list
 instead and a Python package inside a TypeScript monorepo loses the repo-wide `lint` — and a gate that
 vanished is indistinguishable from one that passed. Keep the broader layer's *ordering* instead and a repo
@@ -337,6 +383,31 @@ requirements gate at §4, not this one.)
   them twice and do not install an AIDLC pre-commit layer over them.
 - Record the outcome of every step — name, scope, subset, pass/fail/absent/environment-unavailable — in
   the run file. That list is the audit trail the PR carries.
+
+### Risk triggers that outrank the cadence (from `saas`)
+
+Cadence tunes cost. These three override it, because "we only review per-epic" is not an acceptable
+answer for any of them. Check the branch diff (`git diff <base>...HEAD --name-only`) against the resolved
+repo's `saas` block **before** reading cadence, and record each trigger that fires in `## Findings`:
+
+1. **Diff touches `tenantIsolationPaths` or `authPaths`** (or any `pipeline.securityReviewPaths` entry
+   seeded from them) → **aidlc-security runs**, regardless of cadence. `securityConfirm` still applies —
+   ask before dispatching — but on decline write `[BLOCKER][open] security review declined on an
+   auth/tenant-isolation diff` rather than the ordinary `[NOTE]`: a cross-tenant leak is not a note.
+2. **Diff touches an `apiContracts` path** → the item is **contract-affecting**. Stamp
+   `contract-affecting: true` on the run file, dispatch **aidlc-reviewer** regardless of cadence with an
+   explicit breaking-change brief (is every change additive? are existing consumers still valid? is the
+   version bumped if not?), and for a `public: true` contract say plainly in the PR body that external
+   consumers are affected.
+3. **Diff adds a migration and `liveDataConstraint` is `expand-contract`** → check it for destructive
+   DDL: a dropped or renamed column, a narrowed type, a `NOT NULL` added to an existing column, a dropped
+   table. Any of those is a **`BLOCKER` finding** (`- [BLOCKER][open] destructive migration against live
+   tenant data: <file> — <what>. Expand/contract: add the new shape, backfill, migrate readers, remove
+   in a later release.`), and it blocks the PR like any other blocker. A green gate is not evidence here:
+   the migration runs fine against an empty test database and destroys production data.
+
+None of these fire when the corresponding `saas` field is absent — the pipeline never invents a
+constraint the scan did not evidence.
 
 ### Agent cadence
 
@@ -374,9 +445,12 @@ requested review/QA/security, or `## Findings` carries user-supplied issues to r
   - **Deferred (`per-epic`)** agents don't run here — log `- <agent> deferred to epic {parent}` and
     they run at epic consolidation (§2). An item with no parent epic whose only due check is per-epic:
     offer the confirmed pass at its own completion, else note it deferred.
-  - **Nothing due** (the default per-item case — reviewer/qa on-demand, security per-epic): add
+  - **Nothing due** (the default per-item case — reviewer/qa on-demand, security per-epic) **and no
+    risk trigger fired**: add
     `[NOTE] no automated verification this item (cadence) — CI gate + human PR review are the gate`
-    to `## Findings` and go to §8. This is expected, not a failure.
+    to `## Findings` and go to §8. This is expected, not a failure. If a risk trigger *did* fire, the
+    agents it named run even though the cadence says nothing is due — that is the whole point of the
+    override, and the `## Findings` line names which trigger caused it.
 
 Dispatch the due agents in ONE parallel batch. Then:
 1. No open `BLOCKER`/`MAJOR` → phase `pr`, go to §8.
@@ -399,6 +473,17 @@ request it.
 
 Per `aidlc:git-workflow` for the **resolved repo** (cwd = `<repo.path>`; its `mode`/`host`/`remote`/
 `defaultBranch`): commit any remaining state (incl. run file), then integrate per the repo's `mode`.
+
+**Freeze window check, when the repo declares one** (`saas.freezeWindows`). If integrating now would land
+inside a declared freeze, **say so and ask** — do not merge through it silently and do not refuse either:
+opening the PR is almost always still correct (review can proceed), it is the *merge* the freeze governs.
+State the window and its source, note that a `mode: local` run's merge **is** the deploy here, and let the
+user decide. Never treat a freeze as a hard block on an unevidenced window — if `freezeWindows` is absent,
+this paragraph does not apply.
+
+**Label the PR with the resolved `package`** (§2.5) alongside the repo label, so a reviewer sees which
+ownership boundary inside the monorepo the diff crosses. Add the `contract-affecting` label and, for a
+`public: true` contract, a line in the PR body naming the external consumers affected (§7's trigger 2).
 
 - **`mode: remote`** (default): push, create the PR with the filled pr-body template. Then: run-file
   `pr:` ← URL · `adapter.link(ID, {pr})` · `adapter.transition(ID, in_review)` ·

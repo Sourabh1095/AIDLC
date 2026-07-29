@@ -1,7 +1,7 @@
 ---
 name: adopt
-description: Scan an existing workspace — one repo or several, in one folder or a multi-root VS Code workspace — and derive an evidence-backed profile of its topology, languages, package managers, frameworks, gates, CI, VCS state and capability gaps. Read-only: writes only .aidlc/adoption/profile.json and report.md. The brownfield counterpart to /aidlc:bootstrap, which infers a project's shape from a requirements document — adopt infers it from the code that is already there. Use when adopting AIDLC on a project that already has code, before answering /aidlc:init's topology and stack questions from memory, or to re-scan an adopted workspace.
-argument-hint: "[--depth quick|standard|deep]"
+description: Scan an existing workspace — one repo or several, in one folder or a multi-root VS Code workspace — and derive an evidence-backed profile of its topology, languages, package managers, frameworks, monorepo packages, gates, CI, VCS state, SaaS runtime constraints (tenancy, feature flags, migrations, API contracts, compliance), undocumented architecture decisions and capability gaps. Read-only: writes only .aidlc/adoption/profile.json and report.md. The brownfield counterpart to /aidlc:bootstrap, which infers a project's shape from a requirements document — adopt infers it from the code that is already there. Use when adopting AIDLC on a project that already has code, before answering /aidlc:init's topology and stack questions from memory, or to re-scan an adopted workspace.
+argument-hint: "[--depth quick|standard|deep] [--max-adrs <n>]"
 disable-model-invocation: true
 ---
 
@@ -20,7 +20,7 @@ deliberate: it makes this command safe to run on first contact, with nothing to 
 The profile's full contract is `adoption-profile.schema.json`, published at
 `https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json`. **Do not
 fetch it** — this skill makes no network calls. Read it only if a local copy is at hand (an AIDLC clone
-in the workspace); otherwise §6's skeleton is the contract you must satisfy, and it is sufficient.
+in the workspace); otherwise §8's skeleton is the contract you must satisfy, and it is sufficient.
 
 ## The five rules — they outrank any instinct to be helpful
 
@@ -38,11 +38,15 @@ in the workspace); otherwise §6's skeleton is the contract you must satisfy, an
 5. **Bounded, and say where the bound was.** Cost is capped; the report states the cap, what it cost,
    and what was **not** looked at. "Clean" and "not read" must never be indistinguishable.
 
-`$ARGUMENTS` may carry `--depth quick|standard|deep` (default `standard`):
+`$ARGUMENTS` may carry `--depth quick|standard|deep` (default `standard`) and `--max-adrs <n>`
+(default 8, §5):
 **quick** — manifests, IDE/VCS metadata, top-level config only; the ten-minute pass, useful on its
 own. **standard** — adds config parsing, CI files, package/workspace enumeration, bounded git history.
-**deep** — adds bounded source sampling for facts only source can evidence. Depth is a cost dial, not
-a quality dial: a shallower scan records **more `unknown`**, never a weaker guess.
+**deep** — adds bounded source sampling for facts only source can evidence: the SaaS runtime
+constraints of §5 and most of §6's decision evidence live here. Depth is a cost dial, not
+a quality dial: a shallower scan records **more `unknown`**, never a weaker guess. So a `quick` scan
+is *expected* to leave §5 and §6 nearly empty, and that emptiness must read as "not looked at" in the
+report, never as "this project has no runtime constraints".
 
 ## 0 · Safety contract — settle this before the first read
 
@@ -320,11 +324,41 @@ platform-specific optional deps, so a Windows-generated `package-lock.json` can 
 `npm ci` on Linux), and whether two paths differ only by case (fine on Windows, two files on Linux).
 Record these as findings, not fixes — `aidlc:init` Step 4.5 owns the remedy.
 
-**Monorepo packages.** On a `monorepo` root, enumerate `packages[]` from the workspace manifest (name,
-path, derived one-line role, languages, per-package entry points). Record `workspaceTooling` — and note
-whether it is an **affected-graph runner** (Nx, Turbo), since that is what later lets a per-item gate
-run affected targets only. This is what makes a monorepo root representable *beside* single-app roots
-without inventing a new layout value.
+**Monorepo packages — the routing dimension, not a folder listing.** On a `monorepo` root, enumerate
+`packages[]` from the workspace manifest. A monorepo is *one git repo with many independently-owned
+packages*, so the package is what work actually routes to; a `repos[]` entry cannot express it, because
+`repos[]` means a git boundary and there is exactly one. Record per package:
+
+- **`name`** as the package's **own manifest declares it** (`@acme/web`, `acme-worker`, the Maven
+  `artifactId`) — never the folder name if they differ. It keys the per-package gate overrides and
+  labels the PR, so a name invented here silently fails to match anything.
+- **`path`**, relative to the root, and a derived one-line **`role`** plus **`labels`** — the same
+  routing hints a repo entry carries, because routing works the same way.
+- **`stack`** per package. A Next.js app beside a Python worker in one repo is the ordinary case, and
+  resolving stack per *repo* would hand the worker the web coding standards.
+- **`languages`** and per-package **`entryPoints`** (a package's own `test`/`lint`, which become its
+  gate layer).
+- **`dependsOn`** — sibling packages this one depends on, read from the manifests (a `workspace:`
+  protocol dependency, a Maven module dependency, a Cargo `path` dependency). This is what lets
+  cross-package work sequence exactly as cross-repo work does: the shared package lands before its
+  consumers. Names must resolve to siblings, and the graph must be **acyclic** — a cycle leaves "which
+  lands first" with no answer, so record it as a finding rather than emitting an arbitrary order.
+- **`releasable`** — whether the repo's tooling versions and publishes *this package* on its own
+  cadence. Only claim it where the evidence does: a `.changeset/config.json` listing it, `lerna.json`
+  with `"version": "independent"`, an `nx release` config, its own publishable manifest.
+
+Record `workspaceTooling` — and note whether it is an **affected-graph runner** (Nx, Turbo), since that
+is what later lets a per-item gate run affected targets only. Together these make a monorepo root
+representable *beside* single-app roots without inventing a new layout value.
+
+**Release tooling (`releaseTooling`).** Per root: `changesets` (`.changeset/`) · `lerna`
+(`lerna.json`, noting `version: independent`) · `nx-release` · `semantic-release` · `maven-versions` ·
+`cargo-release` · `manual`, plus whether packages version **independently**. This is the fact that
+decides whether a per-package release is even possible — `/aidlc:release` must cut one where the tooling
+supports it and **say plainly that it cannot** where it does not, rather than tagging something the
+project has no way to publish. No release tooling at all is `status: absent` — an answer, not a gap in
+the scan. Do **not** mark any package `releasable` on a root whose `releaseTooling` you could not
+establish: that combination promises a cadence the repo cannot deliver, and the validator rejects it.
 
 **Size and sampling.** Before reading a large root, size it (`git count-objects -vH`, or a file count).
 Above the depth's cap, **sample instead of reading fully**: all manifests, all config, all entry
@@ -339,7 +373,101 @@ each with their own `.git`", "one `.git` plus `pnpm-workspace.yaml` listing 6 pa
 with no named signal is a guess wearing a label. A workspace that mixes a monorepo root with
 single-app roots is `poly` at the workspace level, with `packages[]` on that one root's entry.
 
-## 5 · Support matrix and capability gaps
+## 5 · SaaS runtime constraints — the facts that change how code must be written
+
+For a live product, the facts that most constrain an implementation are **not in the stack list**.
+"TypeScript + Postgres" says almost nothing about what a safe change looks like; "shared-schema
+multi-tenant on `tenant_id`, migrations run against live customer data, releases ride LaunchDarkly
+flags, and `openapi/public-v1.yaml` is a published contract" says nearly everything. Those are the
+facts that turn a plausible diff into a cross-tenant data leak or a breaking change for every
+integrator — and on a brownfield project nobody writes them down, because everyone already knows them.
+
+Record them per root as `saas`. This is mostly a **`--depth deep`** section: tenancy and isolation are
+evidenced in source and schema, not in a manifest. At `quick` or `standard`, record what the manifests
+and config do show and leave the rest `unknown` **with the reason "not sampled at this depth"** — never
+`absent`, and never a default.
+
+| Constraint | Where the evidence is |
+|---|---|
+| `tenancy` | The schema, not the README. **shared-schema**: a `tenant_id`/`org_id`/`account_id`/`workspace_id` column across many tables (ORM models, migrations, `schema.prisma`, `models.py`, entity classes), a request-scoped scoping middleware/interceptor, Postgres row-level-security (`ENABLE ROW LEVEL SECURITY`, `CREATE POLICY`), or an ORM global scope (Rails `default_scope`, Django manager, a Prisma client extension). **schema-per-tenant**: a per-request `SET search_path` / `USE <schema>`, a schema resolver, `django-tenants`, the `apartment` gem. **database-per-tenant**: a connection resolver keyed by tenant, or a tenants registry holding per-tenant connection targets (record that it exists; **never read the connection values**). **single-tenant**: no tenant key anywhere plus per-customer deploy config. **not-multi-tenant**: a library, CLI or internal tool with no tenants at all |
+| `tenantKey` | The column or claim name itself (`tenant_id`, `org_id`) — a reviewer checks a new query against it, so the name matters more than the model label |
+| `tenantIsolationPaths` | The files implementing the mechanism: the scoping middleware, the RLS policy directory, the connection resolver |
+| `authPaths` | Authentication, authorization, SSO, RBAC, session handling — guards, strategies, policy modules, `@Roles`-style decorators |
+| `billingPaths` | Billing, subscription, entitlement, metering, quota enforcement |
+| `featureFlags` | A flag SDK in the manifests (LaunchDarkly, Unleash, Flagsmith, OpenFeature, Split, ConfigCat, PostHog) or a homegrown flag table/module. Set `required: true` **only** where the project's own convention says every user-visible change ships behind one (a CONTRIBUTING rule, a flag wrapper every route goes through) — otherwise record the provider and leave `required` unset |
+| `migrations` | Tool + directory, the same detection as `migrationTools[]`; repeated here because the constraint attaches to it |
+| `liveDataConstraint` | `expand-contract` where migrations run against data real tenants already have. Direct evidence: paired migrations (add nullable column → backfill → later drop), a documented migration policy, a CI check that rejects destructive DDL. **Not optional to answer:** if tenancy is multi-tenant *and* a migration tool exists, this must come back `known` — leaving it silent means the reviewer brief carries no migration constraint and a dropped column reads as an ordinary refactor. `not-required` needs its own evidence (pre-launch, or migrated on customer upgrade), not merely an absence of proof |
+| `apiContracts` | `openapi*.y?ml`/`swagger*`, `*.graphql`/`*.gql`/SDL, `*.proto`, `asyncapi*`, published JSON Schemas, `*.wsdl`. `public: true` when external consumers depend on it — a versioned filename or route (`/v1/`), a published docs site, a client SDK generated from it |
+| `environments`, `deployStrategy` | CI/CD config only: GitHub `environment:` keys, ADO stages, k8s overlays/Helm values-per-env, Terraform workspaces, `argo-rollouts`/`flagger`/`canary`/`blue-green` manifests. Never a guess about what a team probably has |
+| `freezeWindows` | A schedule guard in the deploy workflow, or a documented change-freeze calendar. **Name the source** — an unsourced freeze would block an integration on a rumour |
+| `compliance` | A **named signal**: a BAA reference, a PCI SAQ, a DPA, a SOC 2 control document with evidence owners, an audit-log table, GDPR/DSAR code paths. Never the word "secure" in a README, and never the industry the product serves. A regime raises the review cost of every future change, so an inferred one is an expensive wrong answer |
+| `messaging` | Queues, brokers, streams, schedulers, webhook handlers (BullMQ, Celery, Sidekiq, Kafka, SQS/SNS, RabbitMQ, Pub/Sub, cron configs). Their message shapes are contracts with consumers that **no contract file records** |
+| `observability` | Sentry, Datadog, OpenTelemetry, New Relic, Prometheus — recorded because incidents are a legitimate intake source, and because a diff that drops instrumentation is a regression no test catches |
+| `integrations` | Third-party SDKs and webhook endpoints, by name and path. Sandbox-vs-production credential handling is recorded as a *shape* only; production credentials stay barred by `rules/safety.md` regardless |
+| `experimentation` | An A/B or analytics-rollout library, where evidenced |
+
+Then compute **`securityReviewPathSeeds`**: the union of `tenantIsolationPaths`, `authPaths`,
+`billingPaths`, and any path a named compliance regime governs. This is the array the apply step
+proposes into `pipeline.securityReviewPaths`, and it is the whole mechanism behind "a change to tenant
+isolation is security-reviewed regardless of cadence". A path recorded as sensitive above and missing
+from the seeds is a path that will be reviewed on the ordinary cadence — recorded as dangerous, treated
+as routine. The validator rejects that, because it is invisible in a report that otherwise looks complete.
+
+Four rules specific to this section:
+
+1. **`unknown` is emphatically not `not-multi-tenant`.** Finding no tenant column because you sampled
+   30 files of 4,000 is not evidence of single tenancy — and getting this backwards is the worst
+   available outcome, since it tells every later reviewer that cross-tenant leaks are impossible here.
+2. **Still no runtime access.** No database connection, no query, no deploy API, no health endpoint.
+   Tenancy is read from the schema and the code that uses it (`rules/safety.md`).
+3. **Env files stay closed.** Environment *names* come from CI/CD config, never from reading a `.env`.
+   §0's contract is unchanged by this section needing environment names.
+4. **This block informs; it does not gate.** It feeds the implementer, reviewer and security briefs.
+   Exactly two things become conditional gates downstream, and both hang on an evidenced fact: a
+   destructive migration where `liveDataConstraint` is `expand-contract` is a review **blocker**, and a
+   diff touching an `apiContracts`, `authPaths` or `tenantIsolationPaths` entry is reviewed regardless
+   of the configured cadence. Nothing else here blocks anything, and the report says so.
+
+## 6 · Decisions the code embeds with no ADR
+
+`/aidlc:do` and the architect are only as good as `docs/adr/` — and on a brownfield project that
+directory is empty while the decisions themselves are everywhere in the code. The scan can close half
+of that gap: it can see **what** was decided and prove it. It can never see **why**, and that asymmetry
+is the whole design of this section.
+
+Propose candidates in `adrCandidates[]`, one per decision, across these kinds: `framework` ·
+`data-store` · `auth-model` · `tenancy-model` · `api-style` · `deployment-topology` · `messaging` ·
+`migration-strategy` · `frontend-architecture` · `build-tooling` · `observability` · `other`. Most are
+already evidenced by §3 and §5 — this section names them as decisions rather than as detected tools.
+
+- **`title` states the decision, not its topic.** *"Isolate tenants in one shared Postgres schema keyed
+  by `tenant_id`"*, not *"Tenancy"*. It becomes the ADR's H1, and a topic makes a useless ADR.
+- **Rank by `reversibilityCost`, highest first, and cap the list** (`--max-adrs`, default 8, recorded
+  in `scan.budget.caps.maxAdrCandidates`). An ADR earns its page by being expensive to undo: a tenancy
+  model or a public contract is `high`, a framework or deployment shape `medium`, a formatter `low`.
+  The cap truncates the tail, so an unranked list drops exactly the decisions worth recording.
+- **`decidedAt` where history establishes it** — `git -C "<root>" log -1 --diff-filter=A --format=%ad -- <path>`
+  for the file that introduced the pattern. On a squashed or shallow history this is genuinely
+  `unknown`, and the rendered ADR then dates itself `unknown`. That is the correct output.
+- **`consequencesObserved` is observation, not judgement.** *"Every repository filters by `tenantId`;
+  3 of 11 do it by hand rather than through the base repository"* is an observation. *"This was the
+  right trade-off for their scale"* is an opinion the scan has no standing to hold.
+- **De-duplicate against what is already recorded.** Read `docs/adr/*`, the `docs[]` entries from §3
+  (an `RFCs/` directory, a Confluence or Notion link in the README) and, on a re-adoption, the config's
+  `adoption.adrs[]`. A decision already recorded is listed with `status: "already-recorded"` and its
+  `existingAdr` — **listed, not dropped**, so a second run's silence reads as *checked and covered*
+  rather than *never looked*. An existing doc in another format or location is **linked, never copied
+  or relocated**: it is the team's file, in the place they keep it.
+- **Never invent a rationale — in any spelling.** A candidate carries no `rationale`, `why`, `because`,
+  `alternatives` or `alternativesConsidered`, and the validator rejects all five. The reason is
+  specific: an ADR marked `accepted` is read as settled history, so one plausible invented sentence
+  becomes a decision record nobody authored and everybody trusts. `/aidlc:adopt-adr` renders those
+  sections as *"not recorded — confirm with the team"*, which is the honest artifact.
+
+**Nothing is written to `docs/adr/` here.** This section proposes; `/aidlc:adopt-adr` writes, one ADR
+at a time, each behind its own approval.
+
+## 7 · Support matrix and capability gaps
 
 For **every** detected surface — stack, tracker, VCS, CI system, migration tool, container, hooks,
 release channel — emit a `surfaces[]` entry with `support` and a **one-line consequence**. Judge
@@ -356,7 +484,7 @@ support in principle: today that is `aidlc-stack-web` for TS/JS, and markdown/Ji
   step writes into `.aidlc/extensions.json` so `/aidlc:scaffold-skill` and `/aidlc:promote` can act on
   it. The scan itself writes nothing there.
 
-## 6 · Write the profile
+## 8 · Write the profile
 
 Write `.aidlc/adoption/profile.json` with `profileVersion: 1` and `$schema` set to the published URL
 above. This is the shape — every leaf fact is one of the three `fact` forms, and there is no fourth:
@@ -394,9 +522,19 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
       "ci": [], "hooks": [], "migrationTools": [], "containers": [],
       "entryPoints": { "install": {}, "build": {}, "dev": {}, "test": {}, "lint": {},
                        "typecheck": {}, "format": {}, "migrate": {} },
-      "packages": [ { "name": "…", "path": "…", "role": "…", "labels": [], "languages": [],
+      "packages": [ { "name": "<as the package's own manifest declares it>", "path": "…", "role": "…",
+                      "labels": [], "languages": [], "stack": { "frontend": null, "backend": null, "databases": [] },
+                      "dependsOn": ["<sibling package name>"], "releasable": false,
                       "entryPoints": {}, "evidence": [] } ],
       "workspaceTooling": { /* fact — note if it is an affected-graph runner */ },
+      "releaseTooling":   { /* fact → {tool, independentVersioning} — or absent */ },
+      "saas": {
+        "tenancy": {}, "tenantKey": {}, "tenantIsolationPaths": {}, "authPaths": {}, "billingPaths": {},
+        "featureFlags": {}, "migrations": {}, "liveDataConstraint": {}, "apiContracts": {},
+        "environments": {}, "deployStrategy": {}, "freezeWindows": {}, "compliance": {},
+        "messaging": {}, "observability": {}, "integrations": {}, "experimentation": {},
+        "securityReviewPathSeeds": [ /* union of the isolation/auth/billing/compliance paths above */ ]
+      },
       "gates": [ { "name": "test", "status": "present|absent", "cmd": "<verbatim; forbidden when absent>",
                    "cwd": "…", "source": "package.json scripts.test", "required": true,
                    "scope": "repo|package|affected|changed-paths", "package": "…",
@@ -415,6 +553,11 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
                   "detected": "…", "root": "…", "support": "…", "providedBy": "…",
                   "consequence": "<one line — required>", "evidence": [] } ],
   "gaps":     [ { "name": "…", "kind": "skill|agent|plugin|adapter", "surface": "…", "why": "…", "workaround": "…" } ],
+  "adrCandidates": [ { "decisionKind": "tenancy-model", "title": "<the decision as a statement>",
+                       "status": "propose|already-recorded", "existingAdr": "<required iff already-recorded>",
+                       "reversibilityCost": "high|medium|low", "root": "…", "decidedAt": { /* fact */ },
+                       "consequencesObserved": ["<observation, never judgement>"], "evidence": []
+                       /* NO rationale/why/because/alternatives — the scan never saw the why */ } ],
   "safety": {
     "envFiles":       [ { "path": "…", "contentsRead": false, "gitTracked": false } ],
     "secretFindings": [ { "location": "path:line | history: <commit> <path>", "type": "…", "inHistory": false, "redacted": true } ],
@@ -448,9 +591,13 @@ guess this whole design exists to prevent), evidence on every `known` and `absen
 evidence kind requires, `writes[]` never leaving `.aidlc/adoption/`, an unreachable root naming its
 remedy, an unsupported surface naming its gap, redaction invariants on secret/PII findings, the required
 report sections — and, as a backstop, that **no credential-shaped string appears anywhere in either
-file**. A profile that does not pass is not a profile: fix it and re-run, and never report a scan as
-complete over a failing validation. (If the validator is missing — an unusual install — say so, and fall
-back to re-reading and `JSON.parse`ing the file, the F49 floor.)
+file**. It also enforces the three §5/§6 rules that would otherwise fail invisibly: **no ADR candidate
+carries a rationale** in any spelling, **every auth / tenant-isolation / billing path reaches
+`securityReviewPathSeeds`**, and a **multi-tenant root with migrations answers the expand/contract
+question** — plus that candidates are ranked and capped, and that a package's `dependsOn` resolves to
+siblings with no cycle. A profile that does not pass is not a profile: fix it and re-run, and never
+report a scan as complete over a failing validation. (If the validator is missing — an unusual install —
+say so, and fall back to re-reading and `JSON.parse`ing the file, the F49 floor.)
 
 Populate `scan.writes.paths` with the two files you wrote — and then verify the read-only claim instead
 of asserting it: `git status --porcelain` at the control plane **and at every reachable root** (nested or
@@ -460,7 +607,7 @@ quietly move on.
 Both files are meant to be **tracked**: the profile is the baseline every later drift scan compares
 against, so it needs history.
 
-## 7 · The report
+## 9 · The report
 
 `.aidlc/adoption/report.md`, written for a human seeing AIDLC for the first time, in this order:
 
@@ -469,7 +616,9 @@ against, so it needs history.
    path, classification, reachable, nested. Any root needing `--add-dir`, trust, or plugin enablement
    appears here **with its exact fix**.
 3. **Per root** — VCS, languages/frameworks with paths, entry points (marking every `absent` one),
-   CI, hooks, migrations, containers, packages.
+   CI, hooks, migrations, containers, and the **packages** table for a monorepo root: name, path, role,
+   stack, what it depends on, and whether it releases on its own cadence. That table is what routing,
+   gate scoping and release all key off, so it earns its space.
 4. **The gate, per root** — the ordered sequence as it would run, each step with its command, scope and
    whether CI runs it too. **Name every `absent` step as a coverage hole in its own line**, and name every
    local/CI parity gap. This table is the single most useful thing in the report for a brownfield team:
@@ -477,27 +626,40 @@ against, so it needs history.
 5. **Conventions, per root** — branch and commit style, merge strategy, integration branch, long-lived
    branches, CODEOWNERS, push access. Where the project has no convention, say *"none detected — AIDLC's
    default would apply"* rather than presenting the default as a finding.
-6. **Supported / partial / unsupported** — the matrix from §5, one consequence per row.
-7. **Not determined** — every `unknown` fact with its reason, counted. A short list here is a quality
+6. **Runtime constraints, per root** (§5) — a table of *constraint → what it means for a change*, not a
+   list of detected tools. `shared-schema tenancy on tenant_id` → *every query filters by tenant; a miss
+   is a cross-tenant read*. `migrations against live data` → *expand/contract + backfill; a destructive
+   migration blocks review*. `LaunchDarkly` → *user-visible changes ship behind a flag*. Then name the
+   paths that will be security-reviewed regardless of cadence, and any freeze window. Where the depth did
+   not reach a constraint, say **"not sampled at this depth"** — the one thing this section must never do
+   is let silence read as "no constraint".
+7. **Decisions with no ADR** (§6) — the ranked candidate list: decision, reversibility cost, evidence,
+   and the count already recorded elsewhere. State plainly that each proposed ADR will leave its rationale
+   blank for a human, because the scan read code and not the conversation. Point at `/aidlc:adopt-adr`.
+8. **Supported / partial / unsupported** — the matrix from §7, one consequence per row.
+9. **Not determined** — every `unknown` fact with its reason, counted. A short list here is a quality
    claim; a long one is honest and fine. Never pad it away by guessing.
-8. **Safety** — env files by path, redacted secret findings, PII-suspect fixtures.
-9. **Scan budget and coverage** — files and directories inspected, elapsed time, the caps that
-   applied and whether one was hit, the sampling strategy and coverage percent, and the explicit list
-   of what was skipped and why.
-10. **Next step** — `/aidlc:adopt-apply`, which turns this profile into configuration behind a shown
-    diff and an explicit approval. List here the facts whose confidence is `low` and the `unknown`s that
-    matter, since those become the questions it will ask rather than values it will propose.
+10. **Safety** — env files by path, redacted secret findings, PII-suspect fixtures.
+11. **Scan budget and coverage** — files and directories inspected, elapsed time, the caps that
+    applied and whether one was hit (including the ADR cap), the sampling strategy and coverage percent,
+    and the explicit list of what was skipped and why.
+12. **Next step** — `/aidlc:adopt-apply`, which turns this profile into configuration behind a shown
+    diff and an explicit approval, then `/aidlc:adopt-adr` for the decisions above. List here the facts
+    whose confidence is `low` and the `unknown`s that matter, since those become the questions apply will
+    ask rather than values it will propose.
 
-## 8 · What adopt does not do
+## 10 · What adopt does not do
 
 Say this at the end, so nobody waits for a write that is not coming:
 
-- It does **not** write `aidlc.config.json`, `CLAUDE.md`, `pipeline.gates.verify` or `rules/git-workflow.md`.
-  **`/aidlc:adopt-apply` does that**, from this profile, behind a shown diff and an explicit approval.
-  Keeping the two apart is what makes the scan safe to run on first contact: this command cannot change
-  a file the team owns, so there is nothing to undo.
-- It does **not** propose ADRs or backlog items — later phases (`docs/brownfield-adoption.md`,
-  ADOPT-10/11).
+- It does **not** write `aidlc.config.json`, `CLAUDE.md`, `pipeline.gates.verify`, `packages[]`, the
+  `saas` block or `rules/git-workflow.md`. **`/aidlc:adopt-apply` does that**, from this profile, behind a
+  shown diff and an explicit approval. Keeping the two apart is what makes the scan safe to run on first
+  contact: this command cannot change a file the team owns, so there is nothing to undo.
+- It does **not** write ADRs. §6 *proposes* them; **`/aidlc:adopt-adr`** writes the approved ones into
+  `docs/adr/`, one at a time, each with its rationale left for a human.
+- It does **not** seed a backlog from what it found — that is ADOPT-11
+  (`docs/brownfield-adoption.md`, Phase 4).
 - It does **not** remediate anything it finds. Missing tests, absent gates and stale dependencies are
   reported; fixing them is normal pipeline work through the normal doors.
 - It does **not** replace `/aidlc:init`. Init owns the permission posture and the scaffold; adopt owns

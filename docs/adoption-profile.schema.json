@@ -62,6 +62,7 @@
                 "maxFiles": { "type": "integer" },
                 "maxFileBytes": { "type": "integer" },
                 "maxDepth": { "type": "integer" },
+                "maxAdrCandidates": { "type": "integer", "minimum": 1, "default": 8, "description": "Cap on how many retroactive-ADR candidates the scan proposes (adrCandidates[] with status=propose). Ranked by reversibility cost, so the cap drops the cheapest-to-change decisions first. Recorded here rather than assumed so a reader can tell a short list from a truncated one." },
                 "hitCap": { "type": "boolean", "description": "True if a cap terminated the scan early. When true the report must say which cap and what was left unread." }
               }
             }
@@ -186,6 +187,11 @@
           "workaround": { "type": "string", "description": "What the project uses until then, e.g. 'markdown backlog as the tracker adapter'." }
         }
       }
+    },
+    "adrCandidates": {
+      "type": "array",
+      "description": "Decisions already embedded in the code that have no ADR recording them — the retroactive-ADR proposals of ADOPT-10. On a brownfield project docs/adr/ is empty while the decisions themselves are everywhere in the code, which starves /aidlc:do and the architect of the one thing they cannot re-derive. Ordered by reversibility cost, HIGHEST FIRST: the cap keeps the decisions that would be expensive to undo and drops the cheap ones. Writing an ADR from a candidate is a separate approved step (/aidlc:adopt-adr) with per-ADR approval — this array proposes, and the scan writes nothing to docs/adr/.\n\nA candidate records WHAT was decided and the code that proves it. It must not record WHY: the reason lives in a conversation the scan never saw, and an invented rationale in an accepted ADR is worse than an empty one because every later reader treats it as history. The forbidden-field rule below is what makes that mechanical rather than aspirational.",
+      "items": { "$ref": "#/definitions/adrCandidate" }
     },
     "safety": {
       "type": "object",
@@ -357,6 +363,212 @@
         "support": { "$ref": "#/definitions/support" }
       }
     },
+    "adrCandidate": {
+      "type": "object",
+      "description": "One irreversible decision the code already embodies, proposed as a retroactive ADR. `propose` means no ADR records it yet; `already-recorded` means one does and it is listed here anyway, so a re-run's silence is legible as 'checked and covered' rather than 'never looked'.",
+      "required": ["decisionKind", "title", "status", "reversibilityCost", "evidence"],
+      "additionalProperties": true,
+      "properties": {
+        "decisionKind": {
+          "enum": [
+            "framework", "data-store", "auth-model", "tenancy-model", "api-style",
+            "deployment-topology", "messaging", "migration-strategy", "frontend-architecture",
+            "build-tooling", "observability", "other"
+          ],
+          "description": "The decision's topic, from a closed list so de-duplication against already-recorded ADRs is mechanical rather than a judgement call on titles. Unique per profile: two candidates for the same topic means one decision would get two ADRs."
+        },
+        "title": { "type": "string", "description": "The decision as a STATEMENT, in the ADR template's voice — 'Store tenant data in one shared Postgres schema keyed by tenant_id', not 'Database choice'. It becomes the ADR's H1." },
+        "status": {
+          "enum": ["propose", "already-recorded"],
+          "description": "propose: no ADR covers this decision — a candidate for /aidlc:adopt-adr. already-recorded: docs/adr/ (or a linked external doc) already records it, so it is NOT proposed again. Recording it rather than dropping it is what makes re-adoption's no-new-ADRs outcome verifiable."
+        },
+        "existingAdr": { "type": "string", "description": "Path or URL of the ADR/doc that already records this decision. Required when status=already-recorded, forbidden when status=propose." },
+        "reversibilityCost": {
+          "enum": ["high", "medium", "low"],
+          "description": "What undoing this decision would cost — the ranking key, since an ADR earns its page by being hard to reverse. high: a data model, tenancy model or public contract that consumers depend on. medium: a framework or deployment shape. low: a tooling choice a day's work replaces."
+        },
+        "root": { "type": "string", "description": "The root whose code evidences it; omit for a workspace-wide decision." },
+        "decidedAt": {
+          "$ref": "#/definitions/fact",
+          "description": "When the decision was made, where history establishes it (the commit that introduced the pattern). status=unknown is the common and correct answer on a squashed or shallow history — the ADR's Date then reads `unknown`, never a plausible guess."
+        },
+        "consequencesObserved": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Consequences VISIBLE IN THE CODE — 'every query must filter by tenant_id, and 3 repositories do it by hand'. Observation, not judgement: what the code shows, not whether it was wise."
+        },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } },
+        "rationale": { "not": {}, "description": "FORBIDDEN, along with its four synonyms below. The scan can see WHAT was decided and never WHY — the why lives in a conversation it did not witness. The rendered ADR marks `## Rationale` and `## Alternatives considered` as *not recorded — confirm with the team*; a plausible sentence here becomes permanent history nobody authored and everybody cites. Each spelling is forbidden individually rather than by `additionalProperties: false`, because this object stays additive (a new field must not require a profileVersion bump) — so the ban has to name what it bans. validate-profile.mjs enforces the same five." },
+        "why": { "not": {}, "description": "FORBIDDEN — see `rationale`." },
+        "because": { "not": {}, "description": "FORBIDDEN — see `rationale`." },
+        "alternatives": { "not": {}, "description": "FORBIDDEN — see `rationale`. The scan cannot know what was rejected, and listing the obvious alternatives as though they had been weighed is the same invention in a different section." },
+        "alternativesConsidered": { "not": {}, "description": "FORBIDDEN — see `alternatives`." }
+      },
+      "allOf": [
+        { "if": { "required": ["status"], "properties": { "status": { "const": "already-recorded" } } }, "then": { "required": ["existingAdr"] } },
+        { "if": { "required": ["status"], "properties": { "status": { "const": "propose" } } }, "then": { "not": { "required": ["existingAdr"] } } }
+      ]
+    },
+    "saasProfile": {
+      "type": "object",
+      "description": "The runtime constraints that change how code must be WRITTEN, which are not in the stack list. For a live SaaS, 'TypeScript + Postgres' says far less about a safe change than 'shared-schema multi-tenant, migrations run against live data, releases ride feature flags, and the OpenAPI file is a public contract'. Every field is a fact, so an unevidenced constraint is `unknown` — and `unknown` here means the agent briefs stay silent rather than asserting a constraint that may not exist. Most of these need `depth: deep` (they are evidenced in source, not manifests); a quick scan is expected to leave the block sparse.",
+      "additionalProperties": true,
+      "properties": {
+        "tenancy": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "enum": ["shared-schema", "schema-per-tenant", "database-per-tenant", "single-tenant", "not-multi-tenant"] } } }
+          ],
+          "description": "How tenants are isolated — the single most constraining runtime fact. shared-schema: one schema, rows keyed by a tenant column (every query must filter; a missing filter is a cross-tenant data leak). schema-per-tenant / database-per-tenant: isolation is structural, but migrations must fan out. single-tenant: one customer per deployment. not-multi-tenant: not a tenanted product at all. Evidence is a tenant column, a schema-switching middleware, or a per-tenant connection resolver — never the marketing copy in the README."
+        },
+        "tenantIsolationPaths": {
+          "$ref": "#/definitions/fact",
+          "description": "value: [paths] carrying the isolation mechanism itself (the tenant-scoping middleware, the row-level-security policies, the connection resolver). A change here can leak one customer's data into another's response, so these paths are security-review paths regardless of the configured cadence — they must appear in securityReviewPathSeeds."
+        },
+        "authPaths": {
+          "$ref": "#/definitions/fact",
+          "description": "value: [paths] carrying authentication, authorization, SSO, RBAC or session handling. Always security-review paths, for the same reason as tenant isolation — they must appear in securityReviewPathSeeds."
+        },
+        "billingPaths": {
+          "$ref": "#/definitions/fact",
+          "description": "value: [paths] carrying billing, subscription, entitlement or metering logic. Revenue-critical: a silent bug here bills the wrong amount, so these join securityReviewPathSeeds too."
+        },
+        "featureFlags": {
+          "$ref": "#/definitions/fact",
+          "description": "value: {provider, paths[]} for a flag system in use (LaunchDarkly, Unleash, Flagsmith, OpenFeature, or a homegrown table). When known, the implementer brief must state that user-visible changes ship behind a flag — that is the project's release mechanism, and ignoring it puts an unflagged change in front of every customer at merge."
+        },
+        "migrations": {
+          "$ref": "#/definitions/fact",
+          "description": "value: {tool, directory} for the migration tool and where its migrations live (Prisma, TypeORM, Alembic, Flyway, Liquibase, EF Core, Rails, Django, golang-migrate). Also recorded in migrationTools[]; repeated here because the SaaS constraint attaches to it."
+        },
+        "liveDataConstraint": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "enum": ["expand-contract", "not-required"] } } }
+          ],
+          "description": "Whether schema changes must be expand/contract with a backfill rather than break-and-fix. `expand-contract` whenever migrations run against live data shared by tenants — then a destructive migration (a dropped or renamed column, a narrowed type, a NOT NULL on an existing column) is a review BLOCKER, not a style note. `not-required` only where the evidence actually supports it (a single-tenant install migrated on upgrade, a pre-launch schema)."
+        },
+        "apiContracts": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            {
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["path"],
+                    "additionalProperties": true,
+                    "properties": {
+                      "kind": { "enum": ["openapi", "graphql", "proto", "grpc", "asyncapi", "json-schema", "wsdl"] },
+                      "path": { "type": "string" },
+                      "public": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "description": "value: [{kind, path, public}]. These paths ARE the contract-affecting set: a diff touching one marks the item contract-affecting so breaking-change review runs regardless of cadence. `public: true` means external consumers depend on it and a break is a customer-visible incident."
+        },
+        "environments": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            {
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name"],
+                    "additionalProperties": true,
+                    "properties": {
+                      "name": { "type": "string" },
+                      "kind": { "enum": ["dev", "test", "staging", "production", "preview", "other"] }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "description": "value: [{name, kind}] from CI/CD config, deploy manifests or environment definitions — not from a guess about what a team probably has."
+        },
+        "deployStrategy": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "enum": ["rolling", "blue-green", "canary", "recreate", "release-train", "manual", "continuous"] } } }
+          ],
+          "description": "How a change reaches production, from CI/CD config. Load-bearing with feature flags: canary or flag-gated delivery is why a change may merge before it is visible."
+        },
+        "freezeWindows": {
+          "$ref": "#/definitions/fact",
+          "description": "value: [{when, source}] for deploy freezes or release trains the project declares (a CI schedule guard, a documented change-freeze calendar). Surfaced at integration when a merge would violate one — recorded, never enforced silently."
+        },
+        "compliance": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            {
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["regime", "signal"],
+                    "additionalProperties": true,
+                    "properties": {
+                      "regime": { "enum": ["soc2", "hipaa", "gdpr", "pci", "iso27001", "fedramp", "other"] },
+                      "signal": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "description": "value: [{regime, signal}]. The SIGNAL must be named (a BAA reference, a PCI SAQ, a data-processing addendum, an audit-evidence directory) — a compliance claim inferred from the word 'secure' in a README is exactly the wrong kind of fact to put in permanent config, since it raises the review cost of every future change."
+        },
+        "messaging": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            {
+              "properties": {
+                "value": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name"],
+                    "additionalProperties": true,
+                    "properties": {
+                      "name": { "type": "string" },
+                      "kind": { "enum": ["queue", "broker", "stream", "scheduler", "webhook"] },
+                      "paths": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "description": "value: [{name, kind, paths[]}]. Background jobs and event contracts have consumers that a diff can break invisibly — a changed message shape is a contract change without a contract file.",
+          "$comment": "The kind enum here is duplicated in validate-profile.mjs as MESSAGING_KINDS and cross-checked by its test suite."
+        },
+        "observability": {
+          "$ref": "#/definitions/fact",
+          "description": "value: [{name, paths[]}] for error tracking / metrics / tracing (Sentry, Datadog, OpenTelemetry, Grafana). Recorded because incidents are a legitimate intake source, and because a change that drops instrumentation is a regression nobody's tests catch."
+        },
+        "integrations": {
+          "$ref": "#/definitions/fact",
+          "description": "value: [{name, paths[], sandboxEvidence?}] for third-party services and webhooks. Recorded so a change at that seam is reviewed as an integration change; production credentials remain barred by rules/safety.md regardless of what is recorded here."
+        },
+        "experimentation": {
+          "$ref": "#/definitions/fact",
+          "description": "value: {provider, paths[]} for A/B testing or analytics-driven rollout, where evidenced."
+        },
+        "securityReviewPathSeeds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The union of every path above that must trigger security review regardless of the configured cadence — tenant isolation, auth, billing, and paths a named compliance regime governs. This is the array /aidlc:adopt-apply proposes into pipeline.securityReviewPaths (union with what is already there, never a replacement). It is derived, not independent: a path recorded in authPaths, tenantIsolationPaths or billingPaths and missing here is a silently un-reviewed path, which is the failure ADOPT-9's last two criteria exist to prevent."
+        }
+      }
+    },
     "root": {
       "type": "object",
       "description": "One workspace root (a folder the IDE exposes, or a subfolder found by the folder scan), classified and — when it is a product repo or monorepo — profiled.",
@@ -489,21 +701,45 @@
         },
         "packages": {
           "type": "array",
-          "description": "The package dimension of a monorepo: one git repo, many independently-owned packages. Present on a root classified monorepo, which is what lets a workspace hold a monorepo beside single-app repos without a second layout value. Consumed by ADOPT-8's packages[] registry.",
+          "description": "The package dimension of a monorepo: one git repo, many independently-owned packages with their own gates and release cadence. Present on a root classified monorepo, which is what lets a workspace hold a monorepo beside single-app repos without a second layout value. Becomes the config's packages[] registry, which routes items exactly as repos[] does — the runnable leaf is still one branch and one PR, now scoped to a package inside one repo.",
           "items": {
             "type": "object",
             "required": ["name", "path", "evidence"],
             "additionalProperties": true,
             "properties": {
-              "name": { "type": "string" },
+              "name": { "type": "string", "description": "The package's own name as its manifest declares it (`@acme/web`, `acme-worker`, the Maven artifactId). Routing and PR labels use it, so it must match what the project calls it — not a folder name invented here." },
               "path": { "type": "string", "description": "Relative to the root." },
               "role": { "type": "string", "description": "One line, derived — used as a routing hint exactly as a repo's role is." },
               "labels": { "type": "array", "items": { "type": "string" } },
               "languages": { "type": "array", "items": { "type": "string" } },
+              "stack": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Per-package stack, same shape as a repo's: {frontend, backend, databases}. A monorepo's packages routinely differ (a Next.js app beside a Python worker), and resolving stack per repo would hand the worker the web standards.",
+                "properties": {
+                  "frontend": { "type": ["string", "null"] },
+                  "backend": { "type": ["string", "null"] },
+                  "databases": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Other packages IN THIS ROOT that this one depends on, by their `name`, read from the manifests (a workspace: protocol dependency, a Maven module dependency, a Cargo path dependency). This is what lets cross-package work sequence the way cross-repo work does: a change to a shared package lands before its consumers. Names must resolve to siblings in this array, and the graph must be acyclic — a cycle makes 'which lands first' unanswerable."
+              },
               "entryPoints": { "type": "object", "additionalProperties": true, "description": "Per-package overrides, same shape as the root's entryPoints." },
+              "releasable": { "type": "boolean", "description": "Whether this package versions and publishes on its own cadence (a changeset config listing it, an independent Lerna version, its own publishable manifest). False/absent means it releases with the repo — which /aidlc:release must say plainly rather than cutting a per-package release the tooling cannot support." },
               "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } }
             }
           }
+        },
+        "releaseTooling": {
+          "$ref": "#/definitions/fact",
+          "description": "value: {tool, independentVersioning} where tool is one of changesets | lerna | nx-release | semantic-release | maven-versions | cargo-release | manual, and independentVersioning says whether packages version separately. This is what decides whether /aidlc:release can cut a PER-PACKAGE release or must say plainly that the repo releases as one unit. status=absent means the repo has no release tooling at all — also an answer, and better stated than assumed."
+        },
+        "saas": {
+          "$ref": "#/definitions/saasProfile",
+          "description": "The runtime constraints for this root, when it serves a live product. Absent on a library, a CLI or a docs root — and absence here means the agent briefs carry no runtime constraints, not that the constraints do not exist."
         },
         "workspaceTooling": {
           "$ref": "#/definitions/fact",

@@ -27,8 +27,20 @@ Work the checklist in this order (highest value first):
 2. **Correctness** — logic errors, edge cases (empty/null/boundary), error handling, race conditions.
 3. **Regressions** — does the diff break existing behavior or contracts other code relies on?
 4. **Security basics** — injected input reaching queries/shell/HTML, secrets in code, authz gaps in touched routes.
-5. **Standards** — project conventions, loaded coding-standards skills, commit message format.
-6. **Tests** — do the added tests actually assert the new behavior (not just execute it)?
+5. **Runtime constraints** — when your brief carries the project's `saas` constraints, they are review
+   criteria, and each is something a green gate cannot detect:
+   - **Tenant scoping** — every new or changed query filters by the named tenant key, and every new
+     table carries it. An unscoped query is a cross-tenant read: `BLOCKER`.
+   - **Destructive migrations** where expand/contract applies — a dropped or renamed column, a narrowed
+     type, a `NOT NULL` on an existing column, a dropped table: `BLOCKER`, with the expand/contract
+     sequence as the fix. The migration passing against a fresh test DB is not evidence.
+   - **Contract changes** — for a diff touching a named API contract, check every change is additive;
+     if not, is that intended and versioned? A break on a `public: true` contract is a `BLOCKER`.
+   - **Flagged delivery** — where flags are the release mechanism, is the user-visible change behind one?
+   - **Message shapes** — a changed queue/event payload with unnamed consumers is at least a `MAJOR`.
+   Constraints absent from your brief do not apply; do not invent them.
+6. **Standards** — project conventions, loaded coding-standards skills, commit message format.
+7. **Tests** — do the added tests actually assert the new behavior (not just execute it)?
 
 ## Severity taxonomy (use exactly these)
 

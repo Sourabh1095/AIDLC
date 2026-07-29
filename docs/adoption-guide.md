@@ -65,6 +65,7 @@ claude
 /aidlc:init             # choose the "there's existing code — scan it" path
 /aidlc:adopt            # read-only scan; or: /aidlc:adopt --depth quick
 /aidlc:adopt-apply      # shows the diff, writes only what you approve
+/aidlc:adopt-adr        # optional: record the decisions your code already embodies
 ```
 
 `/aidlc:adopt` is **read-only**. It writes exactly two files — `.aidlc/adoption/profile.json` (a
@@ -85,6 +86,22 @@ paths. It reports, per repo:
   quietly replaced by AIDLC's npm defaults.
 - **VCS reality** — shallow clones, submodules, existing worktrees, LFS, forks, and a non-git checkout
   (Mercurial, SVN, Perforce) which is reported as unsupported while the code is still profiled.
+- **Monorepo packages** — for a repo holding many packages (pnpm/npm/yarn workspaces, Nx, Turbo, Lerna,
+  Maven modules, a Cargo workspace): each package's name as *its own manifest* declares it, its path, a
+  derived role, its own stack, which sibling packages it depends on, and whether your tooling can release
+  it independently. That last one is checked rather than assumed, so nothing later promises a per-package
+  release your project has no way to publish.
+- **Runtime constraints, if you run a live product** — the facts that decide what a *safe* change looks
+  like and that nobody writes down because everyone already knows them: how tenants are isolated and on
+  which key, whether releases ride feature flags, whether migrations run against live customer data,
+  which files are public API contracts, your environments and deploy strategy, any declared change-freeze
+  window, and any compliance regime **with the signal that evidenced it**. This is mostly a
+  `--depth deep` section; at shallower depths it reports *"not sampled at this depth"* rather than
+  letting silence read as "no constraints here".
+- **Decisions with no ADR** — the irreversible choices your code embodies (tenancy model, data store,
+  auth model, API style, deployment topology…), ranked by how expensive each would be to undo and capped
+  (default 8, `--max-adrs`). Decisions already recorded — including in a Confluence page or an `RFCs/`
+  directory — are listed as already covered rather than re-proposed.
 - **Supported / partial / unsupported**, one line of consequence each, judged against the plugins you
   actually have installed. A Django + Terraform + Flutter shop gets the language-agnostic core and is
   told so plainly.
@@ -117,12 +134,35 @@ keep / replace` (defaulting to keep), and writes nothing until you approve. What
   `.claude/rules/git-workflow.md` is re-rendered from these; where your project has no convention, AIDLC's
   default is used *and labelled as a default*. A fork-only repo gets a fork → upstream-PR path instead of a
   push that would fail.
+- **`packages[]`** on the repo entry (or at the top level in a single-repo workspace) — the package
+  dimension of a monorepo. It stays `layout: mono`/one repo entry on purpose: `repos[]` means a *git*
+  boundary and a monorepo has exactly one, so the package is a second dimension rather than a third
+  layout. An item then routes to a package, and its gate **layers** over the repo's — a package that
+  declares its own `test` still inherits the repo's `lint`, because a gate that silently vanished is
+  indistinguishable from one that passed.
+- **The `saas` block** and the security-review paths it seeds. `pipeline.securityReviewPaths` is extended
+  by **union**, never replaced, so anything you added by hand stays. Two things then become conditional
+  gates, both only where the scan found evidence: a destructive migration is a review **blocker** where
+  migrations run against live tenant data, and a diff touching a public API contract, an auth path or a
+  tenant-isolation path is reviewed **regardless of your configured cadence**. A detected compliance
+  regime *recommends* raising the security cadence and names the signal — it never raises it for you.
 - **Provenance** (`adoption.scannedAt` / `commit`), which is what makes re-running it a no-op: apply the
-  same profile at the same commit and you get **no diff at all**.
+  same profile at the same commit and you get **no diff at all** — not a one-line timestamp churn, byte
+  identical, with a clean `git status`.
 
-Still not part of adoption: ADRs, a debt backlog, the SaaS runtime profile, drift detection and clean
-removal (`docs/brownfield-adoption.md`, Phases 3–4). And nothing here fixes what the scan finds — adopt
-reports and proposes; fixing is normal pipeline work through the normal doors.
+Finally, **`/aidlc:adopt-adr`** writes the decisions from the scan into `docs/adr/`, one at a time, each
+behind its own approval. Each ADR is `accepted (retroactive)` — accepted because your code already runs on
+it, retroactive because nobody approved the document at the time — dated `unknown` where history cannot
+establish a date, and citing the `path:line` evidence. Its `## Rationale` and `## Alternatives considered`
+read **"not recorded — confirm with the team"**, and they stay that way until a human fills them in. That
+blank is the point: a scan can prove *what* was decided and never *why*, and one plausible invented
+sentence in an ADR marked `accepted` becomes history nobody authored and everybody cites. Existing
+decision records elsewhere (Confluence, Notion, `RFCs/`) are **linked** from the ADR index, never copied
+or moved — they are your files, in the place you keep them.
+
+Still not part of adoption: a debt backlog seeded from the findings, drift detection on re-scan, and a
+documented clean-removal path (`docs/brownfield-adoption.md`, Phase 4). And nothing here fixes what the
+scan finds — adopt reports and proposes; fixing is normal pipeline work through the normal doors.
 
 ### What lands in your repo
 

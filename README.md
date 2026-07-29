@@ -45,9 +45,12 @@ For local development of this repo: `claude --plugin-dir <your-clone>/plugins/ai
 2. Run `/aidlc:init` — a short Q&A, then it scaffolds `CLAUDE.md`, `.claude/` config, permissions, rules,
    `backlog/` and `.aidlc/` run-state folders. **On a project that already has code, pick the "scan it"
    path** and init leaves topology, stack and commands pending rather than asking you to recall them.
-3. **Existing code?** `/aidlc:adopt` (read-only: derives topology, per-repo stack, the real gate commands
-   and the project's git conventions, each with `path:line` evidence — writes only `.aidlc/adoption/`),
-   then `/aidlc:adopt-apply`, which shows the full diff and writes config only once you approve it.
+3. **Existing code?** `/aidlc:adopt` (read-only: derives topology, per-repo stack, monorepo packages, the
+   real gate commands, the project's git conventions and its runtime constraints — tenancy, feature flags,
+   migration safety, public API contracts — each with `path:line` evidence, writing only
+   `.aidlc/adoption/`), then `/aidlc:adopt-apply`, which shows the full diff and writes config only once
+   you approve it. `/aidlc:adopt-adr` then records the decisions your code already embodies as ADRs, with
+   the rationale left blank for a human — a scan can prove *what* was decided, never *why*.
 4. Create work items (markdown backlog, or point config at Jira/ADO).
 5. Run `/aidlc:next` — the pipeline takes it from there, verifying against **your** gate rather than
    assumed npm scripts.
@@ -71,7 +74,8 @@ requirement → working full-stack app, every command included.
 |---------|----|-----|
 | `/aidlc:bootstrap <doc \| brief>` | a requirements document | a whole populated backlog + inferred architecture (greenfield) |
 | `/aidlc:adopt` | the existing code | an evidence-backed profile of the workspace, **read-only** (brownfield) |
-| `/aidlc:adopt-apply` | an approved profile | config, `CLAUDE.md`, the project's real gate + git conventions — behind a shown diff |
+| `/aidlc:adopt-apply` | an approved profile | config, `CLAUDE.md`, the project's real gate + git conventions + monorepo `packages[]` + runtime constraints — behind a shown diff |
+| `/aidlc:adopt-adr` | an approved profile | retroactive ADRs for decisions already in the code, rationale left for a human |
 | `/aidlc:intake <text>` | one requirement, in plain language | well-formed backlog items, deduped against the board |
 
 **Then the pipeline:**

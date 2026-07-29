@@ -1,6 +1,6 @@
 # {{NNNN}}. {{TITLE — the decision as a statement, e.g. "Store avatars in S3, not the database"}}
 
-- **Status:** proposed | accepted | superseded by NNNN
+- **Status:** proposed | accepted | accepted (retroactive) | superseded by NNNN
 - **Date:** {{DATE}}
 - **Work item:** {{ID}}
 
@@ -12,7 +12,15 @@ without the conversation.}}
 
 ## Decision
 
-{{One paragraph, active voice: "We will …". The what, precisely enough to implement from.}}
+{{One paragraph, active voice: "We will …". The what, precisely enough to implement from.
+A RETROACTIVE ADR uses present tense — "The project does …" — because it is already done.}}
+
+## Rationale
+
+{{Why THIS, over the alternatives below. The one section a reader in a year needs most and the
+code can never supply. A retroactive ADR derived from a codebase scan writes exactly
+"not recorded — confirm with the team" here and leaves it for a human: an invented reason in an
+`accepted` ADR becomes history nobody authored and everybody trusts.}}
 
 ## Alternatives considered
 

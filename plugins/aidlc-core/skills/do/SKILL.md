@@ -25,7 +25,15 @@ Load in this order and stop as soon as you can answer. This is a floor, not a bu
 3. **Backlog index** — `adapter.query` over open items via `aidlc:work-items`, **titles only**.
    Enough to spot overlap; you are not reading bodies yet.
 4. **ADR titles** — the H1/frontmatter of `docs/adr/*.md`. Read a full ADR only when the prompt
-   touches its decision.
+   touches its decision. **An ADR at status `accepted (retroactive)` is a decision derived from the
+   code by `/aidlc:adopt-adr`, and its Rationale may read *"not recorded"*** — the *what* is binding,
+   the *why* is genuinely unknown. Cite it as the decision it is, but never quote its blank rationale
+   as agreement, and never infer one; if the prompt turns on why, say the reasoning was never recorded
+   and offer to ask the team.
+5. **The project's runtime constraints** — `saas` in config (or on the resolved repo entry), where the
+   project has one: tenancy model, whether releases ride feature flags, migration constraints, which
+   API files are public contracts. On a live SaaS these decide more about whether an idea fits than the
+   stack does, and they are the facts a cold read has no way to know.
 
 Do NOT read the codebase broadly and do NOT dispatch agents here. Most prompts are answered from
 this floor plus one targeted read.
@@ -63,6 +71,12 @@ This is the prompt you would otherwise answer cold, and the whole value is the g
      open item? Does it collide with an in-flight run's branch?
    - **Stack** — supportable as-is, or does it need a new dependency (which the dep-vet hook gates,
      so treat "needs a new package" as a real cost, not a footnote)?
+   - **Runtime constraints** (`saas`) — the cost multiplier a stack answer misses. Would it need a
+     schema change against live tenant data (expand/contract, plus a backfill)? Touch a public API
+     contract (a breaking change for every integrator)? Need a feature flag because that is how this
+     project ships? Land in an auth or tenant-isolation path (mandatory security review)? Fall inside a
+     compliance regime? A feature that is trivial in the abstract is often an L here, and saying so is
+     the most useful thing this door does.
    - **Cost** — rough size (S/M/L) and what it would touch.
 3. **Escalate only if the answer needs it** — `aidlc-analyst` when real codebase grounding is
    required beyond a targeted read; `aidlc-architect` only when the decision is genuinely hard to
