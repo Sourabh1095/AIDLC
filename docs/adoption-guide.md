@@ -62,8 +62,9 @@ and `aidlc.config.json` as ground truth and silently steers every later run. So 
 ```
 cd your-workspace
 claude
-/aidlc:adopt            # or: /aidlc:adopt --depth quick
-/aidlc:init             # answer from the report, not from memory
+/aidlc:init             # choose the "there's existing code — scan it" path
+/aidlc:adopt            # read-only scan; or: /aidlc:adopt --depth quick
+/aidlc:adopt-apply      # shows the diff, writes only what you approve
 ```
 
 `/aidlc:adopt` is **read-only**. It writes exactly two files — `.aidlc/adoption/profile.json` (a
@@ -97,9 +98,31 @@ Two safety notes, because a scan runs across code you may be contractually bound
 affected checks `unknown`), and it never reads or prints `.env` files — env files are recorded by path,
 suspected secrets by location and type with the value redacted.
 
-Adopt does not yet write configuration, gates, rules, ADRs or backlog items; those are separate
-propose-then-approve steps on the roadmap (`docs/brownfield-adoption.md`). Today its job is to make
-`/aidlc:init`'s answers evidence-based instead of remembered.
+Then **`/aidlc:adopt-apply`** turns the approved profile into configuration — and it is the one command in
+this sequence that changes files you own, so it works one way only: **propose, then write.** It shows the
+complete diff with each value's evidence beside it, asks the `low`-confidence facts as *questions* instead
+of proposing them, surfaces any disagreement with a value you authored as `detected X · configured Y —
+keep / replace` (defaulting to keep), and writes nothing until you approve. What it applies:
+
+- **`workspace.layout`, `repos[]`, per-repo `stack`** and `architecture.resolvedBy: "codebase-scan"`, from
+  roots classified as product repos or monorepos — never from a docs folder, a reference clone, or a repo
+  that isn't cloned yet.
+- **`pipeline.gates.verify`** — your project's real verification gate, as an ordered list, per repo and per
+  package. This is what replaces the old assumption that every repo runs npm scripts: a Python service
+  gets `ruff` + `pytest`, a Maven module gets `mvn -B verify`, and a monorepo with Turbo runs *affected
+  targets only*. Gates your project doesn't have stay in the list marked `absent`, so every run reports
+  them as coverage holes instead of quietly counting them green.
+- **Your git conventions** — branch pattern, commit style, merge strategy, long-lived branches, and the
+  **integration branch**, so a GitFlow project branches from and merges into `develop` rather than `main`.
+  `.claude/rules/git-workflow.md` is re-rendered from these; where your project has no convention, AIDLC's
+  default is used *and labelled as a default*. A fork-only repo gets a fork → upstream-PR path instead of a
+  push that would fail.
+- **Provenance** (`adoption.scannedAt` / `commit`), which is what makes re-running it a no-op: apply the
+  same profile at the same commit and you get **no diff at all**.
+
+Still not part of adoption: ADRs, a debt backlog, the SaaS runtime profile, drift detection and clean
+removal (`docs/brownfield-adoption.md`, Phases 3–4). And nothing here fixes what the scan finds — adopt
+reports and proposes; fixing is normal pipeline work through the normal doors.
 
 ### What lands in your repo
 

@@ -13,8 +13,9 @@ commands from memory, on a codebase the framework has never read.
 
 **This command writes exactly two files and nothing else:** `.aidlc/adoption/profile.json` (the
 machine-readable contract) and `.aidlc/adoption/report.md`. No config, no `CLAUDE.md`, no rules, no work
-items, no branch, no commit. Turning the profile into configuration is a separate, approved step (not yet
-implemented — see *What adopt does not do*).
+items, no branch, no commit. Turning the profile into configuration is a **separate command**,
+`/aidlc:adopt-apply`, which shows the full diff and writes nothing without approval. That separation is
+deliberate: it makes this command safe to run on first contact, with nothing to undo.
 
 The profile's full contract is `adoption-profile.schema.json`, published at
 `https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json`. **Do not
@@ -241,6 +242,63 @@ runs it** plus its `source`. Two distinctions carry all the weight:
 
 **Never execute an entry point.** Detection reads; it does not run the suite.
 
+**The gate (`gates[]`) — an ordered sequence, derived, never assumed.** Entry points say what commands
+exist; the gate says what the pipeline will *run per item*, in what order. Build it from the entry
+points, the pre-existing hooks and the CI config:
+
+- **Order.** If CI declares an order, **mirror CI's** — that is the project's own answer and adopting it
+  keeps local and remote verdicts comparable. Absent that, cheapest-first: `format` → `lint` →
+  `typecheck` → `boundaries` → `build` → `test`, so a run fails in seconds rather than minutes.
+- **`required`.** A `present` gate is required unless the project itself treats it as advisory — CI
+  `continue-on-error`, a script ending `|| true`, a hook stage marked manual. Cite that evidence when you
+  set it false. An `absent` gate is **never** required: it cannot block, and marking it required is how a
+  coverage hole comes to read as green.
+- **`scope`.** `affected` where an affected-graph runner exists (Nx, Turbo) — the cheap correct default,
+  and the run must name the affected set. `package` for a gate defined inside one package of a monorepo.
+  `changed-paths` only for a suite too slow to run whole. Otherwise `repo`.
+- **`timeoutMinutes`** only when the **project** states one (a CI job timeout). You have not run the
+  suite, so you do not know how long it takes — **do not estimate**. Where duration matters and is
+  unknown, say so and let the apply step ask; an invented number would silently decide how much of the
+  suite ever runs again.
+- **`environmentDependent` + `services`.** True when the command or its config reaches for services — a
+  compose file, testcontainers, a `DATABASE_URL`, a broker fixture. This is the difference between a run
+  report that says *environment unavailable* and one that blames the diff.
+- **`providedByHook`.** When husky / pre-commit / lefthook already runs a gate at commit time, record
+  which — so the AIDLC pre-commit layer is never installed on top of a layer the project already has.
+- **`alsoInCi`.** Whether CI runs the same gate. A gate local-only or CI-only is a **parity gap** worth
+  naming in the report; do not silently reconcile it.
+- **Never execute a gate to find out.** Detection reads configuration. Running the suite would be slow,
+  could mutate a database, and is not this command's job.
+
+**Conventions (`conventions`) — the project wins.** Derive from **bounded** history plus, optionally,
+read-only host settings. State the bound (e.g. "last 50 commits, 30 most recent branches") in the
+evidence — an unbounded history walk on a large repo is its own cost problem. All of these are
+`git -C "<root>"`:
+
+| Convention | Signal |
+|---|---|
+| `branchPattern` | `for-each-ref --format=%(refname:short) refs/heads refs/remotes` (bounded, most recent first) — infer the shape, e.g. `{type}/{id}-{slug}` vs `JIRA-123-description` |
+| `commitStyle` | `log -50 --format=%s` — classify as conventional · id-prefixed · imperative-freeform · **mixed** · none |
+| `mergeStrategy` | `log --merges -20 <default>`: merge commits present ⇒ `merge`; none on a linear default branch ⇒ squash **or** rebase, which history alone cannot separate — record `medium` confidence and say which two, or read the host's allowed-merge settings |
+| `integrationBranch` | a long-lived **non-default** branch that feature work merges into (`develop`) — needs *both* the branch and recent merges into it, not just the name |
+| `longLivedBranches` | `develop`, `release/*`, `hotfix/*`, or any branch with an old root and recent commits |
+| `hotfixRoute` | `hotfix/*` branches, and where they merge back to |
+| `codeowners` | `CODEOWNERS` at the repo root, `.github/` or `docs/` — record path + rule count, not the owner names |
+| `requiredReviewers`, `protectedBranches` | host API, **read-only GET only** (`gh api repos/{owner}/{repo}/branches/{b}/protection`, `az repos policy list`). Optional and skippable — `gh api` is deliberately *not* allowlisted (it can `--method POST`), so it will prompt; a user who declines is a normal outcome recorded `unknown` |
+| `pushAccess` | `gh api repos/{owner}/{repo} --jq .permissions.push` ⇒ `false` means `fork-only`; an `upstream` remote alongside a personal `origin` says the same |
+
+Three rules that decide whether this is worth anything:
+
+1. **`unknown` is not "none".** An unreadable branch-protection API means `unknown`, **never** `absent`.
+   Recording "no protection" because you could not look is how a repo gets reported as safely gated, or
+   as ungated, on no evidence. Only an API that *answers* "no protection" earns `absent` — and that
+   answer must be named loudly, since it means this repo's PRs merge **ungated**.
+2. **A shallow clone bounds every history-derived convention.** If `vcs.shallow` is true, say so in the
+   evidence for each and drop confidence — you are reading a truncated history.
+3. **Where the project has no convention, record nothing here.** Do not write AIDLC's defaults into
+   `conventions` as though they were detected. The apply step marks defaults as defaults
+   (`conventionsSource: "default"`); the profile records only what the code actually shows.
+
 **Cross-platform hazards**, when the workspace is mixed-OS (a Windows dev with Linux CI is the common
 case). Note the presence or absence of `.gitattributes` and check line endings with
 `git -C "<root>" ls-files --eol` — a repo with mixed CRLF/LF and no `.gitattributes` churns every diff.
@@ -326,6 +384,15 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
       "packages": [ { "name": "…", "path": "…", "role": "…", "labels": [], "languages": [],
                       "entryPoints": {}, "evidence": [] } ],
       "workspaceTooling": { /* fact — note if it is an affected-graph runner */ },
+      "gates": [ { "name": "test", "status": "present|absent", "cmd": "<verbatim; forbidden when absent>",
+                   "cwd": "…", "source": "package.json scripts.test", "required": true,
+                   "scope": "repo|package|affected|changed-paths", "package": "…",
+                   "timeoutMinutes": 20, "environmentDependent": true, "services": ["postgres"],
+                   "providedByHook": "husky", "alsoInCi": true, "evidence": [], "confidence": "high" } ],
+      "conventions": { "branchPattern": {}, "commitStyle": {}, "mergeStrategy": {},
+                       "integrationBranch": {}, "longLivedBranches": {}, "hotfixRoute": {},
+                       "codeowners": {}, "requiredReviewers": {}, "protectedBranches": {},
+                       "pushAccess": {} },
       "agentConfigs": [ { "path": "…", "tool": "…", "humanAuthored": true } ],
       "docs": [ { "location": "…", "kind": "adr|rfc|design-doc|wiki|readme|other", "external": false } ],
       "coverage": { "filesInspected": 0, "sampled": false, "coveragePercent": 100 }
@@ -390,24 +457,34 @@ against, so it needs history.
    appears here **with its exact fix**.
 3. **Per root** — VCS, languages/frameworks with paths, entry points (marking every `absent` one),
    CI, hooks, migrations, containers, packages.
-4. **Supported / partial / unsupported** — the matrix from §5, one consequence per row.
-5. **Not determined** — every `unknown` fact with its reason, counted. A short list here is a quality
+4. **The gate, per root** — the ordered sequence as it would run, each step with its command, scope and
+   whether CI runs it too. **Name every `absent` step as a coverage hole in its own line**, and name every
+   local/CI parity gap. This table is the single most useful thing in the report for a brownfield team:
+   it is what the pipeline will actually do to their code.
+5. **Conventions, per root** — branch and commit style, merge strategy, integration branch, long-lived
+   branches, CODEOWNERS, push access. Where the project has no convention, say *"none detected — AIDLC's
+   default would apply"* rather than presenting the default as a finding.
+6. **Supported / partial / unsupported** — the matrix from §5, one consequence per row.
+7. **Not determined** — every `unknown` fact with its reason, counted. A short list here is a quality
    claim; a long one is honest and fine. Never pad it away by guessing.
-6. **Safety** — env files by path, redacted secret findings, PII-suspect fixtures.
-7. **Scan budget and coverage** — files and directories inspected, elapsed time, the caps that
+8. **Safety** — env files by path, redacted secret findings, PII-suspect fixtures.
+9. **Scan budget and coverage** — files and directories inspected, elapsed time, the caps that
    applied and whether one was hit, the sampling strategy and coverage percent, and the explicit list
    of what was skipped and why.
-8. **Suggested next steps** — as *suggestions*, since nothing downstream is wired yet: the facts the
-   user would otherwise have typed into `/aidlc:init` from memory, and the questions where confidence
-   is `low` and a human must decide.
+10. **Next step** — `/aidlc:adopt-apply`, which turns this profile into configuration behind a shown
+    diff and an explicit approval. List here the facts whose confidence is `low` and the `unknown`s that
+    matter, since those become the questions it will ask rather than values it will propose.
 
 ## 8 · What adopt does not do
 
 Say this at the end, so nobody waits for a write that is not coming:
 
-- It does **not** write `aidlc.config.json`, `CLAUDE.md`, `pipeline.gates`, `rules/git-workflow.md`,
-  ADRs, or backlog items. Those are separate propose-then-approve steps
-  (`docs/brownfield-adoption.md`, ADOPT-3/4/5/9/10/11).
+- It does **not** write `aidlc.config.json`, `CLAUDE.md`, `pipeline.gates.verify` or `rules/git-workflow.md`.
+  **`/aidlc:adopt-apply` does that**, from this profile, behind a shown diff and an explicit approval.
+  Keeping the two apart is what makes the scan safe to run on first contact: this command cannot change
+  a file the team owns, so there is nothing to undo.
+- It does **not** propose ADRs or backlog items — later phases (`docs/brownfield-adoption.md`,
+  ADOPT-10/11).
 - It does **not** remediate anything it finds. Missing tests, absent gates and stale dependencies are
   reported; fixing them is normal pipeline work through the normal doors.
 - It does **not** replace `/aidlc:init`. Init owns the permission posture and the scaffold; adopt owns

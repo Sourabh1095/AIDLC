@@ -55,8 +55,26 @@
           "enum": ["monolith", "modular-monolith", "microservices"],
           "description": "Architecture style bootstrap inferred from the requirements, biased to the SIMPLEST that fits (YAGNI). Drives the mono/poly + repos[] shape and crossRepoSplit: monolith / modular-monolith ⇒ mono (single repo, modules internal); microservices ⇒ poly (service-per-repo). Recorded for traceability."
         },
-        "resolvedBy": { "type": "string", "description": "What set the architecture, e.g. \"/aidlc:bootstrap\" or \"init\" or \"human\"." },
+        "resolvedBy": { "type": "string", "description": "What set the architecture: \"/aidlc:bootstrap\" (inferred from a requirements document), \"codebase-scan\" (derived from existing code by /aidlc:adopt and applied by /aidlc:adopt-apply — see the adoption block for the provenance), \"init\", or \"human\"." },
         "rationale": { "type": "string", "description": "One-line why, grounded in the requirements (the split/no-split signal bootstrap acted on)." }
+      }
+    },
+    "adoption": {
+      "type": "object",
+      "description": "Provenance for configuration DERIVED FROM AN EXISTING CODEBASE. Written by /aidlc:adopt-apply when it applies an approved profile; absent on a greenfield project. It is what makes adoption idempotent and drift detectable: re-running against the same commit must propose no changes, and a later scan compares itself against these values rather than rewriting the file. Never hand-edit it — it describes what a scan actually saw.",
+      "additionalProperties": true,
+      "properties": {
+        "scannedAt": { "type": "string", "format": "date-time", "description": "UTC ISO-8601 timestamp of the scan this configuration came from (profile.scan.scannedAt)." },
+        "commit": { "type": "string", "description": "The commit the scan ran against. A re-scan at the same commit proposes nothing; at a different commit, the diff is the project's drift, not a rewrite." },
+        "profileVersion": { "type": "integer", "description": "Contract version of the profile that was applied. A consumer that does not recognise it must say so and stop rather than read the file optimistically." },
+        "profilePath": { "type": "string", "default": ".aidlc/adoption/profile.json", "description": "Where the profile this was applied from lives, relative to the control plane." },
+        "depth": { "enum": ["quick", "standard", "deep"], "description": "How deep the originating scan looked. A shallower scan leaves more facts unknown, so a quick-scan-derived config is expected to carry gaps — recorded here so nobody mistakes them for findings." },
+        "appliedAt": { "type": "string", "format": "date-time", "description": "When the profile was applied to this file, which may be later than the scan." },
+        "unmanaged": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Surfaces deliberately left OUT of AIDLC's management (a repo or package the team is not piloting on). Named here so a later scan does not keep proposing them and a reader can tell 'not adopted' from 'missed'."
+        }
       }
     },
     "repos": {
@@ -66,6 +84,7 @@
         "type": "object",
         "required": ["name", "path"],
         "additionalProperties": true,
+        "allOf": [{ "$ref": "#/definitions/gitConventions" }],
         "properties": {
           "name": { "type": "string", "description": "Short unique id used to route items and label PRs, e.g. backend." },
           "path": { "type": "string", "description": "Repo checkout path: either relative to workspace.root, or an ABSOLUTE path. A repo need not live under the control plane — a multi-root IDE workspace can place it under a different parent, on another drive, or on a UNC share. Absolute is the correct spelling in those cases; a relative path that escapes the control plane (../foo) is legal but harder to read. When a repo is NOT nested under the control plane, the control plane's .gitignore/gitlink protection is inapplicable to it (there is no shared git index to stage it into) and every consumer must quote the path — it may contain spaces." },
@@ -105,6 +124,7 @@
     "git": {
       "type": "object",
       "description": "Mono-mode single-repo git settings. Ignored when repos[] is non-empty (poly).",
+      "allOf": [{ "$ref": "#/definitions/gitConventions" }],
       "properties": {
         "host": { "enum": ["github", "azure-repos"] },
         "mode": { "enum": ["remote", "local"], "default": "remote", "description": "remote (default): push the branch and open a PR; a human merges it. local: no remote — after green verify the pipeline integrates via a confirmed local --no-ff merge into the default branch." },
@@ -134,7 +154,52 @@
           "default": "deny",
           "description": "Whether the pipeline may read or change env files (.env, .env.example, .env.local, …). \"deny\" (default): the hooks hard-block every read/edit/write of an env file — they can carry secrets, and non-secret variable names/shape are meant to live in a human-maintained .env.example. \"ask\": the pipeline may touch env files, but EVERY read/change is surfaced to the user to approve or reject (the confirmation prompt shows the exact diff/content), keeping the human in the loop. Enforced by two hooks so no tool path escapes it: env-guard.mjs governs the Read/Edit/Write tools, and guard.mjs mirrors it on the Bash path (> .env redirects, tee/cp/sed -i writes, cat .env reads). Both resolve the switch by walking up from the env file's own location to the nearest aidlc.config.json, so one control-plane setting governs every repo's env files in a poly workspace regardless of the session cwd. Both fail closed (no config found up the tree, or a malformed one ⇒ \"deny\"). This is a hook-based switch, not a static Read(.env*) deny, because a static deny can never be relaxed; settings.json carries these paths in its \"ask\" list only, as a fail-safe floor for when the hooks are not running. Opting in is a single edit here — no settings.json change needed."
         },
-        "gates": { "type": "object" },
+        "gates": {
+          "type": "object",
+          "description": "The things that gate a pipeline run's progression. `ambiguousRequirements` gates progression when a requirement is unclear; `verify` gates it on quality. They are separate concerns that happen to share this block — do not conflate them.",
+          "additionalProperties": true,
+          "properties": {
+            "ambiguousRequirements": {
+              "enum": ["assume-and-log", "ask-human"],
+              "default": "assume-and-log",
+              "description": "What the pipeline does when a requirement is ambiguous at the requirements phase. assume-and-log (default): take the most reasonable reading, log it as an assumption on the run file and the item, keep going. ask-human: stop and ask. Read by aidlc:run at the requirements gate."
+            },
+            "verify": {
+              "type": "object",
+              "description": "The project's REAL verification gate, replacing the assumption that every repo runs npm scripts. An ordered list of steps the run skill executes top to bottom in the verify phase; a repo with no package.json completes a full run on its own gate (ruff + pytest, mvn -B verify, cargo test) because the gate came from the project rather than from AIDLC. Resolution for an item is most-specific-wins: the resolved package's steps, else the resolved repo's steps, else the top-level steps. Populated by /aidlc:adopt-apply from a scan, or written by hand. Absent ⇒ the run falls back to the CLAUDE.md Commands block.",
+              "additionalProperties": true,
+              "properties": {
+                "maxItemMinutes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 10,
+                  "description": "The per-item budget for the whole gate. A step whose scope is repo and whose known duration exceeds this is scoped down per item (affected set, or a changed-paths subset) with the full suite left to CI — and the run file records WHICH subset ran, so a green run is never mistaken for a full-suite green."
+                },
+                "steps": { "$ref": "#/definitions/gateSteps", "description": "The default/mono gate. In poly this is the fallback for a repo that declares none." },
+                "repos": {
+                  "type": "object",
+                  "description": "Per-repo overrides, keyed by repos[].name.",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "steps": { "$ref": "#/definitions/gateSteps" },
+                      "packages": {
+                        "type": "object",
+                        "description": "Per-package overrides inside a monorepo, keyed by package name. This is the dimension a monorepo needs: one git repo, many packages with their own gates and cadence.",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "properties": { "steps": { "$ref": "#/definitions/gateSteps" } }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "verification": {
           "type": "object",
           "description": "Per-agent verification cadence — the pipeline's biggest recurring cost. Each agent runs on its own schedule so tokens are spent only where they earn it. Defaults are economical: reviewer/qa on-demand, security per-epic (confirmed). The deterministic CI gate (lint/format/typecheck/boundaries/tests) runs regardless and is the per-item floor.",
@@ -165,6 +230,75 @@
       "properties": {
         "enabled": { "type": "boolean", "default": false, "description": "Turn on plugin self-feedback capture for this workspace." },
         "inbox": { "type": "string", "default": ".aidlc/plugin-feedback.md", "description": "Path (relative to the control plane) of the append-only feedback inbox the pipeline writes to." }
+      }
+    }
+  },
+  "definitions": {
+    "gateSteps": {
+      "type": "array",
+      "description": "An ORDERED gate sequence. Order is the contract — the run skill executes it top to bottom and stops at the first required failure.",
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "description": "Short stable id — lint, typecheck, test, format, build, boundaries, or a project-specific one. Unique within its step list." },
+          "status": {
+            "enum": ["present", "absent"],
+            "default": "present",
+            "description": "present: the project has this gate and `cmd` runs it. absent: the project provably does NOT have it — kept in the list on purpose so the run reports it in `## Findings` as a coverage hole. An absent gate carries no cmd, is never `required`, and is never counted green. Deleting the entry instead of recording it absent is what makes a missing gate invisible."
+          },
+          "cmd": { "type": "string", "description": "The command verbatim, as the project runs it (`pnpm test`, `uv run pytest`, `mvn -B verify`, `cargo clippy -- -D warnings`). Required when status=present." },
+          "cwd": { "type": "string", "description": "Directory to run it from, relative to the repo root. Omit for the repo root itself." },
+          "required": { "type": "boolean", "default": true, "description": "Whether a failure blocks the item. false = advisory, reported but non-blocking." },
+          "scope": {
+            "enum": ["repo", "package", "affected", "changed-paths"],
+            "default": "repo",
+            "description": "What it runs over per item. affected: an affected-graph runner's affected set (Nx/Turbo) — the cheap correct choice where one exists, and the run report must name the affected set. changed-paths: a diff-derived subset, for a suite too slow to run whole."
+          },
+          "timeoutMinutes": { "type": "integer", "minimum": 1, "description": "Hard cap for this step. Exceeding it is a gate failure with a distinct diagnosis (hung/slow), not a code failure." },
+          "environmentDependent": {
+            "type": "boolean",
+            "default": false,
+            "description": "True when the step needs services (Docker Compose, testcontainers, a live DB, a broker). A failure is then diagnosed as **environment unavailable** rather than **code broken** — the distinction that stops a run report from blaming the diff for a missing database."
+          },
+          "services": { "type": "array", "items": { "type": "string" }, "description": "Services the step needs, e.g. [\"postgres\", \"redis\"]." },
+          "providedByHook": { "type": "string", "description": "A pre-existing hook manager (husky, pre-commit, lefthook) already runs this at commit time. The AIDLC pre-commit layer must not duplicate it." }
+        }
+      }
+    },
+    "gitConventions": {
+      "type": "object",
+      "description": "The project's OWN git and review conventions, adopted rather than imposed. These apply to a mono repo's top-level git block and to each repos[] entry alike. Where a project has no convention of its own, AIDLC's defaults apply and conventionsSource records that they are defaults — a default presented as a detected fact is the failure these fields exist to prevent.",
+      "properties": {
+        "integrationBranch": {
+          "type": "string",
+          "description": "The branch feature work branches FROM and integrates INTO, when that is not `defaultBranch` — GitFlow's `develop`. Load-bearing: with this set, the pipeline must not branch from or open PRs against `main`. Omit it when the project integrates into its default branch (setting it equal to defaultBranch is a configuration error, not a no-op)."
+        },
+        "commitStyle": {
+          "enum": ["conventional", "id-prefixed", "imperative-freeform", "mixed", "none"],
+          "description": "The commit-message convention actually in use. `conventional` = feat|fix|chore(scope): …; `id-prefixed` = e.g. `JIRA-123 …`; `mixed` = the history has no single convention, in which case the pipeline follows the project's dominant form without enforcing one."
+        },
+        "mergeStrategy": {
+          "enum": ["merge", "squash", "rebase"],
+          "description": "How the project integrates a branch. The integration step honours it — a squash-only repo must not receive a --no-ff merge commit."
+        },
+        "longLivedBranches": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Branches/patterns that must never be deleted or force-updated (`develop`, `release/*`, `hotfix/*`). Distinguishes a permanent branch from a stale feature branch."
+        },
+        "hotfixRoute": { "type": "string", "description": "The project's distinct path for production incidents, in one line, where it has one — so an urgent item is not forced through the normal flow." },
+        "contribution": {
+          "enum": ["direct", "fork"],
+          "default": "direct",
+          "description": "`direct`: push branches to this remote. `fork`: the user cannot push here, so the integration path is push to a fork and open a PR against the upstream. Detected at adoption time precisely so a run does not fail at its first push."
+        },
+        "upstreamRemote": { "type": "string", "description": "Name of the upstream remote when contribution is `fork` (conventionally `upstream`). The PR targets this repo, not the fork." },
+        "conventionsSource": {
+          "enum": ["codebase-scan", "default", "human"],
+          "description": "Where the conventions in this block came from. `codebase-scan`: derived from this project's history/host settings with evidence in the adoption profile. `default`: the project had none and AIDLC's defaults were used — say so rather than implying detection. `human`: someone authored them, and a scan must never silently overwrite them."
+        }
       }
     }
   }

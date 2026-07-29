@@ -52,6 +52,12 @@
       "remote": "origin",
       "defaultBranch": "main",
       "branchPattern": "{type}/{id}-{slug}",
+      "$comment": "GitFlow example: feature work branches from and integrates into `develop`, never `main`. mergeStrategy/commitStyle/conventionsSource are the project's OWN conventions — `default` would mean AIDLC's defaults are in use and were not detected.",
+      "integrationBranch": "develop",
+      "longLivedBranches": ["main", "develop", "release/*"],
+      "commitStyle": "conventional",
+      "mergeStrategy": "squash",
+      "conventionsSource": "codebase-scan",
       "stack": { "frontend": "nextjs", "backend": null, "databases": [] },
       "labels": ["website", "marketing", "landing"],
       "ux": {
@@ -80,7 +86,32 @@
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
     "envFileAccess": "deny",
     "gates": {
-      "ambiguousRequirements": "assume-and-log"
+      "ambiguousRequirements": "assume-and-log",
+      "$comment": "verify = the project's REAL gate, executed IN ORDER by the run skill. Populated by /aidlc:adopt-apply from a scan, or written by hand. Resolution is most-specific-first: package steps, else repo steps, else the top-level steps below. Note the `absent` entries — a gate the project does NOT have is kept on purpose so every run reports it as a coverage hole instead of counting it green.",
+      "verify": {
+        "maxItemMinutes": 10,
+        "steps": [
+          { "name": "lint", "status": "present", "cmd": "npm run lint", "required": true, "scope": "repo" },
+          { "name": "typecheck", "status": "present", "cmd": "npm run typecheck", "required": true, "scope": "repo" },
+          { "name": "test", "status": "present", "cmd": "npm test", "required": true, "scope": "repo" }
+        ],
+        "repos": {
+          "backend": {
+            "steps": [
+              { "name": "lint", "status": "present", "cmd": "npm run lint", "required": true, "scope": "repo", "providedByHook": "husky" },
+              { "name": "typecheck", "status": "present", "cmd": "npm run typecheck", "required": true, "scope": "repo" },
+              { "name": "test", "status": "present", "cmd": "npm test", "required": true, "scope": "repo", "timeoutMinutes": 20, "environmentDependent": true, "services": ["postgres"] },
+              { "name": "format", "status": "absent", "required": false, "scope": "repo" }
+            ]
+          },
+          "mobile": {
+            "steps": [
+              { "name": "lint", "status": "present", "cmd": "npm run lint", "required": true, "scope": "repo" },
+              { "name": "test", "status": "absent", "required": false, "scope": "repo" }
+            ]
+          }
+        }
+      }
     },
     "verification": {
       "mode": "auto",

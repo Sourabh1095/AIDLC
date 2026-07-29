@@ -1,7 +1,7 @@
 # Brownfield Adoption — spec
 
-**Status:** Phase 1 shipped in `aidlc` **0.30.0** — see *Implementation status* below. Phases 2–4
-remain proposals. **Authored:** 2026-07-29.
+**Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** — see *Implementation status*
+below. Phases 3–4 remain proposals. **Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
 (`plugins/aidlc-core/skills/init/SKILL.md:44-61`), the web tooling and enterprise skeleton are
@@ -57,8 +57,23 @@ before writing.**
 | ADOPT-14 · the workspace is the unit | `adopt` §1–2 (dual discovery, root classification, control-plane placement, reachability, trust/enablement) · `docs/aidlc.config.schema.json` (`workspace.root`, `repo.path`) · `init` Steps 3.4 / 4.1 / 4.4 (gitlink protection skipped as *inapplicable* off-nest) · `work-items` → *Repos & routing* · `run` (quoting, cross-drive, UNC) |
 | ADOPT-7 · adoption-time safety contract | `adopt` §0 · profile `safety` block · `scan.network` / `scan.writes` |
 | ADOPT-6 · honest degradation | `adopt` §5 · profile `surfaces[]` + `gaps[]` |
-| Discoverability | README (the three doors) · `docs/adoption-guide.md` §3 · `docs/user-guide.md` cheat-sheet · `init` Step 3.0 suggests adopt when code already exists |
+| Discoverability | README (the three doors) · `docs/adoption-guide.md` §3 · `docs/user-guide.md` cheat-sheet · `init` Step 3.0 offers adopt as one of three setup paths |
 | Enabling change | read-only git introspection allowlisted in the project template; `git config` deliberately **not** (write verb + it echoes PATs from remote URLs) — `docs/permissions-rationale.md` |
+
+**Phase 2 landed in `aidlc` 0.31.0** — config, gates and conventions:
+
+| Story | Landed as |
+|---|---|
+| ADOPT-3 · profile → config + `CLAUDE.md` | `plugins/aidlc-core/skills/adopt-apply/SKILL.md` · `docs/aidlc.config.schema.json` (`adoption` block, `architecture.resolvedBy: "codebase-scan"`) · `init` Step 3.0 third path |
+| ADOPT-4 · derive the gate instead of assuming npm | config `pipeline.gates.verify` + `definitions.gateSteps` · profile `gates[]` + `definitions.gate` · `adopt` §3 (gate derivation) · `run` §7 *The gate* (ordered execution, absent gates as coverage holes, environment-dependent diagnosis, affected/changed-path scoping) |
+| ADOPT-5 · adopt the project's git and review conventions | config `definitions.gitConventions` on the mono `git` block and every `repos[]` entry · profile `conventions` · `adopt` §3 (convention derivation) · `git-workflow` (`<base>` resolution, commit style, merge strategy, long-lived branches, hotfix route, fork → upstream PR) · the template rule file now labels itself as defaults |
+
+**What Phase 2 deliberately did not do.** The `guard` hook still matches protected branches **by name**
+(`main`, `master`, `develop`, `release/*`), so a project whose integration branch is called something else
+(`trunk`, `dev`) is routed correctly by the pipeline but is **not** hook-protected. That exposure predates
+this phase rather than being created by it, and changing a security hook with a 74-case suite was out of
+scope here — so `adopt-apply` is required to *say so* and recommend host-side branch protection instead of
+leaving it silent. Making the guard config-aware is the obvious follow-up.
 
 ### What is verified, and what is not
 
@@ -106,9 +121,33 @@ per-root trust and plugin-enablement probes (which the skill is instructed to re
 harness will not tell it), a genuine UNC share, a genuinely offline run, and a read-only workspace. Those
 need a real adoption on a real project, which is the next honest step.
 
-Phases 2–4 are unstarted. Nothing yet turns a profile into `aidlc.config.json`, `CLAUDE.md`,
-`pipeline.gates`, `rules/git-workflow.md`, ADRs or backlog items — `/aidlc:adopt` reports and proposes,
-and says so at the end of every run.
+**Phase 2's verification status is the same shape, and the gap is wider.** The contract additions are
+mechanically enforced — 93 validator cases now cover gates and conventions, including the two invariants
+that catch a *plausible* profile rather than a malformed one (an `absent` gate may not be `required`;
+`integrationBranch` may not equal `defaultBranch`). But `adopt-apply` itself writes files, and **nothing
+here has yet executed it**: the propose-then-write flow, the merge behaviour against a hand-authored
+`CLAUDE.md`, the claim that re-applying at the same commit yields no diff, the rendered
+`rules/git-workflow.md`, and every consumption path in `run` and `git-workflow` (ordered gate execution, an
+absent gate surfacing in `## Findings`, affected-set scoping, a squash-strategy local merge, a fork → upstream
+PR) are **specified and unexercised**. A live adoption on a real GitFlow or fork-based repo is what closes
+that, and it should happen before Phase 3 builds on top.
+
+**Phases 3–4 are unstarted.** Nothing yet proposes retroactive ADRs, seeds a debt backlog, records the
+SaaS runtime profile, detects drift, or documents clean removal. `/aidlc:adopt` reports and proposes;
+`/aidlc:adopt-apply` writes config behind a diff; neither remediates anything, and both say so.
+
+### One deviation from this spec, and why
+
+ADOPT-4 names the config block **`pipeline.gates`**. That key was **already taken**:
+`pipeline.gates.ambiguousRequirements` is live (read by `run` §4's requirements gate), documented in
+`docs/adoption-guide.md`, and shipped in both config templates — it decides what happens when a
+requirement is ambiguous, which has nothing to do with verification. Putting an ordered command sequence
+beside it would have overloaded one key with two unrelated meanings.
+
+The verification gate therefore lives at **`pipeline.gates.verify`** (`.steps`, `.repos.<repo>.steps`,
+`.repos.<repo>.packages.<pkg>.steps`, `.maxItemMinutes`). The block name from the spec is kept, the
+existing key is untouched and now *documented in the schema for the first time*, and nothing breaks. Read
+every `pipeline.gates` in the ADOPT-4 story below as `pipeline.gates.verify`.
 
 ---
 

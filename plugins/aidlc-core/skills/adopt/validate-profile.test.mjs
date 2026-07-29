@@ -102,6 +102,23 @@ const reference = () => ({
           format: absent("no format or prettier script in package.json scripts, and no .prettierrc*"),
         },
         coverage: { filesInspected: 240, sampled: false, coveragePercent: 100 },
+        // ordered gate proposal: the project's own commands, with the hole named
+        gates: [
+          { name: "lint", status: "present", cmd: "pnpm lint", source: "package.json scripts.lint", required: true, scope: "repo", providedByHook: "husky", alsoInCi: true, evidence: [pathEv("D:\\ws\\api\\package.json", 10)], confidence: "high" },
+          { name: "typecheck", status: "present", cmd: "pnpm typecheck", source: "package.json scripts.typecheck", required: true, scope: "repo", alsoInCi: true, evidence: [pathEv("D:\\ws\\api\\package.json", 11)], confidence: "high" },
+          { name: "test", status: "present", cmd: "pnpm test", source: "package.json scripts.test", required: true, scope: "repo", timeoutMinutes: 20, environmentDependent: true, services: ["postgres", "redis"], alsoInCi: true, evidence: [pathEv("D:\\ws\\api\\package.json", 9), pathEv("D:\\ws\\api\\compose.yml", 3)], confidence: "high" },
+          { name: "format", status: "absent", required: false, scope: "repo", source: "none", evidence: [absEv("no format/prettier script in package.json scripts and no .prettierrc*")], confidence: "high" },
+        ],
+        conventions: {
+          branchPattern: known("{type}/{id}-{slug}", [cmdEv('git -C "D:/ws/api" for-each-ref --format=%(refname:short) refs/heads', "feature/ACME-31-avatar\nbugfix/ACME-28-null-guard")], "medium"),
+          commitStyle: known("conventional", [cmdEv('git -C "D:/ws/api" log -30 --format=%s', "feat(api): add avatar upload\nfix(api): guard null tenant")], "high"),
+          mergeStrategy: known("squash", [cmdEv('git -C "D:/ws/api" log --merges -20 --oneline main', "")], "medium"),
+          longLivedBranches: known(["main"], [cmdEv('git -C "D:/ws/api" for-each-ref refs/heads', "refs/heads/main")]),
+          codeowners: known({ path: ".github/CODEOWNERS", entryCount: 4 }, [pathEv("D:\\ws\\api\\.github\\CODEOWNERS", 1)]),
+          requiredReviewers: unknown("the host API was not reachable on this run (offline), so branch policy could not be read — this is not evidence that none is configured"),
+          protectedBranches: unknown("same offline host API; unknown is not 'unprotected'"),
+          pushAccess: known("direct", [cmdEv('git -C "D:/ws/api" remote -v', "origin https://github.com/acme/api.git (push)")], "medium"),
+        },
       },
       {
         // monorepo root, on ANOTHER DRIVE, beside single-app roots — the hybrid shape.
@@ -115,9 +132,10 @@ const reference = () => ({
         vcs: {
           system: known("git", [cmdEv('git -C "C:/src/platform" rev-parse --is-inside-work-tree', "true")]),
           support: "supported",
-          defaultBranch: known("develop", [cmdEv('git -C "C:/src/platform" rev-parse --abbrev-ref origin/HEAD', "origin/develop")]),
+          defaultBranch: known("main", [cmdEv('git -C "C:/src/platform" rev-parse --abbrev-ref origin/HEAD', "origin/main")]),
           shallow: known(true, [cmdEv('git -C "C:/src/platform" rev-parse --is-shallow-repository', "true")]),
           submodules: known(["third_party/protos"], [cmdEv('git -C "C:/src/platform" submodule status', "-a1b2c3 third_party/protos")]),
+          upstream: known("https://github.com/acme-oss/platform.git", [cmdEv('git -C "C:/src/platform" remote -v', "upstream https://github.com/acme-oss/platform.git (fetch)")]),
         },
         // polyglot: all languages listed with the paths that carry each
         languages: [
@@ -136,6 +154,22 @@ const reference = () => ({
         agentConfigs: [{ path: "C:\\src\\platform\\AGENTS.md", tool: "generic", humanAuthored: true }],
         docs: [{ location: "https://acme.atlassian.net/wiki/spaces/PLAT", kind: "wiki", external: true }],
         coverage: { filesInspected: 410, sampled: true, coveragePercent: 48.2 },
+        // affected-graph runner ⇒ the per-item gate runs affected targets only; plus a per-package gate
+        gates: [
+          { name: "test", status: "present", cmd: "pnpm turbo run test --filter=...[origin/main]", source: "turbo.json tasks.test", required: true, scope: "affected", alsoInCi: true, evidence: [pathEv("C:\\src\\platform\\turbo.json", 8)], confidence: "high" },
+          { name: "lint", status: "present", cmd: "pnpm turbo run lint --filter=...[origin/main]", source: "turbo.json tasks.lint", required: true, scope: "affected", evidence: [pathEv("C:\\src\\platform\\turbo.json", 12)], confidence: "high" },
+          { name: "test", status: "present", cmd: "uv run pytest", cwd: "packages/worker", source: "packages/worker/pyproject.toml [tool.pytest]", required: true, scope: "package", package: "acme-worker", evidence: [pathEv("C:\\src\\platform\\packages\\worker\\pyproject.toml", 18)], confidence: "high" },
+          { name: "typecheck", status: "absent", required: false, scope: "affected", source: "none", evidence: [absEv("turbo.json declares no typecheck task and no package defines one")], confidence: "high" },
+        ],
+        conventions: {
+          // GitFlow: feature work targets develop, NOT the default branch
+          integrationBranch: known("develop", [cmdEv('git -C "C:/src/platform" for-each-ref refs/heads', "refs/heads/develop\nrefs/heads/main")], "high"),
+          longLivedBranches: known(["main", "develop", "release/*"], [cmdEv('git -C "C:/src/platform" for-each-ref --format=%(refname:short) refs/heads', "develop\nmain\nrelease/2026.07")]),
+          hotfixRoute: known("hotfix/* cut from the latest release tag, merged to both main and develop", [cmdEv('git -C "C:/src/platform" for-each-ref refs/heads', "refs/heads/hotfix/2026.07.1")], "medium"),
+          commitStyle: known("mixed", [cmdEv('git -C "C:/src/platform" log -30 --format=%s', "feat(web): ...\nPLAT-88 tidy worker\nfix typo")], "high"),
+          mergeStrategy: known("merge", [cmdEv('git -C "C:/src/platform" log --merges -20 --oneline develop', "b21ce9f Merge pull request #412")], "high"),
+          pushAccess: known("fork-only", [cmdEv("gh api repos/acme-oss/platform --jq .permissions.push", "false")], "high"),
+        },
       },
       {
         name: "docs",
@@ -479,6 +513,59 @@ try {
     (p) => { p.workspace.roots[1].docs[0].kind = "confluence"; },
     "must be one of adr | rfc");
 
+  // ---- 8b. gates (ADOPT-4) ----
+  check("gate with status=present but no cmd is rejected",
+    (p) => { delete p.workspace.roots[0].gates[0].cmd; },
+    "status=present requires `cmd`");
+  check("absent gate carrying a cmd is rejected",
+    (p) => { p.workspace.roots[0].gates[3].cmd = "prettier --check ."; },
+    "status=absent must not carry a `cmd`");
+  check("absent gate marked required is rejected (a hole must not read as green)",
+    (p) => { p.workspace.roots[0].gates[3].required = true; },
+    "cannot be `required: true`");
+  check("gate missing required flag is rejected",
+    (p) => { delete p.workspace.roots[0].gates[1].required; },
+    "missing `required` (boolean)");
+  check("gate with a bad scope is rejected",
+    (p) => { p.workspace.roots[1].gates[0].scope = "everything"; },
+    "must be one of repo | package | affected | changed-paths");
+  check("scope=package without naming the package is rejected",
+    (p) => { delete p.workspace.roots[1].gates[2].package; },
+    "requires `package` naming which one");
+  check("duplicate gate names in one scope are rejected (order would be ambiguous)",
+    (p) => { p.workspace.roots[0].gates[1].name = "lint"; },
+    "duplicate gate `lint`");
+  check("same gate name for a different package is fine",
+    null, "ok");
+  check("fabricated timeoutMinutes shape is rejected",
+    (p) => { p.workspace.roots[0].gates[2].timeoutMinutes = 0; },
+    "must be an integer >= 1");
+  check("gate without evidence is rejected",
+    (p) => { delete p.workspace.roots[0].gates[0].evidence; },
+    "evidence must be a non-empty array");
+
+  // ---- 8c. conventions (ADOPT-5) ----
+  check("bad commitStyle is rejected",
+    (p) => { p.workspace.roots[0].conventions.commitStyle.value = "gitmoji"; },
+    "must be one of conventional | id-prefixed");
+  check("bad mergeStrategy is rejected",
+    (p) => { p.workspace.roots[0].conventions.mergeStrategy.value = "fast-forward"; },
+    "must be one of merge | squash | rebase | mixed");
+  check("bad pushAccess is rejected",
+    (p) => { p.workspace.roots[0].conventions.pushAccess.value = "maybe"; },
+    "must be one of direct | fork-only | unknown");
+  check("fork-only contribution with no upstream is rejected",
+    (p) => { delete p.workspace.roots[1].vcs.upstream; },
+    "a fork contribution path needs the upstream it targets");
+  check("integrationBranch equal to defaultBranch is rejected",
+    (p) => { p.workspace.roots[1].conventions.integrationBranch.value = "main"; },
+    "equals vcs.defaultBranch");
+  check("protectedBranches recorded unknown (offline) validates — unknown is not 'unprotected'",
+    null, "ok");
+  check("a convention fact with a value but no evidence is rejected",
+    (p) => { delete p.workspace.roots[0].conventions.commitStyle.evidence; },
+    "evidence must be a non-empty array");
+
   // ---- 9. schema agreement ----
   // The validator duplicates the schema's enums so it can run offline inside an installed
   // plugin. Silent drift between the two is the only way that duplication can hurt, so when
@@ -504,6 +591,11 @@ try {
       ["GAP_KINDS", "properties.gaps.items.properties.kind.enum"],
       ["DOC_KINDS", "definitions.root.properties.docs.items.properties.kind.enum"],
       ["DECLARED_BY", "definitions.root.properties.declaredBy.enum"],
+      ["GATE_STATUSES", "definitions.gate.properties.status.enum"],
+      ["GATE_SCOPES", "definitions.gate.properties.scope.enum"],
+      ["COMMIT_STYLES", "definitions.root.properties.conventions.properties.commitStyle.allOf.1.properties.value.enum"],
+      ["MERGE_STRATEGIES", "definitions.root.properties.conventions.properties.mergeStrategy.allOf.1.properties.value.enum"],
+      ["PUSH_ACCESS", "definitions.root.properties.conventions.properties.pushAccess.allOf.1.properties.value.enum"],
     ];
     for (const [name, pointer] of PAIRS) {
       n++;

@@ -42,13 +42,15 @@ For local development of this repo: `claude --plugin-dir <your-clone>/plugins/ai
 ## Adopt in a project
 
 1. Open Claude Code in the project repo (or the workspace folder holding several repos).
-2. **Existing code?** Run `/aidlc:adopt` first — a read-only scan that derives the workspace's
-   topology, per-repo stack, real gate commands and VCS conventions **with evidence**, so step 3's
-   answers come from the code instead of from memory. It writes only `.aidlc/adoption/`.
-3. Run `/aidlc:init` — answers a short Q&A and scaffolds `CLAUDE.md`, `.claude/` config,
-   permissions, rules, `backlog/`, and `.aidlc/` run-state folders.
+2. Run `/aidlc:init` — a short Q&A, then it scaffolds `CLAUDE.md`, `.claude/` config, permissions, rules,
+   `backlog/` and `.aidlc/` run-state folders. **On a project that already has code, pick the "scan it"
+   path** and init leaves topology, stack and commands pending rather than asking you to recall them.
+3. **Existing code?** `/aidlc:adopt` (read-only: derives topology, per-repo stack, the real gate commands
+   and the project's git conventions, each with `path:line` evidence — writes only `.aidlc/adoption/`),
+   then `/aidlc:adopt-apply`, which shows the full diff and writes config only once you approve it.
 4. Create work items (markdown backlog, or point config at Jira/ADO).
-5. Run `/aidlc:next` — the pipeline takes it from there.
+5. Run `/aidlc:next` — the pipeline takes it from there, verifying against **your** gate rather than
+   assumed npm scripts.
 
 See `docs/adoption-guide.md` for the full walkthrough, including MCP authentication.
 **New to the framework?** Start with `docs/example-walkthrough.md` — empty folder → typed
@@ -68,7 +70,8 @@ requirement → working full-stack app, every command included.
 | Command | In | Out |
 |---------|----|-----|
 | `/aidlc:bootstrap <doc \| brief>` | a requirements document | a whole populated backlog + inferred architecture (greenfield) |
-| `/aidlc:adopt` | the existing code | an evidence-backed profile of the workspace, read-only (brownfield) |
+| `/aidlc:adopt` | the existing code | an evidence-backed profile of the workspace, **read-only** (brownfield) |
+| `/aidlc:adopt-apply` | an approved profile | config, `CLAUDE.md`, the project's real gate + git conventions — behind a shown diff |
 | `/aidlc:intake <text>` | one requirement, in plain language | well-formed backlog items, deduped against the board |
 
 **Then the pipeline:**

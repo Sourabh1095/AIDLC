@@ -313,6 +313,36 @@
         }
       ]
     },
+    "gate": {
+      "type": "object",
+      "description": "One step in a root's verification sequence. `present` carries the command the project already runs; `absent` carries no command and is a stated coverage hole. There is no third state — a gate invented from an AIDLC default is neither, and is what this shape exists to prevent.",
+      "required": ["name", "status", "required", "scope", "evidence"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "description": "Short stable id — lint, typecheck, test, format, build, boundaries, migrate-check, or a project-specific one." },
+        "status": { "enum": ["present", "absent"] },
+        "cmd": { "type": "string", "description": "Verbatim, as the project runs it. Required when status=present, forbidden when absent." },
+        "cwd": { "type": "string", "description": "Directory to run it from, relative to the root. Omit for the root itself." },
+        "source": { "type": "string", "description": "Where it came from — 'package.json scripts.test', 'Makefile target lint', 'tox.ini envlist', 'turbo.json tasks.test', '.pre-commit-config.yaml'." },
+        "required": { "type": "boolean", "description": "Whether a failure blocks the item. An absent gate is required=false by construction — it cannot block, and pretending otherwise would make a missing gate look green." },
+        "scope": {
+          "enum": ["repo", "package", "affected", "changed-paths"],
+          "description": "What the gate runs over per item. repo: the whole root. package: one package (monorepo). affected: an affected-graph runner's affected set (Nx/Turbo) — the cheap correct default where one exists. changed-paths: a subset derived from the diff, for a suite too slow to run whole."
+        },
+        "package": { "type": "string", "description": "The package this gate belongs to, when scope=package." },
+        "timeoutMinutes": { "type": "integer", "minimum": 1, "description": "Only when the PROJECT states one (a CI job timeout). Never a number you made up — an unmeasured suite duration is unknown, and the scoping decision is then made explicitly rather than on a fabricated figure." },
+        "environmentDependent": { "type": "boolean", "description": "True when the gate needs services — Docker Compose, testcontainers, a live DB, a message broker. This is what lets a failure be diagnosed as 'environment unavailable' rather than 'code broken', which is the difference between a useful run report and a misleading one." },
+        "services": { "type": "array", "items": { "type": "string" }, "description": "The services it needs, e.g. ['postgres', 'redis']. Present when environmentDependent is true." },
+        "providedByHook": { "type": "string", "description": "Set when a pre-existing hook manager already runs this gate at commit time (husky, pre-commit, lefthook). The AIDLC pre-commit layer must NOT duplicate it." },
+        "alsoInCi": { "type": "boolean", "description": "Whether CI runs the same gate. A gate in CI but not locally (or vice versa) is a parity gap worth naming." },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } },
+        "confidence": { "enum": ["high", "medium", "low"] }
+      },
+      "allOf": [
+        { "if": { "required": ["status"], "properties": { "status": { "const": "present" } } }, "then": { "required": ["cmd"] } },
+        { "if": { "required": ["status"], "properties": { "status": { "const": "absent" } } }, "then": { "not": { "required": ["cmd"] } } }
+      ]
+    },
     "detected": {
       "type": "object",
       "description": "One detected thing (language, package manager, framework, CI system, migration tool) with the paths that carry it. A polyglot repo lists ALL of them, never just the dominant one.",
@@ -415,6 +445,46 @@
             "typecheck": { "$ref": "#/definitions/commandFact" },
             "format": { "$ref": "#/definitions/commandFact" },
             "migrate": { "$ref": "#/definitions/commandFact" }
+          }
+        },
+        "gates": {
+          "type": "array",
+          "description": "The ORDERED verification sequence proposed for this root's pipeline.gates — the project's real gate, derived from its own entry points, hooks and CI rather than assumed to be npm scripts. Order is part of the contract: the run skill executes it top to bottom. Every entry traces to evidence, and a gate the project does not have is recorded status=absent so it surfaces as a coverage hole instead of being silently replaced by an AIDLC default.",
+          "items": { "$ref": "#/definitions/gate" }
+        },
+        "conventions": {
+          "type": "object",
+          "description": "The project's existing git and review conventions, derived from bounded history and host settings. AIDLC's own defaults (conventional commits, {type}/{id}-{slug} branches, one-item-one-PR) apply only where the project has no convention of its own — and are then marked as defaults, never presented as detected. Consumed when rendering rules/git-workflow.md.",
+          "additionalProperties": true,
+          "properties": {
+            "branchPattern": { "$ref": "#/definitions/fact", "description": "value: the observed pattern, e.g. '{type}/{id}-{slug}', 'JIRA-123-description', 'feature/JIRA-123'. Derived from recent branch names — say how many were looked at in the evidence." },
+            "commitStyle": {
+              "allOf": [
+                { "$ref": "#/definitions/fact" },
+                { "properties": { "value": { "enum": ["conventional", "id-prefixed", "imperative-freeform", "mixed", "none"] } } }
+              ],
+              "description": "mixed is a real and common answer — say so rather than picking the plurality and imposing it."
+            },
+            "mergeStrategy": {
+              "allOf": [
+                { "$ref": "#/definitions/fact" },
+                { "properties": { "value": { "enum": ["merge", "squash", "rebase", "mixed"] } } }
+              ],
+              "description": "Derived from merge-commit shape in history (a squash-only repo has no merge commits on its default branch) and, where readable, the host's allowed-merge settings."
+            },
+            "integrationBranch": { "$ref": "#/definitions/fact", "description": "The branch feature work targets when it is NOT the default branch — GitFlow's `develop`. Load-bearing: the run skill must branch from and integrate into this, not into `main`." },
+            "longLivedBranches": { "$ref": "#/definitions/fact", "description": "value: [patterns] such as ['develop', 'release/*', 'hotfix/*']. Distinguishes a branch that must never be deleted or force-updated from a stale feature branch." },
+            "hotfixRoute": { "$ref": "#/definitions/fact", "description": "A distinct branch/integration path for production incidents, where the project has one (e.g. hotfix/* cut from a release tag, merged to both main and develop). Recorded so an urgent item is not forced through the normal flow." },
+            "codeowners": { "$ref": "#/definitions/fact", "description": "value: {path, entryCount} for a CODEOWNERS file. Record the path and how many rules it holds — the owner identities are already in the repo and need not be copied into the profile." },
+            "requiredReviewers": { "$ref": "#/definitions/fact", "description": "Approval count / required reviewer policy, where the host API allows reading it. Unknown offline — say so rather than assuming none." },
+            "protectedBranches": { "$ref": "#/definitions/fact", "description": "value: [{branch, requiredChecks[], enforced}] from the host API where readable. status=absent means the API said there is no protection — a repo whose PRs would merge UNGATED, which must be named explicitly. unknown means the API could not be read (offline, or no permission), which is NOT the same as unprotected." },
+            "pushAccess": {
+              "allOf": [
+                { "$ref": "#/definitions/fact" },
+                { "properties": { "value": { "enum": ["direct", "fork-only", "unknown"] } } }
+              ],
+              "description": "fork-only ⇒ the contribution path is fork + upstream PR. Detecting this at adoption time is what stops a run from failing at its first push."
+            }
           }
         },
         "packages": {

@@ -7,6 +7,77 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.31.0] — 2026-07-30
+
+### `aidlc` — brownfield Phase 2: the project's own gate and conventions, applied behind a diff
+
+Phase 1 could *describe* an existing project; nothing could act on the description. A brownfield team still
+ran a pipeline that assumed npm scripts and imposed AIDLC's git conventions on a repo that already had its
+own. This is ADOPT-3, ADOPT-4 and ADOPT-5 — where a brownfield project becomes genuinely runnable rather
+than merely scaffolded.
+
+- **New skill `aidlc:adopt-apply`.** The write half of adoption, deliberately a **separate command** so
+  `/aidlc:adopt` keeps its read-only guarantee and stays safe to run on first contact. It validates the
+  profile with the scan's own validator before believing it, refuses a profile whose `scan.commit` no longer
+  matches HEAD without saying so, then works one way only: **propose, then write.** The complete diff, each
+  value's evidence beside it. A `low`-confidence fact becomes a **question**, never a pre-filled proposal.
+  A disagreement with a value a human authored is surfaced as `detected X · configured Y — keep / replace`
+  and **defaults to keep**. Partial approval is normal.
+- **`pipeline.gates` — the project's real gate replaces the npm assumption (ADOPT-4).** An ordered step
+  list, resolved most-specific-first (package → repo → workspace), executed top to bottom by `aidlc:run`'s
+  verify phase. A repo with no `package.json` now completes a full run on its own gate — `ruff` + `pytest`,
+  `mvn -B verify`, `cargo test`, `go test ./...`. Four things carry the weight:
+  - **`status: absent` is a first-class entry, kept on purpose.** A gate the project does not have stays
+    visible in config, and every run writes it into `## Findings` as a coverage hole. It is never
+    `required`, never counted green, and never substituted with an AIDLC default. Deleting the entry to
+    tidy the config is exactly how a missing gate becomes invisible.
+  - **`environmentDependent` + `services`** make a failure diagnosable as *environment unavailable*
+    instead of *code broken* — the difference between a useful run report and one that blames the diff for
+    a missing database.
+  - **`scope`** (`repo` · `package` · `affected` · `changed-paths`) with `maxItemMinutes`: a monorepo with
+    Nx/Turbo runs **affected targets only** and the run file **names the affected set**, because a green
+    subset is not a green suite.
+  - **`providedByHook`** records that husky / pre-commit / lefthook already runs a gate, so the AIDLC
+    pre-commit layer is never installed on top of a layer the project already has.
+- **The project's git conventions win (ADOPT-5).** New `gitConventions` on the mono `git` block and on every
+  `repos[]` entry: `integrationBranch`, `commitStyle`, `mergeStrategy`, `longLivedBranches`, `hotfixRoute`,
+  `contribution` + `upstreamRemote`, and `conventionsSource`. `aidlc:git-workflow` now resolves a single
+  **`<base>` = `integrationBranch` if set, else `defaultBranch`** and uses it for every branch-from, PR base
+  and local merge — so a GitFlow project branches from and integrates into `develop` and never touches
+  `main`. It follows the project's commit style rather than imposing conventional commits, honours
+  `mergeStrategy` on the local-merge path (a squash-only repo no longer receives a `--no-ff` merge commit),
+  refuses to delete or branch off a long-lived branch, follows `hotfixRoute` for a production incident, and
+  gains a **fork-based contribution path** (push to the fork, PR to the upstream) so a repo the user cannot
+  push to is handled at adoption time instead of failing at first push. `conventionsSource` distinguishes
+  detected from **default** from **human** — a default presented as a detected fact is the specific
+  dishonesty that field prevents, and a `human` block is never touched by a scan.
+- **Provenance and idempotency.** New `adoption` block (`scannedAt`, `commit`, `profileVersion`,
+  `profilePath`, `depth`, `appliedAt`, `unmanaged[]`) and `architecture.resolvedBy: "codebase-scan"`.
+  Applying the same profile at the same commit produces **no diff at all**; at a later commit it proposes
+  the deltas only. `--only <repo|package>` scopes a pilot and records what was left unmanaged, so a later
+  run neither re-proposes it nor mistakes it for missed.
+- **Detection to match, in the scan.** `gates[]` (the ordered proposal, mirroring CI's order where CI
+  declares one, else cheapest-first) and `conventions` (branch/commit/merge/integration/long-lived/hotfix/
+  CODEOWNERS/push-access) derived from **bounded** history — the bound is stated in the evidence, a shallow
+  clone lowers confidence on everything history-derived, and an unreadable branch-protection API is
+  `unknown`, **never** `absent`. Only an API that *answers* "no protection" earns `absent`, and that means
+  the repo's PRs merge ungated, which is named explicitly.
+- **`/aidlc:init` now offers three setup paths** (ADOPT-3's last criterion): requirements-doc → bootstrap,
+  **existing code → adopt**, or "I know my setup" → the full Q&A. The adopt path collects only key/name/
+  tracker/cadence, scaffolds the control plane, and skips tooling/structure/CI scaffolding entirely — an
+  existing project already has its own, and overwriting it was never the intent.
+- The scaffolded `rules/git-workflow.md` now says up front that its rules are **AIDLC's defaults for a
+  project with no convention of its own**, and that adoption re-renders it from the project's real ones.
+
+Enforcement kept pace with the contract: `validate-profile.mjs` gained gate and convention rules and the
+suite went 71 → 93 cases. Two invariants worth naming, because both catch a *plausible* profile rather than
+a malformed one: an `absent` gate may not be `required: true` (a hole that claims to block reads as green),
+and `integrationBranch` may not equal `defaultBranch` (it exists to name a target that is *not* the default,
+so equality means one of the two was mis-derived). A `fork-only` `pushAccess` with no `vcs.upstream` is also
+rejected — a fork path with no upstream has nowhere to open its PR.
+
+- Versions: `aidlc` 0.30.0 → **0.31.0**, marketplace → **0.31.0**.
+
 ## [0.30.0] — 2026-07-29
 
 ### `aidlc` — `/aidlc:adopt`, the brownfield front door: read the code, derive the facts, prove each one

@@ -259,8 +259,9 @@ Phase → `implement`. Checkpoint.
 (per `aidlc:debugging`), commit it (`test(scope): failing repro for {ID}`).
 
 Dispatch **Agent → aidlc-implementer** with brief: run-file path, `## Plan`, AC list, stack
-config, and: implement per plan, tick plan checkboxes as completed, conventional commits per
-logical unit, run the project's test/lint commands before finishing, append a summary line to `## Log`.
+config, **the resolved gate** (below), and: implement per plan, tick plan checkboxes as completed, commits
+per logical unit in the project's own commit style (`aidlc:git-workflow` → *Commits*), **run the resolved
+gate before finishing**, append a summary line to `## Log`.
 
 If implementer reports a hard blocker (missing dependency/credentials/contradictory AC) →
 phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STOP.
@@ -289,10 +290,45 @@ Phase → `verify`. Checkpoint.
 
 ## 7 · VERIFY (per-agent cadence — the pipeline's biggest cost, tuned)
 
+### The gate — the project's, not npm's
+
+**Resolve the gate before anything else in this phase.** Read `pipeline.gates.verify` and take the
+**most-specific** step list: the resolved package's (`verify.repos.<repo>.packages.<pkg>.steps`), else the
+resolved repo's (`verify.repos.<repo>.steps`), else the top-level `verify.steps`. Execute it **in the order
+written** — the order is the contract — from the repo's checkout, and stop at the first `required` failure.
+(Note `pipeline.gates.ambiguousRequirements` is a different concern living in the same block — the
+requirements gate at §4, not this one.)
+
+- **No `pipeline.gates.verify` at all** (a project that never adopted, or a greenfield scaffold): fall back to
+  the `CLAUDE.md` Commands block as before. Do **not** assume npm scripts exist — a repo with no
+  `package.json` has a real gate (`pytest`, `mvn -B verify`, `cargo test`, `go test ./...`) and
+  `/aidlc:adopt` + `/aidlc:adopt-apply` are how it gets recorded.
+- **A step with `status: absent` is a coverage hole, not a pass.** Never count it green, never substitute
+  an AIDLC default for it. Write one line per absent step into `## Findings` —
+  `coverage hole: no <name> gate in <repo> (recorded absent at adoption)` — so every run states what the
+  project cannot verify. It is deliberate, recurring, and the honest cost of an un-gated codebase.
+- **`environmentDependent` failures are diagnosed differently.** If a step needing services fails, decide
+  whether the services are actually up before blaming the diff, and record it as **environment
+  unavailable** in `## Findings`, not as a regression. Getting this wrong sends a fix cycle chasing a
+  missing database.
+- **Scoping a slow suite.** Where a step's `scope` is `affected`, run the affected-graph runner's affected
+  targets and **name the affected set** in the run file. Where it is `changed-paths`, derive the subset
+  from this item's diff. Either way record **which subset ran** — `gate: test (affected: @acme/web,
+  @acme/shared)` — because a green subset is not a green suite, and the full suite is CI's job. If a step
+  has no scope narrower than `repo` and blows `pipeline.gates.verify.maxItemMinutes`, say so rather than silently
+  waiting or silently skipping.
+- **`providedByHook` steps** already run at commit time via the project's own hook manager; do not run
+  them twice and do not install an AIDLC pre-commit layer over them.
+- Record the outcome of every step — name, scope, subset, pass/fail/absent/environment-unavailable — in
+  the run file. That list is the audit trail the PR carries.
+
+### Agent cadence
+
 Read `pipeline.verification`. Defaults are **economical**: `mode` `auto`; `reviewer` `on-demand`;
 `qa` `on-demand`; `security` `per-epic`; `securityConfirm` true. This is the *extra*, agent-driven
-review — and it never runs over nothing: the implementer already ran lint + typecheck + tests green,
-and CI re-runs them as a hard gate, so per-item quality always has that floor. Each agent carries its
+review — and it never runs over nothing: the implementer already ran the resolved gate green, and CI
+re-runs it as a hard gate, so per-item quality has that floor **to the extent the project's gate covers
+it** (an absent step is a hole in the floor, reported per run, never papered over). Each agent carries its
 own **cadence** so tokens are spent only where they earn it. **When you must reproduce that gate
 yourself** — a subagent returned a non-verdict (see the orchestrator invariants), or you can't take a
 `file:`-sibling consumer's CI parity on trust — follow `aidlc:ci-cd` → *Local CI-parity for a

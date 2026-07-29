@@ -77,15 +77,24 @@ improvise replacement files: the permission posture and rules must be the review
      scaffolds per the resolved stack. This is the default for greenfield-from-requirements — it stops
      forcing blind topology/stack answers on a project whose shape the requirements haven't been read to
      decide yet.
-   - **I know my setup, or there's existing code** → **full path.** Collect everything below as normal.
-     - **If there IS existing code, suggest `/aidlc:adopt` first** (read-only, writes only
-       `.aidlc/adoption/`). Items 4, 5 and the stack questions below otherwise get answered from
-       memory about a codebase the framework has never read, and each wrong answer lands in
-       `CLAUDE.md` and `aidlc.config.json` as ground truth. Adopt scans the workspace and reports the
-       topology, per-root stack, real gate commands and VCS conventions **with evidence**, so these
-       answers come from the code. It is a suggestion, not a gate: a user who knows their setup should
-       just answer. (Adopt does not yet write config itself — you still collect the answers here, but
-       you collect them from its report.)
+   - **There's existing code — scan it** → **adopt path.** The project *is* the specification, so do not
+     ask items 4, 5 or the stack questions from memory about a codebase the framework has never read —
+     every wrong answer lands in `CLAUDE.md` and `aidlc.config.json` as ground truth and steers every
+     later run. Instead: collect only items **1–3 and 6** (key, name, tracker, cadence), scaffold the
+     control plane as in Step 4.1–4.4, and then hand off:
+     **`/aidlc:adopt`** (read-only — derives topology, per-root stack, the real gate commands and the
+     project's git conventions, each with `path:line` evidence) → **`/aidlc:adopt-apply`** (shows the diff
+     and, on approval, writes `workspace.layout`, `repos[]`, per-repo `stack`, `pipeline.gates.verify`, the git
+     conventions, `CLAUDE.md`'s Commands block and `rules/git-workflow.md`). Write the config with
+     `"architecture": { "status": "pending", "resolvedBy": "/aidlc:adopt" }` and leave the `{{*_CMD}}`
+     placeholders as "tbd" — same deferral mechanism as the bootstrap path, different resolver.
+     **Skip Step 4.5–4.7's stack scaffolding**: an existing project already has its tooling, structure and
+     CI, and the merge-aware baseline is adopt's business, not a fresh scaffold's. **Skip item 7 too** —
+     adopt detects the project's existing hook manager (husky / pre-commit / lefthook) and records it so the
+     AIDLC pre-commit layer is not installed on top of one that is already there.
+   - **I know my setup** → **full path.** Collect everything below as normal. Reasonable for a small
+     project whose shape the user genuinely knows; on anything sizeable, prefer the adopt path — the code
+     is a better source than memory, and it is cheap to check.
 
 Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
@@ -169,6 +178,10 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 
 ## Step 4 — Scaffold
 
+> **Adopt path — do the minimum too.** If Step 3.0 chose *there's existing code*, scaffold only the
+> control plane (Steps 4.1–4.4) with the **pending** config from Step 3.0, then stop and point the user at
+> `/aidlc:adopt`. Do not scaffold tooling, structure or CI over a project that already has its own.
+>
 > **Deferred (bootstrap) path — do the minimum.** If Step 3.0 chose the requirements-doc path, scaffold
 > only the control plane: copy the base template (CLAUDE.md, `.claude/`, `backlog/`, `.aidlc/`), write the
 > **pending** config from Step 3.0 (no `workspace.layout`, `repos: []`, blank `stack`,
@@ -300,6 +313,10 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 ## Step 5 — Report
 
 Print a summary: files created, config chosen, and next steps:
+- **Adopt path (existing code):** the next steps are **`/aidlc:adopt`** then **`/aidlc:adopt-apply`**. Say
+  that topology, stack, gate commands and git conventions are left **pending** on purpose, that the scan is
+  read-only (it writes only `.aidlc/adoption/`), and that nothing reaches config until the apply step shows
+  a diff and gets approval. Skip the item/next suggestions below until the profile has been applied.
 - **Deferred (bootstrap) path:** the single next step is **`/aidlc:bootstrap <requirements doc or brief>`**
   — say that architecture (mono/poly, stack, monolith-vs-microservices) is left **pending** and bootstrap
   will infer it from the requirements, write it to config, and populate the backlog. Skip the item/next

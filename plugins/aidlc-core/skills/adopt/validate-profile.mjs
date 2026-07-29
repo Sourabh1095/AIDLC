@@ -53,6 +53,11 @@ export const SURFACE_KINDS = [
 ];
 export const DOC_KINDS = ["adr", "rfc", "design-doc", "wiki", "readme", "other"];
 export const DECLARED_BY = ["code-workspace", "folder-scan", "config", "user"];
+export const GATE_STATUSES = ["present", "absent"];
+export const GATE_SCOPES = ["repo", "package", "affected", "changed-paths"];
+export const COMMIT_STYLES = ["conventional", "id-prefixed", "imperative-freeform", "mixed", "none"];
+export const MERGE_STRATEGIES = ["merge", "squash", "rebase", "mixed"];
+export const PUSH_ACCESS = ["direct", "fork-only", "unknown"];
 // `project-action` covers a gap only the project can close (git init on a zip drop, adopt a
 // tracker) — so "every unsupported surface names a gap" stays enforceable without pretending
 // AIDLC could ship a plugin for it.
@@ -151,6 +156,62 @@ function checkDetected(d, where) {
   enumField(d, "confidence", CONFIDENCES, where);
   if (d.support !== undefined) enumField(d, "support", SUPPORTS, where);
   if (d.paths !== undefined && !Array.isArray(d.paths)) err(where, "`paths` must be an array");
+}
+
+// One gate. `present` carries the project's own command; `absent` is a stated coverage hole and
+// cannot be `required` — a missing gate that claims to block would read as green.
+function checkGate(g, where, seen) {
+  if (!isObj(g)) return err(where, "must be an object");
+  if (!nonEmptyStr(g.name)) err(where, "missing `name`");
+  enumField(g, "status", GATE_STATUSES, where);
+  enumField(g, "scope", GATE_SCOPES, where);
+  if (typeof g.required !== "boolean") err(where, "missing `required` (boolean)");
+  checkEvidence(g.evidence, where);
+  if (g.confidence !== undefined) enumField(g, "confidence", CONFIDENCES, where);
+
+  if (g.status === "present" && !nonEmptyStr(g.cmd))
+    err(where, "status=present requires `cmd` — the command the project actually runs, verbatim");
+  if (g.status === "absent") {
+    if (g.cmd !== undefined) err(where, "status=absent must not carry a `cmd` — there is no command to record");
+    if (g.required === true)
+      err(where, "an absent gate cannot be `required: true` — a gate that does not exist cannot block, and marking it required is how a coverage hole reads as green");
+  }
+  if (g.scope === "package" && !nonEmptyStr(g.package))
+    err(where, "scope=package requires `package` naming which one");
+  if (g.timeoutMinutes !== undefined && !(Number.isInteger(g.timeoutMinutes) && g.timeoutMinutes >= 1))
+    err(where, "`timeoutMinutes` must be an integer >= 1, and only when the project states one");
+  if (g.environmentDependent === true && !(Array.isArray(g.services) && g.services.length))
+    warn(where, "environmentDependent with no `services` listed — name them so an environment failure is diagnosable");
+
+  // Two gates with the same name in the same scope make execution order ambiguous.
+  const key = `${g.name} ${g.package ?? ""}`;
+  if (seen.has(key)) err(where, `duplicate gate \`${g.name}\`${g.package ? ` for package ${g.package}` : ""} — the gate list is an ordered sequence, so names must be unique within a scope`);
+  else seen.add(key);
+}
+
+function checkConventions(c, where, root) {
+  if (!isObj(c)) return err(where, "must be an object");
+  const enumFacts = [
+    ["commitStyle", COMMIT_STYLES],
+    ["mergeStrategy", MERGE_STRATEGIES],
+    ["pushAccess", PUSH_ACCESS],
+  ];
+  for (const [k, allowed] of enumFacts)
+    if (c[k] !== undefined) checkFact(c[k], `${where}.${k}`, { valueEnum: allowed });
+  for (const k of ["branchPattern", "integrationBranch", "longLivedBranches", "hotfixRoute", "codeowners", "requiredReviewers", "protectedBranches"])
+    if (c[k] !== undefined) checkFact(c[k], `${where}.${k}`);
+
+  // fork-only contribution with no upstream leaves the integration path undefined — the run would
+  // discover it at push time, which is the failure detecting this early is meant to prevent.
+  if (c.pushAccess?.status === "known" && c.pushAccess.value === "fork-only" &&
+      root?.vcs?.upstream?.status !== "known")
+    err(`${where}.pushAccess`, "is `fork-only` but vcs.upstream is not established — a fork contribution path needs the upstream it targets, or the integration step has nowhere to open a PR");
+
+  // integrationBranch exists to name a target that ISN'T the default branch. Equal to it means the
+  // project is not GitFlow and the field should be absent, or one of the two was mis-derived.
+  if (c.integrationBranch?.status === "known" && root?.vcs?.defaultBranch?.status === "known" &&
+      c.integrationBranch.value === root.vcs.defaultBranch.value)
+    err(`${where}.integrationBranch`, `equals vcs.defaultBranch (\`${c.integrationBranch.value}\`) — it exists to name a target that is NOT the default branch; omit it, or correct whichever was mis-derived`);
 }
 
 function checkCommandFact(f, where) {
@@ -306,6 +367,15 @@ function validate(p, profileText) {
             if (v !== undefined) checkCommandFact(v, `${at}.entryPoints.${k}`);
 
         if (r.workspaceTooling !== undefined) checkFact(r.workspaceTooling, `${at}.workspaceTooling`);
+
+        if (r.gates !== undefined) {
+          if (!Array.isArray(r.gates)) err(`${at}.gates`, "must be an array — and its ORDER is the execution order");
+          else {
+            const seenGates = new Set();
+            r.gates.forEach((g, j) => checkGate(g, `${at}.gates[${j}]`, seenGates));
+          }
+        }
+        if (r.conventions !== undefined) checkConventions(r.conventions, `${at}.conventions`, r);
 
         if (r.packages !== undefined) {
           if (!Array.isArray(r.packages)) err(`${at}.packages`, "must be an array");
