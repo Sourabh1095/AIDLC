@@ -121,16 +121,57 @@ per-root trust and plugin-enablement probes (which the skill is instructed to re
 harness will not tell it), a genuine UNC share, a genuinely offline run, and a read-only workspace. Those
 need a real adoption on a real project, which is the next honest step.
 
-**Phase 2's verification status is the same shape, and the gap is wider.** The contract additions are
-mechanically enforced — 93 validator cases now cover gates and conventions, including the two invariants
-that catch a *plausible* profile rather than a malformed one (an `absent` gate may not be `required`;
-`integrationBranch` may not equal `defaultBranch`). But `adopt-apply` itself writes files, and **nothing
-here has yet executed it**: the propose-then-write flow, the merge behaviour against a hand-authored
-`CLAUDE.md`, the claim that re-applying at the same commit yields no diff, the rendered
-`rules/git-workflow.md`, and every consumption path in `run` and `git-workflow` (ordered gate execution, an
-absent gate surfacing in `## Findings`, affected-set scoping, a squash-strategy local merge, a fork → upstream
-PR) are **specified and unexercised**. A live adoption on a real GitFlow or fork-based repo is what closes
-that, and it should happen before Phase 3 builds on top.
+### Phase 2 — the live adoption run (2026-07-30)
+
+Phase 2 shipped specified-but-unexercised. A live run has now closed that: a fixture workspace built as a
+**GitFlow Python service with no `package.json`** (merge commits, `PAY-nn-slug` branches, CODEOWNERS,
+compose-backed tests, no typecheck), a **squash-only TypeScript app** with husky and no CI, a
+**fork-based polyglot monorepo** (pnpm + Turbo, a TS package and a Python package, `origin` = fork +
+`upstream`), a non-repo docs folder, and a **JSONC** `.code-workspace` — against a control plane
+pre-seeded with a **hand-authored** `CLAUDE.md` and config so merge-awareness had something to protect.
+`/aidlc:adopt` then `/aidlc:adopt-apply` were executed end to end, and the consumption paths driven off
+the config they produced.
+
+**Confirmed working.** Python gates derived from `tox.ini` with no `package.json` anywhere (the headline
+ADOPT-4 claim); `typecheck`/`format` recorded `absent` and surfacing as coverage-hole lines; the
+compose-backed `test` flagged environment-dependent; Turbo tasks as `affected` scope plus a per-package
+`pytest`; GitFlow detected (`integrationBranch: develop`, `mergeStrategy: merge`) and `id-prefixed`
+commits for one repo while the other read `conventional` + `squash`; `fork-only` push access; the docs
+folder excluded with a reason; **`pipeline.gates.ambiguousRequirements: "ask-human"` preserved untouched**
+(the payoff for nesting the new block under `verify`); the hand-authored `make test-all` surfaced as a
+conflict and **kept**; every hand-written `CLAUDE.md` line intact; `rules/git-workflow.md` rendered with
+GitFlow/squash/fork per repo and AIDLC defaults *labelled as defaults*; and a real branch-and-integrate
+proving `<base>` = `develop` left `main` untouched while the squash repo produced zero merge commits.
+
+**Four defects found and fixed.** Every one produced a *plausible* result rather than an error, which is
+why only execution surfaced them:
+
+1. **`defaultBranch` came back `unknown` for every repo.** `rev-parse --abbrev-ref origin/HEAD` exits 128
+   whenever `origin/HEAD` was never set locally — the normal state of a repo whose remote was *added*
+   rather than cloned from. The most load-bearing fact in the profile (it is what `<base>` falls back to)
+   was therefore unknown everywhere, stranding the pipeline with nowhere to branch. Now a fallback chain:
+   remote refs, then a single trunk-ish local branch confirmed by ancestry, each at `medium`, then
+   `unknown`. Fixed 3 of 3 repos in the fixture.
+2. **`branchPattern` came back `unknown` for every repo** because merged branches are deleted — normal
+   hygiene. Names are now recovered from merge-commit subjects (`Merge branch 'PAY-31-ledger-export' into
+   develop`) before giving up. Recovered the GitFlow repo's convention; the squash-only repos stay
+   honestly `unknown`, since squashing erases the evidence entirely.
+3. **The "re-applying produces no diff" guarantee was false.** `adoption.appliedAt` is a timestamp, so
+   every re-apply rewrote one line. `adopt-apply` now compares the proposal with `appliedAt` excluded and,
+   when nothing else differs, **writes nothing at all** — so the guarantee is now literal: two consecutive
+   re-applies leave a byte-identical file and a clean `git status`.
+4. **Gate resolution silently dropped inherited gates.** "Most-specific-wins" meant *replace*, so the
+   Python package inside the monorepo resolved to `pytest` alone — the repo-wide `lint` vanished, and a
+   vanished gate is indistinguishable from a passing one. Resolution now **layers narrowest → broadest**,
+   each layer claiming only gate names no narrower layer took, so a package inherits the repo's other
+   gates while its own ordering still wins. Because this is easy to get wrong silently, it is now
+   **code, not prose**: `skills/run/resolve-gate.mjs` + a 24-case suite, which `run` §7 invokes.
+
+**Still unexercised**, and honestly so: a fork PR actually opened against an upstream (needs a real host
+and auth — the local push-to-fork mechanics work, the `gh pr create --repo … --head owner:branch` call is
+untested), branch-protection and required-reviewer reads (`gh api` is deliberately not allowlisted, so
+they prompt and were recorded `unknown` throughout), a genuinely offline/air-gapped run, a read-only
+workspace, and a full `/aidlc:run` with agents dispatched over the derived gate.
 
 **Phases 3–4 are unstarted.** Nothing yet proposes retroactive ADRs, seeds a debt backlog, records the
 SaaS runtime profile, detects drift, or documents clean removal. `/aidlc:adopt` reports and proposes;

@@ -292,10 +292,26 @@ Phase → `verify`. Checkpoint.
 
 ### The gate — the project's, not npm's
 
-**Resolve the gate before anything else in this phase.** Read `pipeline.gates.verify` and take the
-**most-specific** step list: the resolved package's (`verify.repos.<repo>.packages.<pkg>.steps`), else the
-resolved repo's (`verify.repos.<repo>.steps`), else the top-level `verify.steps`. Execute it **in the order
-written** — the order is the contract — from the repo's checkout, and stop at the first `required` failure.
+**Resolve the gate before anything else in this phase — and do not hand-derive it.** This skill ships the
+resolver:
+
+```
+node "<plugin>/skills/run/resolve-gate.mjs" .claude/aidlc.config.json <repoName> [packageName]
+```
+
+It prints the resolved ordered steps with each step's provenance, the `## Findings` coverage-hole lines,
+and which steps need services. Execute the result **in the order printed** — the order is the contract —
+from the repo's checkout, stopping at the first `required` failure.
+
+**Why a script rather than a rule to follow:** the layering is easy to get wrong in a way that fails
+*silently*. It walks **narrowest → broadest** (package, repo, workspace); each layer contributes its steps
+in its own order, but only for gate names no narrower layer already claimed. Read only the narrowest list
+instead and a Python package inside a TypeScript monorepo loses the repo-wide `lint` — and a gate that
+vanished is indistinguishable from one that passed. Keep the broader layer's *ordering* instead and a repo
+that deliberately declares `[test, lint]` gets silently reordered. A package that genuinely should skip a
+repo-level gate says so by declaring that gate `status: absent` at package level, which keeps it visible
+in the coverage-hole report instead of erasing it. (If the resolver is missing, apply that rule by hand.)
+
 (Note `pipeline.gates.ambiguousRequirements` is a different concern living in the same block — the
 requirements gate at §4, not this one.)
 

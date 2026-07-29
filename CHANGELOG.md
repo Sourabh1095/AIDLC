@@ -7,6 +7,55 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.31.1] — 2026-07-30
+
+### `aidlc` — four defects the first live brownfield adoption found
+
+0.31.0 shipped Phase 2 specified but unexercised. A live run closed that gap: a fixture workspace built as
+a GitFlow Python service with **no `package.json`**, a squash-only TypeScript app, a fork-based polyglot
+monorepo (pnpm + Turbo, a TS package beside a Python one), a non-repo docs folder and a **JSONC**
+`.code-workspace` — against a control plane pre-seeded with a hand-authored `CLAUDE.md` and config, so
+merge-awareness had something real to protect. `/aidlc:adopt` → `/aidlc:adopt-apply` ran end to end and the
+consumption paths were driven off the config they produced.
+
+Most of it worked as designed, including the things Phase 2 existed for: Python gates derived from
+`tox.ini` with no `package.json` anywhere, `absent` gates surfacing as coverage holes, the compose-backed
+suite flagged environment-dependent, GitFlow's `develop` honoured with `main` left untouched, a squash repo
+producing zero merge commits, `ambiguousRequirements` preserved untouched, and every hand-written
+`CLAUDE.md` line intact with the conflicting command **kept**. Four things were wrong, and each produced a
+*plausible* result rather than an error — which is why only execution found them:
+
+- **`defaultBranch` was `unknown` for every repo.** `rev-parse --abbrev-ref origin/HEAD` exits 128 whenever
+  `origin/HEAD` was never set locally — the normal state of any repo whose remote was *added* rather than
+  cloned from. That left the profile's most load-bearing fact blank everywhere (it is what `<base>` falls
+  back to), stranding the pipeline with nowhere to branch. `aidlc:adopt` now works a fallback chain —
+  remote refs, then a single trunk-ish local branch confirmed by `merge-base --is-ancestor`, each at
+  `medium` confidence — before recording `unknown`. Resolved 3 of 3 fixture repos.
+- **`branchPattern` was `unknown` for every repo**, because deleting merged branches is normal hygiene and
+  the scan only read live refs. It now recovers names from merge-commit subjects
+  (`Merge branch 'PAY-31-ledger-export' into develop`) before giving up. A squash-only repo still reports
+  `unknown` — squashing genuinely erases the evidence, and saying so is the correct answer.
+- **The "re-applying the same profile changes nothing" guarantee was false.** `adoption.appliedAt` is a
+  timestamp, so every re-apply rewrote a line. `adopt-apply` now compares its proposal with `appliedAt`
+  excluded and, when nothing else differs, **writes nothing at all**. The guarantee is now literal: two
+  consecutive re-applies leave a byte-identical file and a clean `git status`.
+- **Gate resolution silently dropped inherited gates.** "Most-specific-wins" meant *replace*, so a Python
+  package inside the TypeScript monorepo resolved to `pytest` alone and the repo-wide `lint` **vanished** —
+  and a gate that vanished is indistinguishable from one that passed, the same failure class as deleting an
+  `absent` entry. Resolution now **layers narrowest → broadest**: each layer contributes its steps in its
+  own order but only for gate names no narrower layer claimed, so a package inherits the repo's other gates
+  while its own ordering still wins. A package that should genuinely skip a repo gate declares it
+  `status: absent` at package level — explicit, and still reported as a coverage hole.
+  - Because this is exactly the kind of rule that fails silently when re-derived per run, it is now **code
+    rather than prose**: new `skills/run/resolve-gate.mjs` (CLI + importable, offline, no deps) with a
+    24-case `resolve-gate.test.mjs` pinning the semantics, and `run` §7 invokes it instead of describing it.
+
+`docs/brownfield-adoption.md` records the full run, what it confirmed, and what remains unexercised (a real
+fork PR against an upstream, branch-protection reads, an offline run, a read-only workspace, and a full
+`/aidlc:run` with agents over the derived gate).
+
+- Versions: `aidlc` 0.31.0 → **0.31.1**, marketplace → **0.31.1**.
+
 ## [0.31.0] — 2026-07-30
 
 ### `aidlc` — brownfield Phase 2: the project's own gate and conventions, applied behind a diff

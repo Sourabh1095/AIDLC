@@ -182,11 +182,24 @@ to prevent. The correct probe is two steps:
 
 Only once step 2 says the root *is* a git repo, ask the rest — all read-only, all allowlisted, always
 `git -C "<root>"` so no `cd` is needed: `rev-parse --abbrev-ref HEAD` (current branch) ·
-`rev-parse --abbrev-ref <remote>/HEAD` (default branch — **rc=128 when no remote or no local
-`origin/HEAD`; that is `absent`/`unknown`, not an error to swallow**) · `rev-parse
---is-shallow-repository` · `remote -v` · `submodule status` · `worktree list` ·
+`rev-parse --is-shallow-repository` · `remote -v` · `submodule status` · `worktree list` ·
 `for-each-ref --sort=-committerdate refs/heads` (branch shape, bounded) · `lfs env` ·
 `count-objects -vH` (size).
+
+**The default branch needs a fallback chain, not one probe.** `rev-parse --abbrev-ref <remote>/HEAD` is
+the high-confidence answer, but it exits **rc=128 with a `fatal:` on stderr whenever `origin/HEAD` was
+never set locally** — which is the normal state of any repo whose remote was *added* rather than cloned
+from. Do not stop there and do not guess `main` because it is common. Work down:
+
+1. `rev-parse --abbrev-ref <remote>/HEAD` ⇒ **high**.
+2. `for-each-ref --format=%(refname:short) refs/remotes/<remote>` — if exactly one of
+   `main`/`master`/`trunk` exists remotely ⇒ **medium**.
+3. Local branches — if exactly one of `main`/`master` exists **and** every other local branch is
+   reachable from it or reaches it (`merge-base --is-ancestor`) ⇒ **medium**, citing both.
+4. Otherwise `unknown`, and the apply step asks.
+
+This matters more than most facts: `defaultBranch` is what `<base>` falls back to, so leaving it unknown
+when the repo's own refs answer it strands the pipeline with nowhere to branch from.
 **Strip credentials from every remote URL before recording or printing it** — an Azure/GitHub remote
 commonly embeds a PAT (`https://user:token@…`), which makes an unredacted `remote -v` a secret leak
 into a file you are about to write. Do **not** reach for `git config` to fill a gap here: it is a write
@@ -277,7 +290,7 @@ evidence — an unbounded history walk on a large repo is its own cost problem. 
 
 | Convention | Signal |
 |---|---|
-| `branchPattern` | `for-each-ref --format=%(refname:short) refs/heads refs/remotes` (bounded, most recent first) — infer the shape, e.g. `{type}/{id}-{slug}` vs `JIRA-123-description` |
+| `branchPattern` | `for-each-ref --format=%(refname:short) refs/heads refs/remotes` (bounded, most recent first) — infer the shape, e.g. `{type}/{id}-{slug}` vs `JIRA-123-description`. **A healthy repo deletes merged branches**, so refs alone often show only long-lived ones; that is not "no convention". Recover names from history before giving up: merge-commit subjects (`log --merges -20 --format=%s` yields `Merge branch 'PAY-31-ledger-export' into develop`), squash subjects carrying a PR number, and `reflog` where it survives. Name the source you used — a pattern read from merge subjects is `medium` at best |
 | `commitStyle` | `log -50 --format=%s` — classify as conventional · id-prefixed · imperative-freeform · **mixed** · none |
 | `mergeStrategy` | `log --merges -20 <default>`: merge commits present ⇒ `merge`; none on a linear default branch ⇒ squash **or** rebase, which history alone cannot separate — record `medium` confidence and say which two, or read the host's allowed-merge settings |
 | `integrationBranch` | a long-lived **non-default** branch that feature work merges into (`develop`) — needs *both* the branch and recent merges into it, not just the name |

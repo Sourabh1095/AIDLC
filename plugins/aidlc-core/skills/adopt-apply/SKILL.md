@@ -144,6 +144,19 @@ Write the `adoption` block: `scannedAt`, `commit`, `profileVersion`, `profilePat
 and `unmanaged[]` for anything `--only` left out. This is what makes the next run idempotent and the run
 after that able to tell drift from a rewrite. Never hand-author these values — copy them from the profile.
 
+**`appliedAt` is a timestamp, so it would break idempotency if written unconditionally.** Compare the
+proposal to the file on disk **with `adoption.appliedAt` excluded from the comparison**:
+
+- **Identical ⇒ write nothing at all.** Report "no changes — this workspace already matches the profile."
+  `appliedAt` keeps its original value, the file stays byte-identical, and `git status` is clean. Writing
+  a fresh timestamp over an otherwise-unchanged file would turn every re-run into a one-line diff and make
+  the no-diff guarantee false.
+- **Something else changed ⇒ write, and `appliedAt` advances** to now, because an apply actually happened.
+
+The same rule governs `CLAUDE.md` and `rules/git-workflow.md`: render, compare, and write only on a real
+difference. A command that reports "no changes" and leaves the tree clean is the observable proof that
+adoption converges instead of churning.
+
 ## 4 · Show the diff, get approval, then write
 
 1. **Show it as a diff**, file by file, with each changed value's **evidence inline** (`path:line`, or the
@@ -167,8 +180,8 @@ Say this plainly at the end:
 - **The gate is now the project's own.** `/aidlc:run` executes `pipeline.gates.verify` in order; a repo with no
   `package.json` runs its real gate. Every `absent` gate will appear in each run's `## Findings` as a
   coverage hole until the project fills it — that is deliberate, not noise.
-- **Re-running this command against the same commit changes nothing.** Against a later commit it proposes
-  the deltas only.
+- **Re-running this command against the same commit changes nothing** — literally: no write, a clean
+  `git status`, and a "no changes" report (§3.4). Against a later commit it proposes the deltas only.
 - **Still not done by adoption:** ADRs, a debt backlog, the SaaS runtime profile, drift and removal
   (`docs/brownfield-adoption.md`, Phases 3–4). And nothing here remediates a finding — fixing is normal
   pipeline work through the normal doors.
