@@ -56,6 +56,7 @@ requirement → working full-stack app, every command included.
 | Command | Purpose |
 |---------|---------|
 | `/aidlc:init` | Scaffold the AIDLC template into a project |
+| `/aidlc:do <anything>` | General front door: ask an opinion/fit question, investigate, or describe work — the orchestrator grounds itself in the project (ADRs, backlog, runs, stack) and routes. Consults end with an answer, no item |
 | `/aidlc:intake <text>` | Turn a plain-language requirement into backlog items (deduped against existing ones) |
 | `/aidlc:run <ID \| text>` | Run one work item end-to-end (resumable); free text = intake + run |
 | `/aidlc:next` | Pick the highest-priority ready item and run it |

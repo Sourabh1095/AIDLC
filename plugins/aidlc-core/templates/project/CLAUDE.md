@@ -22,6 +22,10 @@
   runs per-epic, with the CI gate (lint/type/tests/boundaries) as the per-item floor.
 - `/aidlc:next` — pick the highest-priority ready item and run it.
 - `/aidlc:status` — dashboard of active runs and backlog.
+- `/aidlc:do <anything>` — the general front door: an opinion or fit question ("would this sit right
+  here?"), an investigation, or work described in plain language. It grounds in this project's ADRs,
+  backlog, runs and stack before deciding. Prefer it over answering a project question cold — a
+  question answered without the ADRs is a worse answer. Consults create no items.
 - Pipeline state lives in `.aidlc/runs/<ID>.md` — treat those files as the source of truth for in-flight work.
 - Architecture decisions go in `docs/adr/` as ADRs.
 

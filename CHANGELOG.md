@@ -7,6 +7,46 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.29.0] — 2026-07-29
+
+### `aidlc` — `/aidlc:do`, a general front door that grounds before it routes
+
+Until now every entry point required you to already know the shape of your request: `/aidlc:run <ID>`
+for a tracked item, `/aidlc:intake <text>` for a requirement, `/aidlc:next` for whatever is top of the
+backlog. A prompt that was **not** work had no door at all. Asking *"would this feature sit right in our
+project?"* or *"should we use X here?"* fell straight through to the bare agent, which answered without
+the one thing that makes the answer worth having — the project's ADRs, backlog, repo roles and stack.
+The closest existing capability, `aidlc:research`, is `user-invocable: false`, runs only against a spike
+**item**, and commits a formal dated decision report to `docs/research/`; there was no way to get a
+grounded opinion without first minting a work item for it.
+
+- **New skill `aidlc:do`** (`/aidlc:do <anything>`). The orchestrator grounds itself first, then routes.
+  Six routes, each announced in one line **before** acting so a misroute costs nothing to correct:
+  **consult** (opinion / fit / "should we") · **explain** (how or why something works) ·
+  **diagnose** (a defect) · **build** (hands off to `aidlc:run`, which already accepts free text) ·
+  **resume** (the prompt names a `{KEY}-{n}`) · **meta** (`/aidlc:status`, `/aidlc:next`).
+- **A no-artifact answer is a first-class outcome.** Consults and explanations normally end with no
+  item, no branch and no commit — stated explicitly in the skill, because the natural failure mode of a
+  pipeline plugin is manufacturing a work item to look productive. A consult also never silently becomes
+  an implementation: a mixed prompt ("is this a good idea, and if so build it") runs the consult, presents
+  the recommendation, and waits for a go-ahead.
+- **The grounding floor is deliberately cheap** — config → in-flight runs (control plane **and** each
+  declared repo's `.aidlc/runs`, the poly-aware scan `/aidlc:status` uses) → backlog **titles only** →
+  ADR **titles only**. Full ADRs are read only when the prompt touches that decision; agents escalate one
+  at a time and only when the answer genuinely depends on it (`aidlc-architect` reserved for
+  hard-to-reverse calls). Most prompts are answered from the floor plus one targeted read.
+- **ADRs are cited, not re-litigated.** The skill forbids quietly contradicting a recorded decision —
+  cite it, or explicitly propose superseding it. Answering an architecture question without reading the
+  relevant ADR is the specific failure this door exists to prevent.
+- **Discoverability** — added to the README command table, the user-guide cheat-sheet (including the
+  "an opinion, not a task" row), and the scaffolded project `CLAUDE.md`, which now tells a project to
+  prefer this door over answering a project question cold.
+
+Existing behaviour is untouched: no change to `run`, `intake`, `next`, any agent, or any hook. `do` is a
+router that hands off to the pipeline for delivery and writes no product code itself.
+
+- Versions: `aidlc` 0.28.2 → **0.29.0**, marketplace → **0.29.0**.
+
 ## [0.28.2] — 2026-07-24
 
 ### `aidlc` — env switch: resolve `envFileAccess` from the env file up to the control plane (F50)

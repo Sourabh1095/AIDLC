@@ -77,6 +77,8 @@ to run it as one repo.
 |---|---|
 | New project, first time | `/aidlc:init` (choose the requirements-doc path to defer topology/stack to bootstrap) |
 | **A whole project from a requirements doc/brief** (Word/PDF or chat) → infers architecture (mono/poly, stack, monolith-vs-microservices), populated board + sprint plan | `/aidlc:bootstrap ./requirements.docx` |
+| **An opinion, not a task** — "would this feature sit right in our project?", "should we use X here?" | `/aidlc:do would a notifications service fit our architecture?` (grounded recommendation; **no item created**) |
+| Anything at all, and you'd rather not pick a command | `/aidlc:do <whatever>` — it grounds itself, then routes to the right one |
 | **"I want X" — requirement in your head, not in the backlog yet** | `/aidlc:intake add avatar upload, max 5MB` |
 | Describe it AND build it in one go | `/aidlc:run add avatar upload, max 5MB` (free text → items → pipeline) |
 | "Just work on the next most important thing" | `/aidlc:next` |
