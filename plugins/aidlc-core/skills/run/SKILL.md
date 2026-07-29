@@ -139,8 +139,13 @@ The mechanism differs by command family, and getting it wrong walls the run on p
   (the run blocks, loudly) but fails **closed** on the deny side (force-push protection silently
   disappears) — the deny half cannot be validated by watching a run succeed.
 - **everything else (npm, pnpm, docker, test/lint/build) → `cd "<abs repo path>" && <cmd>`.** A `cd`
-  into a path under the workspace root is read-only and each half is matched independently, so the
-  bare `Bash(npm run:*)`-style rules keep applying. There is no `-C` equivalent for these, and
+  is read-only and each half is matched independently, so the bare `Bash(npm run:*)`-style rules keep
+  applying. **Always quote the path, and never assume it sits under the workspace root** — a repo entry
+  may carry an absolute path to another parent, another drive, or a UNC share (`aidlc:work-items` →
+  *Repos & routing*). In this shell a cross-drive `cd "D:/work/api"` is a normal `cd`; a UNC path is
+  reachable but cannot be a shell cwd on Windows, so for those prefer the tool's own directory flag
+  (`git -C`, `npm --prefix` where the allowlist permits) or say plainly that the repo needs a mapped
+  drive. There is no `-C` equivalent for these, and
   `npm --prefix` would miss the allowlist the same way `git -C` did. Avoid output redirects in the
   same compound command as the `cd` (they prompt when the redirect target's directory is ambiguous);
   `2>/dev/null` alone is fine.

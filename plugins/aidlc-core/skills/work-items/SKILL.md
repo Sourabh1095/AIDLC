@@ -109,8 +109,13 @@ The pipeline operates on **repo entries**, never on a hardcoded "the repo". Buil
 
 - **`repos[]` is non-empty → poly.** Each entry is a repo (`name`, `path`, `host`, `remote`,
   `defaultBranch`, `branchPattern`, `stack`, `labels`, optional `ux`, optional `default`). The config
-  itself lives at the **workspace root** (the control plane: `.claude/`, `backlog/`, `.aidlc/`); repo
-  paths are resolved under `workspace.root` (default `.`).
+  itself lives at the **workspace root** (the control plane: `.claude/`, `backlog/`, `.aidlc/`). A
+  **relative** `path` resolves under `workspace.root` (default `.`); an **absolute** `path` is used as
+  given and does not consult it. Both are first-class: a multi-root IDE workspace can hold a repo under a
+  different parent, on another drive, or on a UNC share, so **never assume a repo lives inside the control
+  plane** — resolve each entry to an absolute path once, keep it quoted everywhere (paths contain spaces),
+  and if a declared repo cannot be read, report it with the `/add-dir "<abs path>"` remedy rather than
+  treating it as configured.
 - **`repos[]` empty/absent → mono.** Synthesize ONE repo entry from the top-level `git` + `stack` +
   `ux` blocks: `{ name: project.key-lowercased, path: ".", default: true, host: git.host,
   remote: git.remote, defaultBranch: git.defaultBranch, branchPattern: git.branchPattern, stack, ux }`.

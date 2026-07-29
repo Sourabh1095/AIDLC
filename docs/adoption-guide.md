@@ -53,6 +53,54 @@ Enablement lives in `settings.json` (`enabledPlugins` + a known marketplace), at
 in a poly workspace, only the control plane has it: the product repos do not, which is why sprint
 launches poly runs from the control plane rather than from a per-repo worktree (F42).
 
+### Brownfield: scan the code before you answer the Q&A
+
+On a project that already has code, `/aidlc:init` asks you for its topology, stack and commands — from
+memory, about a codebase the framework has never read. Every wrong answer is written into `CLAUDE.md`
+and `aidlc.config.json` as ground truth and silently steers every later run. So scan first:
+
+```
+cd your-workspace
+claude
+/aidlc:adopt            # or: /aidlc:adopt --depth quick
+/aidlc:init             # answer from the report, not from memory
+```
+
+`/aidlc:adopt` is **read-only**. It writes exactly two files — `.aidlc/adoption/profile.json` (a
+versioned, machine-readable profile) and `.aidlc/adoption/report.md` — and touches nothing else: no
+config, no `CLAUDE.md`, no items, no branch, no commit. `git status` after a run shows only those two
+paths. It reports, per repo:
+
+- **Workspace shape** — one folder with repos as subfolders, or a multi-root `*.code-workspace` whose
+  folders may live under different parents or on different drives. Every root is classified (product
+  repo · monorepo · docs/scratch folder · reference-only clone · already adopted · not cloned) and
+  proposed for your confirmation. A root the session cannot reach is reported with the exact
+  `--add-dir` fix, and an untrusted root or one where AIDLC is not enabled is named **here** rather
+  than failing silently at your first `/aidlc:sprint`.
+- **Languages, package managers and frameworks** from manifests, with the paths that carry each — a
+  polyglot repo lists all of them, not just the dominant one.
+- **The commands the project actually has** (test, lint, typecheck, build, format) and, just as
+  importantly, the ones it provably does **not** — recorded as absent coverage holes rather than
+  quietly replaced by AIDLC's npm defaults.
+- **VCS reality** — shallow clones, submodules, existing worktrees, LFS, forks, and a non-git checkout
+  (Mercurial, SVN, Perforce) which is reported as unsupported while the code is still profiled.
+- **Supported / partial / unsupported**, one line of consequence each, judged against the plugins you
+  actually have installed. A Django + Terraform + Flutter shop gets the language-agnostic core and is
+  told so plainly.
+- **What was not looked at** — the scan budget, the caps, the sampling coverage percent on a large
+  repo, and the skip list. Every fact carries a `path:line` or a command and its output plus a
+  confidence; anything it could not establish is listed under *Not determined* with the reason, never
+  guessed.
+
+Two safety notes, because a scan runs across code you may be contractually bound to protect: it makes
+**no network calls** and sends no source anywhere (an offline or air-gapped run completes, marking the
+affected checks `unknown`), and it never reads or prints `.env` files — env files are recorded by path,
+suspected secrets by location and type with the value redacted.
+
+Adopt does not yet write configuration, gates, rules, ADRs or backlog items; those are separate
+propose-then-approve steps on the roadmap (`docs/brownfield-adoption.md`). Today its job is to make
+`/aidlc:init`'s answers evidence-based instead of remembered.
+
 ### What lands in your repo
 
 | Path | Purpose |

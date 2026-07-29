@@ -41,11 +41,14 @@ For local development of this repo: `claude --plugin-dir <your-clone>/plugins/ai
 
 ## Adopt in a project
 
-1. Open Claude Code in the project repo.
-2. Run `/aidlc:init` — answers a short Q&A and scaffolds `CLAUDE.md`, `.claude/` config,
+1. Open Claude Code in the project repo (or the workspace folder holding several repos).
+2. **Existing code?** Run `/aidlc:adopt` first — a read-only scan that derives the workspace's
+   topology, per-repo stack, real gate commands and VCS conventions **with evidence**, so step 3's
+   answers come from the code instead of from memory. It writes only `.aidlc/adoption/`.
+3. Run `/aidlc:init` — answers a short Q&A and scaffolds `CLAUDE.md`, `.claude/` config,
    permissions, rules, `backlog/`, and `.aidlc/` run-state folders.
-3. Create work items (markdown backlog, or point config at Jira/ADO).
-4. Run `/aidlc:next` — the pipeline takes it from there.
+4. Create work items (markdown backlog, or point config at Jira/ADO).
+5. Run `/aidlc:next` — the pipeline takes it from there.
 
 See `docs/adoption-guide.md` for the full walkthrough, including MCP authentication.
 **New to the framework?** Start with `docs/example-walkthrough.md` — empty folder → typed
@@ -53,11 +56,25 @@ requirement → working full-stack app, every command included.
 
 ## Commands
 
+**Setup, and the door for anything at all:**
+
 | Command | Purpose |
 |---------|---------|
 | `/aidlc:init` | Scaffold the AIDLC template into a project |
 | `/aidlc:do <anything>` | General front door: ask an opinion/fit question, investigate, or describe work — the orchestrator grounds itself in the project (ADRs, backlog, runs, stack) and routes. Consults end with an answer, no item |
-| `/aidlc:intake <text>` | Turn a plain-language requirement into backlog items (deduped against existing ones) |
+
+**Three doors put a project into the framework**, and they differ by what you feed them:
+
+| Command | In | Out |
+|---------|----|-----|
+| `/aidlc:bootstrap <doc \| brief>` | a requirements document | a whole populated backlog + inferred architecture (greenfield) |
+| `/aidlc:adopt` | the existing code | an evidence-backed profile of the workspace, read-only (brownfield) |
+| `/aidlc:intake <text>` | one requirement, in plain language | well-formed backlog items, deduped against the board |
+
+**Then the pipeline:**
+
+| Command | Purpose |
+|---------|---------|
 | `/aidlc:run <ID \| text>` | Run one work item end-to-end (resumable); free text = intake + run |
 | `/aidlc:next` | Pick the highest-priority ready item and run it |
 | `/aidlc:status` | Dashboard: active runs + backlog snapshot |

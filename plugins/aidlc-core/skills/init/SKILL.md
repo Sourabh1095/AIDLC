@@ -78,6 +78,14 @@ improvise replacement files: the permission posture and rules must be the review
      forcing blind topology/stack answers on a project whose shape the requirements haven't been read to
      decide yet.
    - **I know my setup, or there's existing code** → **full path.** Collect everything below as normal.
+     - **If there IS existing code, suggest `/aidlc:adopt` first** (read-only, writes only
+       `.aidlc/adoption/`). Items 4, 5 and the stack questions below otherwise get answered from
+       memory about a codebase the framework has never read, and each wrong answer lands in
+       `CLAUDE.md` and `aidlc.config.json` as ground truth. Adopt scans the workspace and reports the
+       topology, per-root stack, real gate commands and VCS conventions **with evidence**, so these
+       answers come from the code. It is a suggestion, not a gate: a user who knows their setup should
+       just answer. (Adopt does not yet write config itself — you still collect the answers here, but
+       you collect them from its report.)
 
 Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
@@ -101,8 +109,15 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 4. **Workspace layout** *(full-path only — the deferred/bootstrap path skips this; `/aidlc:bootstrap`
    infers it)*: `mono` (one repo for everything) | `poly` (several git repos in this workspace,
    e.g. backend/frontend/website/mobile). **Ask this as a real question — never silently default from
-   auto-detect (F3).** Auto-detect is only a *proposal*: scan the cwd for multiple subfolders that are
-   each git repos (`<sub>/.git`) and, if found, propose poly. **Crucially, a greenfield poly workspace
+   auto-detect (F3).** Auto-detect is only a *proposal*, and it has **two** signals — run both, because
+   using only the folder scan collapses a multi-root workspace into a single repo: (a) scan the cwd for
+   multiple subfolders that are each git repos (`<sub>/.git`); (b) glob `*.code-workspace` in cwd and one
+   level up and read its `folders[]` — those roots may sit **outside** cwd, under a different parent or on
+   another drive, and each carries an optional `name` override. If either finds several repos, propose
+   poly. Roots from (b) are declared with **absolute** `path` values and are **not** nested under the
+   control plane — see Step 4.4. No `*.code-workspace` is the normal case outside VS Code (JetBrains, a
+   plain terminal, CI); the folder scan is then the only signal and nothing else changes.
+   **Crucially, a greenfield poly workspace
    has no sub-repos yet** (the repos are what the first story will create), so "no sub-repos detected"
    must NOT collapse to mono — present mono-vs-poly explicitly and let the user choose, seeding the
    proposal from any signal (existing subfolders, the described project shape) but deciding by the
@@ -162,7 +177,11 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 > once it has inferred the stack/topology. Then go to Step 5 and point the user at `/aidlc:bootstrap`.
 
 1. Copy the template tree into cwd (the **workspace control plane**), respecting the collision decisions
-   from Step 2. In poly the control plane is the workspace root; the product repos are its subfolders.
+   from Step 2. In poly the control plane is the workspace root — the folder holding the
+   `*.code-workspace` file when there is one, else the opened folder, and **never a product repo**. The
+   product repos are usually its subfolders, but need not be: a multi-root workspace can place a repo
+   under a different parent or on another drive, in which case its `repos[]` entry carries an **absolute**
+   `path` (Step 3.4) and Step 4.4's ignore rules do not apply to it.
 
    **Poly — bootstrap declared repos so the pipeline can run into them (F4).** Local mode branches from
    / merges into each repo's default branch, so every declared repo must already be a git repo with at
@@ -182,7 +201,7 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 3. If source is not markdown, you may delete `backlog/` (or keep it — it is harmless; ask the user).
 4. **`.gitignore` at the control plane.** The template ships one — keep it (merge, don't overwrite, if
    the workspace already has one) and fill its managed `# AIDLC:REPOS` block.
-   - **poly:** write one `/<path>/` line per `repos[]` entry between the `# AIDLC:REPOS` and
+   - **poly:** write one `/<path>/` line per **nested** `repos[]` entry between the `# AIDLC:REPOS` and
      `# AIDLC:REPOS-END` markers. Use **explicit paths, never a blanket `*/`** — root-level folders that
      aren't repos (`docs/`, `scripts/`) must stay tracked. Then **verify**, don't assume:
      `git -C <workspace.root> check-ignore -q <path>` for each repo, and
@@ -190,6 +209,13 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      as untracked at the control plane is one `git add -A` away from being committed as a mode-160000
      **gitlink** — a submodule reference with no `.gitmodules`, which clones as an empty directory and
      reports no error. (The `guard` hook blocks such a commit, but the ignore rule is what prevents it.)
+   - **A repo NOT nested under the control plane needs no ignore rule** — and must not get one. The
+     hazard this block prevents is a nested untracked repo being swept into the control plane's index by
+     `git add -A`; a repo on another drive (or under a different parent) is not in that index's reach, so
+     the protection is **inapplicable, not missing**. Skip it, and say why in the report — otherwise the
+     next reader records a phantom gap. Verification changes too: `check-ignore` on a path outside the
+     repo is meaningless, so for those entries verify only that `git -C <workspace.root> status
+     --porcelain` does not list them (it cannot).
    - **Ignored, not submodules.** Ignoring keeps each repo independently versioned, which is what D8's
      per-repo release cadence requires; a submodule would pin every repo to a commit recorded here.
    - **mono:** leave the `# AIDLC:REPOS` block empty; everything else applies unchanged.

@@ -7,6 +7,111 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.30.0] — 2026-07-29
+
+### `aidlc` — `/aidlc:adopt`, the brownfield front door: read the code, derive the facts, prove each one
+
+AIDLC already *landed* cleanly on an existing repo — `init` merges rather than clobbers, the web tooling
+and enterprise skeleton are merge-aware, `/aidlc:repo add` never rewrites history. What was missing was
+the layer above: **nothing derived project knowledge *from* an existing codebase.** `/aidlc:bootstrap`
+infers architecture from a *requirements document*, which a brownfield project does not have. So the
+brownfield path was: answer mono-vs-poly, stack and commands **by hand at init, from memory, about a
+codebase the framework had never read** — and every wrong answer was written into `CLAUDE.md` and
+`aidlc.config.json` as ground truth, silently steering every later run.
+
+This is Phase 1 of the epic in `docs/brownfield-adoption.md` (ADOPT-2, ADOPT-14, ADOPT-7, ADOPT-6): the
+read-only scan. It ships alone, is useful alone, and has nothing to roll back.
+
+- **New skill `aidlc:adopt`** (`/aidlc:adopt [--depth quick|standard|deep]`). Scans the workspace and
+  emits `.aidlc/adoption/profile.json` + `.aidlc/adoption/report.md` — **and nothing else.** No config,
+  no `CLAUDE.md`, no rules, no items, no branch, no commit; the skill verifies that claim with
+  `git status --porcelain` rather than asserting it. Depth is a cost dial, not a quality dial: a
+  shallower scan records **more `unknown`**, never a weaker guess.
+- **Evidence or silence.** New contract at `docs/adoption-profile.schema.json` (`profileVersion: 1`),
+  built on a `fact` primitive with three deliberately distinct statuses — `known` (value + `path:line`
+  or command output + confidence), **`absent`** (the thing provably is not there, with `absence`
+  evidence), and `unknown` (with the reason). Collapsing `absent` into `unknown` loses a coverage hole;
+  collapsing `unknown` into a default is exactly how a wrong inference reaches a permanent file. A
+  `known` fact with no evidence fails schema validation — the guess is not expressible.
+- **The workspace is the unit of adoption, not the repo (ADOPT-14).** Users open an IDE workspace that
+  may hold several repos, and AIDLC's poly *model* was already right while its *mechanics* assumed
+  every repo was nested under the control plane. Discovery now runs **both** signals — a
+  `*.code-workspace` `folders[]` list (honouring `name` overrides and paths outside the opened folder,
+  on any drive) **and** the `<sub>/.git` folder scan; using only the latter collapses a multi-root
+  workspace into a single repo. Every root is classified — product repo · monorepo · non-repo folder ·
+  reference-only clone · already-adopted · not-cloned — and **proposed for confirmation, never assumed.**
+  The control plane resolves to the folder holding the `.code-workspace` file (else the opened folder)
+  and is **never silently a product repo**.
+- **Two failure modes are now caught at adoption time instead of at the first `/aidlc:sprint`.** A root
+  the session cannot read is reported with its exact `--add-dir` remedy, and adopt never reports a repo
+  as profiled when it could not read it. Per-root trust and plugin-enablement state is checked and named
+  with its fix — the F42 silent failure, caught early.
+- **The nesting assumption is gone from the schema and the skills.** `repo.path` accepts an absolute
+  path or a path outside `workspace.root`; `workspace.root` is documented as a base for *relative*
+  resolution rather than an assertion that repos are subfolders. Where a repo is **not** nested, the
+  control plane's `.gitignore`/gitlink protection is **inapplicable, not missing** — `init` now says so
+  rather than leaving the next reader to record a phantom gap. `aidlc:work-items` and `aidlc:run` were
+  updated to resolve, quote and `cd` into paths that may hold spaces, sit on another drive, or be UNC.
+- **Adoption-time safety contract (ADOPT-7).** `.env` files are never read or printed — recorded by
+  path only, with variable *names* possible solely when `pipeline.envFileAccess` permits and the
+  `env-guard` hook allows the read; a git-*tracked* env file is itself reported as a finding. Suspected
+  secrets are recorded by location and type with the value redacted and never written into the profile,
+  the report, an item or a commit. PII-suspect fixtures are flagged and excluded from every quoted
+  excerpt. The scan makes **no network calls and sends no source anywhere**; offline it completes and
+  marks the affected checks `unknown`. Large repos are sampled with the strategy and honest coverage
+  percent stated, and a workspace with no write permission gets its report printed to the session.
+- **Honest degradation (ADOPT-6).** The report carries a supported / partial / unsupported table for
+  every detected surface — stack, tracker, VCS, CI, migration tool, containers, hooks — with a one-line
+  consequence each, judged against **the plugins actually installed**, not what AIDLC could support in
+  principle. A Django + Terraform + Flutter shop is told plainly that it gets the language-agnostic
+  core. An unsupported tracker is never a blocker: the markdown backlog is offered with its trade-off
+  stated, and each gap becomes a `gaps[]` proposal for `.aidlc/extensions.json`.
+- **Read-only git introspection is now allowlisted** in the project template —
+  `rev-parse`/`ls-files`/`check-ignore`/`for-each-ref`/`count-objects`, `submodule status`,
+  `worktree list`, `git lfs env`, in both the bare and `git -C` forms. A read-only scan that fires a
+  dozen permission prompts trains people to click through prompts, which is the worse security outcome.
+  **`git config` is deliberately excluded**: it is a write verb as often as a read one, and its read
+  form can echo a PAT embedded in a remote URL. The skill is required to strip credentials from any
+  remote URL before recording or printing it, and to record a config-only fact as `unknown`.
+- **`/aidlc:init` points at it.** On the full path, when there *is* existing code, init suggests running
+  `/aidlc:adopt` first so the topology/stack/command answers come from the report instead of from
+  memory. A suggestion, not a gate.
+- **The contract is enforced, not trusted.** New `skills/adopt/validate-profile.mjs` — dependency-free,
+  offline, both a CLI and an importable API — which the skill runs on its own output before reporting a
+  scan complete. It rejects a `known` fact with no evidence, an `unknown` fact that smuggles a value, a
+  `writes[]` entry outside `.aidlc/adoption/`, an unreachable root with no stated remedy, an unsupported
+  surface with no recorded gap, an env/secret/PII finding that carries content — and, as a backstop, any
+  credential-shaped string **anywhere** in the profile or the report. `validate-profile.test.mjs` covers
+  it in 71 cases, including a reference fixture that doubles as proof the awkward shapes are
+  representable (multi-root across two drives · monorepo beside single-app roots · UNC path with spaces,
+  unreachable · zip drop with no VCS · Mercurial checkout · polyglot monorepo · absent test gate). The
+  validator duplicates 14 schema enums so it can run inside an installed plugin with no schema file; the
+  suite cross-checks every one against `docs/adoption-profile.schema.json`, so the duplication cannot
+  drift silently.
+
+**Two defects a fixture pass caught before release**, both of which would have produced a *confidently
+wrong* profile rather than a visible failure:
+
+- **`git rev-parse --is-inside-work-tree` is the wrong probe for "is this root a repo."** Git searches
+  ancestor directories, so it returns `true` for any folder beneath any repo — and a home directory under
+  git makes that *every* folder. Every follow-up question then described the **ancestor**: its branch,
+  remotes, history and size, recorded against the root with a citation. Detection is now a marker test
+  plus requiring `rev-parse --show-toplevel` to equal the root itself; a root inside another repo is
+  recorded as the new `enclosingRepo` fact and reported as the gitlink hazard it is, and the validator
+  rejects any root that claims both. The same rule governs the control plane — not its own repo root
+  means `scan.commit` is `unknown`, not the enclosing repo's HEAD.
+- **A `.code-workspace` file is JSONC, not JSON.** VS Code accepts `//` comments and trailing commas, and
+  hand-edited workspace files contain them, so a bare `JSON.parse` throws — and the original instructions
+  would then have fallen back to the folder scan alone, **silently collapsing a multi-root workspace into
+  a single repo**, the precise failure ADOPT-14 exists to prevent. Comments and trailing commas are now
+  stripped before parsing, and a file that still will not parse stops the run loudly instead of degrading.
+
+Adopt does **not** write config, `CLAUDE.md`, `pipeline.gates`, rules, ADRs or backlog items, and does
+not remediate anything it finds — those are Phases 2–4 of the epic, each a separate propose-then-approve
+step. No change to `run`, `intake`, `next`, `bootstrap`, any agent, or any hook.
+
+- Versions: `aidlc` 0.29.0 → **0.30.0**, marketplace → **0.30.0**.
+
 ## [0.29.0] — 2026-07-29
 
 ### `aidlc` — `/aidlc:do`, a general front door that grounds before it routes

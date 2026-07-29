@@ -28,13 +28,13 @@
     },
     "workspace": {
       "type": "object",
-      "description": "Workspace topology. Absent or layout=mono → single repo (the top-level git/stack/ux blocks apply). layout=poly → the repos[] array defines each git repo; this file sits at the workspace root (control plane) and the product repos are subfolders under root.",
+      "description": "Workspace topology. Absent or layout=mono → single repo (the top-level git/stack/ux blocks apply). layout=poly → the repos[] array defines each git repo; this file sits at the workspace control plane. The product repos are USUALLY subfolders of the control plane, but need not be: in a multi-root IDE workspace (a *.code-workspace folders[] list) the roots may live under different parents or on different drives, and a repo entry then carries an absolute path. The control plane is the folder holding the .code-workspace file when there is one, else the opened folder — never a product repo.",
       "properties": {
         "layout": { "enum": ["mono", "poly"], "default": "mono" },
         "root": {
           "type": "string",
           "default": ".",
-          "description": "Directory, relative to this config's location, under which the declared repo paths live. Usually '.'."
+          "description": "Base directory for RELATIVE repo paths, itself relative to this config's location. Usually '.'. May be omitted entirely — it is only a base for resolution, not an assertion that the repos are nested; a repos[] entry with an absolute path does not consult it."
         },
         "crossRepoSplit": {
           "enum": ["story", "task"],
@@ -68,7 +68,7 @@
         "additionalProperties": true,
         "properties": {
           "name": { "type": "string", "description": "Short unique id used to route items and label PRs, e.g. backend." },
-          "path": { "type": "string", "description": "Repo checkout path relative to workspace.root." },
+          "path": { "type": "string", "description": "Repo checkout path: either relative to workspace.root, or an ABSOLUTE path. A repo need not live under the control plane — a multi-root IDE workspace can place it under a different parent, on another drive, or on a UNC share. Absolute is the correct spelling in those cases; a relative path that escapes the control plane (../foo) is legal but harder to read. When a repo is NOT nested under the control plane, the control plane's .gitignore/gitlink protection is inapplicable to it (there is no shared git index to stage it into) and every consumer must quote the path — it may contain spaces." },
           "role": { "type": "string", "description": "Free-text description used as a routing hint by the orchestrator." },
           "host": { "enum": ["github", "azure-repos"], "default": "github" },
           "mode": { "enum": ["remote", "local"], "default": "remote", "description": "remote (default): push the branch and open a PR; a human merges it. local: no remote — after green verify the pipeline integrates via a confirmed local --no-ff merge into the default branch." },

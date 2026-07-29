@@ -129,7 +129,7 @@ verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) �
 
 ### Skills
 
-Commands: `run`, `next`, `status`, `init`, `groom`, `release`. Infrastructure: `run-state`,
+Commands: `run`, `next`, `status`, `init`, `adopt`, `groom`, `release`. Infrastructure: `run-state`,
 `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`. Playbooks: `requirements`,
 `planning`, `architecture`, `code-review`, `testing`, `debugging`, `security`, `ci-cd`,
 `docs-writing`, `research`, `maintenance`. Stack pack (`aidlc-stack-web` plugin):

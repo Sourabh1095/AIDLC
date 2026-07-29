@@ -1,0 +1,483 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json",
+  "title": "AIDLC adoption profile",
+  "description": "The machine-readable output of /aidlc:adopt — an evidence-backed profile of an existing workspace, written to .aidlc/adoption/profile.json. This file is the CONTRACT the later adoption stories read (config writing, gate derivation, convention adoption, drift detection); it is not itself configuration and nothing in the pipeline is steered by it until a human has approved a step that reads it. Every derived fact is a `fact` object carrying evidence and confidence, or is recorded absent/unknown — a value without evidence is a schema violation, not a guess. See docs/brownfield-adoption.md (ADOPT-2) and the aidlc:adopt skill.",
+  "type": "object",
+  "required": ["profileVersion", "scan", "workspace"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "profileVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version. Bump only for a BREAKING change (a field removed, renamed, or given new semantics); additive blocks do not bump it, which is why every object here allows additional properties. A consumer that does not recognise the version must say so and stop rather than read the file optimistically."
+    },
+    "scan": {
+      "type": "object",
+      "description": "Provenance and cost of this scan. A profile without it cannot be compared against a later one, so drift detection depends on it.",
+      "required": ["scannedAt", "depth", "controlPlane", "budget", "writes"],
+      "additionalProperties": true,
+      "properties": {
+        "scannedAt": { "type": "string", "format": "date-time", "description": "UTC ISO-8601 timestamp of the scan." },
+        "aidlcVersion": { "type": "string", "description": "Version of the aidlc plugin that produced this profile." },
+        "depth": {
+          "enum": ["quick", "standard", "deep"],
+          "description": "How much the scan was allowed to look at. quick = manifests, IDE/VCS metadata and top-level config only (the 10-minute pass; useful alone). standard = adds config parsing, CI files and package/workspace enumeration. deep = adds bounded source sampling for the runtime facts that only source evidences. Depth is the cost dial, not a quality claim: a quick scan records more `unknown`, never a guess."
+        },
+        "commit": {
+          "$ref": "#/definitions/fact",
+          "description": "Control-plane HEAD (or the scanned root's HEAD) at scan time. Re-running against the same commit must produce the same profile — that is what makes adoption idempotent."
+        },
+        "controlPlane": {
+          "type": "object",
+          "description": "Where AIDLC's control plane resolved to, and why. Never a product repo by default.",
+          "required": ["path", "resolvedFrom"],
+          "additionalProperties": true,
+          "properties": {
+            "path": { "type": "string", "description": "Absolute path of the control-plane folder." },
+            "resolvedFrom": {
+              "enum": ["code-workspace-file", "opened-folder", "user"],
+              "description": "code-workspace-file: the folder holding the *.code-workspace file (preferred — it holds regardless of which folder the IDE hands the session as cwd). opened-folder: no workspace file, so the session's cwd. user: the user overrode the resolution."
+            },
+            "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } },
+            "isWorkspaceRoot": { "type": "boolean", "description": "Whether the control-plane folder is itself one of the workspace roots. False means the session cannot read it unless it is added; adopt offers to add it." },
+            "alreadyAdopted": { "type": "boolean", "description": "True when an aidlc.config.json already exists here — the run is a re-adoption/drift scan, not a first contact." }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "description": "What the scan actually cost. Stated in the report so a reader knows the difference between 'clean' and 'not looked at'.",
+          "required": ["filesInspected", "durationSeconds"],
+          "additionalProperties": true,
+          "properties": {
+            "filesInspected": { "type": "integer", "minimum": 0 },
+            "directoriesInspected": { "type": "integer", "minimum": 0 },
+            "durationSeconds": { "type": "number", "minimum": 0 },
+            "caps": {
+              "type": "object",
+              "description": "The limits this depth applied, so 'we stopped here' is distinguishable from 'there was nothing more'.",
+              "additionalProperties": true,
+              "properties": {
+                "maxFiles": { "type": "integer" },
+                "maxFileBytes": { "type": "integer" },
+                "maxDepth": { "type": "integer" },
+                "hitCap": { "type": "boolean", "description": "True if a cap terminated the scan early. When true the report must say which cap and what was left unread." }
+              }
+            }
+          }
+        },
+        "skipped": {
+          "type": "array",
+          "description": "Everything deliberately not looked at. An empty array is a claim of full coverage — only make it when true.",
+          "items": {
+            "type": "object",
+            "required": ["path", "reason"],
+            "additionalProperties": true,
+            "properties": {
+              "path": { "type": "string" },
+              "reason": {
+                "enum": ["vendored", "generated", "build-output", "gitignored", "lfs-pointer", "over-size", "binary", "unreadable", "env-file", "pii-suspect", "out-of-scope", "cap-reached"],
+                "description": "lfs-pointer: the file is an LFS stub, so reading it would profile the pointer, not the content. env-file / pii-suspect: excluded by the safety contract, not by cost."
+              },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "sampling": {
+          "type": "object",
+          "description": "Set when a root was too large to read fully. Absent/applied=false means no sampling was needed.",
+          "additionalProperties": true,
+          "properties": {
+            "applied": { "type": "boolean" },
+            "strategy": { "type": "string", "description": "How the sample was chosen, e.g. 'all manifests + entry points + the 200 largest source files by directory breadth'." },
+            "coveragePercent": { "type": "number", "minimum": 0, "maximum": 100, "description": "Share of in-scope source files actually inspected. Reported verbatim; never rounded up to imply completeness." }
+          }
+        },
+        "writes": {
+          "type": "object",
+          "description": "The read-only guarantee, recorded rather than asserted. paths[] must contain ONLY files under .aidlc/adoption/.",
+          "required": ["paths"],
+          "additionalProperties": true,
+          "properties": {
+            "paths": { "type": "array", "items": { "type": "string" } },
+            "sessionOnly": { "type": "boolean", "description": "True when the workspace was not writable and the report was printed to the session instead of written. paths[] is then empty." }
+          }
+        },
+        "network": {
+          "type": "object",
+          "description": "Adopt makes no network calls to analyse code and sends no source anywhere. Host-API lookups (branch policy, required checks) are the only outbound calls it may make, are optional, and each is recorded here.",
+          "additionalProperties": true,
+          "properties": {
+            "sourceTransmitted": { "type": "boolean", "const": false, "description": "Always false. Present so a reviewer can verify the guarantee from the artifact." },
+            "hostApiCalls": { "type": "array", "items": { "type": "string" }, "description": "Read-only host API calls made, e.g. 'gh api repos/:owner/:repo/branches/main/protection'. Empty when offline or declined." },
+            "offline": { "type": "boolean", "description": "True when outbound calls failed or were unavailable. The checks that depended on them are then recorded unknown, and the scan still completes." }
+          }
+        }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "description": "The workspace is the unit of adoption — not the repo. A repo is a routing target inside it.",
+      "required": ["shape", "topology", "roots"],
+      "additionalProperties": true,
+      "properties": {
+        "shape": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "enum": ["single-root", "nested-multi-repo", "multi-root"] } } }
+          ],
+          "description": "How the IDE workspace is arranged. single-root: one folder, one repo. nested-multi-repo: one opened folder with repos as subfolders. multi-root: a *.code-workspace folders[] list whose entries may live anywhere, including other drives."
+        },
+        "codeWorkspaceFile": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "type": ["string", "null"] } } }
+          ],
+          "description": "Absolute path of the *.code-workspace file, or status absent when there is none. Absent is normal and must not degrade the scan — JetBrains, a plain terminal and CI have no such file, and the folder scan is then the only signal."
+        },
+        "topology": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "enum": ["single-app", "monorepo", "poly", "unknown"] } } }
+          ],
+          "description": "AIDLC's topology classification for the workspace. single-app: one repo, one deliverable. monorepo: one git repo, many independently-owned packages. poly: many git repos. The deciding signal goes in evidence — a classification with no named signal is a guess."
+        },
+        "roots": {
+          "type": "array",
+          "description": "Every folder the workspace exposes, classified. Only product-repo and monorepo entries are candidates for a repos[] entry in config; the rest are recorded so the report can explain why they were excluded.",
+          "items": { "$ref": "#/definitions/root" }
+        }
+      }
+    },
+    "surfaces": {
+      "type": "array",
+      "description": "The honest-degradation table: every surface the scan detected, and whether the INSTALLED plugins actually cover it. Drives the report's supported/partial/unsupported table and the capability gaps below. Never claim a capability the installed plugins do not provide.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "detected", "support", "consequence"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": { "enum": ["stack", "tracker", "vcs", "ci", "migration-tool", "container", "hooks", "ide", "release-channel", "other"] },
+          "detected": { "type": "string", "description": "What is actually in use, e.g. 'Django 5 + Celery', 'GitHub Issues', 'Perforce'." },
+          "root": { "type": "string", "description": "Root name this applies to; omit for workspace-wide surfaces." },
+          "support": { "$ref": "#/definitions/support" },
+          "providedBy": { "type": "string", "description": "The installed plugin/skill that covers it, when support is supported/partial, e.g. 'aidlc-stack-web'." },
+          "consequence": { "type": "string", "description": "One line stating what the user loses. Required even when supported (then: what they get). A gap with no stated consequence reads as a footnote instead of a decision." },
+          "evidence": { "type": "array", "items": { "$ref": "#/definitions/evidence" } }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "description": "Capability gaps to be recorded in .aidlc/extensions.json so /aidlc:scaffold-skill and /aidlc:promote can act on them later. Derived from surfaces[] where support is partial or unsupported. Writing these is an approved step, not part of the read-only scan.",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "surface", "why"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "description": "Proposed extension name, e.g. 'aidlc-stack-python' or 'wi-github-issues'." },
+          "kind": {
+            "enum": ["skill", "agent", "plugin", "adapter", "project-action"],
+            "description": "What would close the gap. skill/agent/plugin/adapter: something AIDLC builds, and the entry is a genuine extension candidate. project-action: something only the PROJECT can close (run git init on a zip drop, adopt a tracker, upgrade an EOL runtime) — recorded so an unsupported surface is never left with no named next step, but never proposed to /aidlc:scaffold-skill."
+          },
+          "surface": { "type": "string", "description": "The surfaces[] entry this closes." },
+          "why": { "type": "string" },
+          "workaround": { "type": "string", "description": "What the project uses until then, e.g. 'markdown backlog as the tracker adapter'." }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "description": "What the scan found that must be handled rather than reported plainly. Locations and shapes only — never values.",
+      "additionalProperties": true,
+      "properties": {
+        "envFiles": {
+          "type": "array",
+          "description": "Env files by PATH ONLY. Contents are never read and variable names appear here only when pipeline.envFileAccess permits it and the env-guard hook allowed the read.",
+          "items": {
+            "type": "object",
+            "required": ["path", "contentsRead"],
+            "additionalProperties": true,
+            "properties": {
+              "path": { "type": "string" },
+              "contentsRead": { "type": "boolean", "description": "False unless pipeline.envFileAccess is 'ask' AND the user approved the read. When false, variableNames must be absent." },
+              "variableNames": { "type": "array", "items": { "type": "string" }, "description": "Variable NAMES only, never values. Present only when contentsRead is true." },
+              "gitTracked": { "type": "boolean", "description": "True is a finding in itself — a tracked env file is a committed-secret risk regardless of its current content." }
+            }
+          }
+        },
+        "secretFindings": {
+          "type": "array",
+          "description": "Suspected secrets, redacted. Location and type only — the value is never written here, into the report, into an item, or into a commit.",
+          "items": {
+            "type": "object",
+            "required": ["location", "type", "redacted"],
+            "additionalProperties": true,
+            "properties": {
+              "location": { "type": "string", "description": "path:line, or 'history: <commit> <path>'." },
+              "type": { "type": "string", "description": "Kind of credential, e.g. 'AWS access key id', 'private key block', 'connection string with password'." },
+              "inHistory": { "type": "boolean" },
+              "redacted": { "type": "boolean", "const": true, "description": "Always true. The field exists so its absence fails validation rather than passing silently." }
+            }
+          }
+        },
+        "piiSuspects": {
+          "type": "array",
+          "description": "Fixture/seed files that look like they carry personal data. Flagged for human review and excluded from any content quoted into the report.",
+          "items": {
+            "type": "object",
+            "required": ["path", "signal"],
+            "additionalProperties": true,
+            "properties": {
+              "path": { "type": "string" },
+              "signal": { "type": "string", "description": "Why it looks like PII, e.g. 'columns email, phone, dob in seed/customers.csv'. Never a sample row." },
+              "quotedInReport": { "type": "boolean", "const": false }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "support": {
+      "enum": ["supported", "partial", "unsupported", "unknown"],
+      "description": "supported: an installed plugin covers it end to end. partial: the language-agnostic core applies but the stack/tracker specifics do not. unsupported: nothing covers it — say so and record the gap. unknown: not established."
+    },
+    "evidence": {
+      "type": "object",
+      "description": "One citation. Evidence is what separates a derived fact from a guess, so every known and every absent fact carries at least one.",
+      "required": ["kind"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "enum": ["path", "command", "absence", "user"],
+          "description": "path: a file (with `line`, a path:line citation). command: a command and its output. absence: a stated search that found nothing — the evidence for an `absent` fact. user: the user told us, in answer to a low-confidence question."
+        },
+        "path": { "type": "string", "description": "Repo-relative where a root is implied, otherwise absolute." },
+        "line": { "type": "integer", "minimum": 1 },
+        "excerpt": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "At most one short verbatim line, for legibility. Never taken from an env file, a secret finding or a PII-suspect file, and never a substitute for the path:line citation."
+        },
+        "command": { "type": "string" },
+        "output": { "type": "string", "maxLength": 2000, "description": "Trimmed command output. Truncate long output and say so; do not paste a suite log." },
+        "note": { "type": "string", "description": "For kind=absence, what was searched and came back empty, e.g. 'no test script in package.json, no pytest.ini/tox.ini, no tests/ or **/*.test.* files'." }
+      },
+      "allOf": [
+        { "if": { "required": ["kind"], "properties": { "kind": { "const": "path" } } }, "then": { "required": ["path"] } },
+        { "if": { "required": ["kind"], "properties": { "kind": { "const": "command" } } }, "then": { "required": ["command", "output"] } },
+        { "if": { "required": ["kind"], "properties": { "kind": { "const": "absence" } } }, "then": { "required": ["note"] } }
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "description": "One derived fact. The three statuses are deliberately distinct: `known` (established, with evidence), `absent` (the thing provably is not there — a gate that does not exist, a remote that is not configured), and `unknown` (could not be established). Collapsing absent into unknown loses a coverage hole; collapsing unknown into a default value is how a wrong inference reaches CLAUDE.md and steers every later run.",
+      "required": ["status"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["known", "absent", "unknown"] },
+        "value": { "description": "The derived value. Required when status is known; meaningless otherwise." },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } },
+        "confidence": {
+          "enum": ["high", "medium", "low"],
+          "description": "high: a manifest/config/command states it outright. medium: converging indirect signals. low: one weak signal — a low-confidence fact is presented to the user as a QUESTION, never as a proposed value."
+        },
+        "reason": { "type": "string", "description": "Why the fact could not be established. Required when status is unknown; it is what makes the gap actionable instead of invisible." }
+      },
+      "allOf": [
+        { "if": { "required": ["status"], "properties": { "status": { "const": "known" } } }, "then": { "required": ["value", "evidence", "confidence"] } },
+        { "if": { "required": ["status"], "properties": { "status": { "const": "absent" } } }, "then": { "required": ["evidence"] } },
+        { "if": { "required": ["status"], "properties": { "status": { "const": "unknown" } } }, "then": { "required": ["reason"] } }
+      ]
+    },
+    "commandFact": {
+      "description": "A fact whose value is a runnable command — an entry point the project already has. status=absent means the project genuinely has no such command, which is a coverage hole to report, not a value to invent.",
+      "allOf": [
+        { "$ref": "#/definitions/fact" },
+        {
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["cmd"],
+              "additionalProperties": true,
+              "properties": {
+                "cmd": { "type": "string", "description": "Verbatim, as the project runs it, e.g. 'pnpm -w test', 'mvn -pl api verify', 'uv run pytest'." },
+                "cwd": { "type": "string", "description": "Directory to run it from, relative to the root. Omit for the root itself." },
+                "source": { "type": "string", "description": "Where it came from, e.g. 'package.json scripts.test', 'Makefile target test', 'tox.ini envlist'." },
+                "environmentDependent": { "type": "boolean", "description": "True when it needs services (compose, testcontainers, a live DB). A failure must then be diagnosed as 'environment unavailable', not 'code broken'." }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "detected": {
+      "type": "object",
+      "description": "One detected thing (language, package manager, framework, CI system, migration tool) with the paths that carry it. A polyglot repo lists ALL of them, never just the dominant one.",
+      "required": ["name", "evidence", "confidence"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string", "description": "As declared by the project, e.g. '3.12' from pyproject requires-python. Never inferred from what is installed on this machine." },
+        "paths": { "type": "array", "items": { "type": "string" }, "description": "Where it lives. Load-bearing for a polyglot repo: per-path gates and per-path standards depend on it." },
+        "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "support": { "$ref": "#/definitions/support" }
+      }
+    },
+    "root": {
+      "type": "object",
+      "description": "One workspace root (a folder the IDE exposes, or a subfolder found by the folder scan), classified and — when it is a product repo or monorepo — profiled.",
+      "required": ["name", "path", "absolutePath", "classification", "reachable"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "description": "Short id: the *.code-workspace `name` override when present, else the folder name. Becomes the repos[] name if this root is adopted." },
+        "path": { "type": "string", "description": "As written in the source that declared it (a .code-workspace folders[].path is often relative to that file)." },
+        "absolutePath": { "type": "string", "description": "Resolved absolute path. The authoritative locator: roots may sit outside the control plane, on another drive, or on a UNC share." },
+        "nestedUnderControlPlane": {
+          "type": "boolean",
+          "description": "Whether this root lives inside the control-plane folder. False disables the .gitignore/gitlink protection as inapplicable (there is no control-plane git index to accidentally stage it into) and requires an absolute repo.path in config."
+        },
+        "declaredBy": { "enum": ["code-workspace", "folder-scan", "config", "user"], "description": "How the root was discovered. Both discovery paths run: a .code-workspace folders[] list AND a scan for <sub>/.git — otherwise a multi-root workspace collapses to a single repo." },
+        "classification": {
+          "allOf": [
+            { "$ref": "#/definitions/fact" },
+            { "properties": { "value": { "enum": ["product-repo", "monorepo", "non-repo", "reference-only", "already-adopted", "not-cloned", "unknown"] } } }
+          ],
+          "description": "product-repo: ours, one deliverable, a routing target. monorepo: ours, one git repo with many packages. non-repo: docs/scratch/notes — excluded from repos[]. reference-only: a clone we read but do not change (a vendor SDK, an upstream we track) — never a routing target. already-adopted: carries its own aidlc.config.json. not-cloned: declared but absent on disk — record it, never fabricate a path. Every classification is PROPOSED for confirmation, never assumed."
+        },
+        "reachable": {
+          "type": "object",
+          "description": "Whether the running session can actually read this root. Adopt never reports a repo as configured when it could not read it.",
+          "required": ["value"],
+          "additionalProperties": true,
+          "properties": {
+            "value": { "type": "boolean" },
+            "remedy": { "type": "string", "description": "The exact fix when false, e.g. 'restart with --add-dir \"D:\\work\\billing-api\"', or '/add-dir D:\\work\\billing-api' in-session." }
+          }
+        },
+        "trust": {
+          "type": "object",
+          "description": "Per-root harness state that otherwise fails silently at the first /aidlc:sprint launch (the F42 failure mode) — caught here instead.",
+          "additionalProperties": true,
+          "properties": {
+            "trusted": { "$ref": "#/definitions/fact" },
+            "pluginEnabled": { "$ref": "#/definitions/fact" },
+            "remedy": { "type": "string" }
+          }
+        },
+        "vcs": {
+          "type": "object",
+          "description": "Version-control state. An unsupported VCS is reported as unsupported and the code is still profiled — never a failed scan and never a silent git assumption.",
+          "additionalProperties": true,
+          "properties": {
+            "system": {
+              "allOf": [
+                { "$ref": "#/definitions/fact" },
+                { "properties": { "value": { "enum": ["git", "mercurial", "svn", "perforce", "tfvc", "none"] } } }
+              ]
+            },
+            "support": { "$ref": "#/definitions/support" },
+            "defaultBranch": { "$ref": "#/definitions/fact" },
+            "currentBranch": { "$ref": "#/definitions/fact" },
+            "remotes": { "$ref": "#/definitions/fact", "description": "value: [{name, url}] with credentials stripped from the URL. status=absent means no remote — the signal for git.mode 'local'." },
+            "upstream": { "$ref": "#/definitions/fact", "description": "Set when this is a fork: the upstream the project contributes back to. Drives a fork→upstream-PR integration path instead of a push that would fail." },
+            "shallow": { "$ref": "#/definitions/fact", "description": "A shallow clone bounds every history-derived fact (commit conventions, branch ages). When true, say so beside those facts." },
+            "submodules": { "$ref": "#/definitions/fact", "description": "value: [paths]. Detected and reported; NEVER treated as AIDLC repos, and flagged as a gitlink hazard." },
+            "worktrees": { "$ref": "#/definitions/fact", "description": "value: [paths]. Recorded so /aidlc:sprint's worktrees do not collide with the project's own." },
+            "lfs": { "$ref": "#/definitions/fact", "description": "LFS in use. Pointer files are never read as source." },
+            "sizeBytes": { "$ref": "#/definitions/fact" }
+          }
+        },
+        "enclosingRepo": {
+          "$ref": "#/definitions/fact",
+          "description": "Set when this root is NOT its own repo root but sits INSIDE one — value is the enclosing repo's toplevel path. Detected by requiring `git rev-parse --show-toplevel` to equal the root itself, because `--is-inside-work-tree` searches ancestors and answers true for any folder beneath any repo (a home directory under git makes this true everywhere). Without that check, every VCS fact — branch, remotes, history, size — silently describes the ancestor while citing this root. It is also a real hazard to report: the root's files live in another repo's index, one `git add -A` from being committed there."
+        },
+        "languages": { "type": "array", "items": { "$ref": "#/definitions/detected" }, "description": "Detected from manifests, with the paths that carry each. At minimum: TS/JS, Python, Java/Kotlin, C#/.NET, Go, Ruby, PHP, Rust." },
+        "packageManagers": { "type": "array", "items": { "$ref": "#/definitions/detected" } },
+        "frameworks": { "type": "array", "items": { "$ref": "#/definitions/detected" } },
+        "ci": { "type": "array", "items": { "$ref": "#/definitions/detected" }, "description": "CI systems in use, with their config paths. Reconciling CI's gate with the local gate is ADOPT-4's job; recording it is this one's." },
+        "hooks": { "type": "array", "items": { "$ref": "#/definitions/detected" }, "description": "Pre-existing git hook managers (husky, pre-commit.com, lefthook). Recorded so the AIDLC pre-commit layer does not duplicate them." },
+        "migrationTools": { "type": "array", "items": { "$ref": "#/definitions/detected" }, "description": "Migration tooling and its directory (Prisma, TypeORM, Alembic, Flyway, Liquibase, EF Core, Rails, Django, golang-migrate)." },
+        "containers": { "type": "array", "items": { "$ref": "#/definitions/detected" }, "description": "Container/dev-env requirements (Dockerfile, compose, devcontainer) — the difference between a gate that needs services and one that does not." },
+        "entryPoints": {
+          "type": "object",
+          "description": "The commands the project ALREADY has. Detection only: the ordered, executable gate definition is pipeline.gates (ADOPT-4), which reads these. An entry point recorded absent must surface as a coverage hole and must never be counted green.",
+          "additionalProperties": true,
+          "properties": {
+            "install": { "$ref": "#/definitions/commandFact" },
+            "build": { "$ref": "#/definitions/commandFact" },
+            "dev": { "$ref": "#/definitions/commandFact" },
+            "test": { "$ref": "#/definitions/commandFact" },
+            "lint": { "$ref": "#/definitions/commandFact" },
+            "typecheck": { "$ref": "#/definitions/commandFact" },
+            "format": { "$ref": "#/definitions/commandFact" },
+            "migrate": { "$ref": "#/definitions/commandFact" }
+          }
+        },
+        "packages": {
+          "type": "array",
+          "description": "The package dimension of a monorepo: one git repo, many independently-owned packages. Present on a root classified monorepo, which is what lets a workspace hold a monorepo beside single-app repos without a second layout value. Consumed by ADOPT-8's packages[] registry.",
+          "items": {
+            "type": "object",
+            "required": ["name", "path", "evidence"],
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string" },
+              "path": { "type": "string", "description": "Relative to the root." },
+              "role": { "type": "string", "description": "One line, derived — used as a routing hint exactly as a repo's role is." },
+              "labels": { "type": "array", "items": { "type": "string" } },
+              "languages": { "type": "array", "items": { "type": "string" } },
+              "entryPoints": { "type": "object", "additionalProperties": true, "description": "Per-package overrides, same shape as the root's entryPoints." },
+              "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/evidence" } }
+            }
+          }
+        },
+        "workspaceTooling": {
+          "$ref": "#/definitions/fact",
+          "description": "The monorepo's own tool, when it has one (pnpm workspaces, npm/yarn workspaces, Nx, Turborepo, Lerna, Maven multi-module, Gradle composite, Bazel, Cargo workspace). An affected-graph runner (Nx/Turbo) is load-bearing: it is what lets a per-item gate run affected targets only."
+        },
+        "agentConfigs": {
+          "type": "array",
+          "description": "Other AI-agent configuration already in the repo (CLAUDE.md, AGENTS.md, .cursor/rules, .github/copilot-instructions.md). Detected so it is REFERENCED rather than duplicated or clobbered.",
+          "items": {
+            "type": "object",
+            "required": ["path", "tool"],
+            "additionalProperties": true,
+            "properties": {
+              "path": { "type": "string" },
+              "tool": { "type": "string" },
+              "humanAuthored": { "type": "boolean", "description": "Best-effort: true means its content must never be overwritten, only merged around." }
+            }
+          }
+        },
+        "docs": {
+          "type": "array",
+          "description": "Existing architecture/decision documentation, wherever it lives (docs/adr, RFCs/, a Confluence or Notion link in the README). Linked from the ADR index by ADOPT-10, never copied or relocated.",
+          "items": {
+            "type": "object",
+            "required": ["location", "kind"],
+            "additionalProperties": true,
+            "properties": {
+              "location": { "type": "string", "description": "Path or URL." },
+              "kind": { "enum": ["adr", "rfc", "design-doc", "wiki", "readme", "other"] },
+              "external": { "type": "boolean" }
+            }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "description": "How thoroughly THIS root was read, when it differs from the workspace-wide budget (a large root sampled while small ones were read fully).",
+          "additionalProperties": true,
+          "properties": {
+            "filesInspected": { "type": "integer", "minimum": 0 },
+            "sampled": { "type": "boolean" },
+            "coveragePercent": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    }
+  }
+}

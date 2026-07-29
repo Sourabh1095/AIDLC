@@ -76,6 +76,7 @@ to run it as one repo.
 | Situation | Command |
 |---|---|
 | New project, first time | `/aidlc:init` (choose the requirements-doc path to defer topology/stack to bootstrap) |
+| **Existing project, first time** — the code is the spec, and you'd rather not answer topology/stack/commands from memory | `/aidlc:adopt` first (read-only: scans the workspace, reports topology, per-repo stack, real gate commands and VCS conventions **with evidence**, writes only `.aidlc/adoption/`), then `/aidlc:init` answering from its report |
 | **A whole project from a requirements doc/brief** (Word/PDF or chat) → infers architecture (mono/poly, stack, monolith-vs-microservices), populated board + sprint plan | `/aidlc:bootstrap ./requirements.docx` |
 | **An opinion, not a task** — "would this feature sit right in our project?", "should we use X here?" | `/aidlc:do would a notifications service fit our architecture?` (grounded recommendation; **no item created**) |
 | Anything at all, and you'd rather not pick a command | `/aidlc:do <whatever>` — it grounds itself, then routes to the right one |
