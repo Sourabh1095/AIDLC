@@ -107,6 +107,17 @@
             }
           }
         },
+        "seeded": {
+          "type": "object",
+          "description": "What a previous /aidlc:adopt-apply CONTRIBUTED to each union-merged array. Not the array itself — the record of our own contributions, which is what makes the union three-way. Without it, a seed missing from the array is indistinguishable from a seed the team deliberately REMOVED, so every re-apply silently restores the deletion; adopt §9 names 'a deliberately narrowed securityReviewPaths' as exactly the human edit that must never be reverted. A withheld seed stays listed here — it is the record of 'we offered this and the team said no'. Resolved by skills/adopt-apply/seed-paths.mjs.",
+          "properties": {
+            "securityReviewPaths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "The securityReviewPaths entries adoption has ever contributed. A path here but absent from pipeline.securityReviewPaths was removed on purpose and must not be re-added."
+            }
+          }
+        },
         "writes": {
           "type": "array",
           "description": "What adoption actually wrote, per file — the manifest that makes clean removal possible. Without it, removing AIDLC means guessing which lines in CLAUDE.md and settings.json were the team's and which were ours, and the safe guess (delete the file) destroys the team's own content. Written by /aidlc:adopt-apply for every file it touched; /aidlc:remove reads it and asks about anything not listed.",

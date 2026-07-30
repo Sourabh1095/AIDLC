@@ -7,6 +7,55 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.34.2] — 2026-07-31
+
+### `aidlc` — brownfield: the drift, upgrade and removal legs, and two more defects
+
+0.34.0 fixed the adoption scan against a live run and 0.34.1 the write half. This closes ADOPT-12: the
+**drift**, **in-place upgrade** and **clean removal** legs, including the one the spec had singled out as
+least testable by fixture — `human-edit` drift, which *"needs a config that was really applied, really
+hand-edited afterwards, and re-scanned."* **Two more defects, both invisible, and both about a human's
+deliberate decision being quietly undone.** Spec: `docs/brownfield-adoption.md`.
+
+**What the run confirmed.** A re-scan after four committed changes on distinct surfaces produced a `drift`
+block with **7 changes across 3 sources and 5 kinds**, attributed correctly in every case: two hand edits
+as `human-edit`/`leave-alone`, a renamed gate and a new package as `code`/`propose`, a retired non-repo root
+as `report-only`. The validator caught a stale `absent-gate` finding unprompted — the code had closed the
+typecheck hole, and `/aidlc:adopt-backlog` would otherwise have re-filed shipped work. The **upgrade** leg
+ran against a pre-0.31 unstamped config: shape-based classification named all four signals, 5 commands
+relocated **byte-identical**, `pipeline.gates.ambiguousRequirements` left exactly where `run` §4 reads it,
+every other key untouched, and the result resolved correctly through `resolve-gate.mjs`. The **removal**
+leg stopped on a dirty tree as §1 requires, then deleted the tier-A paths, reverted `CLAUDE.md` section by
+section, and kept `docs/adr/`, all three `backlog/` items and the secret-finding report — with `git status`
+containing **nothing outside the approved plan** and `CLAUDE.md` **byte-identical** to its pre-adoption
+state, checked against both the scan commit and an independent pre-adoption snapshot.
+
+- **A union-seeded array cannot express a human deletion.** §3.3 seeds `pipeline.securityReviewPaths` by
+  union, never replacement — which protects a path a human *added* and destroys one a human *removed*,
+  because union only ever adds. The team had narrowed the array on purpose, with the reason in the commit
+  message; the next apply put the entry straight back. **`/aidlc:adopt` §9 names this exact case** — *"a
+  deliberately narrowed `securityReviewPaths` … produces a diff that looks exactly like routine convergence
+  and reverts a decision nobody will notice in review"* — and the drift machinery could not catch it either,
+  because for a set "differs from the baseline" does not say which *direction*, and nothing recorded that a
+  seed had ever been applied. Fixed with a manifest rather than a heuristic: **`adoption.seeded`** records
+  what adoption contributed, making the union three-way, and a withheld seed stays listed so it does not
+  return next run. With no manifest the resolver falls back to plain union and says so — the conservative
+  direction for a security array. New `skills/adopt-apply/seed-paths.mjs` + 27 cases.
+- **`/aidlc:remove`'s verification compared against the scan commit**, so the team's own commits between
+  adopting and removing came back as a list indistinguishable from files removal had touched by mistake. It
+  does not error, it just prints — so it gets ignored, retiring the only mechanical check of removal's
+  central promise, and it fails hardest on the long-lived projects where it matters most. §5 now separates
+  the two questions it had conflated: *"did removal touch anything outside the plan?"* is a working-tree
+  question `git status` answers exactly, and *"is each merged file back to its pre-adoption content?"* is a
+  per-file history question — compare against `git show <adoption.commit>:<file>`, report *restored* when
+  identical, and where it differs, show the remaining hunks as the team's own edits and confirm.
+
+**Suites:** validate-profile 238, resolve-gate 38, resolve-root 38, converged 32, seed-paths 27 — 373 cases.
+
+**Still unexercised.** `/aidlc:adopt-adr` and `/aidlc:adopt-backlog`; `--only` partial adoption; feeding
+the derived drift deltas back through `adopt-apply`'s routing table; and removal with no manifest, which §1
+declares a supported case and which needs its own fixture.
+
 ## [0.34.1] — 2026-07-31
 
 ### `aidlc` — brownfield: the first live run of `/aidlc:adopt-apply`, and three more defects

@@ -119,12 +119,29 @@ For each tier-C file, produce the reverted content and **show it as a diff**:
 
 Verification is the point of the manifest, so do it rather than asserting it:
 
-1. **`git status --porcelain`** — show the user the real change set. Every path in it must appear in the
-   approved plan. Anything else is a bug in this command; say so instead of moving on.
-2. **`git diff <adoption.commit> -- <every path NOT in the plan>`** must be empty for the project's own
-   files. That is the actual promise this command makes — *the project's files are as they were* — and it
-   is checkable in one command rather than asserted. Where `adoption.commit` is unavailable (no manifest,
-   or a shallow history), say that verification was not possible rather than implying it passed.
+1. **`git status --porcelain`, at the control plane and every repo** — show the user the real change set.
+   **Every path in it must appear in the approved plan.** Anything else is a bug in this command; say so
+   instead of moving on. This is the promise — *removal changed nothing except what you approved* — and it
+   is a **working-tree** question, answered in one command.
+2. **Per merged file, check it is back to its pre-adoption content** — a *history* question, and a
+   different one. For each tier-C file in `adoption.writes[]`, compare what you left behind against
+   `git show <adoption.commit>:<path>`:
+   - **Identical** ⇒ report *"restored to its pre-adoption state"*. That is the strongest thing this
+     command can say, so say it per file rather than in aggregate.
+   - **Different** ⇒ the remaining hunks are the **team's own edits to that file since adoption**. That is
+     expected, not a failure: `CLAUDE.md` is a living document. **Show those hunks and confirm** they are
+     the team's, rather than reporting a problem.
+
+   **Do not diff the whole tree against `adoption.commit`.** It is tempting — one command, looks
+   thorough — and it is wrong: `adoption.commit` is the commit the *scan* ran against, and a project moves
+   after it is adopted. That is the entire premise of the `drift` block. On a real evaluation, weeks or
+   months of the team's own commits sit between that point and this one, so the diff comes back full of
+   legitimate work that is indistinguishable from files removal touched by mistake. The rational response
+   after seeing that once is to stop reading it — which retires the only mechanical check of the promise
+   this command exists to make, and it fails hardest on the long-lived projects where it matters most.
+
+   Where `adoption.commit` is unreachable (a shallow history, or no manifest at all), say that
+   verification was not possible rather than implying it passed.
 3. **Confirm the plugin is still installed.** This command removed AIDLC from the *project*; the plugin
    remains at user scope. `/plugin uninstall aidlc@bee-logical` is the separate step, and `/aidlc:` will
    keep answering until it runs — which is a feature if the user is removing in order to re-adopt.

@@ -230,12 +230,33 @@ Three rules decide whether this block helps or misleads:
    is a contract ⇒ a diff touching it triggers breaking-change review regardless of cadence"*. A user
    approving a list of field names has not been told what they are approving.
 
-**`pipeline.securityReviewPaths` is seeded by UNION, never replaced.** Add every entry of the profile's
-`securityReviewPathSeeds` that is not already there and keep everything a human put in. Show the added
-paths as their own diff lines with the reason beside each (`src/auth/ — authentication`). This is the
-mechanism behind the two criteria that matter most in ADOPT-9: a change to tenant isolation or auth is
-security-reviewed **regardless** of the configured cadence, so a path that never reaches this array is a
-path recorded as dangerous and treated as routine.
+**`pipeline.securityReviewPaths` is seeded by a THREE-WAY union, never replaced, and never blindly.**
+This is the mechanism behind the two criteria that matter most in ADOPT-9 — a change to tenant isolation
+or auth is security-reviewed **regardless** of the configured cadence — so a path that never reaches this
+array is a path recorded as dangerous and treated as routine. Use the tested resolver, not a set union:
+
+```
+node "<plugin>/skills/adopt-apply/seed-paths.mjs" .claude/aidlc.config.json .aidlc/adoption/profile.json
+```
+
+A plain union protects a path a human **added** and destroys a path a human **removed**, because union
+only ever adds. `/aidlc:adopt` §9 names *"a deliberately narrowed `securityReviewPaths`"* as precisely the
+human edit that must never be reverted — and the drift machinery cannot catch this one, because of a
+scalar/set asymmetry: for a scalar, *"config differs from the baseline-derived value"* attributes the
+change to a person, but for a set "differs" does not say which **direction**. So `adoption.seeded.
+securityReviewPaths[]` records what **we** contributed, which makes the comparison three-way:
+
+| Seed in the config? | In `adoption.seeded`? | What to do |
+|---|---|---|
+| no | **no** | genuinely new — **add it**, with the reason beside it (`api/acme/auth/ — authentication`) |
+| no | **yes** | we seeded it and it is gone, so the team removed it on purpose — **leave it out**, and name it once as *"not re-added: you removed this after the last apply"* |
+| yes | either | already there — no diff |
+
+Everything a human added stays either way; this only ever decides what *we* contribute. A withheld seed
+**stays in the manifest** — it is the record of "we offered this and the team said no", and dropping it
+would re-add the path on the following run. With **no** manifest (a config written before this key
+existed) the resolver falls back to plain union and **says so**, which is the conservative direction for a
+security array: a false positive costs one review, a false negative costs a missed one.
 
 **A compliance regime raises a cadence RECOMMENDATION, not the cadence.** Where `compliance` is
 non-empty, recommend raising `pipeline.verification.security` (e.g. `per-epic` → `risk-based` or
@@ -281,7 +302,9 @@ Two consequences to state explicitly in the summary, because they change how run
 ### 3.5 · Provenance, and the manifest that makes removal possible
 
 Write the `adoption` block: `scannedAt`, `commit`, `profileVersion`, `profilePath`, `depth`, `appliedAt`,
-`only[]` and `unmanaged[]` for a partial adoption, and `upgrades[]` from §2.1. This is what makes the next
+`only[]` and `unmanaged[]` for a partial adoption, `upgrades[]` from §2.1, and **`seeded`** from §3.3 —
+the record of what adoption contributed to each union-merged array, without which the next apply cannot
+tell a path the team removed from one it never saw. This is what makes the next
 run idempotent and the run after that able to tell drift from a rewrite. Never hand-author these values —
 copy them from the profile.
 

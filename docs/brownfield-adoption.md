@@ -2,10 +2,10 @@
 
 **Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** (+ **0.31.1** fixes); Phase 3 in
 **0.32.0**; Phase 4 in **0.33.0**. All four are implemented. **0.34.0** carries the first live run of the
-Phases 3–4 **scan** half (seven defects) and **0.34.1** the first live run of **`/aidlc:adopt-apply`**
-(three more) — every one of the ten produced a plausible artifact rather than an error. See *the live scan
-run* and *the live apply run* below. `/aidlc:adopt-adr`, `/aidlc:adopt-backlog` and most Phase 4 lifecycle
-legs remain unexercised, and are listed there.
+Phases 3–4 **scan** half (seven defects), **0.34.1** the first live run of **`/aidlc:adopt-apply`** (three
+more), and **0.34.2** the **drift, upgrade and removal** legs (two more) — every one of the twelve produced
+a plausible artifact rather than an error. See the three *live run* sections below. `/aidlc:adopt-adr` and
+`/aidlc:adopt-backlog` remain unexercised, and are listed there.
 **Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
@@ -564,6 +564,109 @@ fixture's `drift.changes[]` was legitimately empty, so the `propose` / `report-o
 routing table has still never been driven). Beyond it: **`/aidlc:adopt-adr`**, **`/aidlc:adopt-backlog`**,
 the **`human-edit` drift attribution**, and **`/aidlc:remove`** with and without a manifest. Open
 questions 4 and 5 are untouched, and no fixture can answer either.
+
+### Phase 3/4 — the drift, upgrade and removal legs (2026-07-31)
+
+ADOPT-12's four lifecycle claims — drift, partial adoption, in-place upgrade, clean removal — were the
+last of Phase 4 still specified-but-unexercised, and the spec singled out the `human-edit` leg as *"the
+least testable by fixture: it needs a config that was really applied, really hand-edited afterwards, and
+re-scanned."* So that is what was built. **Two more defects, both invisible, and both about a human's
+deliberate decision being quietly undone.**
+
+**The scenario.** From the applied fixture, four changes on distinct surfaces, each its own commit with a
+real message:
+
+- **a hand edit to the applied config** — the API test timeout bumped 25 → 40 (*"the suite genuinely takes
+  longer on a laptop with compose starting cold"*), and `securityReviewPaths` narrowed by removing
+  `acme/audit/` (*"we review it in the quarterly access review, not per diff — it was making every
+  audit-log tweak a security review for no benefit"*);
+- **code movement** — the API renamed its `lint` Makefile target to `check` and folded `mypy` into it,
+  with CI following, which both moves the gate command *and closes the typecheck coverage hole*;
+- **a new package** — `@acme/charts`, depending on `@acme/ui`, releasable via changesets;
+- **a retired root** — the `design docs` folder dropped from the workspace file and deleted.
+
+**Confirmed working.** The re-scan produced a `drift` block with **7 changes across 3 sources and 5
+kinds**, and the attribution came out right in every case: the two config edits as `human-edit` /
+`leave-alone`, the gate rename and the new package as `code` / `propose`, and the retired root as
+`report-only` (it was a non-repo root that never reached `repos[]`, so there is no configuration to
+change). The mechanism behind the human-edit attribution is *config-differs-from-the-baseline-derived
+value*, corroborated by the config's last commit post-dating `adoption.appliedAt` — and both held. The
+validator also earned its keep unprompted: it **warned that the `absent-gate` debt finding for `typecheck`
+no longer named a gate the root records as absent**, catching a stale finding that would otherwise have had
+`/aidlc:adopt-backlog` re-file work that had already shipped.
+
+The **upgrade** leg ran against a deliberately pre-0.31 config — unstamped, `pipeline.gates` holding
+`steps`/`repos` directly, no `adoption` block, `repos[]` with no `stack`. Shape-based classification named
+all four signals; the relocation moved 5 commands **byte-identical**; `pipeline.gates.ambiguousRequirements`
+stayed exactly where `run` §4 reads it (moving it would silently disable the requirements gate); every other
+top-level and `pipeline` key was untouched; and `adoption.upgrades[]` recorded the moves. The upgraded
+config then resolved correctly through `resolve-gate.mjs`, with the `ledger` repo's narrow `changed-paths`
+test beating the workspace-wide suite and the workspace `lint` still inherited.
+
+The **removal** leg ran with a manifest. Its pre-flight caught a dirty tree and stopped, as §1 requires.
+After committing, it deleted the three tier-A paths, reverted `CLAUDE.md` **section by section**, kept
+`docs/adr/`, `backlog/` (all three items) and `.aidlc/adoption/report.md`, and removed `.claude/` only
+because it was empty. Verified mechanically: `git status` contained **nothing outside the approved plan**,
+and `CLAUDE.md` came back **byte-identical** to its pre-adoption state — checked both against the scan
+commit and against an independent snapshot taken before adoption. All three product repos untouched.
+
+**The two defects.**
+
+1. **A union-seeded array cannot express a human *deletion*, so every re-apply silently reverts one.**
+   §3.3 says seed `pipeline.securityReviewPaths` by **union, never replacement** — which protects a path a
+   human *added*, and destroys a path a human *removed*, because union only ever adds. The team's
+   deliberate narrowing came straight back:
+
+   ```
+   config now (narrowed): [ tenancy, accounts, billing, openapi, tenant.go ]
+   §3.3 UNION produces:   [ tenancy, accounts, billing, openapi, tenant.go, acme/audit/ ]
+                                                                            ^ silently restored
+   ```
+
+   What makes this the sharpest find of the three runs is that **§9 names this exact case**: *"a hand-tuned
+   gate command, **a deliberately narrowed `securityReviewPaths`**, a `mergeStrategy` the team changed on
+   purpose — proposing to 'correct' any of them produces a diff that looks exactly like routine convergence
+   and reverts a decision nobody will notice in review."* The drift machinery cannot catch it either,
+   because of a **scalar/set asymmetry**: for a scalar, "config differs from the baseline-derived value"
+   attributes the change to a person, but for a set "differs" does not say which *direction*, and nothing
+   recorded that a seed had ever been applied — so *absent because never seeded* and *absent because
+   removed* were indistinguishable. And the consequence is worse than churn: re-adding a security-review
+   path makes diffs *more* expensive, which reads as the tool being cautious rather than as it overriding a
+   decision, so nobody reverts it twice. Fixed with the same insight that made clean removal possible in
+   Phase 4 — **a manifest, not a heuristic.** `adoption.seeded.securityReviewPaths[]` records what *we*
+   contributed, making the union three-way: absent and not in the manifest ⇒ add; absent but in the
+   manifest ⇒ the team removed it, leave it out and say so once; present ⇒ no diff. A withheld seed
+   **stays** in the manifest, or it returns on the following run. With no manifest the resolver falls back
+   to plain union and **says so**, the conservative direction for a security array. Code, because it is set
+   reasoning that fails silently: `skills/adopt-apply/seed-paths.mjs` + 27 cases.
+2. **`/aidlc:remove`'s verification compares against the scan commit, so the team's own progress reads as a
+   dirty removal.** §5 promised the one thing that makes removal trustworthy and promised to *check* it:
+   *"`git diff <adoption.commit> -- <every path NOT in the plan>` must be empty for the project's own
+   files."* On the fixture that came back with three modified paths, **none of them removal's doing** — two
+   from the re-scan and one from the team retiring their own folder. `adoption.commit` is the commit the
+   *scan* ran against, and a project moves after it is adopted; that is the entire premise of the `drift`
+   block. On a real evaluation, weeks or months of the team's own commits sit between the two points, so the
+   check returns a list of legitimate work indistinguishable from files removal touched by mistake. It does
+   not error — it just prints — so the rational response after seeing it once is to stop reading it, which
+   retires the only mechanical check of removal's central promise. It fails hardest on the long-lived
+   projects where it matters most. The mistake is conflating two questions, so §5 now separates them:
+   *"did removal touch anything outside the plan?"* is a **working-tree** question that `git status`
+   already answers exactly, and *"is each merged file back to its pre-adoption content?"* is a **per-file
+   history** question — compare against `git show <adoption.commit>:<file>`, report *restored* when
+   identical, and where it differs, **show the remaining hunks as the team's own edits and confirm** rather
+   than reporting a failure.
+
+**Suites:** `validate-profile` **238**, `resolve-gate` **38**, `resolve-root` **38**, `converged` **32**,
+`seed-paths` **27** — 373 cases across five suites.
+
+**Still unexercised.** `/aidlc:adopt-adr` and `/aidlc:adopt-backlog` — including whether ADR numbering
+continues from the fixture's existing `0007`, whether the external Confluence link is linked rather than
+copied, and whether the debt sweep dedupes against the open `PLAT-14` *and* notices its `committed-secret`
+finding is contradicted by a **closed** `PLAT-40`. Also: **`--only` partial adoption**, **applying drift
+deltas** through `adopt-apply` (the deltas were derived and validated, but never fed back through the
+`propose`/`report-only`/`leave-alone` routing), and **removal with no manifest at all**, which §1 declares
+a supported case and which needs its own fixture. Open questions 4 and 5 stay open; both ask how people
+react, and no fixture can answer either.
 
 ### Deviations from this spec, and why
 
