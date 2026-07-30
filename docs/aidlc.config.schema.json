@@ -280,6 +280,20 @@
             }
           }
         },
+        "replan": {
+          "type": "object",
+          "description": "How /aidlc:replan packs a re-prioritized backlog into execution WAVES — the sets of items that may run concurrently (reference implementation skills/replan/resolve-waves.mjs, semantics pinned by resolve-waves.test.mjs). Absent ⇒ the defaults below, so no existing config needs migrating.\n\nThis is the coarsest of D7's four grains: implementFanout packs the TASKS of one item into windows; this packs ITEMS into waves. A replan writes nothing to the tracker — it produces .aidlc/plan.md at the control plane, an execution overlay that /aidlc:next and /aidlc:sprint follow while the board stays exactly as the product owner left it.\n\nWhat the packer refuses to guess, because each failure is silent rather than loud: work already IN FLIGHT is pinned to wave 0 and never re-planned (a half-applied change across many files and repos is the expensive thing to unwind); a CONTAINER is never frozen and never scheduled, since /aidlc:run §3a rolls a parent to in_progress the moment its first child starts (F19) and freezing on that would make every epic unplannable; an UNROUTED item in poly is held rather than packed, because tree isolation cannot be proven without a repo; and a dependency CYCLE is reported rather than broken by dropping an edge.",
+          "additionalProperties": true,
+          "properties": {
+            "maxWave": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5,
+              "default": 3,
+              "description": "Most items in one wave. Hard-capped at 5 (values above are clamped, not rejected), mirroring /aidlc:sprint's own cap — a wave is what sprint launches, so a wider wave than sprint will run is a plan that cannot be executed as written. In poly the real ceiling is usually lower anyway: one item per repo per wave, because two items in one repo share a working tree. In mono that constraint does not bind at all, since every sprint item gets its own git worktree."
+            }
+          }
+        },
         "gates": {
           "type": "object",
           "description": "The things that gate a pipeline run's progression. `ambiguousRequirements` gates progression when a requirement is unclear; `verify` gates it on quality. They are separate concerns that happen to share this block — do not conflate them.",

@@ -31,7 +31,10 @@ completion) plus, for markdown source, epics too. For each item, in priority ord
    (near-identical titles/descriptions), stale in-progress items with no run file, bugs with
    no reproduction steps (comment asking the reporter for steps).
 5. **Priority sanity**: note mismatches (e.g. a bug in the auth path at P4) — **suggest, never
-   change**: priorities are the product owner's call.
+   change**: priorities are the product owner's call. This tier is *per-item* and stays that way. A
+   **wholesale re-ordering** — the client moved a whole area up, the delivery order needs resetting —
+   is a different operation on a different unit (the graph, not the item), and it belongs to
+   `/aidlc:replan`; see *Flow check* below.
 6. **Repo routing** (poly only): items whose `repo` is unset and can't be inferred from labels →
    propose a repo (grounded in a quick look at the candidate repos); apply on approval. **Cross-repo
    items are split candidates — flag them per `workspace.crossRepoSplit`** (default `story`; see
@@ -43,6 +46,35 @@ completion) plus, for markdown source, epics too. For each item, in priority ord
    *Re-decomposition*). Grooming is the cheap place to fix this — before it reaches a run. Also flag
    items that really target the **`control-plane`** (F8) or an **undeclared repo** (a shared lib /
    future product → offer `/aidlc:repo add`, F2).
+
+## Flow check — is the *order* still right, not just the items? (one pass, at the end)
+
+Grooming makes items **ready**; it says nothing about **when they run**. Those are different failures,
+and a sweep that only fixes the first will happily leave a backlog of perfectly-groomed items in an
+order nobody holds any more. So close the sweep with a cheap check of the execution order — read-only,
+no writes, and it ends in a handoff rather than an action:
+
+1. **Is there a plan?** `.aidlc/plan.md` at the control plane is the active execution overlay
+   (`aidlc:replan`). If it exists, run its freshness check against the board you just swept:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
+   ```
+
+   **Grooming is the single most likely cause of breaking drift**: a split, a re-decomposition, a
+   repo-routing fix or a supersession each change a field the wave packing depends on. If this pass
+   caused breaking drift, say so plainly — the plan will otherwise be ignored by `/aidlc:next` and
+   `/aidlc:sprint` until it is re-cut.
+2. **No plan, but the order looks wrong?** Two signals worth one line each: a P1 sitting behind
+   several P3s in the `dependsOn` graph, and **a chain that should be concurrent** — the
+   `frontend dependsOn backend` pair whose interface already exists unchanged, which serializes a whole
+   feature for nothing (`aidlc:work-items` → *Contract-first siblings*). Flag; do not rewire.
+3. **Offer the handoff, once.** `Order looks stale — /aidlc:replan to re-sequence into waves.` Then stop.
+
+**Do not re-sequence here.** Re-ordering the graph without re-packing the waves is the failure this
+split exists to prevent: move one item to the top and a contract-first pair that used to run side by side
+ends up in two waves for no reason anyone can name. `/aidlc:replan` does both together, and its wave
+packing is computed and tested rather than judged.
 
 ## Autonomy boundaries
 
@@ -73,6 +105,8 @@ Needs your call:
 - PROJ-127 (XL): split into …
 - PROJ-140 looks duplicate of PROJ-133 — close?
 - Priority suggestions: PROJ-135 P4→P2 (auth-path bug)
+Flow:
+- the PROJ-127 split re-wired the plan's dependsOn — `.aidlc/plan.md` is stale, `/aidlc:replan`
 ```
 
 Apply the "needs your call" actions only after the user picks them — and the **coordinator** applies

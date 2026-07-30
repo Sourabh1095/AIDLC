@@ -66,6 +66,32 @@ required-check policy: its PRs merge **ungated**." This is the proactive complem
 reconciliation below; remote mode's promise (CI enforces the gate before merge) is otherwise silently
 unmet. Point at `aidlc:ci-cd` + the `aidlc-stack-web/templates/ci/` templates and `/aidlc:init`'s CI offer.
 
+## Step 1.7 — Execution plan (when `.aidlc/plan.md` exists)
+
+The control-plane `.aidlc/plan.md` is the active wave schedule (`aidlc:replan`) and it is what
+`/aidlc:next` and `/aidlc:sprint` will actually follow — so a dashboard that omits it is showing the
+board's order, not the pipeline's. Read its frontmatter (`plan`, `driver`, `schedule`, `waves`,
+`fingerprint`) and render two lines plus the wave the project is on:
+
+```
+Plan (2026-07-31, "client wants checkout live before search"):  wave 2 of 4
+  w0[PROJ-101]* -> w1[PROJ-102|PROJ-110] -> w2[PROJ-103|PROJ-104] -> w3[PROJ-120]
+  held: PROJ-111 (blocked) · PROJ-112 (unrouted)
+```
+
+The current wave is the earliest one with open items. Then run the freshness check against the items
+from Step 2 —
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
+```
+
+— and report the class, because it decides what the other commands
+will do: **none** (silent), **additive** → `plan is additively stale: 3 new items unscheduled`,
+**breaking** → `⚠ plan is stale (PROJ-127 was re-decomposed) — next/sprint will ignore it and fall
+back to priority order · /aidlc:replan`. This is read-only like the rest of `status`; it never re-cuts
+a plan.
+
 ## Step 2 — Backlog snapshot
 
 Load the `work-items` skill routing and query the active adapter (from `.claude/aidlc.config.json`) for:
@@ -85,7 +111,9 @@ One line per noteworthy entry:
 
 End with one actionable line, e.g.:
 - runs blocked → "PROJ-123 is blocked at verify (2 unresolved findings) — review `.aidlc/runs/PROJ-123.md`"
-- no active runs, ready items exist → "Run `/aidlc:next` to start PROJ-124 (P1, story)."
+- no active runs, ready items exist → "Run `/aidlc:next` to start PROJ-124 (P1, story)." — or, with a
+  fresh plan, name the wave: "Wave 2 is ready (PROJ-103 ‖ PROJ-104) — `/aidlc:sprint`."
+- a plan with **breaking** drift → "`.aidlc/plan.md` is stale (PROJ-127 re-decomposed) — `/aidlc:replan`"
 - done runs with merged PRs → "PROJ-120's PR merged — run cleanup: transition item to Done and archive the run file."
 
 ## Ground-truth reconciliation (drift detection — the audit, automated)

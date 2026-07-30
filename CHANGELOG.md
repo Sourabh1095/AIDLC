@@ -7,6 +7,77 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.37.0] — 2026-07-31
+
+### `aidlc` — priorities change mid-project: `/aidlc:replan`
+
+Every planning feature so far assumed the order was settled once. `/aidlc:bootstrap` capacity-plans
+sprints **at project start**; `/aidlc:groom` refines items one at a time and is explicitly forbidden from
+touching priority; `/aidlc:sprint` derives a concurrent set **at launch** and forgets it. Nothing owned
+the question a client actually asks halfway through: *"we need checkout before search now."*
+
+**Why grooming was the wrong home for it, despite being the obvious one.** Grooming operates on **one
+item** — its AC, its size, its routing. A reprioritization operates on **the graph**. Putting it in groom
+would also have meant rewriting groom's own rule that priorities are the product owner's call, and it
+would have missed the harder half of the problem:
+
+> **Re-ordering without re-packing silently costs the concurrency.** Move one item to the top and a
+> contract-first pair (0.35.0) that used to build side by side ends up in two separate steps, for no
+> reason anyone can state afterwards.
+
+So order and parallelism are one operation. `/aidlc:replan` takes a priority signal — a prompt
+(*"security items first for the audit"*), a revised requirements doc, or nothing at all to re-derive from
+the board — and returns an ordered set of **waves**, each wave the items that can genuinely run at once.
+`/aidlc:sprint` launches a wave; `/aidlc:next` picks from the current one.
+
+**It writes nothing to the tracker, and that is the design (D11).** `priority`, `dependsOn` and
+sprint/iteration are where a human product owner's intent lives — and, not coincidentally, the 7-op
+adapter contract (D4) has an op for none of them: they are authoring-time fields. So a replan re-orders
+**AIDLC's execution**, not the board. `.aidlc/plan.md` at the control plane is an **execution overlay**
+that `next`/`sprint`/`status` follow; the board stays as the client left it, and the plan lists the
+priority edits that *would* make the two agree, for a human to apply or ignore.
+
+**In-flight work always finishes, and freezing is leaf-only.** A leaf with a live run file is pinned to
+wave 0 exactly as it is — no pause, no reorder, no retarget, no killed process. Unwinding a change
+half-applied across many files and (in poly) many repos costs far more than the wall-clock a stop would
+save. The subtlety that makes this correct rather than merely cautious: `/aidlc:run` §3a rolls a **parent**
+to `in_progress` the moment its *first* child starts (F19), so freezing everything marked `in_progress`
+would freeze whole **epics** and make the board unplannable the instant any child moved. Containers —
+epics, features, and `crossRepoSplit: task` umbrella stories with open children — are never frozen and
+never scheduled; their children are the work.
+
+**The packing is computed, not judged** — `skills/replan/resolve-waves.mjs`, 74 test cases. The *order*
+is human judgment (an analyst reading the changed intent); which items may share a wave is decided by
+three constraints that each fail **silently**: a violated `dependsOn` (the dependent runs against a
+contract that isn't there, and the red build lands far from its cause), two poly items in one repo
+(`/aidlc:sprint` branches and commits both in one working tree — a constraint that does **not** bind in
+mono, where every item gets its own worktree), and the width cap. Same argument `resolve-fanout.mjs`
+makes one grain finer: this is D7's coarsest level — fan-out packs one item's *tasks* into windows,
+replan packs *items* into waves.
+
+Four things it refuses to guess, each surfacing as a **held** item with its reason rather than a silent
+omission: an **unrouted** item in poly (tree isolation unprovable), a **blocked** item, an **unknown or
+self-referential** dependency, and a **cycle** (reported, never broken by dropping an edge).
+
+**A stale plan falls back loudly rather than steering quietly.** The plan records the item fields the
+packing depended on; `next`/`sprint`/`status` diff them against the live board before obeying it. Items
+merely progressing is the plan *working*; new items or a changed board priority are **additive** (follow
+the plan, say what's unscheduled — a board priority change is precisely the signal to re-plan); a planned
+item that vanished, was re-typed, re-routed or re-wired is **breaking** — announce it, ignore the plan,
+revert to priority order. Never silently obeyed, and never a blocker on getting work done.
+
+**Wired into the commands that were already there:** `groom` gained a read-only **flow check** that ends
+its sweep by asking whether the *order* is still right — grooming is the most likely cause of breaking
+drift, since a split or a routing fix changes exactly the fields the packing reads — and hands off rather
+than re-sequencing itself. `next` and `sprint` honor the plan behind the freshness gate (sprint still
+runs the two checks the packer cannot make: the analyst's file/subsystem overlap read, and a
+re-assertion of one-item-per-tree). `status` shows the plan, the current wave and its drift class. `do`
+gained a **REPLAN** route, because *"build X"* is intake but *"build X **before** Y"* is not — routing the
+second into BUILD mints a duplicate item for work already on the board.
+
+New config: `pipeline.replan.maxWave` (default 3, hard cap 5, mirroring sprint's own cap — a wave wider
+than sprint will launch is a plan that cannot be executed as written).
+
 ## [0.36.0] — 2026-07-31
 
 ### `aidlc` — ceremony is proportional to consequence (the adoption fix)

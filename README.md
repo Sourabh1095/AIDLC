@@ -105,6 +105,7 @@ squash-only web app, from first scan through a merged PR to a drift report six w
 | `/aidlc:next` | Pick the highest-priority ready item and run it |
 | `/aidlc:status` | Dashboard: active runs + backlog snapshot |
 | `/aidlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
+| `/aidlc:replan [what changed]` | Priorities changed? Re-sequence the not-yet-started work into **waves** of items that can run at once; `next`/`sprint` follow it. In-flight work is never touched, and nothing is written to the tracker |
 | `/aidlc:release` | Cut a release: semver from commits, changelog, tag, notes (publish is approval-gated) |
 | `/aidlc:sprint N` | Run N independent items in parallel (mono: worktrees · poly: per-repo) with a live board |
 | `/aidlc:repo add <name>` | Declare + bootstrap a repo in a poly workspace (config entry + `git init` + base commit) |
@@ -150,3 +151,8 @@ Concurrency runs at three levels (`aidlc` v0.35.0): independent **items** in par
 edit, the orchestrator commits — one writer to git, still one branch and one PR), and a feature's
 **frontend and backend** built simultaneously against a contract that lands first, with an integration
 join proving the seam. Full design: `docs/architecture.md`.
+
+When the client's priorities move mid-project (`aidlc` v0.37.0), `/aidlc:replan` re-sequences what has
+not started into ordered **waves** — so a reprioritization keeps the concurrency the decomposition was
+designed for instead of quietly serializing it. Work already in flight always finishes as-is, and the
+plan is an execution overlay: the board stays exactly as the product owner left it.

@@ -44,7 +44,9 @@ Load in this order and stop as soon as you can answer. This is a floor, not a bu
    `<repo.path>/.aidlc/runs/*.md` (the same multi-location scan `/aidlc:status` uses). A run that
    already owns the code this prompt touches changes every route below.
 4. **Backlog index** — `adapter.query` over open items via `aidlc:work-items`, **titles only**.
-   Enough to spot overlap; you are not reading bodies yet.
+   Enough to spot overlap; you are not reading bodies yet. Also note whether `.aidlc/plan.md` exists —
+   if it does, the delivery *order* is the plan's waves rather than raw priority (`aidlc:replan`), which
+   changes what "what's next" honestly answers on the META route.
 5. **ADR titles** — the H1/frontmatter of `docs/adr/*.md`. Read a full ADR only when the prompt
    touches its decision. **An ADR at status `accepted (retroactive)` is a decision derived from the
    code by `/aidlc:adopt-adr`, and its Rationale may read *"not recorded"*** — the *what* is binding,
@@ -73,7 +75,12 @@ cleanup.
 | something small and obvious changed | **DIRECT** (§5) | the change, gated and committed on the current branch. No item, no PR. |
 | something built or changed that warrants a trail | **BUILD** (§5) | `aidlc:ceremony` tier 2 or 3 — tracked, or the full pipeline |
 | an existing item progressed (`{KEY}-{n}` appears) | **RESUME** | `aidlc:run <ID>`, followed verbatim |
+| the **order** of the work changed — a client moved priorities, an area came forward | **REPLAN** | `aidlc:replan`, which re-sequences the not-yet-started work into waves. Writes nothing to the tracker and never touches work in flight |
 | pipeline state, or what to work on next | **META** | `aidlc:status` / `aidlc:next` |
+
+**REPLAN is about *when*, not *what*.** "We should also build X" is intake; "build X **before** Y" is a
+replan. A prompt that changes the order of existing work has no home in BUILD — routing it there mints a
+duplicate item for work already on the board.
 
 **Mixed prompt** ("is this a good idea, and if so build it") → run the CONSULT first, present the
 recommendation, and continue to BUILD only on the user's go-ahead. A consult never silently becomes

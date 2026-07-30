@@ -76,6 +76,12 @@ files or on each other's outputs. It applies at four levels, coarsest grain firs
   worktree of a *product* repo is not a viable launch target at all: AIDLC's plugin enablement,
   permissions, config and backlog all live at the control plane, so such a worktree has no
   `/aidlc:*` commands (F42).
+
+  **Which items make up that set can be decided ahead of time rather than at launch.** When a
+  `/aidlc:replan` has run, the conflict-free set is the next **wave** of `.aidlc/plan.md`, packed against
+  these same constraints by `resolve-waves.mjs` (D11). Sprint still applies the two checks the packer
+  cannot make — the analyst's file/subsystem overlap read, and a re-assertion of one-item-per-tree — so
+  the plan proposes and the launch verifies.
 - **Phase level (`/aidlc:run` §verify).** The **reviewer and (conditional) security** agents are
   dispatched in **one parallel batch** — they only read the diff, so there's nothing to collide on.
   **QA is dispatched after that batch returns, not in it:** its verify mode authors and *commits*
@@ -198,6 +204,46 @@ The corollary is a behavioural rule, not a preference: **"just do it" / "no tick
 instructions, not objections to be argued with.** Selling the user the tier they just declined is the
 behaviour this decision exists to prohibit.
 
+**D11 — Delivery order is an execution overlay, not a board write.** A client changing priorities
+mid-project is the normal condition of a project with a client, not an exception. Absorbing it needs an
+answer to *"what runs next, in what order, and what still runs at the same time"* — and the tempting
+answer, rewriting the board, is the wrong one twice over.
+
+- **The board is the product owner's record of what they asked for.** `priority`, `dependsOn` and
+  sprint/iteration are where that intent lives. A pipeline that rewrites them is overwriting the
+  statement it is supposed to be serving — and it is no coincidence that the 7-op adapter contract (D4)
+  has no op for any of the three: they are set at authoring time, by a person.
+- **Re-ordering without re-packing silently costs the concurrency.** Move one item to the top and a
+  contract-first pair that used to run side by side (D9) can end up in two different waves with no
+  reason anyone can state. Order and parallelism are one operation, not two.
+
+So `/aidlc:replan` writes **`.aidlc/plan.md` at the control plane** — an ordered set of **waves**, each
+wave a set of items that may run concurrently — and `/aidlc:next` and `/aidlc:sprint` follow it. The
+board stays exactly as the client left it; the plan lists the priority edits that *would* make the two
+agree, for a human to apply. Anything needing the tracker to genuinely change (a new contract child, a
+split) goes through `create` and the normal approval gate.
+
+Three properties make the overlay trustworthy rather than a second source of truth to drift:
+
+- **In-flight work is never re-planned.** A leaf with a live run file is pinned to wave 0 exactly as it
+  is — no pause, no reorder, no retarget. Unwinding a change half-applied across many files and, in
+  poly, many repos costs far more than the wall-clock a stop would save. **Freezing is leaf-only**: §3a
+  rolls a parent to in_progress the moment its *first* child starts (F19), so freezing on `in_progress`
+  would freeze whole epics and make the board unplannable the instant any child moved. Containers are
+  coordination units — never frozen, never scheduled, their children are the work.
+- **The packing is computed, not judged.** The *order* is human judgment (an analyst reading the changed
+  intent); which items may share a wave is decided by three constraints that each fail silently —
+  a violated `dependsOn`, two poly items racing one working tree (sprint §1.3, which does **not** bind in
+  mono where each item gets a worktree), and the width cap. So it is `skills/replan/resolve-waves.mjs`,
+  pinned by `resolve-waves.test.mjs` — the same argument `resolve-fanout.mjs` makes one grain finer.
+  This is D7's coarsest level: fan-out packs one item's *tasks* into windows; replan packs *items* into
+  waves.
+- **A stale plan falls back loudly rather than steering silently.** The plan records the item fields the
+  packing depended on; `next`/`sprint` diff them against the live board first. Items merely progressing
+  is the plan working; new work is additive (follow it, say what is unscheduled); a planned item that
+  vanished, was re-typed, re-routed or re-wired is **breaking** — announce it, ignore the plan, revert to
+  priority order. Never silently obeyed, never a blocker.
+
 ## 2. Implemented (Phases 0–2)
 
 ### Pipeline
@@ -227,7 +273,7 @@ verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) �
 
 ### Skills
 
-Commands: `run`, `next`, `status`, `init`, `adopt`, `adopt-apply`, `adopt-adr`, `groom`, `release`. Infrastructure: `run-state`,
+Commands: `run`, `next`, `status`, `init`, `adopt`, `adopt-apply`, `adopt-adr`, `groom`, `replan`, `release`. Infrastructure: `run-state`,
 `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`. Playbooks: `requirements`,
 `planning`, `architecture`, `code-review`, `testing`, `debugging`, `security`, `ci-cd`,
 `docs-writing`, `research`, `maintenance`. Stack pack (`aidlc-stack-web` plugin):

@@ -69,6 +69,22 @@ Every adapter normalizes to and from this shape:
 | `link(id, {branch?, pr?})` | Attach branch/PR references to the item. |
 | `updateAC(id, criteria[])` | Write refined acceptance criteria back to the item. |
 
+### What the contract deliberately cannot do: re-order the board
+
+There is no op here for **priority**, for adding or removing a **`dependsOn`** edge on an existing item,
+or for **sprint/iteration** assignment — and `sprint`/`iteration` is not even a field on the canonical
+schema. That is not an oversight to route around with a bespoke adapter call. Those three fields are
+where a **human product owner's intent** lives: they are set when an item is authored
+(`create`) or by a person on the board, and a pipeline that rewrites them is overwriting the client's
+own record of what they asked for.
+
+So when the delivery order changes mid-project, AIDLC re-orders **its own execution**, not the board:
+`/aidlc:replan` computes a wave schedule and persists it at the control plane as `.aidlc/plan.md`, an
+**execution overlay** that `/aidlc:next` and `/aidlc:sprint` follow. The board stays as the client left
+it; the plan lists the priority edits that *would* make the two agree, for a human to apply. Anything
+that needs the tracker to actually change — a new contract child, a split — goes through `create` and the
+approval gate like any other write.
+
 ### Full-backlog sweeps — never silently truncate (F34)
 
 `query`'s `limit` is a **page size**, not a licence to drop the rest of the backlog. A caller doing a

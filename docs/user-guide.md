@@ -143,12 +143,70 @@ So choosing `direct` isn't choosing to be careless. It's choosing not to file a 
 | Yesterday's run stopped / new session / anything interrupted | `/aidlc:run PROJ-123` (same command — it resumes) |
 | "Where is everything?" | `/aidlc:status` |
 | Backlog is messy / items missing AC / before sprint planning | `/aidlc:groom` |
+| **The client changed their mind about the order** — "checkout before search", "security items first for the audit", a revised requirements doc | `/aidlc:replan client wants checkout live before search` (§2a) — re-sequences what hasn't started into **waves**; work in flight finishes untouched; **nothing is written to your tracker** |
 | Work several items at once | `/aidlc:sprint 3` |
 | **Make a screen or the whole app award-grade** (new or existing) | `/aidlc-ux:design /dashboard` · `/aidlc-ux:design "redesign the landing page"` |
 | Same, anchored to your brand | drop a logo/font/screenshot in `design/brand/` (or set `ux.brand`), then run `/aidlc-ux:design …` |
 | Cut a version | `/aidlc:release` |
 | A local skill proved reusable | `/aidlc:promote <name>` |
 | After `/plugin marketplace update` | `/aidlc:sync` |
+
+### 2a. When priorities change mid-project
+
+Clients change their minds, and they do it while things are running. `/aidlc:replan` is the command
+for that — it changes **when** work happens, never **what** the work is.
+
+```
+/aidlc:replan client wants checkout live before search
+```
+
+You can also point it at a revised requirements doc (`/aidlc:replan ./requirements-v3.docx` — it diffs
+against what the backlog already reflects), or run it bare to re-derive the order from the board as it
+stands, which is what you want after a grooming pass or a decomposition.
+
+**What comes back is a schedule, not a list.** Re-ordering alone would quietly cost you the
+parallelism: move one item to the top and a frontend/backend pair that used to build side by side ends
+up in two separate steps for no reason anyone can name. So a replan re-packs as it re-orders, into
+**waves** — each wave a set of items that genuinely can run at the same time:
+
+```
+Replan — driver: "client wants checkout live before search"
+
+In flight (wave 0 — finishes as-is, not re-planned):
+  PROJ-101  backend   implement   ← now outranked by PROJ-102, but it lands first
+
+  wave 1   PROJ-102 backend  Checkout contract (OpenAPI)   ‖  PROJ-110 frontend  Search filters
+  wave 2   PROJ-103 backend  Checkout endpoint             ‖  PROJ-104 frontend  Checkout UI
+  wave 3   PROJ-120 db       Search index migration
+
+Held:   PROJ-111 blocked · PROJ-112 unrouted — route it and re-plan
+Board deltas (not written): PROJ-102 P3→P1, PROJ-110 P1→P3
+```
+
+Then `/aidlc:sprint` launches wave 1's items together, and `/aidlc:next` picks from the current wave
+rather than from raw priority order. Wave *N+1* starts when wave *N* is done.
+
+**Three things worth knowing before you run it:**
+
+- **Work in flight is never touched.** Anything already running is pinned to wave 0 and finishes exactly
+  as it is — no pause, no reordering, no abandoning. A change half-applied across many files (and, in a
+  multi-repo workspace, many repos) costs far more to unwind than the time a stop would save. If the new
+  order says a running item should have waited, the report says so and it lands anyway. Note this is
+  **per story/task**, not per epic: an Epic showing *In Progress* because one child started does not
+  freeze its other children.
+- **Your tracker is not modified.** No priority field, no dependency link, no sprint assignment is
+  written. The plan lives at `.aidlc/plan.md` and is what AIDLC follows; your board stays exactly as
+  your product owner left it. The "board deltas" line lists the edits that would make the two agree —
+  apply them yourself if you want that, or don't.
+- **A stale plan gets ignored loudly, never followed quietly.** If grooming later splits or re-routes a
+  planned item, `/aidlc:next` and `/aidlc:sprint` say so and fall back to plain priority order rather
+  than following a schedule that no longer describes your backlog. `/aidlc:status` shows the plan, which
+  wave you're on, and whether it has gone stale. Re-running `/aidlc:replan` is cheap — it creates
+  nothing and changes nothing.
+
+Some items may come back **held** rather than scheduled — blocked, not yet routed to a repo, or sitting
+on a dependency cycle. That is deliberate: the packer refuses to guess placements it cannot prove are
+safe, and each one is listed with the reason so it becomes grooming work rather than a silent omission.
 
 ### Getting requirements INTO the backlog
 

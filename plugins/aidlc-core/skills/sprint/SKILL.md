@@ -12,6 +12,28 @@ hard cap 5.
 
 ## 1 · SELECT
 
+**0. An execution plan, if one exists, supplies the candidate set.** `.aidlc/plan.md` at the control
+plane is an active wave schedule (`aidlc:replan`), and a wave is *already* a conflict-free concurrent
+set — computed against the same three constraints this section checks by hand
+(`dependsOn`, one item per working tree, width cap). So when a fresh plan exists, **the candidate set is
+the earliest wave with open items**, and §1.1's priority query is skipped.
+
+Check it is trustworthy first (the plan's `## Item snapshot` vs the board now):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
+```
+
+**none** → use the wave silently; **additive** → use it, and say in one line what is unscheduled;
+**breaking** → **do not use it**, name the drift, fall back to §1.1–1.3 below, and suggest
+`/aidlc:replan`.
+
+Two things do NOT get skipped even on a fresh plan, because they are checks the packer cannot make:
+**§1.2's file/subsystem overlap check** (the packer reads declared `dependsOn` edges and repos; it never
+reads code) and **§1.3's one-tree constraint** (re-assert it — the plan may have been cut before an item
+was re-routed). A wave member that fails either is queued, noted on the board as a plan/reality
+disagreement, and is a reason to re-plan. Cap the launch at `min(N, wave size)`.
+
 1. Adapter `query({status: "todo", limit: N*2})` — ready items, priority order (skip items
    with non-terminal run files, epics with open children — same rules as `/aidlc:next`).
 2. **Independence check** — dispatch **Agent → aidlc-analyst** with the candidate list, per
@@ -32,7 +54,8 @@ hard cap 5.
    would branch and commit in the same checkout. In poly (control-plane launch, §2) that is a hard
    constraint: keep the first, **queue** the second behind it. Same for two `control-plane` items.
    In mono every item gets its own worktree, so this doesn't bind.
-4. Show the user the selected set + queue before launching. Confirm once; then run hands-off.
+4. Show the user the selected set + queue before launching (say which wave it is, when it came from a
+   plan). Confirm once; then run hands-off.
 
 ## 2 · LAUNCH — one headless run per item
 
@@ -133,6 +156,7 @@ board on each change:
 
 ```
 Sprint board (3 running, 1 queued):        (repo column shown in poly only)
+  plan wave 2 of 4 · .aidlc/plan.md        (this line only when a plan supplied the set)
   PROJ-124  backend   verify    fix-cycle 1   feature/PROJ-124-…
   PROJ-127  frontend  implement —             feature/PROJ-127-…
   PROJ-130  website   pr ✔      PR #42 open
@@ -151,6 +175,10 @@ assumptions). Then cleanup:
 
 - **Poly (control-plane launches)** — nothing to tear down; each run left its repo on its own branch
   with the PR open (or blocked, per §3). Just report state per repo.
+- **A plan-driven sprint ends by naming the next wave**, not by going quiet: `wave 2 done — wave 3 is
+  PROJ-120 (db) · /aidlc:sprint to launch it`. If any wave member was **queued** rather than launched
+  (§1.0 — an overlap or one-tree conflict the packer could not see), say that the plan and reality
+  disagreed there and that `/aidlc:replan` will re-pack it.
 - **Mono (worktrees)** — for each item with an OPEN PR: `git worktree remove
   ../{repo.name}-wt-{ID}` (run from the repo; the branch lives on the remote, the run file is in the
   PR), then drop its `~/.claude.json` trust entry and any seeded `settings.local.json` copy. Blocked

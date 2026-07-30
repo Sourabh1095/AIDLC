@@ -28,5 +28,5 @@
 node_modules/
 *.log
 
-# Durable state stays TRACKED on purpose: backlog/, .aidlc/runs/,
-# .aidlc/extensions.json, .claude/aidlc.config.json.
+# Durable state stays TRACKED on purpose: backlog/, .aidlc/runs/, .aidlc/plan.md,
+# .aidlc/plan-archive/, .aidlc/extensions.json, .claude/aidlc.config.json.
