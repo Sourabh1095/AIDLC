@@ -33,9 +33,25 @@ discipline as `/aidlc:adopt-apply` §1 and `/aidlc:adopt-adr` §1:
 node "<plugin>/skills/adopt/validate-profile.mjs" .aidlc/adoption/profile.json
 ```
 
-Non-zero ⇒ stop and report; an unrecognised `profileVersion` ⇒ stop. Compare `scan.commit` to the
-control plane's HEAD: if they differ, say so — a finding may already be fixed, and creating an item for
-work somebody finished last week is the fastest way to lose the board's trust. Offer to re-scan.
+Non-zero ⇒ stop and report; an unrecognised `profileVersion` ⇒ stop.
+
+**Staleness check — compare the *code*, not the commit hash.** Different commits do **not** mean
+stale facts: `adopt` §10 requires the profile be git-tracked, so committing it is what moves HEAD, and a
+raw hash comparison therefore fires on **every** correctly-followed adoption. A check that cries wolf on the
+happy path teaches the user to dismiss it, and then the one time code really has moved it gets dismissed
+too. So ask whether anything outside the adoption artifacts moved:
+
+```
+git -C "<control plane>" diff --name-only <scan.commit>..HEAD -- . ':(exclude).aidlc/adoption/'
+```
+
+- **Empty** ⇒ the profile still describes the workspace. Say so in one line — *"the profile is 1 commit
+  behind HEAD, and that commit is the one that recorded it"* — and carry on.
+- **Non-empty** ⇒ the code genuinely moved. Name the paths, say what that means for this command
+  (a finding may already be fixed, and filing an item for work somebody finished last week is the fastest way to lose the board's trust), and offer to re-scan first. Proceed only if the user chooses to.
+
+`skills/adopt/converged.mjs` exports `onlyAdoptionArtifactsMoved()` for this, so the three commands that
+read a profile all answer it the same way.
 
 No `debtFindings[]`, or an empty one ⇒ **say so plainly and stop.** On a well-kept repo that is the
 correct output and a good one; report it as *"the scan found nothing worth tracking"*, not as a failure.
@@ -79,8 +95,16 @@ A finding is an observation; an item is work with a definition of done. Author e
 - **Type** from `suggestedType`, **size** from `suggestedSize`. A finding whose remedy is genuinely
   unclear is a **spike** ("establish why the tenant middleware has no tests and what covering it
   costs"), never a story with invented criteria. `XL` gets decomposed before creation, not created.
-- **`repo`** from the finding's `root`, **`package`** from its `package` — so the item routes and its
-  gate scopes exactly as any other item does.
+- **`repo`** resolved from the finding's `root`, **`package`** from its `package` — so the item routes and
+  its gate scopes exactly as any other item does.
+**Resolve `root` to a repo — do not use it as one.** A profile `root` name comes from the
+`.code-workspace` `name` override, while `repos[].name` in the config is the short routing id, and the two
+are **different namespaces**: a root called `billing-api` is routinely the repo `api`. Match
+`root` against each `repos[]` entry's `name` **or** its `adoptedFromRoot`, and use that entry's `name`.
+If a `root` resolves to no entry, **stop and say so** rather than stamping it: a repo name that matches
+nothing makes `resolve-gate.mjs` return an empty step list, so the work runs no gate at all and reports
+green.
+
 - **≥3 testable acceptance criteria.** This is where most of the value is, and it is also where
   invention creeps in. Derive them from the evidence, not from what a fix probably looks like:
 

@@ -37,9 +37,23 @@ node "<plugin>/skills/adopt/validate-profile.mjs" .aidlc/adoption/profile.json
 - Non-zero ⇒ **stop.** Report the violations and tell the user to re-run `/aidlc:adopt`. Applying an
   invalid profile is how a malformed fact becomes permanent configuration.
 - `profileVersion` you do not recognise ⇒ stop and say so. Do not read it optimistically.
-- **Staleness check.** Compare `scan.commit` to the control plane's current HEAD. Different ⇒ say so and
-  offer to re-scan first; the code has moved since these facts were true. Proceed only if the user
-  chooses to.
+- **Staleness check — compare the *code*, not the commit hash.** Different commits do **not** mean
+  stale facts: `adopt` §10 requires the profile be git-tracked, so committing it is what moves HEAD, and a
+  raw hash comparison therefore fires on **every** correctly-followed adoption. A check that cries wolf on the
+  happy path teaches the user to dismiss it, and then the one time code really has moved it gets dismissed
+  too. So ask whether anything outside the adoption artifacts moved:
+  
+  ```
+  git -C "<control plane>" diff --name-only <scan.commit>..HEAD -- . ':(exclude).aidlc/adoption/'
+  ```
+  
+  - **Empty** ⇒ the profile still describes the workspace. Say so in one line — *"the profile is 1 commit
+    behind HEAD, and that commit is the one that recorded it"* — and carry on.
+  - **Non-empty** ⇒ the code genuinely moved. Name the paths, say what that means for this command
+    (a derived value may no longer match the code), and offer to re-scan first. Proceed only if the user chooses to.
+  
+  `skills/adopt/converged.mjs` exports `onlyAdoptionArtifactsMoved()` for this, so the three commands that
+  read a profile all answer it the same way.
 - If the profile records `scan.writes.sessionOnly: true` there is no file to load — ask the user to
   re-run the scan in a writable workspace.
 - `--only <repo|package>` scopes this run to one surface. Record the scope **positively** in
@@ -154,6 +168,19 @@ setup paths, so this happens — derive them:
 - `repo.path`: **absolute** when `nestedUnderControlPlane` is false, relative otherwise. Carry
   `role` (from the derived one-liner), `labels`, per-repo `stack`, `host`, `defaultBranch`, and
   `mode` — `local` where `vcs.remotes` is `absent`, `remote` where a remote exists.
+- **`repo.name` and the profile's root name are two different namespaces — record the mapping.** A root
+  name comes from the `.code-workspace` `name` override, which `adopt` §1 honours, so a root called
+  `billing-api` can become the repo `api` here. Everything in the profile that points at a repo —
+  `debtFindings[].root`, `adrCandidates[].root` — uses the **root** name. Set
+  **`repos[].adoptedFromRoot`** whenever the two differ, so `/aidlc:adopt-adr` and
+  `/aidlc:adopt-backlog` can resolve through it.
+
+  **Then cross-check it before you write:** every `debtFindings[].root` and `adrCandidates[].root` in the
+  profile must resolve to a `repos[]` entry, by `name` or by `adoptedFromRoot`. Report any that does not
+  — it is an error, not a footnote. An item stamped with a repo name that matches no entry does not fail
+  loudly: `resolve-gate.mjs` returns an **empty step list**, so the item runs no gate at all and reports
+  green. A perfect-looking item that verifies nothing is the most expensive thing this command can
+  produce.
 - `architecture`: `status: "resolved"`, `resolvedBy: "codebase-scan"`, `style` only where the evidence
   actually supports it (many services in many repos ⇒ `microservices`; one repo ⇒ `monolith` or
   `modular-monolith` — if the evidence does not separate those two, ask rather than pick), and a

@@ -2,10 +2,11 @@
 
 **Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** (+ **0.31.1** fixes); Phase 3 in
 **0.32.0**; Phase 4 in **0.33.0**. All four are implemented. **0.34.0** carries the first live run of the
-Phases 3–4 **scan** half (seven defects), **0.34.1** the first live run of **`/aidlc:adopt-apply`** (three
-more), and **0.34.2** the **drift, upgrade and removal** legs (two more) — every one of the twelve produced
-a plausible artifact rather than an error. See the three *live run* sections below. `/aidlc:adopt-adr` and
-`/aidlc:adopt-backlog` remain unexercised, and are listed there.
+Phases 3–4 **scan** half (seven defects), **0.34.1** **`/aidlc:adopt-apply`** (three more), **0.34.2** the
+**drift, upgrade and removal** legs (two more), and **0.34.3** **`/aidlc:adopt-adr`** and
+**`/aidlc:adopt-backlog`** (two more) — every one of the fourteen produced a plausible artifact rather than
+an error. See the four *live run* sections below. **Every command in the adoption set has now been run
+end to end**, and open questions 4 and 5 are answered from experience rather than guessed.
 **Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
@@ -667,6 +668,110 @@ deltas** through `adopt-apply` (the deltas were derived and validated, but never
 `propose`/`report-only`/`leave-alone` routing), and **removal with no manifest at all**, which §1 declares
 a supported case and which needs its own fixture. Open questions 4 and 5 stay open; both ask how people
 react, and no fixture can answer either.
+
+### Phase 3/4 — the live adopt-adr and adopt-backlog runs (2026-07-31)
+
+The last two commands in the adoption set, run against the fixture restored from the removal leg — which
+incidentally verified `remove` §4.4's claim that *"`git checkout .` is their undo"*: all four files came
+back, `CLAUDE.md` included.
+
+**`/aidlc:adopt-adr` came through clean — the only command in the set that did.** Numbering continued from
+the fixture's existing `0007` to `0008`–`0012` without restarting; all five carry `accepted (retroactive)`;
+`## Rationale` and `## Alternatives considered` are the verbatim string *"not recorded — confirm with the
+team."* in every one, checked mechanically rather than by eye; each cites `path:line` evidence in a closing
+`## Evidence` section; the two `already-recorded` candidates were **listed rather than dropped**, so the
+silence reads as *checked and covered*; the external RFC and Confluence page were **linked from the index,
+never copied** (0 copies, 2 links); `adoption.adrs[]` records all five with `rationaleConfirmed: false`;
+and one candidate was **skipped** with a stated reason, which §4.2 calls a normal outcome. A re-run then
+proposed only the skipped one, so re-adoption really is quiet.
+
+**`/aidlc:adopt-backlog` worked, and its board sweep produced the single most useful output of any
+adoption command so far** — but the two defects below are both about routing and naming rather than about
+the findings themselves.
+
+The sweep's payoff was not a finding at all. **`PLAT-40` is closed** (done, 2023-05-30) with every
+acceptance criterion ticked including *"no credential literal remains in any script"* — and the credential
+is still there, still reachable in history. §2's *"a closed item covers it → the debt is back, or was never
+fixed"* row turned that into an item that **references PLAT-40** so a reviewer sees the history instead of
+re-litigating it. Meanwhile **`PLAT-14` is open** for a typecheck gate that `ACME-702` has since shipped,
+so it was *not* proposed and closing it was recommended instead. Neither of those is derivable from the
+code; both come only from cross-checking findings against the board.
+
+**The two defects.**
+
+1. **All three staleness checks compared raw commit hashes, so they fired on every correctly-followed
+   adoption.** `adopt-apply` §1, `adopt-adr` §1 and `adopt-backlog` §1 each open by comparing `scan.commit`
+   to HEAD, concluding *"the code has moved since these facts were true."* On the fixture they differed by
+   exactly one commit — **the commit that recorded the profile**, which §10 requires be tracked. Nothing
+   outside `.aidlc/adoption/` had moved. So all three commands warn that the facts may be stale on the
+   happy path, each in the phrasing most likely to stop the user (*"a decision may have been superseded"*,
+   *"a finding may already be fixed, and creating an item for work somebody finished last week is the
+   fastest way to lose the board's trust"*). It never errors, and each individual warning is plausible —
+   the damage is cumulative: a check that cries wolf teaches the user to dismiss it, and then the one time
+   code genuinely has moved, that warning is dismissed too. This is D6's self-referential trap in a second
+   mechanism, and D6's fix did not reach it; all three now use the `onlyAdoptionArtifactsMoved()` predicate
+   D6 already built, so different commits are stale **only if something outside the adoption artifacts
+   moved**.
+2. **Profile root names and config repo names are different namespaces, so adoption-born items route to
+   nothing.** `adopt` §1 honours the `.code-workspace` `name` override, so the fixture's root is
+   `billing-api`; `adopt-apply` §3.1 separately derives `repos[].name` and produced `api`. Every
+   `debtFindings[].root` and `adrCandidates[].root` says `billing-api`, and `adopt-backlog` §3 says to take
+   `repo` **from the finding's `root`** — a name matching no entry in `repos[]`. The consequence is the
+   worst routing failure available:
+
+   ```
+   $ resolve-gate.mjs aidlc.config.json billing-api
+   note: no step list applies to billing-api — nothing to run
+   order: (nothing runnable)
+   ```
+
+   The item is created successfully — valid id, good title, four acceptance criteria, correct provenance —
+   and looks perfect on the board. It fails only when someone runs it, far from the cause, and it fails
+   **silently green**: the gate resolves to an *empty step list*, so there is nothing to execute and
+   nothing to fail. An item that verifies against no gate reports success. Note which feature causes it:
+   the `name` override exists to make the profile readable, so the more carefully a team names their
+   workspace folders, the more certainly their adoption-born work is misrouted. `adopt-adr` has the same
+   bug in `adoption.adrs[].repo`. Fixed by making the mapping explicit — `repos[].adoptedFromRoot` — with
+   both downstream commands resolving through it, plus the guard that would have caught it on day one:
+   `adopt-apply` now **verifies every finding and candidate root resolves to a `repos[]` entry** and treats
+   a failure as an error rather than a footnote.
+
+**Suites:** 373 cases across five files, unchanged — both fixes are contract and prose, and the second is
+now guarded by a cross-check rather than a test fixture.
+
+### Open questions 4 and 5, answered from the run
+
+**4 · Is a retroactive ADR with a blank rationale actually useful?** *Yes, but not for the reason the
+question assumes.* The value is not the blank — it is the **evidence and the observed consequences**.
+ADR-0008 (shared-schema tenancy) is the strongest case: ADR-0007's own Consequences section already pointed
+forward to a tenancy ADR *"in ADR-tbd"* that nobody ever wrote, so 0008 filled a gap the team had flagged
+themselves. And its Consequences carried things a team would struggle to state from memory — that there is
+no row-level security backstop, that `acme/jobs/tasks.py` reaches for the `unscoped()` escape hatch three
+times, and that a SOC 2 control names an isolation test suite the repo does not contain.
+
+The pessimistic reading was also confirmed, on a different candidate: the **framework** ADR (Django over a
+lighter Python framework) really would have read as a restatement of `pyproject.toml`, which is why it was
+skipped. So the discriminator is not `reversibilityCost` — it is **whether the decision has non-obvious
+observed consequences.** Reversibility is a decent proxy and worth keeping as the ranking, but the cap is
+the wrong lever: proposing 8 and letting a human skip 3 worked better than proposing 3 would have, because
+the skip is cheap and the judgement needs the rendered page to be made. **Recommendation: keep the cap at
+8, keep the ranking, and do not lower it.**
+
+**5 · How many debt findings before it stops being a gift?** 11 findings → **7 proposed, 4 reported and
+not filed**, and the useful discriminator turned out **not to be severity**. Two `low` findings were
+proposed (the TODO cluster, because one marker described a customer-visible incident that had happened
+twice) while a `medium` was skipped (the Python floor, because pip refuses that combination at install time
+— it announces itself). The rule that actually worked: **can you name what goes wrong if nobody does
+this?** A finding whose consequence is concrete becomes an item; one that is merely true stays a report
+line.
+
+Two further observations the cap does not capture. First, **the most valuable output was not a finding** —
+it was the board sweep noticing a *closed* item whose work had regressed and an *open* item whose work had
+shipped. Neither is derivable from code. Second, **`--dry-run` was not needed**: showing all 11 with a
+one-line reason for each of the 4 refusals was enough, and §5's requirement to account for every finding is
+what forced the discipline — an early draft of the proposal quietly dropped one, which is exactly the
+oversight §5 warns about. **Recommendation: keep the cap at 20 as a backstop, do not make `--dry-run` the
+default, and add the "name the consequence" test to §8's guidance.**
 
 ### Deviations from this spec, and why
 

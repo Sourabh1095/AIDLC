@@ -32,8 +32,25 @@ discipline as `/aidlc:adopt-apply` §1:
 node "<plugin>/skills/adopt/validate-profile.mjs" .aidlc/adoption/profile.json
 ```
 
-Non-zero ⇒ stop and report; an unrecognised `profileVersion` ⇒ stop. Compare `scan.commit` to the
-control plane's HEAD and say so if they differ — a decision may have been superseded since.
+Non-zero ⇒ stop and report; an unrecognised `profileVersion` ⇒ stop.
+
+**Staleness check — compare the *code*, not the commit hash.** Different commits do **not** mean
+stale facts: `adopt` §10 requires the profile be git-tracked, so committing it is what moves HEAD, and a
+raw hash comparison therefore fires on **every** correctly-followed adoption. A check that cries wolf on the
+happy path teaches the user to dismiss it, and then the one time code really has moved it gets dismissed
+too. So ask whether anything outside the adoption artifacts moved:
+
+```
+git -C "<control plane>" diff --name-only <scan.commit>..HEAD -- . ':(exclude).aidlc/adoption/'
+```
+
+- **Empty** ⇒ the profile still describes the workspace. Say so in one line — *"the profile is 1 commit
+  behind HEAD, and that commit is the one that recorded it"* — and carry on.
+- **Non-empty** ⇒ the code genuinely moved. Name the paths, say what that means for this command
+  (a decision may have been superseded since), and offer to re-scan first. Proceed only if the user chooses to.
+
+`skills/adopt/converged.mjs` exports `onlyAdoptionArtifactsMoved()` for this, so the three commands that
+read a profile all answer it the same way.
 
 No `adrCandidates[]`, or none with `status: "propose"` ⇒ say so plainly and stop. On a re-run that is
 the **expected** outcome and a good one: every decision the scan can see is already recorded. Report the
@@ -92,7 +109,10 @@ Two things to get right because they are easy to get wrong:
    `accepted` record). Present them in the candidate order — highest reversibility cost first — so the
    ones that matter are decided while attention is fresh.
 3. **Write only the approved ones.** Then, for each: append `adoption.adrs[]` in
-   `.claude/aidlc.config.json` with `{decisionKind, adr, repo?, rationaleConfirmed: false}` — and after
+   `.claude/aidlc.config.json` with `{decisionKind, adr, repo?, rationaleConfirmed: false}` — where
+   `repo` is the candidate's `root` **resolved** to a `repos[]` entry by `name` or `adoptedFromRoot`, never
+   the raw root name (a root called `billing-api` is routinely the repo `api`, and the unresolved name
+   matches nothing) — and after
    writing, **re-read the config and `JSON.parse` it** (the F49 discipline: a malformed config makes
    Claude Code skip the file, silently disabling every AIDLC plugin for the project).
    `rationaleConfirmed` stays **false**. This command never sets it true; only a human filling in the

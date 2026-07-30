@@ -7,6 +7,57 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.34.3] — 2026-07-31
+
+### `aidlc` — brownfield: the last two adoption commands, and two more defects
+
+0.34.0–0.34.2 ran the scan, the apply, and the drift/upgrade/removal legs against a live fixture. This
+closes the set: **`/aidlc:adopt-adr`** and **`/aidlc:adopt-backlog`**. Two more defects, both about routing
+and naming rather than about the artifacts themselves — and both invisible. **Every command in the adoption
+set has now been run end to end.** Spec: `docs/brownfield-adoption.md`.
+
+**`/aidlc:adopt-adr` came through clean — the only command in the set that did.** Numbering continued from
+the fixture's existing `0007` without restarting; all five ADRs carry `accepted (retroactive)`; `## Rationale`
+and `## Alternatives considered` are the verbatim *"not recorded — confirm with the team."* in every one,
+checked mechanically; the two already-recorded candidates were listed rather than dropped; the external RFC
+and Confluence page were linked from the index and never copied; and one candidate was skipped with a
+stated reason, after which a re-run proposed only that one.
+
+**`/aidlc:adopt-backlog`'s board sweep produced the most useful output of any adoption command so far**, and
+it was not a finding: **`PLAT-40` is closed** with every criterion ticked including *"no credential literal
+remains in any script"* — and the credential is still there, still in history. The new item references
+PLAT-40 so a reviewer sees the history rather than re-litigating it. Meanwhile **`PLAT-14` is open** for a
+typecheck gate that has since shipped, so it was not proposed and closing it was recommended. Neither is
+derivable from the code.
+
+- **All three staleness checks compared raw commit hashes**, so `adopt-apply`, `adopt-adr` and
+  `adopt-backlog` each announced *"the code has moved since these facts were true"* on every
+  correctly-followed adoption — because the one commit between `scan.commit` and HEAD was the commit that
+  **recorded the profile**, which §10 requires be tracked. Nothing outside `.aidlc/adoption/` had moved. It
+  never errors and each warning is individually plausible; the damage is cumulative, because a check that
+  cries wolf on the happy path teaches the user to dismiss the one that matters. This is the same
+  self-referential trap 0.34.0 fixed in the convergence rule, in a second mechanism the fix did not reach.
+  All three now use the `onlyAdoptionArtifactsMoved()` predicate that already existed.
+- **Profile root names and config repo names are different namespaces, so adoption-born items routed to
+  nothing.** `adopt` §1 honours the `.code-workspace` `name` override (root `billing-api`), while
+  `adopt-apply` derives `repos[].name` (`api`). Findings and candidates carry the **root** name, and
+  `adopt-backlog` §3 said to use it as the repo — so `resolve-gate` returned **`(nothing runnable)`**. The
+  item is created successfully and looks perfect on the board; it fails only when someone runs it, and it
+  fails **silently green**, because an empty gate has nothing to execute and nothing to fail. The feature
+  that causes it is the `name` override, which exists to make the profile readable — so the more carefully
+  a team names their folders, the more certainly their adoption-born work is misrouted. Fixed with an
+  explicit mapping (**`repos[].adoptedFromRoot`**), resolution rules in both downstream commands, and a
+  cross-check in `adopt-apply` that every finding and candidate root resolves to a real entry — an error,
+  not a footnote.
+
+**Open questions 4 and 5 are now answered from experience** rather than guessed, and both answers argue
+*against* tightening the caps. The full reasoning is in the spec; briefly: a retroactive ADR's value is its
+evidence and observed consequences, not its blank rationale, and the discriminator for whether a finding
+becomes an item is **"can you name what goes wrong if nobody does this?"** — not severity. Two `low`
+findings were proposed and a `medium` was skipped on exactly that test.
+
+**Suites:** 373 cases across five files.
+
 ## [0.34.2] — 2026-07-31
 
 ### `aidlc` — brownfield: the drift, upgrade and removal legs, and two more defects
