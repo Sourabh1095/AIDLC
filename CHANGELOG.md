@@ -7,6 +7,57 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.34.5] — 2026-07-31
+
+### `aidlc` — the pipeline can no longer start itself, and QA stops moving the diff under the reviewer
+
+Two defects found by reading the orchestrator against its own D7, rather than by a run. Neither would
+ever have failed loudly: one hands the framework a door it did not mean to open, the other produces
+review findings that are merely *wrong*.
+
+**1 · `/aidlc:run` was model-invocable.** Every other writing command — `init`, `adopt*`, `sprint`,
+`sync`, `repo`, `promote`, `remove`, `bootstrap` — carries `disable-model-invocation: true`. The one
+command that branches, commits, pushes and opens a PR did not, so the model could enter the full
+pipeline on its own because a prompt *sounded* like work. The blast radius is the largest in the
+framework and the trigger was a description match.
+
+- **`run` now carries the flag**, and a new *Entry is deliberate* section names its three doors, all of
+  them a human choosing the pipeline: a typed `/aidlc:run`, `sprint`'s headless
+  `claude -p "/aidlc:run {ID}"` (a typed prompt in a fresh session, so the flag doesn't bind), or an
+  explicit handoff from a sibling skill the user invoked.
+- **The flag blocks the Skill tool, which would have broken those handoffs** — `aidlc:next` §5,
+  `aidlc:do` §5 (BUILD *and* RESUME) and `aidlc:intake` §4 all continue into the pipeline in-session.
+  All three now hand off by **reading `${CLAUDE_PLUGIN_ROOT}/skills/run/SKILL.md` and following it
+  verbatim**. This is the better mechanism regardless of the flag: the instruction to enter the pipeline
+  is *written down* instead of left to the model's discretion. Fixing the flag without this would have
+  silently dead-ended `/aidlc:next`.
+- `/aidlc:do` stays deliberately open — it grounds before it routes and creates nothing on its own,
+  which is exactly what a front door should be, and it is now where a misinferred `run` gets redirected.
+
+**2 · QA was batched in parallel with the reviewer, and QA commits.** §7 said *"dispatch the due agents
+in ONE parallel batch"*; `docs/architecture.md` justified it with *"they only read the diff, so there's
+nothing to collide on"*. That is true of the reviewer and security and **false of QA**, whose verify mode
+authors tests and commits them (`aidlc-qa` → *Verify mode*, steps 2 and 4). So new commits moved `HEAD`
+while the reviewer was mid-review: findings written against a diff that no longer existed, two agents
+committing to one branch, and no failure — just a review of the wrong thing.
+
+- **§7 now dispatches in two steps:** reviewer + security in one parallel batch, then **QA after it
+  returns**. Fix cycles re-dispatch in the same order. One agent due → no batch; QA alone → run it alone,
+  since the ordering exists to protect the reviewer.
+- The reviewer's subject is restored to what it should be: **the diff the implementer produced**. QA's
+  tests are not part of it.
+- `aidlc-qa`'s own contract said *"parallel with the reviewer"* — corrected at the source, with the
+  reason, so the agent knows the branch is its alone while it works.
+- `docs/architecture.md` D7 carried the false premise and now states the rule it was already claiming to
+  follow: **isolation, not similarity**. All three agents look alike (they are all "verification"), which
+  is why batching them read as obvious — but only one mutates the tree, and that is the sole deciding
+  property. D1 gained the entry-contract half of defect 1, plus the point that the main session is where
+  the interactive gates (`ask` mode, security confirm, local-merge confirm, cross-repo split) can exist
+  at all: as a subagent each would silently take a default.
+
+Both fixes are prompt-and-contract changes, so the 8 script test suites (all passing) cover neither —
+the guard is that each claim is now stated in the one place the actor reads.
+
 ## [0.34.4] — 2026-07-31
 
 ### `aidlc` — the orchestrator now knows the brownfield door exists

@@ -21,7 +21,11 @@ description: Pick the highest-priority ready work item from the backlog and run 
    (work the children instead).
 4. Announce the pick in one line: `Next: PROJ-124 (P1, story, M) — <title>`. If the top pick
    was skipped, say why in half a line.
-5. Hand off to the `aidlc:run` skill with that ID — follow it exactly as if the user had typed
-   `/aidlc:run <ID>`.
+5. Hand off to the run pipeline with that ID — follow it exactly as if the user had typed
+   `/aidlc:run <ID>`. **`run` is `disable-model-invocation`, so the Skill tool cannot reach it**
+   (deliberate — see `aidlc:run` → *Entry is deliberate*): **read
+   `${CLAUDE_PLUGIN_ROOT}/skills/run/SKILL.md` and follow it verbatim** with that ID as its
+   `$ARGUMENTS`. The user invoked `/aidlc:next`, which is them choosing to start the next item, so
+   this is an explicit handoff — do not stop and ask them to re-type the command.
 6. Nothing ready? Report the backlog state (counts by status, blocked items) and suggest
    `/aidlc:status` or grooming.

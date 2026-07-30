@@ -124,8 +124,14 @@ This is the prompt you would otherwise answer cold, and the whole value is the g
 
 `aidlc:run` already accepts free text and routes it through intake first (`aidlc:run` §0.3), so:
 
-- Follow `aidlc:run` with the requirement text as its `$ARGUMENTS`, exactly as if the user had typed
-  `/aidlc:run <text>`. Do not duplicate intake's proposal step here.
+- Follow the run pipeline with the requirement text as its `$ARGUMENTS`, exactly as if the user had
+  typed `/aidlc:run <text>`. **`run` is `disable-model-invocation`, so the Skill tool cannot reach it**
+  (deliberate — see `aidlc:run` → *Entry is deliberate*): **read
+  `${CLAUDE_PLUGIN_ROOT}/skills/run/SKILL.md` and follow it verbatim.** Do not duplicate intake's
+  proposal step here. The same applies to the **RESUME** route (§2) with the item ID.
+- **This is the one route that needs the user's go-ahead first.** `run` is entered by deliberate
+  choice, and on this door the choice is the user agreeing to build — a CONSULT or a diagnosis never
+  slides into the pipeline on its own (see §2 *Mixed prompt* and the Rules).
 - **Write no product code in this skill.** `do` is a router; the pipeline owns delivery, including
   the branch, the verification cadence and the PR.
 - Small changes are not an exception: one item → one branch → one PR still applies (per

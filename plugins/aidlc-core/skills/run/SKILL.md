@@ -2,6 +2,7 @@
 name: run
 description: Run one work item (epic, story, task, bug or spike) through the full AIDLC pipeline — fetch, requirements, plan, implement, review + QA with fix cycles, PR, tracker update. Resumable. Use when asked to work on, implement, fix or deliver a work item by ID.
 argument-hint: <work-item-id>
+disable-model-invocation: true
 ---
 
 # /aidlc:run $ARGUMENTS — the AIDLC orchestrator
@@ -12,6 +13,23 @@ drive it phase by phase, dispatch agents, track state, and stop only at DONE or 
 
 Load these skills before starting: `aidlc:work-items` (+ the active adapter), `aidlc:run-state`,
 `aidlc:git-workflow`.
+
+**Entry is deliberate, never inferred (`disable-model-invocation`).** This is the most side-effectful
+command in the framework — it branches, commits, pushes and opens PRs — so it is **not** in the
+model-invocable skill set: it cannot be entered because a prompt merely sounded like work. There are
+exactly three doors, and all three are a human choosing this pipeline:
+1. the user types `/aidlc:run <ID>` (or free text, §0.3);
+2. a **headless launch** (`/aidlc:sprint` runs `claude -p "/aidlc:run {ID}"` — a typed prompt in a fresh
+   session, so the flag doesn't bind);
+3. a **sibling skill hands off explicitly** — `aidlc:next`, `aidlc:do` (BUILD/RESUME) and `aidlc:intake`
+   send work here after the user invoked *them*. Because the Skill tool can't reach a
+   model-invocation-disabled skill, those hand off by **reading
+   `${CLAUDE_PLUGIN_ROOT}/skills/run/SKILL.md` and following it verbatim** with the ID (or requirement
+   text) as `$ARGUMENTS`. That is a real handoff, not a workaround: the user already chose the door, and
+   the instruction to come here is written down rather than left to the model's discretion.
+
+If you arrived here any other way — you inferred it from an ambiguous prompt — stop and offer
+`/aidlc:do` instead. That door grounds first and creates nothing.
 
 ## 0 · LOAD & FETCH
 
@@ -457,11 +475,29 @@ requested review/QA/security, or `## Findings` carries user-supplied issues to r
     agents it named run even though the cadence says nothing is due — that is the whole point of the
     override, and the `## Findings` line names which trigger caused it.
 
-Dispatch the due agents in ONE parallel batch. Then:
+### Dispatch order — the read-only agents in parallel, then QA
+
+**Not one flat batch: QA writes.** Dispatch in two steps, because only one of these three agents mutates
+the working tree:
+
+1. **Batch 1 — reviewer + security**, whichever are due, in ONE parallel call. Both only *read* the
+   diff, so there is nothing for them to collide on and no reason to pay their latency serially.
+2. **Batch 2 — aidlc-qa**, after batch 1 has returned. Its verify mode **authors and commits tests**
+   (`aidlc-qa` → *Verify mode*, steps 2 and 4), so it cannot ride in batch 1: new commits move `HEAD`
+   and change `git diff <base>...HEAD` **while the reviewer is mid-review**, leaving findings written
+   against a diff that no longer exists and two agents committing to one branch at once. The reviewer's
+   job is the diff the *implementer* produced — that is the diff that has to be reviewed, and QA's tests
+   are not part of it.
+
+Only one due → there is no batch, just run it. Only QA due → run it alone; the ordering exists to
+protect the reviewer, and with no reviewer there is nothing to protect. If QA's own commits are what
+turn the tree dirty at §8, that is expected — commit state belongs to the branch either way.
+
+Then:
 1. No open `BLOCKER`/`MAJOR` → phase `pr`, go to §8.
 2. Open blockers/majors AND `fixCycles < pipeline.maxFixCycles` → increment `fixCycles`, dispatch
    **aidlc-implementer** with ONLY the open findings, re-run this phase (re-dispatch only the agents
-   that ran, scoped to the fixes).
+   that ran, scoped to the fixes — **in the same two-step order**, for the same reason).
 3. Still failing at max cycles → phase `blocked`, `adapter.comment` with open findings, notify, STOP.
 
 **Manual / nothing-runs parking** (`mode: manual`, or the user wants to review it themselves):

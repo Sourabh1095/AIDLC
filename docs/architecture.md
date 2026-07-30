@@ -10,6 +10,21 @@ tool. `/aidlc:run` therefore loads a state machine + router into the main sessio
 dispatches specialist subagents per phase. The orchestrator holds routing logic only; durable
 state lives in run files.
 
+The main session is also where the pipeline's **interactive gates** can exist at all — the `ask`
+verification mode, the security confirm, the local-merge confirmation, the cross-repo-split choice.
+A subagent has no channel to the user, so as a subagent each of those would silently take a default.
+
+Being in the main session is *reach*, not *permission*, so entry is gated separately: `run` carries
+**`disable-model-invocation: true`**, like every other command that writes (`init`, `adopt*`, `sprint`,
+`sync`, `repo`, `promote`, `remove`, `bootstrap`). It is the most side-effectful command in the
+framework — branch, commit, push, PR — and must never be entered because a prompt merely *sounded* like
+work. Its three doors are all a human choosing it: a typed `/aidlc:run`, a headless
+`claude -p "/aidlc:run {ID}"` from `sprint`, or an explicit handoff from `next`/`do`/`intake` after the
+user invoked one of *those*. Since the Skill tool cannot reach a model-invocation-disabled skill, those
+handoffs read `skills/run/SKILL.md` and follow it verbatim — which makes the handoff a written
+instruction rather than the model's discretion, and that is the property worth having. `/aidlc:do` is
+the deliberately open front door: it grounds first, routes second, and creates nothing on its own.
+
 **D2 — Run files are the single source of truth.** `.aidlc/runs/<ID>.md` records phase, plan,
 assumptions, findings and log. It survives compaction (PreCompact hook forces a flush),
 session restarts (SessionStart hook re-injects a snapshot), and crashes (`/aidlc:run` resumes
@@ -56,8 +71,13 @@ files or on each other's outputs. This applies at three levels:
   worktree of a *product* repo is not a viable launch target at all: AIDLC's plugin enablement,
   permissions, config and backlog all live at the control plane, so such a worktree has no
   `/aidlc:*` commands (F42).
-- **Phase level (`/aidlc:run` §verify).** The reviewer, QA and (conditional) security agents are
+- **Phase level (`/aidlc:run` §verify).** The **reviewer and (conditional) security** agents are
   dispatched in **one parallel batch** — they only read the diff, so there's nothing to collide on.
+  **QA is dispatched after that batch returns, not in it:** its verify mode authors and *commits*
+  tests, and those commits move `HEAD` under a review in progress — leaving findings written against
+  a diff that no longer exists, plus two agents committing to one branch. Which is D7 itself applied
+  honestly: *isolation, not similarity*. The three look alike (all "verification"), so batching them
+  reads as obvious, but one of them mutates the tree — and that is the only property that decides.
   Fix cycles that follow are serial (one implementer mutates the branch).
 - **Design pod (`aidlc-ux:design`).** The jury panel (`ux.juryPanelSize` jurors) and the
   design-system / motion / implementer fix agents each run as a batch when their work is independent.

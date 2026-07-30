@@ -94,7 +94,11 @@ Report the created IDs, then offer exactly one next action:
 - single item → "Run it now? `/aidlc:run <ID>`"
 - multiple → "Start with <highest-priority ID>? (`/aidlc:next` will pick it up too)"
 If the user asked to "build it" in the same breath (e.g. via `/aidlc:run <free text>`), proceed
-into `aidlc:run` for the first ready item without re-asking.
+into the run pipeline for the first ready item without re-asking — and since `run` is
+`disable-model-invocation` and unreachable via the Skill tool (see `aidlc:run` → *Entry is
+deliberate*), do that by **reading `${CLAUDE_PLUGIN_ROOT}/skills/run/SKILL.md` and following it
+verbatim** with that ID as `$ARGUMENTS`. Absent that ask, stop here and let the user choose the door:
+filing the items is a complete outcome.
 
 ## Rules
 
