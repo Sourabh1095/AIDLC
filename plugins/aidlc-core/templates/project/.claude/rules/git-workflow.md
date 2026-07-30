@@ -10,12 +10,15 @@
   Example: `feature/PROJ-123-user-avatar-upload`.
 - Conventional commits: `feat|fix|chore|refactor|test|docs(scope): message`.
   Reference the work-item ID in the commit body (e.g. `Refs: PROJ-123`).
-- Never commit directly to any repo's default branch — nor to its `integrationBranch` where one is set
-  (GitFlow's `develop`), nor to any `longLivedBranches` entry. All changes are integrated through a PR
-  (`git.mode: remote`, the default) or, for a repo with no remote (`git.mode: local`), a
-  user-confirmed `--no-ff` merge after green verify — never ad-hoc commits or blind merges onto the
-  default branch. Even one-liners.
-- One work item is delivered in exactly one repo → one branch → one PR. Cross-repo features are epics
-  whose children each target one repo; the orchestrator routes and sequences them.
+- **Nothing reaches the default branch unattended.** Never *push* to a repo's default branch, its
+  `integrationBranch` (GitFlow's `develop`), or any `longLivedBranches` entry. Tracked work integrates
+  through a PR (`git.mode: remote`, the default) or, for a repo with no remote (`git.mode: local`), a
+  user-confirmed `--no-ff` merge after green verify — never blind merges.
+- **A small direct fix does not need a branch of its own.** A tier-1 change (`aidlc:ceremony`) commits on
+  whatever branch is checked out — including the default branch, since a local commit is reversible and
+  the push guard still stands between it and anyone else. Ceremony is proportional to consequence: a typo
+  does not become safer by acquiring a ticket.
+- One *tracked* work item is delivered in exactly one repo → one branch → one PR. Cross-repo features are
+  epics whose children each target one repo; the orchestrator routes and sequences them.
 - One logical change per commit. Keep the build green at every commit.
 - PR titles: `[PROJ-123] <imperative summary>`. PR bodies follow the AIDLC pr-body template.

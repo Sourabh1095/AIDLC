@@ -27,12 +27,19 @@
   },
   "pipeline": {
     "autonomy": "high",
+    "ceremony": "direct",
     "maxFixCycles": 3,
     "architectThreshold": "M",
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
     "envFileAccess": "deny",
     "gates": {
       "ambiguousRequirements": "assume-and-log"
+    },
+    "implementFanout": {
+      "enabled": true,
+      "maxAgents": 3,
+      "minGroup": 2,
+      "sharedPaths": []
     },
     "verification": {
       "mode": "auto",

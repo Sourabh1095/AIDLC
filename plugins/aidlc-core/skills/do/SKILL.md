@@ -1,6 +1,6 @@
 ---
 name: do
-description: The general front door to AIDLC — hand the orchestrator any prompt and it grounds itself in the project (config, in-flight runs, backlog, ADRs) before deciding what to do with it. Use for opinion and fit questions ("would this feature sit right here?", "should we use X?"), investigations, diagnoses, and plain-language "build this / fix this" requests — anything that is not already a bare work-item ID.
+description: The general front door to AIDLC — hand the orchestrator any prompt and it grounds itself in the project (config, in-flight runs, backlog, ADRs) before deciding what to do with it, at the lightest ceremony that fits. Use for opinion and fit questions ("would this feature sit right here?", "should we use X?"), investigations, diagnoses, small direct fixes (a typo, a rename — done here, no ticket), and plain-language "build this / fix this" requests — anything that is not already a bare work-item ID.
 argument-hint: "<anything — a question, an opinion call, or work to do>"
 ---
 
@@ -12,6 +12,10 @@ in flight — instead of cold. That grounding *is* the value; the routing is sec
 
 **Most prompts arriving here are not work.** Many end with an answer and no item, no branch and no
 commit. That is a successful outcome, not a bailout — do not manufacture work to look productive.
+
+**And most prompts that ARE work do not need the full pipeline.** Load `aidlc:ceremony` and pick the
+lightest tier that fits: answer it, do it directly, track it, or run the pipeline. Ceremony is
+proportional to what happens if the work is wrong — not to policy.
 
 ## 1 · GROUND (always, before classifying)
 
@@ -66,7 +70,8 @@ cleanup.
 | an opinion, a fit judgment, a "should we" | **CONSULT** (§3) | a recommendation. No item, no branch, no code. |
 | to understand how or why something works | **EXPLAIN** (§4) | an answer grounded in the code + the ADR that explains *why* |
 | a defect understood | **DIAGNOSE** (§4) | a cause, and an offer to file it |
-| something built, changed or fixed | **BUILD** (§5) | handed off to `aidlc:intake` → `aidlc:run` |
+| something small and obvious changed | **DIRECT** (§5) | the change, gated and committed on the current branch. No item, no PR. |
+| something built or changed that warrants a trail | **BUILD** (§5) | `aidlc:ceremony` tier 2 or 3 — tracked, or the full pipeline |
 | an existing item progressed (`{KEY}-{n}` appears) | **RESUME** | `aidlc:run <ID>`, followed verbatim |
 | pipeline state, or what to work on next | **META** | `aidlc:status` / `aidlc:next` |
 
@@ -120,7 +125,24 @@ This is the prompt you would otherwise answer cold, and the whole value is the g
   the fix belongs to that run, so say so and point at `/aidlc:run <ID>` rather than opening a
   competing item.
 
-## 5 · BUILD — hand off, never reimplement
+## 5 · DIRECT / BUILD — do the small thing, hand off the big thing
+
+**Decide the tier first, per `aidlc:ceremony`** — the lightest one that fits the work, at or above the
+project's `pipeline.ceremony` floor, unless an escalation trigger pulls it up. Announce it in one line.
+
+### DIRECT (tier 1) — do it here
+
+A small, obvious, low-consequence change: **do it in this skill.** Edit, run the project's resolved gate,
+commit on the branch already checked out, report in three or four lines. No work item, no run file, no PR,
+no approval prompt. This is the door for a typo, a rename, a comment, a log line, a dead import, a version
+bump, an obvious off-by-one.
+
+Committing on the default branch is permitted at this tier (the guard hook still blocks *pushing* from a
+protected branch, so it waits for a human) — note it in the report when it happens. If the change turns
+out to be bigger than it looked once you are in the code, say so and move up a tier rather than finishing
+a sprawl under a tier that promised a one-liner.
+
+### BUILD (tier 2–3) — hand off, never reimplement
 
 `aidlc:run` already accepts free text and routes it through intake first (`aidlc:run` §0.3), so:
 
@@ -132,19 +154,25 @@ This is the prompt you would otherwise answer cold, and the whole value is the g
 - **This is the one route that needs the user's go-ahead first.** `run` is entered by deliberate
   choice, and on this door the choice is the user agreeing to build — a CONSULT or a diagnosis never
   slides into the pipeline on its own (see §2 *Mixed prompt* and the Rules).
-- **Write no product code in this skill.** `do` is a router; the pipeline owns delivery, including
-  the branch, the verification cadence and the PR.
-- Small changes are not an exception: one item → one branch → one PR still applies (per
-  `rules/git-workflow.md`, "even one-liners"). If that feels heavy for a typo, that is a real
-  finding about the pipeline — raise it via `aidlc:dogfood`, don't route around it.
+- **Write no product code on the BUILD route.** For tier 2–3 `do` is a router; the pipeline owns
+  delivery, including the branch, the verification cadence and the PR. (Tier 1 DIRECT is the exception,
+  and the only one — that work is done here by design.)
+- **A small change is not a small pipeline run.** One item → one branch → one PR is the shape of a
+  *tracked* change, not a law about every edit. A typo does not become safer by acquiring a ticket, and a
+  pipeline that insists otherwise gets abandoned for the changes that genuinely needed it. Pick the tier
+  (`aidlc:ceremony`) and say which one.
 - A prompt naming an existing item is **RESUME**, not BUILD. Never mint a second item for work that
   is already tracked.
 
 ## Rules
 
-- **Announce the route before acting.** One line, always.
+- **Announce the route and the tier before acting.** One line, always.
 - **A no-artifact answer is a valid outcome.** Consults and explanations usually end with no item,
   no branch, no commit.
+- **"just do it" / "no ticket" / "no PR" are instructions, not objections.** Drop to the tier named,
+  confirm in one line, proceed. Don't sell the tier they declined, don't ask twice, and don't quietly
+  re-add the ceremony later in the run. The only exception is an escalation trigger
+  (`aidlc:ceremony`) — name it once, then follow their decision if they repeat it.
 - **Never create items on a consult** unless asked, and never implement on one at all.
 - **Ground before answering.** Answering an architecture question without reading the relevant ADR
   is the single failure this door exists to prevent.

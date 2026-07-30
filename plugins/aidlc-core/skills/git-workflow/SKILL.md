@@ -6,6 +6,11 @@ user-invocable: false
 
 # Git workflow — branch → commit → push → PR
 
+**Scope: this is the shape of a *tracked* change** (`aidlc:ceremony` tier 2–3). A **tier-1 direct
+change** takes no branch and no PR — it commits on whatever branch is checked out, and the only rule
+below that still binds it is *nothing is pushed to `<base>` unattended*. Don't apply the branch/PR
+machinery to a typo; don't skip it for a story.
+
 Operate on the **resolved repo entry** for this run (see `aidlc:work-items` → *Repos & routing*),
 not a hardcoded repo. Read from it: `host` (github | azure-repos), `mode` (remote | local; default
 `remote`), `defaultBranch`, `remote`, `branchPattern`, and `path`. In **mono** this is the single

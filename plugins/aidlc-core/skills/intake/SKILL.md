@@ -7,7 +7,11 @@ argument-hint: "<the requirement, in plain language>"
 # /aidlc:intake $ARGUMENTS — requirement in, backlog items out
 
 The front door of the pipeline: the user describes WHAT they want; this produces well-formed,
-tracked work items — never code directly. (Implementation starts afterwards via `/aidlc:run`.)
+tracked work items — not code. (Implementation starts afterwards via `/aidlc:run`.)
+
+**This door is for work that warrants tracking.** Small, obvious, low-consequence changes are handled at
+tier 1 without an item — see `aidlc:ceremony`. Arriving here means the tier decision already concluded
+that a trail is worth having; if it plainly hasn't (a typo, a rename), hand it back rather than filing it.
 
 ## 1 · CAPTURE
 
@@ -35,7 +39,25 @@ Brief the analyst with the requirement text (and, in poly, the repo registry fro
    - One outcome, ≤ size L, in ONE repo → a single story (or `bug`/`task`/`spike`).
    - Multiple independent outcomes, > L, **or work that spans repos** → an epic + 2–8 INVEST child
      stories. In poly, **each child targets exactly one repo** (`repo` set) with `dependsOn`
-     capturing cross-repo order (e.g. the frontend child depends on the backend child).
+     capturing genuine cross-repo order.
+   - **A frontend + backend pair is contract-first, not chained** (`aidlc:work-items` → *Contract-first
+     siblings*). Do NOT author `frontend dependsOn backend` reflexively — that serializes the whole
+     feature to protect one unknown, the interface. Instead:
+     - **The interface is new or changing** → emit **three** children: a small **contract child** (an
+       OpenAPI path, GraphQL SDL type, `.proto` message, JSON Schema, or an exported type in a declared
+       shared package) in the repo that owns it, then the backend and frontend children each
+       `dependsOn: [<contract child>]` and **not on each other**. Both then start the moment the contract
+       lands, and `/aidlc:sprint` will select them together. Give the frontend child AC that are
+       satisfiable against generated types + contract-derived fixtures, so it never idles on a running
+       backend.
+     - **The interface already exists and this feature does not change it** → **no contract child and no
+       `dependsOn` edge at all.** Read the existing contract first and say on both items that the shape is
+       already there. Chaining here is pure lost time and it is the easy mistake, because the chain looks
+       prudent.
+     - **Genuinely one-sided or no interface between them** → one child, or two unchained children.
+     Chain them only for a real ordering that is not the interface (a migration that must land first, a
+     feature flag the frontend reads). Name that reason on the item — an unexplained `dependsOn` is
+     indistinguishable from the reflex.
    - **Poly — author cross-repo work at the tier `workspace.crossRepoSplit` sets** (default `story`; see
      `aidlc:work-items` → *Cross-repo split tier*). The runnable leaf is always single-repo; only its
      tier differs. A described outcome touching >1 declared repo becomes:
@@ -63,8 +85,10 @@ Show the user the proposed set BEFORE creating anything:
 ```
 From your requirement I propose:
   NEW  epic  "User avatars"
-  NEW  story "Upload avatar (5MB, png/jpeg)"  [P2, M]  repo=backend   — 4 AC
-  NEW  story "Show avatar on profile"          [P2, S]  repo=frontend  — 3 AC  (dependsOn ↑)
+  NEW  story "Avatar API contract (OpenAPI)"   [P2, S]  repo=backend   — 2 AC   ← lands first
+  NEW  story "Upload avatar (5MB, png/jpeg)"   [P2, M]  repo=backend   — 4 AC   (dependsOn contract)
+  NEW  story "Show avatar on profile"          [P2, S]  repo=frontend  — 3 AC   (dependsOn contract)
+       ↳ the two above run IN PARALLEL once the contract lands — neither depends on the other
   SKIP — "Image storage bucket" already covered by PROJ-87 (todo); linked as dependency
   NOTE — overlaps in-flight PROJ-91 (profile page rework): sequence after it
 Create these? [all / pick / adjust]
@@ -102,8 +126,12 @@ filing the items is a complete outcome.
 
 ## Rules
 
-- NEVER start implementing from a raw requirement — items first, always. The audit trail
-  (assumptions, AC, run files) only works if the work is tracked.
+- **Once work is coming through THIS skill, items come before code** — the audit trail (assumptions, AC,
+  run files) only works if the work is tracked, so don't half-track it by implementing first and filing
+  after. But that is a rule about this door, **not about every change**: whether a request belongs here at
+  all is decided upstream by `aidlc:ceremony`, and a small obvious change is answered at tier 1 (`do` →
+  DIRECT) with no item at all. If a request reaches intake and clearly doesn't warrant tracking, say so
+  and hand it back down a tier rather than manufacturing a ticket for a typo.
 - Stamp provenance (`unplanned` label + a `created via /aidlc:intake on <date>` description note) on
   every item you create — the point is that request-born work stays visible and queryable afterwards.
 - Dedup honestly: creating a near-duplicate of an existing item is worse than asking.

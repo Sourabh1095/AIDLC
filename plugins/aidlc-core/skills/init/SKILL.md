@@ -160,6 +160,19 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 5. **Commands** *(full-path only — deferred path skips; the resolved stack drives these at bootstrap)*:
    install / dev / test / lint commands (detect from package.json scripts first and propose
    them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.
+5b. **How much process** (`pipeline.ceremony`) — the setting that decides whether this tool is pleasant to
+   use. It is the **floor**, and the pipeline escalates above it on its own:
+   - **`direct` (default)** — a small obvious change is edited, gated and committed with no item and no
+     PR; work that warrants a trail still gets one; stories get the full pipeline. Recommend this to
+     nearly everyone, including teams: it is what makes the tool usable for a typo, and a team that
+     never gets a typo fixed by the pipeline stops using it for the story too.
+   - **`tracked`** — nothing is ever untracked: every change gets at least a branch and a run file, but
+     items and PRs stay optional.
+   - **`full`** — everything goes through the whole pipeline. Offer this only when the project says it is
+     audit-bound or regulated; don't propose it as the "serious" option, because it isn't.
+   Say plainly that five escalation triggers (auth/tenant-isolation paths, a destructive migration, a
+   declared API contract, code an in-flight run owns, an explicit pipeline request) pull work up
+   regardless of this setting — so choosing `direct` is not choosing to be careless.
 6. **Verification cadence** — the pipeline's biggest recurring cost, so make it a conscious choice.
    Each agent (reviewer, QA, security) gets its own cadence in `pipeline.verification`. Note that the
    deterministic CI gate (lint/format/typecheck/boundaries/tests) always runs regardless, so per-item
@@ -179,6 +192,18 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
    husky + lint-staged pre-commit layer (eslint `--fix` + prettier `--write` on staged files at commit
    time — the local complement to the CI/merge gate). Default **yes** for a fresh repo; some teams
    decline git hooks, so it's a real question, not automatic. Record the choice; it drives Step 4.5.
+8. **Implement fan-out** (`pipeline.implementFanout`) — whether one item's plan may be implemented by
+   several agents at once when its tasks touch provably disjoint files (`aidlc:run` §6). Default
+   **enabled, `maxAgents: 3`**, which is safe because the agents never commit — the orchestrator does —
+   so there is one writer to git regardless. Don't present this as a quality trade-off; it isn't. Mention
+   it only briefly, and note the two knobs worth a project's attention:
+   - `maxAgents` (hard cap 5) — more agents shorten a wide mechanical change and cost proportionally more
+     tokens. There is nothing to gain above the number of genuinely disjoint tasks a plan produces.
+   - `sharedPaths` — extra paths that must always have one writer, on top of the built-in list (manifests,
+     lockfiles, barrels, route tables, i18n catalogs, snapshots, migrations, declared `apiContracts`). A
+     project with its own aggregator — a central theme file, a generated registry — should name it here;
+     that is the one setting a stranger to the codebase cannot infer.
+   Set `enabled: false` for a project that wants every item implemented by a single agent, start to finish.
 
 ## Step 4 — Scaffold
 

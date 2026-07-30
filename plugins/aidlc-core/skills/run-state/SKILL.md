@@ -27,6 +27,7 @@ type: story
 branch: feature/PROJ-123-user-avatar-upload
 phase: implement       # start|requirements|design|implement|verify|pr|docs|done|blocked
 fixCycles: 0
+fanout: 1 -> [2|3|4] -> 5   # the implement schedule actually used; null when all-serial
 pr: null
 started: 2026-07-08T09:12Z
 updated: 2026-07-08T10:03Z
@@ -38,9 +39,10 @@ updated: 2026-07-08T10:03Z
 (one bullet per assumption the pipeline made; mirrored to work-item comments)
 
 ## Plan
-(ordered checkbox list of implementation tasks)
-- [x] 1. Add avatar column migration
-- [ ] 2. Upload endpoint
+(ordered checkbox list of implementation tasks, each declaring the paths it touches — `aidlc:run` §6
+reads these to schedule concurrent implementers, so an undeclared task is always run serially)
+- [x] 1. Add avatar column migration  ·  paths: db/migrations/0007_avatar.sql  ·  foundation: true
+- [ ] 2. Upload endpoint  ·  paths: src/api/avatar.ts, src/api/avatar.test.ts
 
 ## Findings
 (reviewer/qa findings; each with severity, status)

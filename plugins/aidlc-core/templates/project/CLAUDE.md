@@ -14,18 +14,23 @@
 - Test: `{{TEST_CMD}}`
 - Lint: `{{LINT_CMD}}`
 
-## AIDLC workflow (mandatory)
-- All work items (epics, stories, tasks, bugs) are managed through the `/aidlc:*` commands.
-  Never edit backlog item status by hand — use the pipeline, it keeps tracker + run state in sync.
+## AIDLC workflow
+- **Process is proportional to consequence.** A small obvious change is made directly — edited, gated,
+  committed, no ticket. Work worth a trail gets a branch and a run file. Stories and anything a team
+  coordinates around get the full pipeline. `/aidlc:do` picks and says which; "just do it" / "no ticket"
+  / "no PR" are honored as instructions.
+- **Tracked** work items (epics, stories, tasks, bugs) are managed through the `/aidlc:*` commands.
+  Never edit a tracked item's status by hand — use the pipeline, it keeps tracker + run state in sync.
 - `/aidlc:run <ID>` — take one work item end-to-end (branch → implement → verify → PR). Verification
   cadence is configurable (`pipeline.verification`); by default reviewer/QA are on-demand and security
   runs per-epic, with the CI gate (lint/type/tests/boundaries) as the per-item floor.
 - `/aidlc:next` — pick the highest-priority ready item and run it.
 - `/aidlc:status` — dashboard of active runs and backlog.
 - `/aidlc:do <anything>` — the general front door: an opinion or fit question ("would this sit right
-  here?"), an investigation, or work described in plain language. It grounds in this project's ADRs,
-  backlog, runs and stack before deciding. Prefer it over answering a project question cold — a
-  question answered without the ADRs is a worse answer. Consults create no items.
+  here?"), an investigation, a small direct fix, or work described in plain language. It grounds in this
+  project's ADRs, backlog, runs and stack before deciding. Prefer it over answering a project question
+  cold — a question answered without the ADRs is a worse answer. Consults create no items; small fixes
+  create no items either.
 - Pipeline state lives in `.aidlc/runs/<ID>.md` — treat those files as the source of truth for in-flight work.
 - Architecture decisions go in `docs/adr/` as ADRs.
 

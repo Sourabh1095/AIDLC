@@ -11,6 +11,11 @@ You are now the **AIDLC orchestrator**: a router and state machine running in th
 You do NOT write product code yourself — specialist subagents do. Your job: fetch the item,
 drive it phase by phase, dispatch agents, track state, and stop only at DONE or BLOCKED.
 
+**This command is the heavyweight tier by definition** (`aidlc:ceremony` tier 3) — the user asked for the
+pipeline, so give them the pipeline; do not optimize it down to a direct edit. The inverse is the point of
+having tiers: a small change that arrives at `/aidlc:do` is handled there without an item, and never
+reaches here.
+
 Load these skills before starting: `aidlc:work-items` (+ the active adapter), `aidlc:run-state`,
 `aidlc:git-workflow`.
 
@@ -71,7 +76,7 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **aidlc-researcher** per `aidlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `aidlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `aidlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **Before declaring the epic done, run the `/aidlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
+| epic | decompose only: dispatch `aidlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `aidlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **This pass also runs the integration join** for a feature whose children were split across an interface (§2.5 → *The join*): the children were each verified against the contract and never against each other, so the seam is the one thing no child's own run could prove. A missing join is a `MAJOR` finding, not a pass. **Before declaring the epic done, run the `/aidlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
 
 ### Umbrella story (poly, `workspace.crossRepoSplit: task`)
 
@@ -229,13 +234,52 @@ leaf; decompose it into per-repo tasks. A **Story** that spans repos:
 
 **Epic / cross-repo requirement** — the feature may span repos. Dispatch **aidlc-analyst** to ground
 it against the candidate repos and decompose into **one child story per affected repo**, setting each
-child's `repo`, `parent` (the epic), and `dependsOn` (cross-repo order — e.g. the frontend child
-`dependsOn` the backend child). Create the children (`adapter.create`), then:
+child's `repo`, `parent` (the epic), and `dependsOn` (real cross-repo order only).
+
+**Frontend + backend children are contract-first, not chained** (`aidlc:work-items` → *Contract-first
+siblings*). Where the interface is new or changing, the decomposition is **three** children: a small
+**contract child** (OpenAPI path / GraphQL SDL / `.proto` / JSON Schema / an exported type in a declared
+shared package) in the repo that owns it, then the backend and frontend children each
+`dependsOn: [<contract child>]` and **not on each other**. Where the interface already exists unchanged,
+there is **no contract child and no edge** — read the contract and confirm it, don't chain on a hunch.
+Execution order follows from the graph without a special case: contract lands → both siblings become
+ready in the same pass → they run **concurrently** (§below), and the **join** proves they compose.
+
+Create the children (`adapter.create`), then:
 - Write a **coordination file** at the control plane `.aidlc/runs/{EPIC-ID}.md` (from the run-file
   template; `repo:` left null) tracking the child IDs, their repos, `dependsOn` order and a status
   rollup. This one is NOT committed to any product branch — it is cross-cutting workspace state.
 - Run the children in `dependsOn` order (independent children may be handed to `/aidlc:sprint`);
   each child is its own atomic run per the rules above. Update the rollup as each child's PR opens.
+- **Siblings that are ready together run together, not one after the other.** Once a wave's dependencies
+  are terminal, every child that becomes ready is independent *by construction* — that is what the
+  `dependsOn` graph asserts — so hand the whole wave to `/aidlc:sprint` rather than walking it serially.
+  For a contract-first triple this is the payoff: the contract child runs alone, then backend and frontend
+  run **concurrently** in their own repos, branches and PRs. Record the wave in the coordination file
+  (`wave 2: PROJ-125 (backend) ‖ PROJ-126 (frontend)`) so the rollup shows what overlapped. Walking a
+  ready wave one child at a time is not safer — the graph already said they don't touch each other — it
+  is just slower.
+- **The join: prove the siblings compose (contract-first features).** A feature whose children were
+  split across an interface is **not done when both PRs are open** — each was verified against the
+  contract, neither against the other. When the last child of such a feature reaches terminal, run the
+  **integration join** as part of the epic/feature consolidation pass (§2):
+  1. Check out both siblings' merged state (their default branches post-merge, or the open PR heads if
+     you are joining pre-merge — say which you did).
+  2. Run the **contract-level verification**: the project's contract tests (schema validation, generated
+     client vs served response, Pact-style consumer checks), and where the project has one, the **e2e path
+     that exercises the real call** end to end. Resolve these from the repos' own gates
+     (`resolve-gate.mjs` — an `e2e` step is common at repo level); **do not invent a test framework** for a
+     project that has none.
+  3. **No contract test and no e2e anywhere** → that is a real coverage hole, not a pass. Write
+     `- [MAJOR][open] no integration verification exists for <feature>: <backend child> and <frontend child>
+     were each verified against the contract, never against each other` into the coordination file's
+     `## Findings` and say it plainly in the report. The whole point of parallelizing across a contract is
+     that the contract is the only thing holding the two sides together — a project that cannot test the
+     seam should know that is what it chose.
+  4. A failure here is a **feature-level blocker**: it belongs to whichever side diverged from the
+     contract, so open a fix item against that child (or feed it into an open PR), and never mark the
+     parent done over a red join.
+  Features whose children share no interface skip the join — there is no seam to prove.
 - **Shared-dependency pilot — a green pilot is necessary, not sufficient (F28).** When the first
   child is a **shared-package dependency** the others consume (a `dev-config`/sdk/types repo), do NOT
   declare "pattern proven, fan out" on that repo's own green: it validates itself via relative imports
@@ -292,6 +336,23 @@ Otherwise YOU write a short ordered plan (3–8 checkbox tasks) into `## Plan` �
 quick look at the relevant code, not guesswork. Items whose plan touches infra/CI/Docker only →
 route the implement phase to **aidlc-devops** instead of the implementer.
 
+**Every plan task declares the paths it will touch** — `- [ ] <task>  ·  paths: src/screens/users.tsx`.
+This is not bookkeeping: §6 uses it to decide what can be implemented concurrently, and a task with no
+declared paths is never parallelized (unprovable is not the same as safe). Two more fields where they
+apply, both about **ordering, which paths cannot express**:
+
+- `foundation: true` — this task creates something the later tasks build on (a shared component, a hook,
+  a type, a migration). Everything after it waits.
+- `dependsOn: <task ids>` — a narrower version of the same. **Declare it whenever a later task imports,
+  calls or renders what an earlier one produces, even though their files are disjoint.** A task creating
+  `hooks/usePagination.ts` and a task editing `screens/users.tsx` to use it share no path and are
+  strictly ordered; nothing can infer that from the file lists, so if you omit it the two will be run
+  side by side. When in doubt, declare the edge — a needless edge costs a little wall-clock, a missing
+  one costs a broken build nobody can attribute.
+
+Prefer paths that are **files**, not directories or globs: two globs cannot be proven disjoint, so the
+resolver assumes they collide and serializes both.
+
 Phase → `implement`. Checkpoint.
 
 ## 6 · IMPLEMENT
@@ -299,11 +360,57 @@ Phase → `implement`. Checkpoint.
 **Bug variant first:** dispatch **Agent → aidlc-qa** to write a *failing* repro test
 (per `aidlc:debugging`), commit it (`test(scope): failing repro for {ID}`).
 
+### Resolve the schedule — one implementer, or several (don't hand-derive this either)
+
+```
+node "<plugin>/skills/run/resolve-fanout.mjs" <plan.json> .claude/aidlc.config.json
+```
+
+Serialize `## Plan`'s tasks (id, title, `paths`, `foundation`, `dependsOn`) to a temp JSON file and run
+the resolver. It returns the plan **in order** as a sequence of *serial* steps and *parallel windows*,
+with a stated reason for every task it held serial. It never reorders and never hoists, so the plan still
+reads as what happens.
+
+**All-serial is the common answer and is not a failure** — most items are one coherent change. When it
+resolves that way, dispatch ONE implementer exactly as before and skip the rest of this block.
+
+A **parallel window** means several plan tasks whose declared paths are provably disjoint and which
+depend on nothing inside the window. Six screens getting the same treatment is the shape this exists
+for. Dispatch them like this:
+
+1. **One batch, N implementers** (`pipeline.implementFanout.maxAgents`, default 3, hard cap 5), each in
+   **fan-out mode** (`aidlc-implementer` → *Fan-out mode*): its brief carries **only its own task and its
+   own path allowlist**, and says plainly that it must not touch a path outside that list and must
+   **not commit**.
+2. **You commit, they don't.** This is the whole reason the fan-out is safe: the files are disjoint but
+   git is not, and two agents racing `git add`/`commit` in one checkout is the collision D7 is really
+   about. As each returns, `git add` **its declared paths** and commit in plan order with the task's own
+   message (`aidlc:git-workflow` → *Commits*), then tick its checkbox.
+3. **Account for everything before moving on.** Each agent reports the paths it changed *and created*.
+   After the window's commits, `git status` must be clean. Anything left over is a path an agent touched
+   without declaring — commit it in a clearly-named reconciliation commit and **write it to `## Findings`
+   as a fan-out contract violation**, because an undeclared write is exactly what the disjointness proof
+   assumed away. Never leave it dirty for the next window to absorb.
+4. **The gate runs ONCE, at the end of the window** — not per agent. A window is a partial change by
+   construction (screen 2 done, screen 5 not started), so a mid-window gate failure says nothing useful,
+   and running the full suite N times is the most expensive way to learn that. Individual agents may run
+   narrow checks over their own files; the resolved gate (§7) is the authority.
+5. **A `BLOCKED` verdict from any member ends the window.** Commit the clean members, leave the blocked
+   task's checkbox unticked with its reason, and treat it as the ordinary blocker path below — do not
+   dispatch the next window on top of a half-applied one.
+
+Record `fanout: <schedule summary>` on the run file (e.g. `1 -> [2|3|4] -> 5`), so the audit trail states
+what ran concurrently. If the resolver is unavailable, **run everything serially** — the fan-out is an
+optimization and losing it costs time; guessing disjointness by eye costs code.
+
+### The implementer brief
+
 Dispatch **Agent → aidlc-implementer** with brief: run-file path, `## Plan`, AC list, stack
 config, **the resolved gate** (below), **the runtime constraints** (next paragraph), and: implement per
 plan, tick plan checkboxes as completed, commits per logical unit in the project's own commit style
 (`aidlc:git-workflow` → *Commits*), **run the resolved gate before finishing**, append a summary line to
-`## Log`.
+`## Log`. (In a parallel window, the commit and gate instructions are replaced by the fan-out contract
+above — the agent neither commits nor runs the full gate.)
 
 **Runtime constraints go in the brief, as constraints — not as background.** Read `saas` from the
 resolved repo entry (or the top-level block in mono). Where a field is **absent, say nothing** — an

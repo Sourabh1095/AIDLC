@@ -233,6 +233,11 @@
       "type": "object",
       "properties": {
         "autonomy": { "type": "string" },
+        "ceremony": {
+          "enum": ["direct", "tracked", "full"],
+          "default": "direct",
+          "description": "The FLOOR for how much process a change gets (aidlc:ceremony). It only ever raises the tier, never lowers it — the pipeline still escalates above the floor when the work or a risk trigger warrants.\n\n\"direct\" (default): a small, obvious, low-consequence change is edited, gated and committed on the current branch with no work item, no run file and no PR. Work that warrants a trail still gets one. This is the setting that makes the tool usable for a typo, and the reason it exists: charging a one-line fix the same process tax as a story does not make the story safer, it makes people stop using the pipeline for the changes that genuinely needed it.\n\n\"tracked\": every change gets at least a branch and a run file — nothing is ever untracked — but items and PRs remain optional. A middle ground for a small team that wants a trail without a ticket per edit.\n\n\"full\": every change goes through the whole pipeline (work item, requirements, verification cadence, PR). A legitimate choice for a regulated or audit-bound team, and what AIDLC did unconditionally before 0.36.0.\n\nIndependent of the floor, five escalation triggers pull a change UP regardless of this setting and regardless of the user's preference, because each names something not recoverable by noticing it later: auth/tenant-isolation paths, a destructive migration under expand-contract, a declared apiContracts path, code an in-flight run already owns, and an explicit pipeline request. None fire on an absent config field."
+        },
         "maxFixCycles": { "type": "integer" },
         "architectThreshold": { "enum": ["S", "M", "L", "XL"] },
         "securityReviewPaths": {
@@ -244,6 +249,36 @@
           "enum": ["deny", "ask"],
           "default": "deny",
           "description": "Whether the pipeline may read or change env files (.env, .env.example, .env.local, …). \"deny\" (default): the hooks hard-block every read/edit/write of an env file — they can carry secrets, and non-secret variable names/shape are meant to live in a human-maintained .env.example. \"ask\": the pipeline may touch env files, but EVERY read/change is surfaced to the user to approve or reject (the confirmation prompt shows the exact diff/content), keeping the human in the loop. Enforced by two hooks so no tool path escapes it: env-guard.mjs governs the Read/Edit/Write tools, and guard.mjs mirrors it on the Bash path (> .env redirects, tee/cp/sed -i writes, cat .env reads). Both resolve the switch by walking up from the env file's own location to the nearest aidlc.config.json, so one control-plane setting governs every repo's env files in a poly workspace regardless of the session cwd. Both fail closed (no config found up the tree, or a malformed one ⇒ \"deny\"). This is a hook-based switch, not a static Read(.env*) deny, because a static deny can never be relaxed; settings.json carries these paths in its \"ask\" list only, as a fail-safe floor for when the hooks are not running. Opting in is a single edit here — no settings.json change needed."
+        },
+        "implementFanout": {
+          "type": "object",
+          "description": "Whether ONE work item's plan may be implemented by several agents concurrently, when its plan tasks touch provably disjoint paths (aidlc:run §6; reference implementation skills/run/resolve-fanout.mjs, semantics pinned by resolve-fanout.test.mjs). Absent ⇒ enabled with the defaults below, so no existing config needs migrating.\n\nWhy this is safe, and what it is NOT. Architecture D7 serializes anything that mutates a shared tree, and for one item that has always meant a single implementer. The rule stands; the reading was too broad. Six screens getting the same treatment touch six disjoint FILES — the shared thing is git, not the code. So the fan-out removes the racing committer instead of the parallelism: the agents edit and report, and the ORCHESTRATOR commits each task's declared paths in plan order. One writer to git, always. This is a wall-clock optimization with no quality trade-off — it does not reduce review, and the resolved gate still runs (once, after the window lands).\n\nWhat the resolver refuses to guess, because each failure is silent: a task with no declared `paths` is never parallelized; two globs that cannot be cheaply compared are assumed to overlap; and disjoint paths do NOT imply independence — a task whose output a later task imports must say so via the plan's `foundation`/`dependsOn`, since no path analysis can see an import edge. Over-serializing costs wall-clock and says so; under-serializing loses code and says nothing.",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "false ⇒ every item is implemented by a single agent start to finish (pre-0.35.0 behaviour). The resolver still runs and still reports, it just holds every task serial with that reason stated."
+            },
+            "maxAgents": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5,
+              "default": 3,
+              "description": "Most concurrent implementers in one window. Hard-capped at 5 (values above are clamped, not rejected), mirroring /aidlc:sprint's cap: one work item must not be able to spawn a fleet. There is nothing to gain above the number of genuinely disjoint tasks a plan produces."
+            },
+            "minGroup": {
+              "type": "integer",
+              "minimum": 2,
+              "default": 2,
+              "description": "Smallest window worth dispatching in parallel. Floored at 2 — a 'parallel' batch of one is just a serial step with extra bookkeeping. Raise it to 3+ to only fan out when the win is clearly worth the dispatch overhead."
+            },
+            "sharedPaths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Extra paths that must always have exactly one writer, ADDED to (never replacing) the built-in list: dependency manifests and lockfiles, barrel/aggregator modules (index.ts, __init__.py, mod.rs), route tables, i18n catalogs, global styles, tool config, test snapshots, migrations, and every path named in saas.apiContracts. A task touching any of these is held serial with the matching pattern stated as its reason.\n\nThis is the one setting a stranger to the codebase cannot infer: a project's OWN aggregator — a central theme file, a generated registry, a hand-maintained DI container — belongs here. The built-in list catches the conventional ones only."
+            }
+          }
         },
         "gates": {
           "type": "object",

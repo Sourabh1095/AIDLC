@@ -50,15 +50,20 @@ tokens until a task triggers it.
 **D6 — High autonomy, hard guardrails.** Allow the full story→PR path; deny irreversible /
 production / secret / self-modification operations; ask on ambiguous blast radius. Two layers:
 static permission rules + context-aware hooks (branch-aware push guard, exfil patterns,
-protected paths). Humans keep exactly one mandatory gate: PR review + merge. When a repo has no
-remote (`git.mode: local`, per-repo) there is no PR — the gate is *relocated, not removed*: the
+protected paths). For **tracked** work, humans keep one mandatory gate: PR review + merge. When a repo has
+no remote (`git.mode: local`, per-repo) there is no PR — the gate is *relocated, not removed*: the
 pipeline integrates via a **user-confirmed local `--no-ff` merge** into the default branch after
 green verify, and never merges unattended. Default is `remote` (push + PR), so nothing changes for
 projects with an origin.
 
+The guardrail that survives every tier, including the lightest, is narrower and sharper than "one PR per
+change": **nothing reaches the default branch unattended.** A tier-1 direct change may *commit* there — a
+local commit is `git reset` away — and the branch-aware push guard still stands between it and anyone
+else. Reversibility, not ceremony, is what the gate is protecting.
+
 **D7 — Parallelize independent work; serialize anything that mutates a shared tree.** The rule
 is *isolation, not just similarity* — two units run concurrently only when they cannot collide on
-files or on each other's outputs. This applies at three levels:
+files or on each other's outputs. It applies at four levels, coarsest grain first:
 
 - **Item level (`/aidlc:sprint`).** Independent backlog items each get a headless
   `claude -p "/aidlc:run <ID>"` background process, aggregated into one board. An `aidlc-analyst`
@@ -79,14 +84,32 @@ files or on each other's outputs. This applies at three levels:
   honestly: *isolation, not similarity*. The three look alike (all "verification"), so batching them
   reads as obvious, but one of them mutates the tree — and that is the only property that decides.
   Fix cycles that follow are serial (one implementer mutates the branch).
+
+- **Plan-task level (`/aidlc:run` §implement, `pipeline.implementFanout`).** Where a plan's tasks touch
+  **provably disjoint paths**, several implementers work them at once in one checkout. What makes this
+  legal under this decision is that *the agents do not commit* — they edit and report, and the
+  orchestrator commits each task's declared paths in plan order. **git is the shared tree; the files are
+  not.** Six screens getting the same pagination treatment never touch each other; only the index and
+  HEAD are contended, so the fix is to remove the racing committer, not the parallelism. The schedule is
+  computed by `skills/run/resolve-fanout.mjs` (semantics pinned by `resolve-fanout.test.mjs`) and it never
+  reorders — it only collapses *contiguous* plan tasks into a window, so the plan still reads as what
+  happens.
+
+  Three things it refuses to guess, because each failure is silent rather than loud: a task with **no
+  declared paths** is never parallelized; **two globs** that cannot be cheaply compared are assumed to
+  overlap; and **disjoint paths do not imply independence** — a task whose output a later task imports
+  must declare `foundation`/`dependsOn`, since no path analysis can see an import edge. The asymmetry
+  driving all three: over-serializing costs wall-clock and says so out loud, under-serializing loses code
+  and says nothing.
+
 - **Design pod (`aidlc-ux:design`).** The jury panel (`ux.juryPanelSize` jurors) and the
   design-system / motion / implementer fix agents each run as a batch when their work is independent.
-
-The deliberate **non-parallel** point is IMPLEMENT inside a single run: one `aidlc-implementer` works
-the plan sequentially on one branch. Splitting mutating work across agents on the same working tree
-invites merge conflicts and interleaved half-states; cross-item concurrency is delivered by worktree
-isolation in `sprint` instead. As `sprint` puts it: *parallelism multiplies mistakes too* — so the
-default is serial, and concurrency is opt-in exactly where isolation removes the risk.
+This narrows, and does not repeal, the old reading that IMPLEMENT is *inherently* serial. What must stay
+serial is **mutation of a shared tree** — one committer, one branch, and any task touching an aggregator
+(a barrel export, a route table, a lockfile, an i18n catalog, a declared `apiContracts` path) where "one
+writer at a time" is the whole point. As `sprint` puts it: *parallelism multiplies mistakes too* — so the
+default is serial, disjointness is proven rather than assumed, and concurrency is taken only where
+isolation is demonstrable.
 
 **D8 — One workspace, one or many repos; everything resolves to a repo entry.** A project is either
 **mono** (one git repo for everything — the default, unchanged) or **poly** (a workspace holding
@@ -119,6 +142,61 @@ The design that keeps both on one code path with zero migration:
 - **What stays per-repo:** branch/commit/push/PR (each repo's own `host`/`remote`/`defaultBranch`), the
   design pod (each frontend repo's `renderBaseUrl`), and releases (each repo versions/tags on its own
   cadence; a coordinated release iterates repos in `dependsOn` order).
+
+**D9 — A contract is what makes two sides of a feature concurrent.** A feature split across a backend
+and a frontend child has exactly one thing preventing both from starting now: nobody has agreed the
+interface. There are three ways to handle that, and only one of them is good.
+
+- **Chain them** (`frontend dependsOn backend`) — the reflex, and what AIDLC did before 0.35.0. Correct
+  about the dependency, wrong about its price: it serializes an entire feature to protect one unknown.
+- **Start both and reconcile at the end** — worse. Two agents that have each written code against a
+  shape they guessed do not "sync"; one of them gets rewritten, and which one is decided by whose work
+  is cheaper to discard. **Coordination after the code is the expensive place to put it.**
+- **Agree the interface first** — a small **contract child** (OpenAPI path, GraphQL SDL type, `.proto`
+  message, JSON Schema, an exported type in a declared shared package) lands as a normal single-repo
+  leaf. Both implementation children then `dependsOn` *the contract* and **not on each other**, which is
+  the edge that makes them concurrent: `sprint`'s independence check reads `dependsOn`, and in poly they
+  are already in separate repos. The frontend builds against generated types and contract-derived
+  fixtures, so it never idles on a running backend.
+
+The cost this design pays is that neither child's own green run proves the feature works — each was
+verified against the contract, never against the other. So the seam gets its own step: an **integration
+join** at the parent tier (contract tests, or the e2e path that exercises the real call), run as part of
+the epic/feature consolidation pass. A project with no way to test the seam gets a `MAJOR` finding rather
+than a pass, because the contract is then the *only* thing holding the two sides together and the team
+should know that is what it chose.
+
+The corollary matters as much as the pattern: **where the interface already exists and the feature does
+not change it, there is no contract child and no edge at all.** Both children start immediately.
+Chaining there is pure lost time, and it is the easiest mistake to make because a chain always looks
+prudent.
+
+**D10 — Ceremony is proportional to consequence.** Until 0.36.0 every change, down to a typo, required a
+tracked work item, a branch and a PR — and the framework said so out loud: *"Small changes are not an
+exception… if that feels heavy for a typo, that is a real finding about the pipeline — raise it via
+`aidlc:dogfood`, don't route around it."* That instructed the user to file a complaint instead of getting
+their typo fixed. Nobody files the complaint. They stop using the tool — and not just for typos, which is
+the actual cost: **a pipeline that is unpleasant for small work loses the audit trail on the large work
+too**, because people go around it for everything or uninstall it outright.
+
+The fix is a gradient, matching how Claude Code itself works — answer → edit → commit → PR, with the user
+choosing where to stop. Four tiers (`aidlc:ceremony`): **answer** (no artifact), **direct** (gated commit
+on the current branch, no item/PR), **tracked** (branch + run file, PR optional), **full** (the pipeline).
+`pipeline.ceremony` sets the project's floor and defaults to `direct`. Three properties make this safe
+rather than merely lenient:
+
+- **The project's gate runs at every tier.** Ceremony is what scales down; verification does not. A tier-1
+  change is linted, typechecked and tested exactly like a tier-3 one.
+- **Escalation triggers override the floor *and* the user's stated preference** — auth/tenant-isolation
+  paths, a destructive migration under expand-contract, a declared `apiContracts` path, code an in-flight
+  run already owns, an explicit pipeline request. Each names something **not recoverable by noticing it
+  later**, which is the only thing that justifies insisting. None fire on an absent config field.
+- **Promotion is always available.** *"track this"* turns a finished direct change into an item with its
+  commits linked, so starting light never traps the work.
+
+The corollary is a behavioural rule, not a preference: **"just do it" / "no ticket" / "no PR" are
+instructions, not objections to be argued with.** Selling the user the tier they just declined is the
+behaviour this decision exists to prohibit.
 
 ## 2. Implemented (Phases 0–2)
 

@@ -7,8 +7,8 @@ One orchestrator (`/aidlc:run`) takes any work item — epic, story, task, bug o
 **Jira, Azure DevOps, or a local markdown backlog** and drives it end-to-end:
 
 ```
-fetch item → validate requirements → plan → implement → review + QA (parallel)
-→ fix cycles → push branch → open PR → update the tracker
+fetch item → validate requirements → plan → implement (fanned out across disjoint files)
+→ review + security (parallel) → QA → fix cycles → push branch → open PR → update the tracker
 ```
 
 One workspace can hold **one repo or many** (e.g. `backend/`, `frontend/`, `website/`, `mobile/`):
@@ -143,4 +143,10 @@ skill you intend to contribute — it is cheaper than finding out afterwards.
 All five design phases are implemented, plus **polyrepo (multi-repo) support** (`aidlc` v0.8.0):
 core pipeline + quality gates, Jira/ADO/markdown trackers, GitHub + Azure Repos, mono **and**
 multi-repo workspaces, 9 specialist agents, the web stack pack, the `aidlc-ux` design pod, parallel
-sprints and the self-extension/promotion workflow. Full design: `docs/architecture.md`.
+sprints and the self-extension/promotion workflow.
+
+Concurrency runs at three levels (`aidlc` v0.35.0): independent **items** in parallel headless runs
+(`/aidlc:sprint`), a single item's **plan tasks** fanned out across provably disjoint files (the agents
+edit, the orchestrator commits — one writer to git, still one branch and one PR), and a feature's
+**frontend and backend** built simultaneously against a contract that lands first, with an integration
+join proving the seam. Full design: `docs/architecture.md`.

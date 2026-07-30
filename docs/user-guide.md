@@ -12,8 +12,12 @@ resuming works, and how the framework remembers everything. (Setup/installation 
 - **Run files are the source of truth for WHERE** — every item being worked has
   `.aidlc/runs/<ID>.md` recording its phase, plan, assumptions, findings, and log. Everything
   the pipeline knows about in-flight work lives there, on the item's branch.
-- **You are the merge gate.** The pipeline takes an item from backlog to an open PR without
-  you; only a human merges. **No remote yet?** Set `git.mode: local` — instead of a PR the pipeline
+- **Process is proportional to consequence — not everything is a ticket.** Ask for a typo fix and you
+  get a typo fix: edited, gated, committed, no item and no PR. Ask for a feature and you get the full
+  pipeline. AIDLC picks the lightest tier that fits and says which one in a line; **"just do it", "no
+  ticket", "no PR" are honored as instructions**, not argued with. See §1b.
+- **You are the merge gate** for tracked work. The pipeline takes an item from backlog to an open PR
+  without you; only a human merges. **No remote yet?** Set `git.mode: local` — instead of a PR the pipeline
   proposes a local `--no-ff` merge after verify and waits for your OK; it never merges on its own.
 - **One repo or many.** In a **polyrepo** workspace (several git repos under one control plane), the
   model is *one **runnable leaf** → one repo → one branch → one PR*: the orchestrator routes each leaf
@@ -71,6 +75,47 @@ pipeline honors the setting everywhere: `/aidlc:intake` and `/aidlc:groom` propo
 and `/aidlc:run` treats an umbrella story as a coordinator (runs its per-repo tasks) instead of trying
 to run it as one repo.
 
+## 1b. How much process a change gets (and how to overrule it)
+
+Four tiers. AIDLC picks one, says which in a line, and does the work:
+
+| Tier | You get | For |
+|---|---|---|
+| **answer** | nothing but an answer | questions, opinions, "should we…" |
+| **direct** | a gated commit on your current branch | typos, renames, a log line, an obvious one-liner |
+| **tracked** | branch + run file + commits, PR optional | real work nobody needs a ticket for |
+| **full** | item → requirements → plan → implement → verify → PR | stories, features, team-coordinated work |
+
+```
+You: fix the typo in the header
+
+AIDLC: Direct — no item, no branch.
+  edited  src/components/Header.tsx
+  gate    lint ✓  typecheck ✓
+  commit  fix(header): correct "Dashbaord" typo   [on feature/PROJ-140]
+```
+
+**Overruling it, both directions.** *"just do it"* / *"no ticket"* / *"no PR"* drop the tier — they're
+instructions, and AIDLC won't try to sell you the tier you declined or ask twice. *"track this"* /
+*"make it an item"* promotes work **already done**: the item gets created and the existing commits linked,
+so starting light never traps you.
+
+**Setting the floor.** `pipeline.ceremony` in `.claude/aidlc.config.json`: `direct` (default) · `tracked`
+(nothing is ever untracked — always at least a branch and a run file) · `full` (everything through the
+pipeline, for audit-bound teams). It only ever raises the tier.
+
+**What doesn't scale down.** Two things, and they're what make the light tiers safe rather than sloppy:
+
+- **Your gate always runs.** Lint, typecheck, tests — resolved from *your* project's real commands — at
+  every tier including `direct`. Ceremony is what got cut; verification didn't.
+- **Five triggers pull work up regardless of the floor or what you asked for**, because each one names
+  something you can't fix by noticing it later: a diff touching **auth or tenant-isolation** paths; a
+  **destructive migration** under expand/contract; a change to a declared **API contract**; code an
+  **in-flight run already owns**; and an explicit pipeline request. None of them fire unless your config
+  actually declares the relevant paths — nothing is invented.
+
+So choosing `direct` isn't choosing to be careless. It's choosing not to file a ticket for a typo.
+
 ## 2. Command cheat-sheet — which command, when
 
 | Situation | Command |
@@ -89,7 +134,8 @@ to run it as one repo.
 | **The evaluation is over — take it out** | `/aidlc:remove` (`--dry-run` first). Deletes the framework's files, reverts only the sections it merged into `CLAUDE.md`/`settings.json`, and **keeps what you authored** — your ADRs, backlog, run history and the adoption report. Then verifies two things separately: `git status` shows **nothing outside the approved plan** (that is the promise), and each file it merged into is compared against `git show <adoption.commit>:<file>` — identical means restored, and any remaining difference is **your own edits since adoption**, shown for you to confirm rather than reported as a failure. The plugin itself goes with `/plugin uninstall` |
 | **A whole project from a requirements doc/brief** (Word/PDF or chat) → infers architecture (mono/poly, stack, monolith-vs-microservices), populated board + sprint plan | `/aidlc:bootstrap ./requirements.docx` |
 | **An opinion, not a task** — "would this feature sit right in our project?", "should we use X here?" | `/aidlc:do would a notifications service fit our architecture?` (grounded recommendation; **no item created**) |
-| Anything at all, and you'd rather not pick a command | `/aidlc:do <whatever>` — it grounds itself, then routes to the right one |
+| **A small obvious fix** — a typo, a rename, a stray log line, an off-by-one | `/aidlc:do fix the typo in the header` — done directly: edited, gated, committed on your current branch. **No item, no PR** (§1b) |
+| Anything at all, and you'd rather not pick a command | `/aidlc:do <whatever>` — it grounds itself, picks the lightest tier that fits, then routes |
 | **"I want X" — requirement in your head, not in the backlog yet** | `/aidlc:intake add avatar upload, max 5MB` |
 | Describe it AND build it in one go | `/aidlc:run add avatar upload, max 5MB` (free text → items → pipeline) |
 | "Just work on the next most important thing" | `/aidlc:next` |
@@ -135,7 +181,8 @@ start → requirements → design → implement → verify → pr → docs → d
    (visible on the item AND in the PR later — three chances to veto a bad one).
 3. **design** — plan written into the run file (architect agent for M+ items, with an ADR if
    the decision is hard to reverse).
-4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green.
+4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green. Where
+   the plan's tasks touch **provably disjoint files**, several implementers work them at once — see §3c.
 5. **verify** — agent-driven review, **each on its own cadence** (`pipeline.verification`). By
    default (economical) reviewer + QA are **on-demand** and security runs **per-epic** (confirmed),
    so a typical item runs no LLM agent here — the deterministic CI gate (lint/type/tests/boundaries)
@@ -214,6 +261,44 @@ so you know to look closely).
 **Feeding back your own review (manual mode):** after the PR opens, if you want changes, run
 `/aidlc:run <ID>` and describe the issues (or add them under `## Findings` in the run file) — the
 implementer fixes them, pushes to the same PR, and returns to `review-pending`. Merge when happy.
+
+### 3c. When one item is worked by several agents at once
+
+Two places the pipeline runs work concurrently inside a single feature. Both are on by default and
+neither trades away review.
+
+**Wide mechanical changes fan out across files.** Ask for *"pagination on every table"* and the plan
+comes out as a shared component plus one task per screen. The shared component is built first (everything
+depends on it), then the screens are implemented **in parallel** — up to `pipeline.implementFanout.maxAgents`
+(default 3, hard cap 5) at a time. You still get **one branch and one PR**: the agents edit and report,
+and the orchestrator does all the committing, so there is exactly one writer to git. The gate runs once,
+after the batch lands.
+
+What keeps it safe is that disjointness is **computed, not assumed** — a task that declares no files, or
+that touches something with one-writer semantics (a barrel export, a route table, a lockfile, an i18n
+catalog, a migration, a declared API contract), is run on its own and the run file says why. The
+`fanout:` line on the run file records exactly what overlapped, e.g. `1 -> [2|3|4] -> 5`.
+
+The one thing worth configuring is `implementFanout.sharedPaths`: if your project has its *own*
+aggregator — a central theme file, a generated registry, a hand-maintained DI container — name it there.
+The built-in list only knows the conventional ones. Set `enabled: false` to have every item implemented
+by a single agent start to finish.
+
+**Frontend and backend run at the same time, via a contract.** When a feature needs both, AIDLC does
+*not* queue the frontend behind the backend. It creates a small **contract item** first — an OpenAPI path,
+a GraphQL type, a `.proto` message, or a shared exported type — and then the backend and frontend items
+each depend on *the contract* rather than on each other. Once the contract lands, both run concurrently
+(their own repos, branches and PRs; `/aidlc:sprint` picks them up together). The frontend builds against
+generated types and contract-derived fixtures, so it never sits waiting for a running backend.
+
+Because each side is then verified only against the contract, the feature gets an **integration join**
+when both are done: your contract tests, or the e2e path that exercises the real call, run at the
+epic/feature level. If your project has neither, that is reported as a `MAJOR` finding rather than quietly
+passing — with the two sides built in parallel, the contract is the only thing holding them together, and
+you should know if nothing tests the seam.
+
+And the case that saves the most time: **when the interface already exists and your feature doesn't change
+it, there is no contract item and no waiting at all** — both sides start immediately.
 
 ## 4. Stopping and resuming (end of day → next morning)
 

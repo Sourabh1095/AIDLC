@@ -224,6 +224,56 @@ Worked example (a "Profile page" epic), both tiers, in the user-guide. The orche
 knob in `aidlc:run` §2/§2.5; authoring skills (`intake`/`groom`/`planning`) propose the matching shape.
 The **runnable leaf is single-repo in both** — only its tier differs.
 
+## Contract-first siblings (how frontend and backend run at the same time)
+
+A feature split across a backend and a frontend child has an interface between them, and **the interface
+is the only reason they cannot both start now.** The reflex is to chain them — `frontend dependsOn
+backend` — which is correct about the dependency and wrong about the cost: it serializes the whole
+feature to protect one unknown, the response shape.
+
+The other reflex, *start both and reconcile at the end*, is worse. Two agents that have each already
+written code against a shape they guessed do not "sync"; one of them gets rewritten, and which one
+depends on nothing more principled than whose work is cheaper to throw away. **Coordination after the
+code is the expensive place to put it.**
+
+So put it before the code. Decompose a feature with an interface into **three** children, not two:
+
+1. **The contract child** — a real, committed artifact in the repo that owns it: an OpenAPI path, a
+   GraphQL SDL type, a `.proto` message, a JSON Schema, or an exported type in a declared shared package.
+   Small (usually S), single-repo, its own branch and PR like any other leaf. It is a normal item — not a
+   ceremony, not a doc.
+2. **The implementation children** — backend and frontend, each `dependsOn: [<contract child>]` and
+   **explicitly NOT on each other**. That is the edge that makes them concurrent: `/aidlc:sprint`'s
+   independence check reads `dependsOn`, so two siblings that depend only on a landed contract are
+   selected together (and, in poly, they are in different repos, so they were already isolated).
+3. **The join** — integration verification at the parent tier, once both are terminal. Contract tests,
+   or an e2e path that exercises the real call. This is the step that actually proves "the thing works",
+   and it is where the epic/feature consolidation pass earns its keep (`aidlc:run` §2).
+
+The frontend child **must not sit idle waiting for a running backend** — that would reintroduce the
+serialization through the back door. It builds against the contract: generated types where the stack
+generates them, and fixtures/mocks derived from the contract where it doesn't. Its AC are satisfiable
+without the backend deployed; the join is what tests them together.
+
+**When NOT to do this — three cases, and the third is the common mistake:**
+
+- **No interface between the children** (a styling change plus an unrelated migration) → they were
+  always independent. Don't invent a contract child; just don't chain them either.
+- **The work is one-sided** (backend-only, frontend-only) → one child, nothing to coordinate.
+- **The interface already exists and this feature doesn't change it** → there is nothing to agree, so
+  there is no contract child *and no `dependsOn` edge*. Both children start immediately. Chaining
+  frontend behind backend here is pure lost time, and it is the easiest mistake to make because the
+  chain *looks* prudent. Check before you chain: read the existing contract, and if the shape the
+  frontend needs is already in it, say so on both items.
+
+Two constraints carried from elsewhere, because a contract child is exactly the kind of item they exist
+for: a change to a path declared in `saas.apiContracts` is **additive unless the item explicitly asks to
+break it**, and a `public: true` contract means external consumers, which the PR body must say plainly
+(`aidlc:run` §7, trigger 2). And if the contract turns out wrong once implementation starts — it does
+sometimes — that is a **scope change**, handled by the reconciliation in `aidlc:run` §1: amend the
+contract in a follow-up item, mark the affected tasks `[needs-rework]`, and never let the two
+implementation children quietly diverge from the artifact they both agreed to.
+
 ## Re-decomposition & supersession (don't drop requirements or orphan originals)
 
 When work is **re-decomposed** — an epic/feature/story split into new children that REPLACE existing

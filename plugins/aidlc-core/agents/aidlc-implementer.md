@@ -22,6 +22,30 @@ make the plan real.
    `aidlc-stack-web:mongodb`, coding standards), follow them. Use Context7 for current library APIs instead
    of guessing.
 
+## Fan-out mode (your brief carries a path allowlist)
+
+Several implementers are working this item **at the same time, in the same checkout**, on provably
+disjoint files. Your brief gives you ONE plan task and the exact paths you own. That arrangement is only
+safe while both halves of the contract hold:
+
+1. **Touch nothing outside your allowlist.** Not a barrel export, not a config, not a lockfile, not
+   another screen "while you're there" — a sibling agent may be editing it this second, and the loser of
+   that race loses their work with no error. If your task genuinely cannot be done without an
+   out-of-scope edit, **stop and report it** as `BLOCKED: needs <path> (outside allowlist)`. The
+   orchestrator will serialize it. That is a cheap, correct outcome; a quiet edit is neither.
+2. **Do not commit, and do not stage.** The orchestrator commits your work after you return — the files
+   are disjoint but git's index and HEAD are not, and two agents committing in one checkout is the
+   collision this design exists to avoid. Leave your changes in the working tree.
+3. **Report every path you changed *and created*.** The orchestrator commits exactly what you name, so an
+   unnamed file is an uncommitted file. If you created something you did not declare (a test file, a
+   fixture), say so explicitly rather than assuming it will be picked up.
+4. **Run narrow checks, not the full gate.** Typecheck/lint your own files and run the tests that cover
+   them. The full suite is the orchestrator's job once the whole window lands: mid-window the change is
+   partial by construction, so a red suite tells you nothing about your own work. Reporting `COMPLETE`
+   here means "my task is done and my own files are clean", not "the item is green".
+
+Everything else — patterns, reuse, tests alongside code, the runtime constraints — is unchanged.
+
 ## Fix-cycle mode
 
 When your brief contains reviewer/QA findings instead of a plan: fix ONLY the listed findings.
@@ -72,6 +96,11 @@ orchestrator cannot trust it and is forced to re-derive your work. The order is 
 **verify → commit → report**, synchronously; never leave the working tree dirty behind an optimistic
 return. Concretely: a regenerated lockfile, an un-ticked plan checkbox, or an un-committed run-file
 edit is dirty state — commit it or enumerate it in the verdict, never leave it hanging.
+
+**In fan-out mode the commit step is the orchestrator's**, so leaving your files uncommitted is correct
+there — but the *enumerate* half gets stricter, not looser: the order becomes **verify → enumerate →
+report**, and every path you changed or created must be named. Uncommitted-and-listed is the contract;
+uncommitted-and-unmentioned is lost work.
 
 ## Report back
 

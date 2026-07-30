@@ -9,8 +9,16 @@ user-invocable: false
 ## Writing a plan (run file `## Plan`)
 
 - 3–8 ordered checkbox tasks; each one commit-sized (a reviewable logical unit).
-- Ground every task in the code: name the files/modules it touches. A plan that never names a
-  file is a guess, not a plan.
+- Ground every task in the code: **declare the paths it touches** as a `paths:` list on the task. A plan
+  that never names a file is a guess, not a plan — and now it is also unschedulable: `aidlc:run` §6 reads
+  these to decide which tasks can be implemented concurrently, and a task with no declared paths is
+  always held serial. Prefer specific files over directories or globs (two globs cannot be proven
+  disjoint, so both get serialized).
+- **Mark ordering that the paths cannot show.** A task whose output later tasks build on is
+  `foundation: true`; a narrower edge is `dependsOn: <task ids>`. Declare one whenever a later task
+  imports, calls or renders what an earlier one produces — those tasks touch different files and are
+  still strictly ordered, and nothing can infer that from a file list. A needless edge costs a little
+  wall-clock; a missing one produces a broken build nobody can attribute.
 - Order: schema/data changes → backend logic → API surface → frontend → tests-not-yet-covered → docs touch-ups.
 - Last task is always: "run full suite + lint, tick verified AC on the item".
 - Note explicit NON-goals when the item borders adjacent scope ("does not touch avatar deletion").
@@ -38,7 +46,12 @@ So when decomposing:
   shape up front).
 - **`task` mode:** a **Story is the cross-repo umbrella**; scope every **Task to exactly one repo** (API
   task → backend, UI task → frontend, migration → db). The Story rolls up when its tasks complete.
-- Sequence cross-repo children with `dependsOn` (e.g. frontend `dependsOn` backend) — in both modes.
+- Sequence cross-repo children with `dependsOn` — in both modes — but **only for real order**. A
+  frontend/backend pair is **contract-first, not chained** (`aidlc:work-items` → *Contract-first
+  siblings*): where the interface is new, emit a small contract child and point **both** siblings at it
+  so they run concurrently; where the interface already exists unchanged, emit **no edge at all**.
+  `frontend dependsOn backend` serializes a whole feature to protect the one unknown a contract settles
+  in an S-sized item.
 - Workspace-level work (README, cross-repo docs, control-plane config) is a `control-plane`-targeted
   item, not a product-repo story.
 - When re-decomposing existing items, carry every original AC onto a child via an **AC coverage map**

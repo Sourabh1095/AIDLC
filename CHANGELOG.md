@@ -7,6 +7,173 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.36.0] — 2026-07-31
+
+### `aidlc` — ceremony is proportional to consequence (the adoption fix)
+
+Every release up to here made the pipeline *better*. This one makes it **usable**, which turned out to be
+a different problem.
+
+**The gap, in the framework's own words.** `do/SKILL.md` said:
+
+> *"Small changes are not an exception: one item → one branch → one PR still applies (per
+> `rules/git-workflow.md`, "even one-liners"). If that feels heavy for a typo, that is a real finding
+> about the pipeline — **raise it via `aidlc:dogfood`, don't route around it**."*
+
+That instructed the user to **file a complaint instead of getting their typo fixed**. Nobody files the
+complaint. They stop using the tool — and the real cost is not the typo: a pipeline that is unpleasant for
+small work loses the audit trail on the **large** work too, because people route around it for everything
+or uninstall it. The rigidity wasn't one line, either: `intake` said *"NEVER start implementing from a raw
+requirement — items first, always"* and *"never code directly"*; `rules/git-workflow.md` said *"Even
+one-liners"*; and `templates/project/CLAUDE.md` carried the heading **`## AIDLC workflow (mandatory)`** —
+which lands in **always-loaded context**, so every session opened by telling the model the ceremony was
+compulsory.
+
+**The fix — four tiers, picked and announced, never argued** (new `aidlc:ceremony`, D10). It mirrors how
+Claude Code itself works: answer → edit → commit → PR, with the user choosing where to stop.
+
+| Tier | Produces | For |
+|---|---|---|
+| **answer** | nothing | questions, opinions, diagnoses |
+| **direct** | a gated commit on the current branch | typos, renames, a log line, an obvious one-liner |
+| **tracked** | branch + run file + commits, PR optional | real work nobody needs a ticket for |
+| **full** | the pipeline, unchanged | stories, features, team-coordinated work |
+
+- **`/aidlc:do` gained a DIRECT route** and does that work itself — edit, run the project's resolved gate,
+  commit, report in four lines. It is now the only place in the framework where `do` writes product code,
+  and deliberately so.
+- **Committing on the default branch is allowed at tier 1**, because the risk being managed is
+  *irreversibility*, not ceremony: a local commit is `git reset` away, and the branch-aware push guard
+  still stands between it and anyone else. D6 is restated accordingly — the invariant that survives every
+  tier is **"nothing reaches the default branch unattended"**, which is narrower and sharper than "one PR
+  per change".
+- **`pipeline.ceremony` sets the floor** — `direct` (default) · `tracked` · `full`. It only ever *raises*
+  the tier. Absent config resolves to `direct`, so no project needs migrating; `full` reproduces
+  pre-0.36.0 behaviour exactly for a team that wants it.
+- **De-escalation is first-class, which is the actual behavioural change.** *"just do it"*, *"no ticket"*,
+  *"no PR"* are **instructions, not objections to argue with**: drop to the tier named, confirm in one
+  line, proceed. Explicitly prohibited — selling the user the tier they just declined, asking twice, and
+  quietly re-adding the ceremony later in the same run.
+- **Promotion keeps starting light safe.** *"track this"* creates the item and links the commits already
+  made, so a tier-1 change that turns out to matter is never trapped at its tier.
+
+**What deliberately did NOT scale down** — the two properties that make this lenient rather than sloppy:
+
+1. **The project's gate runs at every tier**, `direct` included, resolved from the project's own commands
+   (`resolve-gate.mjs`). Ceremony is what was cut; verification wasn't.
+2. **Five escalation triggers override the floor *and* the user's stated preference**, because each names
+   something **not recoverable by noticing it later**: auth/tenant-isolation paths, a destructive migration
+   under `expand-contract`, a declared `apiContracts` path, code an in-flight run already owns, and an
+   explicit pipeline request. None fire on an absent config field — the pipeline still never invents a
+   constraint it has no evidence for. Choosing `direct` is not choosing to be careless; it is choosing not
+   to file a ticket for a typo.
+
+**Rewritten at the source, not patched over:** `do` (DIRECT route, tier announcement, the dogfood line
+deleted), `intake` (both absolutist rules, now scoped to *this door* rather than to every change),
+`rules/git-workflow.md` ("even one-liners" → tier-aware, push-focused), `git-workflow` (scoped to tracked
+work up front, so the branch/PR machinery isn't applied to a typo), `run` (states it *is* tier 3 — an
+explicit pipeline request is honored, never optimized down), and the project `CLAUDE.md` template (the
+`(mandatory)` heading is gone; the always-loaded lines now lead with proportionality). `/aidlc:init` asks
+about it at step 5b and is told **not** to present `full` as the "serious" option, because it isn't.
+
+**Unchanged by design:** 0.35.0's fan-out is internal (it never asked the user for ceremony), and
+contract-first only applies when a feature is already being decomposed — under the tier model it simply
+does not fire below tier 3.
+
+## [0.35.0] — 2026-07-31
+
+### `aidlc` — concurrency inside a single feature: fan-out across files, and frontend beside backend
+
+Until now AIDLC parallelized exactly one thing: independent backlog **items**, via `/aidlc:sprint`.
+Inside a feature everything was serial — one implementer per item, and a frontend child chained behind
+its backend sibling. Both were defensible, and both were serializing more than the underlying risk
+required. This release adds concurrency at two finer grains, each with the safety property it actually
+needs rather than the one it inherited.
+
+**1 · The implement phase fans out across provably disjoint files** (`pipeline.implementFanout`).
+
+Ask for *"pagination on every table"* and the plan is a shared component plus one task per screen. Those
+screens never touch each other, and D7 was serializing them anyway. Reading D7 again shows why: it
+serializes what *mutates a shared tree*, and **the shared thing is git, not the code**. Two agents
+racing `git add`/`commit` in one checkout collide; two agents editing `users.tsx` and `orders.tsx` do
+not. So the fix removes the racing committer, not the parallelism.
+
+- **The agents edit and report; the orchestrator commits.** Each fan-out implementer gets one plan task
+  and a **path allowlist**, must not touch anything outside it, and must not commit or stage. The
+  orchestrator commits each task's declared paths in plan order. **One writer to git, always** — and
+  still one item, one branch, one PR, so the review unit is unchanged.
+- **The gate runs once, after the window lands** — not per agent. A window is a partial change by
+  construction, so a mid-window gate failure says nothing, and running the full suite N times is the
+  most expensive way to learn that.
+- **`skills/run/resolve-fanout.mjs` computes the schedule** (55 test cases pin it), for the same reason
+  `resolve-gate.mjs` exists: the failure mode is silent. Two agents handed overlapping paths do not
+  error — they interleave edits and the loser's work vanishes mid-file, with the tests passing against
+  whatever survived. It refuses to guess three things, each chosen against the asymmetry that
+  over-serializing costs wall-clock and *says so*, while under-serializing loses code and says nothing:
+  a task with **no declared paths** is never parallelized; **two globs** that can't be compared cheaply
+  are assumed to overlap; and **disjoint paths do not imply independence** — a task whose output a later
+  task imports must declare `foundation`/`dependsOn`, because no path analysis can see an import edge.
+- **Aggregators stay single-writer** by default: manifests and lockfiles, barrel modules (`index.ts`,
+  `__init__.py`, `mod.rs`), route tables, i18n catalogs, global styles, tool config, snapshots,
+  migrations, and every path in `saas.apiContracts`. `implementFanout.sharedPaths` is where a project
+  names **its own** aggregator (a central theme file, a generated registry) — the one setting a stranger
+  to the codebase cannot infer.
+- **Order is never rearranged.** The resolver only collapses *contiguous* plan tasks into a window, so a
+  plan read top to bottom still describes what happens. The run file records the schedule
+  (`fanout: 1 -> [2|3|4] -> 5`), and every serialized task carries a stated reason.
+- Plans now declare `paths:` per task (`aidlc:planning`, `aidlc:run` §5). `planning` already asked for
+  the files a task touches — *"a plan that never names a file is a guess"* — this makes that answer
+  load-bearing instead of advisory.
+- **Undeclared writes are a finding, not a shrug.** After a window, `git status` must be clean; anything
+  left over is a path an agent touched without declaring, and it goes into `## Findings` as a fan-out
+  contract violation — an undeclared write is precisely what the disjointness proof assumed away.
+- Defaults: **enabled**, `maxAgents: 3` (hard cap 5, mirroring `sprint` — one item must not spawn a
+  fleet), `minGroup: 2`. Absent config resolves to those, so **no existing project needs migrating**;
+  `enabled: false` restores pre-0.35.0 behaviour exactly.
+
+**2 · Frontend and backend are built at the same time, against a contract that lands first** (D9).
+
+`intake`/`planning` authored `frontend dependsOn backend` reflexively. That edge is right about the
+dependency and wrong about its price: it serializes a whole feature to protect one unknown — the
+response shape. The tempting alternative, *start both and reconcile at the end*, is worse: two agents
+that each wrote code against a shape they guessed don't "sync", one of them gets rewritten, and which
+one is decided by whose work is cheaper to discard. **Coordination after the code is the expensive place
+to put it.**
+
+- **Decomposition emits three children, not two:** a small **contract child** (OpenAPI path, GraphQL SDL
+  type, `.proto` message, JSON Schema, or an exported type in a declared shared package) as a normal
+  single-repo leaf, then backend and frontend each `dependsOn` **the contract** and **not each other**.
+  That is the edge that makes them concurrent — `sprint`'s independence check reads `dependsOn`, and in
+  poly they were already in separate repos.
+- **The frontend never idles on a running backend:** its AC are satisfiable against generated types and
+  contract-derived fixtures. Without that, the serialization returns through the back door.
+- **A ready wave runs as a wave.** `run` §2.5 no longer walks ready children one at a time: once a wave's
+  dependencies are terminal, its children are independent *by construction* — that is what the graph
+  asserts — so the wave goes to `/aidlc:sprint`. Walking it serially isn't safer, just slower.
+- **The join, which is the cost this design pays.** Neither child's own green run proves the feature
+  works — each was verified against the contract, never against the other. So the epic/feature
+  consolidation pass (§2) now runs an **integration join**: the project's contract tests, or the e2e path
+  exercising the real call, resolved from the repos' own gates (**no test framework is invented** for a
+  project that has none). A project with neither gets a **`MAJOR` finding, not a pass** — with both sides
+  built in parallel the contract is the only thing holding them together, and a team that can't test the
+  seam should know that is what it chose. A red join is a feature-level blocker; the parent never closes
+  over one.
+- **The corollary saves the most time and is the easiest to miss:** where the interface **already exists
+  and the feature doesn't change it**, there is **no contract child and no edge at all** — both sides
+  start immediately. `sprint` is told explicitly not to re-derive a frontend-waits-for-backend edge from
+  item titles or from the fact that one calls the other's API; the contract is the artifact that removed
+  that edge, and re-adding it there silently undoes the decomposition.
+
+**Also:** `docs/aidlc.config.schema.json` documents `implementFanout`; the run-file template and
+`aidlc:run-state` carry `fanout:` and the per-task `paths:` shape; `aidlc:init` asks about fan-out (step
+8); `aidlc-implementer` gains *Fan-out mode* with the allowlist/no-commit contract and a matching
+carve-out in its Finish contract, which otherwise mandates the commit it must not make; D7 is narrowed
+rather than repealed, and D9 is new. Total suite: **549 test cases**, all passing.
+
+**Not included, deliberately:** `/aidlc:adopt` does not yet *derive* `sharedPaths` from a codebase scan.
+It could — aggregators are visible to a scan — but that is its own feature, and the built-in list plus a
+documented knob is safe without it. Adoption also needs no migration: absent config resolves to defaults.
+
 ## [0.34.5] — 2026-07-31
 
 ### `aidlc` — the pipeline can no longer start itself, and QA stops moving the diff under the reviewer

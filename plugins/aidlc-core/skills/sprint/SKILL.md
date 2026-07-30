@@ -21,6 +21,13 @@ hard cap 5.
    board). **In poly, items in different repos are inherently independent** unless a `dependsOn`
    edge links them — cross-repo children of one epic parallelize freely once their dependencies
    have landed.
+   **Contract-first siblings are the case this matters most for** (`aidlc:work-items` → *Contract-first
+   siblings*): a backend and a frontend child that both `dependsOn` a **landed** contract child, and not
+   on each other, are independent **by declaration**. Select them together. Do not re-derive a
+   frontend-waits-for-backend edge from their titles or from the fact that one calls the other's API —
+   the contract is precisely the artifact that removed that edge, and re-adding it here silently undoes
+   the decomposition. The analyst's overlap check still applies to *files*, which in poly they don't
+   share anyway.
 3. **One in-flight item per working tree.** Two selected items that resolve to the **same** repo
    would branch and commit in the same checkout. In poly (control-plane launch, §2) that is a hard
    constraint: keep the first, **queue** the second behind it. Same for two `control-plane` items.
