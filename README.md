@@ -55,6 +55,22 @@ For local development of this repo: `claude --plugin-dir <your-clone>/plugins/ai
 5. Run `/aidlc:next` — the pipeline takes it from there, verifying against **your** gate rather than
    assumed npm scripts.
 
+**Brownfield and multi-repo are the same door.** The unit of adoption is the **workspace**, not the repo:
+one folder with repos inside it, or a multi-root VS Code `.code-workspace` whose folders live anywhere —
+different parents, different drives, a UNC share. One `/aidlc:adopt` classifies every root and profiles
+each on its own terms, so a Django service, a Go proxy and a pnpm/Turborepo frontend in one workspace end
+up with three different gates, three commit conventions and three default branches. The folder holding
+your board and ADRs is recognised as the control plane and is never made a routing target.
+
+*Verification status:* every command in the adoption set — `adopt`, `adopt-apply`, `adopt-adr`,
+`adopt-backlog`, `remove` — has been run end to end against a purpose-built multi-root fixture (a
+multi-tenant Django service, a three-package pnpm/Turbo monorepo, a Go proxy on a `trunk` branch outside
+the control plane, a non-repo docs folder and a not-yet-cloned repo), including the drift, in-place
+upgrade and clean-removal paths. That surfaced **14 defects, none of which raised an error** — all fixed,
+with 373 test cases now guarding the parts that fail silently. What has *not* happened yet is an adoption
+of a real third-party repository; see `docs/brownfield-adoption.md` for exactly what is proven and what is
+still open.
+
 See `docs/adoption-guide.md` for the full walkthrough, including MCP authentication.
 **New to the framework?** Start with `docs/example-walkthrough.md` — empty folder → typed
 requirement → working full-stack app, every command included.

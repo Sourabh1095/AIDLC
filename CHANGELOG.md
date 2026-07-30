@@ -7,6 +7,60 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.34.4] — 2026-07-31
+
+### `aidlc` — the orchestrator now knows the brownfield door exists
+
+0.34.0–0.34.3 made brownfield adoption work and proved it. This makes the framework *reach for it*, and
+corrects the docs those four releases made stale.
+
+**The gap.** `/aidlc:do` — the general front door, which grounds before it routes — handled a missing
+config with one line: *"tell the user to run `/aidlc:init`, stop."* No distinction between an empty folder
+and an existing codebase. So a user who opened a workspace holding four repos and asked for a change was
+pointed at the greenfield setup path, and the brownfield door existed without anything routing to it —
+which is exactly the failure the epic was written to prevent: topology, stack, gate commands and git
+conventions answered from memory about a codebase nothing has read, then written into `CLAUDE.md` as
+ground truth. `/aidlc:next` had the same gap, and neither `sprint`, `status`, `intake`, `groom`,
+`planning` nor `requirements` mentioned adoption at all.
+
+- **`do` §1 now looks at the folder before it answers.** Existing code (a manifest, or a `.git` with
+  history, here or one level down) ⇒ say *`/aidlc:init` choosing "there's existing code — scan it"*, which
+  routes to `/aidlc:adopt` — and say that **one scan covers every repo in the workspace**, so nobody is
+  told to adopt them one at a time. An empty folder ⇒ `init` then `bootstrap`. It also gained a grounding
+  step for a config that **came from a scan**: `architecture.resolvedBy: "codebase-scan"` means `repos[]`,
+  `packages[]`, `pipeline.gates.verify` and `saas` are evidenced and should be trusted over a fresh read
+  of the tree — and a staleness note that compares `adoption.commit` to HEAD **excluding
+  `.aidlc/adoption/`**, since committing the profile is itself what moves HEAD.
+- **`next` gained a step 0** with the same discriminator: picking "the next item" from a project that was
+  never set up is not a useful answer.
+
+**Docs corrected, including two lines these releases made wrong.**
+
+- `docs/user-guide.md` said *"a gate you don't have is recorded `absent` and reported per run as a coverage
+  hole"* — true but now incomplete, since `not-applicable` exists and is deliberately **never** a finding.
+- It also described `/aidlc:remove` verifying with `git diff` that your files are untouched, which is the
+  behaviour 0.34.2 replaced: the check is now `git status` ⊆ the approved plan, plus a per-file comparison
+  against `git show <adoption.commit>:<file>` where any remainder is **your own edits**, shown to confirm.
+- The `saas` row now notes that a security-review path you delete on purpose stays deleted.
+
+**Docs extended**, so the mechanics stop living only in the design spec:
+
+- `docs/adoption-guide.md` gains a table of what adoption does with **each kind of root** it finds
+  (product repo · monorepo → `packages[]` · control plane, excluded from routing by name · non-repo ·
+  not-cloned · outside the control plane → absolute path), a note that discovery reads the JSONC
+  `.code-workspace` **and** scans for nested repos because using one alone collapses a six-root workspace
+  into one, the `--add-dir` reachability point, and a new *Reading the profile and the config it produces*
+  section covering the five values that mean something narrower than they look: the three gate statuses,
+  the four support values, `adoption.writes[]`, `adoption.seeded` and `repos[].adoptedFromRoot`.
+- Its **Polyrepo** section now tells a brownfield reader not to hand-fill `repos[]` at all — adopt derives
+  every field with evidence, including the ones easiest to get wrong from memory.
+- `README.md` states the claim directly (brownfield and multi-repo are the same door; the unit is the
+  workspace) with an honest **verification status**: every command run end to end against a purpose-built
+  multi-root fixture, 14 defects found and fixed, 373 guarding test cases — and no adoption of a real
+  third-party repository yet.
+- `docs/brownfield-walkthrough.md` shows all three gate statuses where a reader first meets them, since a
+  Django service really does have `build: not-applicable`.
+
 ## [0.34.3] — 2026-07-31
 
 ### `aidlc` — brownfield: the last two adoption commands, and two more defects

@@ -5,6 +5,11 @@ description: Pick the highest-priority ready work item from the backlog and run 
 
 # /aidlc:next — pick and run the next item
 
+0. **No `.claude/aidlc.config.json`?** There is no backlog to pick from yet. Look at the folder first:
+   **existing code** → `/aidlc:init` choosing *"there's existing code — scan it"*, which routes to
+   `/aidlc:adopt` so the topology, stack, gate and conventions come from the code rather than from
+   memory (one scan covers every repo in the workspace); an **empty folder** → `/aidlc:init`. Say which
+   and stop — picking "the next item" from a project that has not been set up is not a useful answer.
 1. Route to the active work-item adapter (`aidlc:work-items` → config).
 2. `query({status: "todo", limit: 5})` — ready items in priority order.
 3. **Skip** items that already have a run file in a non-terminal phase (in-flight or blocked) —

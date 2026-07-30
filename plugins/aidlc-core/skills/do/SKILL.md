@@ -18,19 +18,36 @@ commit. That is a successful outcome, not a bailout — do not manufacture work 
 Load in this order and stop as soon as you can answer. This is a floor, not a budget to spend:
 
 1. `.claude/aidlc.config.json` — project key, layout, repo registry, stack, default branch.
-   Missing → tell the user to run `/aidlc:init`, stop.
-2. **In-flight runs** — the control-plane `.aidlc/runs/*.md` **and** each declared repo's
+   **Missing → look at the folder before you answer, because the right door depends on what is there:**
+   - **Existing code** (any manifest, or a `.git` with history, in this folder or a subfolder) →
+     **`/aidlc:init` and choose *"there's existing code — scan it"*, which routes to `/aidlc:adopt`.**
+     Say that explicitly rather than just naming init. This is the whole point of the brownfield door:
+     without it, topology, stack, gate commands and git conventions get answered from memory about a
+     codebase nothing has read, and every wrong answer is written into `CLAUDE.md` and steers every
+     later run. A workspace holding several repos is the normal case here — adopt profiles and
+     configures **all** of them from one control plane, so do not suggest adopting them one at a time.
+   - **An empty or nearly-empty folder** → `/aidlc:init`, then `/aidlc:bootstrap` if they have a
+     requirements document.
+
+   Then stop either way. Do not attempt to route a prompt against a workspace you have no config for.
+2. **A config that came from a scan** — `architecture.resolvedBy: "codebase-scan"` means the facts below
+   were derived from the code by `/aidlc:adopt` at `adoption.commit`. Two consequences for routing:
+   `repos[]`, `packages[]`, `pipeline.gates.verify` and `saas` are **evidenced**, so trust them over
+   your own reading of the tree; and if the code has moved a long way since — compare `adoption.commit`
+   to HEAD **excluding `.aidlc/adoption/`**, since committing the profile itself moves HEAD — mention
+   that a re-scan would refresh them. Mention it once, as a note; do not block on it.
+3. **In-flight runs** — the control-plane `.aidlc/runs/*.md` **and** each declared repo's
    `<repo.path>/.aidlc/runs/*.md` (the same multi-location scan `/aidlc:status` uses). A run that
    already owns the code this prompt touches changes every route below.
-3. **Backlog index** — `adapter.query` over open items via `aidlc:work-items`, **titles only**.
+4. **Backlog index** — `adapter.query` over open items via `aidlc:work-items`, **titles only**.
    Enough to spot overlap; you are not reading bodies yet.
-4. **ADR titles** — the H1/frontmatter of `docs/adr/*.md`. Read a full ADR only when the prompt
+5. **ADR titles** — the H1/frontmatter of `docs/adr/*.md`. Read a full ADR only when the prompt
    touches its decision. **An ADR at status `accepted (retroactive)` is a decision derived from the
    code by `/aidlc:adopt-adr`, and its Rationale may read *"not recorded"*** — the *what* is binding,
    the *why* is genuinely unknown. Cite it as the decision it is, but never quote its blank rationale
    as agreement, and never infer one; if the prompt turns on why, say the reasoning was never recorded
    and offer to ask the team.
-5. **The project's runtime constraints** — `saas` in config (or on the resolved repo entry), where the
+6. **The project's runtime constraints** — `saas` in config (or on the resolved repo entry), where the
    project has one: tenancy model, whether releases ride feature flags, migration constraints, which
    API files are public contracts. On a live SaaS these decide more about whether an idea fits than the
    stack does, and they are the facts a cold read has no way to know.

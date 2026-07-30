@@ -63,11 +63,37 @@ and `aidlc.config.json` as ground truth and silently steers every later run. So 
 cd your-workspace
 claude
 /aidlc:init             # choose the "there's existing code — scan it" path
-/aidlc:adopt            # read-only scan; or: /aidlc:adopt --depth quick
+/aidlc:adopt            # read-only scan; or: /aidlc:adopt --depth quick|deep
 /aidlc:adopt-apply      # shows the diff, writes only what you approve
 /aidlc:adopt-adr        # optional: record the decisions your code already embodies
 /aidlc:adopt-backlog    # optional: file the debt the scan found as tracked work
 ```
+
+**One scan covers the whole workspace, not one repo.** The unit of adoption is the *workspace* you
+opened — one folder with repos as subfolders, or a multi-root VS Code `.code-workspace` whose folders
+sit anywhere, including outside the workspace folder or on another drive. `/aidlc:adopt` reads the
+`.code-workspace` file (JSONC — comments and trailing commas and all) **and** scans for nested repos,
+because using only one of those is how a six-root workspace collapses into one. Then it classifies every
+root and profiles each on its own terms:
+
+| Root it finds | What happens |
+|---|---|
+| a **product repo** | becomes a `repos[]` entry — its own stack, gate, git conventions and runtime constraints |
+| a **monorepo** (pnpm/Nx/Turbo/Lerna/Maven/Cargo workspace) | one `repos[]` entry **plus `packages[]`**, so work routes to a package and its gate scopes to it |
+| the **control plane** (the folder holding the board, the ADRs and the config) | classified `control-plane` and deliberately **excluded** from `repos[]` — it is not a routing target, so no item is ever dispatched to a repo with no code |
+| a **non-repo folder** (docs, scratch) | recorded with the reason it was excluded |
+| a repo **declared but not cloned** | recorded, never given a fabricated path; clone it and re-scan |
+| a repo **outside the control plane** | gets an **absolute** `repo.path`, and the control plane's gitlink protection is reported as *inapplicable* rather than missing |
+
+Different repos get different answers, which is the point: a Django service, a Go proxy and a
+pnpm/Turborepo frontend in one workspace end up with three different gates, three commit conventions and
+three default branches — including a `trunk` or `dev` default, where the pipeline routes correctly but
+the `guard` hook's name-based protection does **not** cover it, and `/aidlc:adopt-apply` says so and
+points you at host-side branch protection.
+
+**Reachability matters in a multi-root workspace.** A root outside the folder Claude Code was started in
+may not be readable by the session. The scan proves it can read each root and, where it cannot, gives you
+the exact `--add-dir` remedy — it never reports a repo as profiled when it could not open it.
 
 Later, and equally part of the lifecycle: `/aidlc:adopt` again for a **drift report** against the last
 scan, `/aidlc:adopt-apply --only <repo>` to widen a **pilot** one repo at a time, and `/aidlc:remove` if
@@ -206,6 +232,33 @@ Four things happen after the first adoption, and all four are first-class:
 Nothing in any of this fixes what the scan finds — adopt reports and proposes; fixing is normal pipeline
 work through the normal doors.
 
+### Reading the profile and the config it produces
+
+Five values are worth knowing, because they each mean something narrower than they look:
+
+- **A gate is `present`, `absent`, or `not-applicable`.** `absent` is a gate your project *could* have and
+  does not — a **coverage hole**, reported in every run's `## Findings` and never counted green.
+  `not-applicable` is a step your **stack** has no concept of: a Django service is deployed from source so
+  has no `build`; Go type-checks during `go build` so has no separate `typecheck`. Those are listed once as
+  inapplicable and are **never** findings. The distinction exists because a hole nobody can ever fill
+  trains you to skip the section that matters.
+- **A surface is `supported`, `partial`, `unsupported`, or `not-present`.** The first three describe what
+  *AIDLC* covers — `partial` is the usual answer for a non-TypeScript stack, meaning the pipeline runs your
+  real gate but coding-standards guidance falls back to the language-agnostic core. **`not-present`** is
+  different: it means *your project* does not have that surface (no CI, no release tooling). That is a fact
+  about your repo, so it goes to the debt findings, not to AIDLC's capability gaps.
+- **`adoption.writes[]`** records every file adoption touched and how — `created`, `merged` (with the
+  sections it added) or `rendered`. This is what makes `/aidlc:remove` able to revert *sections* rather
+  than guess which `CLAUDE.md` lines were ours.
+- **`adoption.seeded`** records the paths adoption contributed to `pipeline.securityReviewPaths`. It exists
+  so that a path **you deleted on purpose** is not silently re-added on the next apply: without it, "absent
+  because never seeded" and "absent because you removed it" look identical, and a union merge would restore
+  your deletion under a diff that looks like routine convergence.
+- **`repos[].adoptedFromRoot`** maps a config repo back to the profile root it came from, when the names
+  differ — your `.code-workspace` may name a folder `billing-api` while the routing id is `api`. Items and
+  ADRs resolve through it, because an item stamped with a repo name that matches nothing runs **no gate at
+  all** and reports green.
+
 ### What lands in your repo
 
 | Path | Purpose |
@@ -266,8 +319,17 @@ the env vars. Database servers must use **read-only** users; pipeline writes go 
 ### Polyrepo: many repos in one workspace
 
 Use this when your product is split across separate git repos (e.g. `backend/`, `frontend/`,
-`website/`, `mobile/`) instead of one repo for everything. Run `/aidlc:init` in the **workspace root**
-(the "control plane") and choose the **poly** layout — or edit the config by hand:
+`website/`, `mobile/`) instead of one repo for everything.
+
+> **If those repos already exist, do not fill this in by hand — run `/aidlc:adopt`.** It derives every
+> field below from the code, with `path:line` evidence for each, including the ones easiest to get wrong
+> from memory: each repo's real gate commands, its actual default branch, its commit and merge
+> conventions, and the monorepo `packages[]` of any repo that has them. See *Brownfield: scan the code
+> before you answer the Q&A* above. The steps below are for a **greenfield** poly workspace, or for
+> checking what adopt produced.
+
+Run `/aidlc:init` in the **workspace root** (the "control plane") and choose the **poly** layout — or
+edit the config by hand:
 
 1. Set `workspace.layout: "poly"` and, if the repos live somewhere other than direct subfolders,
    `workspace.root`.

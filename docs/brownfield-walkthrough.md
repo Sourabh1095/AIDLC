@@ -119,6 +119,20 @@ web           default main · squash-only · commit style conventional · no COD
 Security-review paths, regardless of cadence:
   billing/tenancy/middleware.py · billing/auth/ · billing/subscriptions/
 
+## The gate, per repo — three statuses, and the difference matters
+  billing-api   lint  ruff check .      present
+                test  tox -e py312      present   (needs postgres — a failure here is
+                                                   "environment unavailable", not "code broken")
+                typecheck               ABSENT           -> a coverage hole: you could add mypy
+                format                  ABSENT           -> a coverage hole: you could add black
+                build                   NOT APPLICABLE   -> a Django service is deployed from
+                                                            source; there is no artefact to build,
+                                                            so this is never reported as a hole
+
+  An `absent` gate appears in every run's `## Findings` until you fill it, which is deliberate.
+  A `not-applicable` one is listed once and never again — a finding nobody can ever close is how
+  teams learn to skip the section.
+
 ## Debt the scan found — 4 findings, nothing created
   high    unreviewed-sensitive-path  tenancy/middleware.py has one commit and no test beside it
   medium  absent-gate                billing-api has no typecheck gate
@@ -191,7 +205,8 @@ What lands, abridged:
           { "name": "test",      "status": "present", "cmd": "tox -e py312",  "required": true,
             "environmentDependent": true, "services": ["postgres"] },
           { "name": "typecheck", "status": "absent",  "required": false },
-          { "name": "format",    "status": "absent",  "required": false }
+          { "name": "format",    "status": "absent",  "required": false },
+          { "name": "build", "status": "not-applicable", "required": false }
         ] }
       }
     }
