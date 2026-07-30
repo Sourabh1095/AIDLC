@@ -1,8 +1,10 @@
 # Brownfield Adoption — spec
 
 **Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** (+ **0.31.1** fixes); Phase 3 in
-**0.32.0**; Phase 4 in **0.33.0** — see *Implementation status* below. All four phases are now
-implemented; what remains open is **verification against real projects**, tracked per phase.
+**0.32.0**; Phase 4 in **0.33.0**. All four are implemented. **0.34.0** carries the first live run of the
+Phases 3–4 **scan** half — seven defects, every one of which produced a plausible profile rather than an
+error; see *Phase 3/4 — the live scan run* below. `/aidlc:adopt-apply`, `-adr`, `-backlog` and the Phase 4
+lifecycle legs remain unexercised, and are listed there.
 **Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
@@ -324,6 +326,157 @@ exactly as Phases 2 and 3 did. What needs a real project rather than a fixture:
   exact, but it is a **worked example, not a transcript**: no genuinely existing third-party repo has been
   taken from `/aidlc:adopt` to a merged PR. The document says so in its own preamble rather than implying
   a session that did not happen. That checkbox stays open, and closing it means adopting a real repo.
+
+### Phase 3/4 — the live scan run (2026-07-31)
+
+Phases 3 and 4 shipped specified-but-unexercised, and the Phase 2 lesson was recorded at the time: *each
+of those would fail by producing a plausible result rather than an error.* That held exactly. A live run of
+the **scan** half — `/aidlc:adopt` at `--depth standard`, then a re-scan at `--depth deep` — found **seven
+defects, none of which errored.** Every one produced a well-formed, fully-cited, validator-passing profile
+that was wrong.
+
+**The fixture.** A multi-root JSONC `.code-workspace` declaring six folders: a **control plane that is its
+own git repo** (board, ADR index, a hand-authored `CLAUDE.md`); a **shared-schema multi-tenant Django
+service** (a `TenantScopedModel` base across 8 models, a `ContextVar` scoping middleware, a filtering
+default manager, a paired add-nullable → batched-backfill → drop-two-releases-later migration trio, a
+public OpenAPI contract, Celery, Sentry, LaunchDarkly, a SOC 2 control mapping, a canary deploy behind a
+change-freeze guard, and `Makefile` gates with no typecheck and no formatter); a **pnpm + Turbo +
+changesets monorepo** (three packages, a `workspace:` dependency edge beside an external one, one package
+changeset-ignored and private, one with no `test` script, one with no `lint` script); a **non-repo docs
+folder with a space in its name, sitting inside the control plane's work tree**; a **Go proxy on a `trunk`
+default branch, outside the control plane, with no CI and no test files**; and a **declared-but-absent
+root**. Planted debt: a committed AWS-shaped credential reachable in history, a PII fixture loaded by a
+Make target, mixed CRLF/LF with no `.gitattributes`, EOL-declared runtimes, a TODO cluster, a README
+command that does not exist, and a *closed* board item claiming the credential had already been rotated.
+
+**Confirmed working.** JSONC parsing (a strict `JSON.parse` does throw on the file, and the documented
+fallback would have collapsed six roots into three); the two-file write guarantee, *verified* by
+`git status --porcelain` at the control plane and every root rather than asserted; `--depth standard`
+leaving §5 honestly `unknown` with *"not sampled at this depth"* on all six source-evidenced constraints,
+then `--depth deep` resolving tenancy to `shared-schema` on `tenant_id` with schema-per-tenant and
+database-per-tenant explicitly excluded as counter-evidence; `liveDataConstraint: expand-contract` derived
+from the **paired migration bodies** rather than from the policy document that also states it;
+`securityReviewPathSeeds` unioning the isolation, auth, billing and audit paths; `packages[]` with names
+taken from each manifest rather than the folder, `dependsOn` resolving to siblings while an external
+dependency in the same block is correctly excluded, and `releasable` false for the changeset-ignored
+private package against true for the two published ones; Phase 2's `defaultBranch` chain answering `main`
+at `medium` through its *"or reaches it"* ancestry clause; `branchPattern` recovered from merge subjects on
+the repo that deletes merged branches and left honestly `unknown` on the two that squash; `mergeStrategy:
+squash` separated from rebase by the `(#nnn)` subject suffix; the CI-declared gate **order** mirrored per
+root; `required: false` on the `continue-on-error` scan with that evidence cited; the compose-backed `test`
+flagged environment-dependent with a timeout taken from CI rather than estimated; `providedByHook`
+suppressing the AIDLC pre-commit layer where husky already runs; and a re-scan producing `changes: []` with
+`depthChanged: true`, so eleven newly-known facts did not masquerade as movement.
+
+**Seven defects, all fixed. The two structural ones first.**
+
+1. **The §3 boundary probe compared paths in different *forms*, so every repo was classified "not a repo,
+   enclosed by itself".** `git rev-parse --show-toplevel` always answers in Windows drive form
+   (`C:/Users/…`); the §1.2 folder scan hands you MSYS form (`/c/Users/…`), because Claude Code's Bash tool
+   on Windows *is* Git Bash. The skill named exactly two normalisations — separators and case — and drive
+   form is neither. Consequences: `vcs.system` falling back to markers alone, and — per §3's own closing
+   rule — the **control plane** not being its own repo root, which drops `scan.commit` to `unknown`, the
+   value both `adopt-apply`'s staleness check and `/aidlc:remove` §5's verification baseline read. There is
+   a second face: MSYS paths are invalid to non-MSYS tools, so `fs.existsSync("/c/…")` is **false** for a
+   directory that exists — and since `not-cloned` is a legitimate classification, an uncanonicalised root
+   reads as *"declared but never cloned"* while sitting on disk. §1 mandates running **both** discovery
+   paths, so both forms genuinely coexist in one run and nothing said to reconcile them. Both faces look
+   like a working check, because the negative case still comes out right. This is the **second** defect in
+   this one probe (Phase 1's was `--is-inside-work-tree`, which answers `true` for any folder beneath any
+   repo), so it is now **code with a suite**: `skills/adopt/resolve-root.mjs` + 38 cases. A mid-run attempt
+   at the same normalisation in shell silently answered "equal" for *every* root including the genuine
+   non-repo, which is the argument for code in one line.
+2. **The profile could never converge, because tracking it is what moves HEAD.** §10 requires the profile
+   be git-tracked (§9's baseline needs the history) and promises a second run at an unchanged commit
+   *"writes nothing at all"*. Convergence excludes three variable fields — `scannedAt`, `durationSeconds`,
+   `drift` — and **not `scan.commit`**. So: scan at `A`, commit the profile as instructed, HEAD is `B`; the
+   next scan records `B` and rewrites; commit that, HEAD is `C`; forever, on a project that never changed.
+   Each rewrite also **moves the baseline the next scan compares against**, which is verbatim the failure
+   Phase 4's design note #1 says this rule exists to prevent. The fix is deliberately **evidence-based
+   rather than a blanket exclusion** — a project that really moved must record the commit it was read at —
+   so `scan.commit` is ignored only when
+   `git diff --name-only <recorded>..HEAD -- . ':(exclude).aidlc/adoption/'` comes back empty. Now code
+   too, since this is the third "compare, excluding the right things" rule to fail silently here (after
+   `adoption.appliedAt` and gate layering): `skills/adopt/converged.mjs` + 21 cases.
+3. **`defaultBranch` came back `unknown` on the least ambiguous repo possible.** One local branch, checked
+   out, nothing to disambiguate — but named `trunk`, and step 3 of the chain tested for `main`/`master`
+   while step 2 already counted `trunk` as trunk-ish. An inconsistency inside one chain. This is Phase 2's
+   defect #1 in a second costume: same fact, same stated consequence (*"strands the pipeline with nowhere
+   to branch from"*), a different reason to give up. Fixed by putting **cardinality before naming** — one
+   local branch *is* the default — and aligning the trunk-ish set across the steps.
+4. **A gate the stack cannot have was forced to be `absent`, which is defined as a coverage hole.** The
+   status enum had two values. A Django service has no `build` step and Go type-checks during `go build`:
+   not missing, *inapplicable*, with nothing a team could ever add to close it. So `run` §7 would print
+   permanent unfillable holes in **every** run, and `/aidlc:adopt-backlog` would propose *"add a build gate
+   to the billing API"* as the first item a brownfield team reads — against §8's own rule that a backlog
+   whose first item is provably wrong is one nobody reads twice. The validator's cross-check *passed*,
+   because it only asks that the gate really is recorded absent. Fixed with a third status,
+   **`not-applicable`**, which must carry evidence saying *why* (it suppresses a hole, so an unexplained
+   one silently excuses a gate the project really is missing), and which is excluded from `absent-gate`
+   findings and from `coverageHoles()`. One scoping decision worth recording: `not-applicable` is a
+   **gate** status, not a fourth fact form. `entryPoints` stays `known`/`absent`/`unknown`, because that
+   map records which commands exist and "no build command exists" is simply true — the three fact forms
+   remain exhaustive everywhere.
+5. **The control plane had no classification, and both available answers were wrong in a load-bearing
+   way.** In a poly workspace the control plane is normally its own git repo — it holds the board, the
+   ADRs, the config and the tracked profile. `non-repo` is defined as "no VCS root" and is factually false,
+   losing the fact that what gets written there has history, which is what the drift baseline depends on.
+   `product-repo` admits it to `repos[]` and makes it a **routing target**, so `/aidlc:run` dispatches work
+   to a repo with no code. §1 guarded only the inverse case ("never silently a product repo"). Fixed with a
+   **`control-plane`** classification, excluded from `repos[]` by name rather than by omission, plus a
+   validator cross-check that a `non-repo` root may not carry a non-`none` `vcs.system`.
+6. **§10's skeleton — which the skill declares *sufficient* for offline use — omitted values the validator
+   enforces.** The skill forbids fetching the published schema and says the skeleton is the contract. It
+   had drifted, in two places with very different costs. The **expensive** one: `gaps[].kind` was listed as
+   `skill|agent|plugin|adapter`, omitting **`project-action`** — which exists in the schema precisely for a
+   gap only the project can close, and whose own description says it must *"never [be] proposed to
+   `/aidlc:scaffold-skill`"*. Four fixture surfaces are `unsupported` because **the project** lacks them
+   (no CI, no release tooling, no VCS on a docs folder); the validator demands every `unsupported` surface
+   name a gap; and its error does **not** suggest a kind. So the cheapest repair is to invent a `skill` gap
+   for a repo that simply has no CI — polluting `.aidlc/extensions.json` with non-work and aiming
+   `/aidlc:scaffold-skill` at a skill with no subject, while the real finding already sits in
+   `debtFindings[]` as `ungated-integration`. Fixed by naming `project-action` in §7, adding a
+   **`not-present`** support value for "the project does not have this surface" (exempt from the gaps
+   requirement, routed to `debtFindings[]`), and syncing the skeleton. The **cheap** one: the whole `saas`
+   block rendered as bare `{}` while the validator requires `{name, kind?}` environments, a `when` on
+   freeze windows, a `name` on messaging, and — unguessable — **lowercase** compliance slugs, so `"SOC 2"`
+   is a violation. Six of eleven first-pass violations were there. Both are now pinned by a
+   **SKILL-agreement check**: every value of every enum a scan must write has to appear literally in
+   `SKILL.md`, or the suite fails. It caught a third instance on its first run — all 14
+   `DRIFT_CHANGE_KINDS` were absent from the skill, in the Phase 4 block that has never been live-run.
+7. **§5 had no rule for a root that serves tenants but owns no schema, and the naive answer is the
+   dangerous one.** Every tenancy signal in the table assumes the root owns a schema. The fixture has two
+   roots that do not, and one of them — an 18-line untested Go handler that reads a tenant slug off the
+   `Host` header and injects it downstream — **decides which tenant every request is treated as**. Follow
+   the table literally, find no tenant column, and you land on `not-multi-tenant`, which §5's own rule
+   calls the worst available outcome: it tells every later reviewer that cross-tenant leaks are impossible
+   in the one file where they would originate, and it empties that root's `securityReviewPathSeeds`. The
+   failure is **self-sealing** — the validator's tenancy invariants are all conditioned on the root being
+   multi-tenant, so a wrong `not-multi-tenant` switches every check off and the profile passes. Fixed with
+   a rule: tenancy describes the **system the root participates in**; a schema-less root inherits it at
+   `medium` with an `absence` note recording that it owns no schema; any file that determines, forwards or
+   trusts the tenant is a `tenantIsolationPaths` entry so it reaches the seeds; and `not-multi-tenant`
+   needs positive evidence of having no tenants anywhere in its call path.
+
+**Suites after the run:** `validate-profile` **234** (from 197), `resolve-gate` **35** (from 30), plus two
+new files — `resolve-root` **38** and `converged` **21**. 328 cases, all green.
+
+**Still unexercised, and honestly so.** This run covered the **scan** only. Everything downstream of the
+profile remains specified-but-unrun, and the Phase 2 precedent says that is where the next defects are:
+
+- **`/aidlc:adopt-apply`** — the dangerous half, and never run against a profile carrying `packages[]`, a
+  `saas` block, `adoption.writes[]` or a `drift` block, all of which post-date Phase 2's run. The
+  merge-awareness path has a hand-authored `CLAUDE.md` waiting for it in the fixture.
+- **`/aidlc:adopt-adr`** and **`/aidlc:adopt-backlog`** — including whether ADR numbering continues from
+  the fixture's existing `0007`, whether the external Confluence link is linked rather than copied, and
+  whether the debt sweep dedupes the typecheck finding against the open `PLAT-14` *and* notices that its
+  `committed-secret` finding is contradicted by a **closed** `PLAT-40` claiming the rotation was done.
+- **Every Phase 4 lifecycle leg but idempotency**: `human-edit` drift attribution (still the least
+  fixture-testable — it needs a config really applied, really hand-edited, then re-scanned), the in-place
+  upgrade from a pre-0.31-shaped unstamped config, `--only` partial adoption, and `/aidlc:remove` both with
+  and without a manifest, verified by `git diff` against `adoption.commit`.
+- **Open questions 4 and 5** (is a blank-rationale ADR useful? how many debt findings is a gift?) are
+  untouched. Both ask how people react, and no fixture can answer either.
 
 ### Deviations from this spec, and why
 

@@ -3,7 +3,7 @@
 // The layering rule exists because a live adoption run proved the obvious reading wrong: taking
 // only the narrowest step list made a Python package inside a TypeScript monorepo lose the
 // repo-wide lint gate, silently. Every case below is a way that can happen again.
-import { resolveGate, coverageHoles, environmentDependent } from "./resolve-gate.mjs";
+import { resolveGate, coverageHoles, environmentDependent, notApplicable } from "./resolve-gate.mjs";
 
 let n = 0, fails = 0;
 function check(label, actual, expected) {
@@ -136,6 +136,27 @@ check("environment-dependent steps are identifiable for failure diagnosis",
   environmentDependent(resolveGate(cfg, "api").steps).map((s) => s.name), ["test"]);
 check("a replaced step drops the broader step's environment dependence",
   environmentDependent(resolveGate(cfg, "platform", "worker").steps), []);
+
+// ---- not-applicable is not a coverage hole ----
+// A gate the stack cannot have must not reach Findings: a run that reports "no build gate" on a
+// Django service every single time is how the section stops being read.
+const naCfg = {
+  pipeline: { gates: { verify: { repos: { api: { steps: [
+    { name: "lint", status: "present", cmd: "make lint", required: true },
+    { name: "typecheck", status: "absent", required: false },
+    { name: "build", status: "not-applicable", required: false },
+  ] } } } } },
+};
+check("a not-applicable step still resolves into the ordered step list",
+  resolveGate(naCfg, "api").steps.map((s) => s.name), ["lint", "typecheck", "build"]);
+check("only the absent step becomes a coverage hole",
+  coverageHoles(resolveGate(naCfg, "api").steps, "api").length, 1);
+check("the hole is the absent gate, not the not-applicable one",
+  /typecheck/.test(coverageHoles(resolveGate(naCfg, "api").steps, "api")[0]), true);
+check("not-applicable steps are separately identifiable for the run file",
+  notApplicable(resolveGate(naCfg, "api").steps).map((s) => s.name), ["build"]);
+check("a present step is neither a hole nor not-applicable",
+  notApplicable(resolveGate(naCfg, "api").steps).some((s) => s.name === "lint"), false);
 
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

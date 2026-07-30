@@ -45,20 +45,27 @@ export const RESOLVED_FROM = ["code-workspace-file", "opened-folder", "user"];
 export const SHAPES = ["single-root", "nested-multi-repo", "multi-root"];
 export const TOPOLOGIES = ["single-app", "monorepo", "poly", "unknown"];
 export const CLASSIFICATIONS = [
-  "product-repo", "monorepo", "non-repo", "reference-only", "already-adopted", "not-cloned", "unknown",
+  "product-repo", "monorepo", "control-plane", "non-repo", "reference-only", "already-adopted",
+  "not-cloned", "unknown",
 ];
 export const SKIP_REASONS = [
   "vendored", "generated", "build-output", "gitignored", "lfs-pointer", "over-size", "binary",
   "unreadable", "env-file", "pii-suspect", "out-of-scope", "cap-reached",
 ];
-export const SUPPORTS = ["supported", "partial", "unsupported", "unknown"];
+// `not-present` = the PROJECT does not have this surface (no CI, no release tooling). `unsupported`
+// = AIDLC does not cover it, which is what gaps[] is for. Only the latter needs a gap entry.
+export const SUPPORTS = ["supported", "partial", "unsupported", "unknown", "not-present"];
 export const SURFACE_KINDS = [
   "stack", "tracker", "vcs", "ci", "migration-tool", "container", "hooks", "ide",
   "release-channel", "other",
 ];
 export const DOC_KINDS = ["adr", "rfc", "design-doc", "wiki", "readme", "other"];
 export const DECLARED_BY = ["code-workspace", "folder-scan", "config", "user"];
-export const GATE_STATUSES = ["present", "absent"];
+// `not-applicable` is a gate the stack cannot have (a build step for a Django service, a separate
+// typecheck for Go where `go build` type-checks). `absent` means the project COULD have it and does
+// not — a coverage hole. Collapsing the two makes every run report holes nobody can ever fill, and
+// makes /aidlc:adopt-backlog propose "add a build gate" as a real item.
+export const GATE_STATUSES = ["present", "absent", "not-applicable"];
 export const GATE_SCOPES = ["repo", "package", "affected", "changed-paths"];
 export const COMMIT_STYLES = ["conventional", "id-prefixed", "imperative-freeform", "mixed", "none"];
 export const MERGE_STRATEGIES = ["merge", "squash", "rebase", "mixed"];
@@ -229,6 +236,17 @@ function checkGate(g, where, seen) {
     if (g.cmd !== undefined) err(where, "status=absent must not carry a `cmd` — there is no command to record");
     if (g.required === true)
       err(where, "an absent gate cannot be `required: true` — a gate that does not exist cannot block, and marking it required is how a coverage hole reads as green");
+  }
+  if (g.status === "not-applicable") {
+    if (g.cmd !== undefined) err(where, "status=not-applicable must not carry a `cmd` — the stack has no such step");
+    if (g.required === true)
+      err(where, "a not-applicable gate cannot be `required: true`");
+    // The whole value of the third status is that it suppresses a coverage hole. Suppressing one
+    // without saying why is how a gate the project really is missing gets quietly excused.
+    const why = (g.evidence ?? []).some(
+      (e) => isObj(e) && nonEmptyStr(e.note) && e.note.length >= 30);
+    if (!why)
+      err(where, "status=not-applicable needs evidence whose `note` says WHY this stack has no such step — it suppresses a coverage hole, so an unexplained one silently excuses a gate the project really is missing");
   }
   if (g.scope === "package" && !nonEmptyStr(g.package))
     err(where, "scope=package requires `package` naming which one");
@@ -818,6 +836,20 @@ function validate(p, profileText) {
 
         checkFact(r.classification, `${at}.classification`, { valueEnum: CLASSIFICATIONS });
 
+        // `non-repo` means no VCS root of its own. A git root labelled non-repo loses the fact that
+        // whatever is written there is tracked -- which is what the drift baseline depends on -- and
+        // it is the label a control plane gets when the enum has no word for it.
+        if (r.classification?.status === "known" && r.classification.value === "non-repo" &&
+            r.vcs?.system?.status === "known" && r.vcs.system.value !== "none")
+          err(`${at}.classification`, `is \`non-repo\` while vcs.system is \`${r.vcs.system.value}\` -- a root with its own VCS is not a non-repo. If it is the folder holding the board, the ADRs and aidlc.config.json, the classification is \`control-plane\``);
+
+        // A control plane is not a routing target: adopt-apply builds repos[] from product-repo and
+        // monorepo roots only, so a control plane mislabelled product-repo gets work items dispatched
+        // to a repo with no code.
+        if (r.classification?.status === "known" && r.classification.value === "control-plane" &&
+            Array.isArray(r.gates) && r.gates.some((g) => isObj(g) && g.status === "present"))
+          warn(`${at}.classification`, "is `control-plane` but the root declares present gates -- if it also ships code, it is a product-repo that happens to hold the board, and should be classified as one");
+
         if (!isObj(r.reachable) || typeof r.reachable.value !== "boolean") {
           err(`${at}.reachable`, "missing — a root that was never proven readable must not be reported as profiled");
         } else if (r.reachable.value === false && !nonEmptyStr(r.reachable.remedy)) {
@@ -896,7 +928,11 @@ function validate(p, profileText) {
       if (!nonEmptyStr(sf.consequence))
         err(at, "missing `consequence` — a gap with no stated consequence reads as a footnote instead of a decision");
       if (sf.support === "unsupported" && !gapSurfaces.has(sf.detected) && !gapSurfaces.has(sf.kind))
-        err(at, `support=unsupported but no gaps[] entry references it (\`${sf.detected}\` or \`${sf.kind}\`) — an unsupported surface must be recorded as a capability gap`);
+        err(at, `support=unsupported but no gaps[] entry references it (\`${sf.detected}\` or \`${sf.kind}\`) — an unsupported surface must be recorded as a capability gap. If the surface is missing from the PROJECT rather than from AIDLC (no CI, no release tooling), use support="not-present" instead and file it in debtFindings[]; if AIDLC genuinely cannot cover it and only the project can close it, the gap kind is "project-action".`);
+      // "not-present" says the project lacks the surface, so there is nothing for AIDLC to build.
+      // A gap entry here would put a non-gap in front of /aidlc:scaffold-skill.
+      if (sf.support === "not-present" && (gapSurfaces.has(sf.detected) || gapSurfaces.has(sf.kind)))
+        warn(at, 'support=not-present but a gaps[] entry references it — the project lacking a surface is not an AIDLC capability gap; if there is genuinely something for AIDLC to build here, the surface is "partial" or "unsupported"');
       if (sf.evidence !== undefined) checkEvidence(sf.evidence, at);
     });
   }

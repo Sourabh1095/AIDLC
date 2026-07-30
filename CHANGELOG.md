@@ -7,6 +7,91 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.34.0] — 2026-07-31
+
+### `aidlc` — brownfield: the first live run of the Phase 3/4 scan, and the seven defects it found
+
+Phases 3 and 4 shipped specified-but-unexercised, with the lesson from Phase 2's run written down at the
+time: *each of those would fail by producing a plausible result rather than an error.* It held exactly.
+`/aidlc:adopt` was run end to end against a purpose-built multi-root workspace — once at `--depth standard`
+and again at `--depth deep` — and found **seven defects, not one of which raised an error**. Every one
+produced a well-formed, fully-cited profile that passed validation and was wrong. Spec:
+`docs/brownfield-adoption.md` (*Phase 3/4 — the live scan run*).
+
+**What the run confirmed.** JSONC workspace parsing (a strict `JSON.parse` genuinely throws on a
+hand-edited file, and the documented fallback would have collapsed six roots into three); the two-file
+write guarantee, *verified* with `git status --porcelain` at every root rather than asserted; `--depth
+standard` leaving all six source-evidenced runtime constraints honestly `unknown` with *"not sampled at
+this depth"*, then `--depth deep` resolving tenancy to `shared-schema` on `tenant_id` with the two
+alternative models explicitly excluded as counter-evidence; `expand-contract` derived from **paired
+migration bodies** rather than from the policy document that also states it; per-package `dependsOn`
+resolving to siblings while an external dependency in the same block is excluded; and a re-scan producing
+`changes: []` with `depthChanged: true`, so eleven newly-known facts did not masquerade as movement.
+
+**Two defects were structural, and both are now code with test suites rather than prose.**
+
+- **Every git repo was classified "not a repo, enclosed by itself."** `git rev-parse --show-toplevel`
+  always answers in Windows drive form (`C:/Users/…`), while the folder scan hands you MSYS form
+  (`/c/Users/…`) — because Claude Code's Bash tool on Windows *is* Git Bash. The skill named exactly two
+  normalisations, separators and case, and drive form is neither. The control plane failing this check
+  drops `scan.commit` to `unknown`, which is the value both `adopt-apply`'s staleness check and
+  `/aidlc:remove`'s verification baseline read. A second face: MSYS paths are invalid to non-MSYS tools, so
+  `fs.existsSync("/c/…")` is false for a directory that exists — and because `not-cloned` is a legitimate
+  classification, a root that is right there reads as *"declared but never cloned."* Both look like a
+  working check, because the negative case still comes out right. New **`skills/adopt/resolve-root.mjs`**
+  (+38 cases) canonicalises once at discovery and owns the boundary verdict. It is code because this is the
+  *second* defect in this one probe, and because a mid-run attempt at the same normalisation in shell
+  silently answered "equal" for every root including the genuine non-repo.
+- **The profile could never converge, because tracking it is what moves HEAD.** §10 requires the profile be
+  git-tracked and promises a second run at an unchanged commit writes nothing — but `scan.commit` was not
+  among the fields excluded from that comparison. Scan at `A`, commit the profile as instructed, HEAD is
+  `B`; the next scan records `B` and rewrites; commit that, and so on forever on a project that never
+  changed — each rewrite also moving the baseline the next scan compares against, which is verbatim the
+  failure Phase 4 said the rule existed to prevent. New **`skills/adopt/converged.mjs`** (+21 cases) makes
+  the exclusion **evidence-based rather than blanket**: `scan.commit` is ignored only when
+  `git diff --name-only <recorded>..HEAD -- . ':(exclude).aidlc/adoption/'` is empty, so a project that
+  really moved still records the commit it was read at.
+
+**Five more, each fixed where it was wrong.**
+
+- **`defaultBranch` came back `unknown` on the least ambiguous repo possible** — one local branch, checked
+  out — because it was named `trunk` and the chain's local-branch step tested for `main`/`master` while the
+  step above it already counted `trunk` as trunk-ish. The chain now asks **cardinality before naming**.
+- **A gate the stack cannot have had to be recorded `absent`, which is defined as a coverage hole.** A
+  Django service has no `build` step; Go type-checks during `go build`. So every run would print permanent
+  unfillable findings, and `/aidlc:adopt-backlog` would propose *"add a build gate"* as the first item a
+  brownfield team reads. New third status **`not-applicable`**, which must carry evidence saying *why*, and
+  which `resolve-gate.mjs` keeps out of `coverageHoles()`. It is a **gate** status, not a fourth fact form:
+  `entryPoints` stays `known`/`absent`/`unknown`, because that map records which commands exist.
+- **The control plane had no classification.** It is normally its own git repo, so `non-repo` was factually
+  false and `product-repo` made it a **routing target** — work dispatched to a repo with no code. New
+  **`control-plane`** classification, excluded from `repos[]` by name rather than by omission.
+- **§10's skeleton, which the skill declares *sufficient* for offline use, had drifted from the contract the
+  validator enforces.** The expensive instance: `gaps[].kind` omitted **`project-action`**, the value that
+  exists precisely for a gap only the project can close. Since the validator demands every `unsupported`
+  surface name a gap and its error does not suggest a kind, the cheapest repair was to invent a `skill` gap
+  for a repo that simply has no CI — pointing `/aidlc:scaffold-skill` at work with no subject. Fixed by
+  naming it in §7, adding a **`not-present`** support value for "the project does not have this surface",
+  and syncing the skeleton. Both are now pinned by a **SKILL-agreement check**: every enum value a scan must
+  write has to appear literally in `SKILL.md`. It caught a third instance on its first run — all 14
+  `DRIFT_CHANGE_KINDS` were missing from the skill.
+- **§5 had no rule for a root that serves tenants but owns no schema, and the naive answer is the dangerous
+  one.** An 18-line untested Go handler that reads a tenant slug off the `Host` header decides which tenant
+  every request is treated as; following the tenancy table literally lands on `not-multi-tenant`, which
+  tells every later reviewer that cross-tenant leaks are impossible in the one file where they would
+  originate — and empties that root's `securityReviewPathSeeds`. The failure is self-sealing, because the
+  validator's tenancy invariants are all conditioned on the root being multi-tenant. Tenancy now describes
+  the **system the root participates in**, a schema-less root inherits it at `medium` with an `absence`
+  note, and `not-multi-tenant` needs positive evidence.
+
+**Suites:** `validate-profile` **234** (from 197), `resolve-gate` **35** (from 30), plus `resolve-root`
+**38** and `converged` **21** — 328 cases.
+
+**What this release does not claim.** The run covered the **scan**. `/aidlc:adopt-apply`, `/aidlc:adopt-adr`,
+`/aidlc:adopt-backlog` and every Phase 4 lifecycle leg but idempotency are still unrun — including the
+`human-edit` drift attribution, the in-place config upgrade, `--only` partial adoption, and
+`/aidlc:remove`. The spec lists each one. On Phase 2's precedent, that is where the next defects are.
+
 ## [0.33.0] — 2026-07-30
 
 ### `aidlc` — brownfield Phase 4: keeping an adoption true after the first day

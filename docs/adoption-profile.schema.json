@@ -297,7 +297,7 @@
   },
   "definitions": {
     "support": {
-      "enum": ["supported", "partial", "unsupported", "unknown"],
+      "enum": ["supported", "partial", "unsupported", "unknown", "not-present"],
       "description": "supported: an installed plugin covers it end to end. partial: the language-agnostic core applies but the stack/tracker specifics do not. unsupported: nothing covers it — say so and record the gap. unknown: not established."
     },
     "evidence": {
@@ -376,7 +376,7 @@
       "additionalProperties": true,
       "properties": {
         "name": { "type": "string", "description": "Short stable id — lint, typecheck, test, format, build, boundaries, migrate-check, or a project-specific one." },
-        "status": { "enum": ["present", "absent"] },
+        "status": { "enum": ["present", "absent", "not-applicable"], "description": "present: the project has this gate. absent: it could have it and does not — a coverage hole the run reports every time. not-applicable: the stack has no such step (no build for a Django service; Go type-checks during `go build`), so it is neither run nor reported as a hole." },
         "cmd": { "type": "string", "description": "Verbatim, as the project runs it. Required when status=present, forbidden when absent." },
         "cwd": { "type": "string", "description": "Directory to run it from, relative to the root. Omit for the root itself." },
         "source": { "type": "string", "description": "Where it came from — 'package.json scripts.test', 'Makefile target lint', 'tox.ini envlist', 'turbo.json tasks.test', '.pre-commit-config.yaml'." },
@@ -717,9 +717,9 @@
         "classification": {
           "allOf": [
             { "$ref": "#/definitions/fact" },
-            { "properties": { "value": { "enum": ["product-repo", "monorepo", "non-repo", "reference-only", "already-adopted", "not-cloned", "unknown"] } } }
+            { "properties": { "value": { "enum": ["product-repo", "monorepo", "control-plane", "non-repo", "reference-only", "already-adopted", "not-cloned", "unknown"] } } }
           ],
-          "description": "product-repo: ours, one deliverable, a routing target. monorepo: ours, one git repo with many packages. non-repo: docs/scratch/notes — excluded from repos[]. reference-only: a clone we read but do not change (a vendor SDK, an upstream we track) — never a routing target. already-adopted: carries its own aidlc.config.json. not-cloned: declared but absent on disk — record it, never fabricate a path. Every classification is PROPOSED for confirmation, never assumed."
+          "description": "control-plane: the folder holding the board, the ADRs, aidlc.config.json and the tracked adoption profile. Usually its own git repo and usually NOT a product repo — it is excluded from repos[] by name, so work is never routed to a repo with no code. product-repo: ours, one deliverable, a routing target. monorepo: ours, one git repo with many packages. non-repo: docs/scratch/notes — excluded from repos[]. reference-only: a clone we read but do not change (a vendor SDK, an upstream we track) — never a routing target. already-adopted: carries its own aidlc.config.json. not-cloned: declared but absent on disk — record it, never fabricate a path. Every classification is PROPOSED for confirmation, never assumed."
         },
         "reachable": {
           "type": "object",

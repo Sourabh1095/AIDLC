@@ -365,6 +365,11 @@ requirements gate at §4, not this one.)
   the `CLAUDE.md` Commands block as before. Do **not** assume npm scripts exist — a repo with no
   `package.json` has a real gate (`pytest`, `mvn -B verify`, `cargo test`, `go test ./...`) and
   `/aidlc:adopt` + `/aidlc:adopt-apply` are how it gets recorded.
+- **A step with `status: not-applicable` is neither run nor a finding.** The stack has no such step (a
+  Django service has no build; Go type-checks during `go build`), so there is nothing a team could ever
+  add. List those once under the gate table as *"not applicable to this stack: build"* and move on —
+  putting them in `## Findings` fills every run with holes nobody can close, which is how the section
+  stops being read. `resolve-gate.mjs` exports `notApplicable(steps)` for exactly this list.
 - **A step with `status: absent` is a coverage hole, not a pass.** Never count it green, never substitute
   an AIDLC default for it. Write one line per absent step into `## Findings` —
   `coverage hole: no <name> gate in <repo> (recorded absent at adoption)` — so every run states what the

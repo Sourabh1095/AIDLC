@@ -123,8 +123,11 @@ overwrite.
 - `workspace.layout` from `workspace.topology`: `poly` for many repos, `mono` for `single-app`, and `mono`
   for a `monorepo` root (one git repo) — with its packages carried on the repo entry, not as a new layout
   value.
-- `repos[]` from roots classified **`product-repo` or `monorepo` only**. Never from a `non-repo`,
-  `reference-only`, or `not-cloned` root; each excluded root gets one line in the summary saying why.
+- `repos[]` from roots classified **`product-repo` or `monorepo` only**. Never from a `control-plane`,
+  `non-repo`, `reference-only`, or `not-cloned` root; each excluded root gets one line in the summary
+  saying why. The `control-plane` exclusion is the one that bites hardest if it slips: the control plane
+  is usually its own git repo, so it *looks* like a product repo, and admitting it to `repos[]` makes it
+  a routing target — `/aidlc:run` then dispatches work to a repo with no code.
 - `repo.path`: **absolute** when `nestedUnderControlPlane` is false, relative otherwise. Carry
   `role` (from the derived one-liner), `labels`, per-repo `stack`, `host`, `defaultBranch`, and
   `mode` — `local` where `vcs.remotes` is `absent`, `remote` where a remote exists.
@@ -169,6 +172,12 @@ the two together would overload one key with two meanings.
 - **Keep the `absent` entries.** They are the point: a gate the project does not have must stay visible so
   the run reports it as a coverage hole in `## Findings`. Deleting them to make the config look tidy is
   how a missing gate becomes invisible.
+- **Keep the `not-applicable` entries too, and say what they mean.** A step the stack cannot have is
+  carried through so the run can list it as not applicable rather than silently omitting it — but it is
+  **not** a coverage hole and must never be reported as one. In the summary, separate the two counts:
+  *"`api`: 5 gates — 3 present, 1 coverage hole (`typecheck`), 1 not applicable (`build`, a Django
+  service is deployed from source)."* Collapsing them is how a team gets a permanent finding they
+  cannot close, and how `/aidlc:adopt-backlog` comes to propose "add a build gate" as real work.
 - Set `verify.maxItemMinutes` (default 10). Where a suite's duration is **unknown** — the usual case, since the
   scan never ran it — say so and ask whether to scope it now or start with the full suite and revisit.
   Do not invent a duration.
@@ -302,7 +311,8 @@ Say this plainly at the end:
 
 - **The gate is now the project's own.** `/aidlc:run` executes `pipeline.gates.verify` in order; a repo with no
   `package.json` runs its real gate. Every `absent` gate will appear in each run's `## Findings` as a
-  coverage hole until the project fills it — that is deliberate, not noise.
+  coverage hole until the project fills it — that is deliberate, not noise. A `not-applicable` gate will
+  not: it is listed once as inapplicable to the stack and never counted as a hole.
 - **Work now routes to packages, not just repos.** With `packages[]` written, an item resolves to a
   package inside a repo and its gate, stack and PR label scope to it — the runnable leaf is unchanged
   (one item, one branch, one PR).

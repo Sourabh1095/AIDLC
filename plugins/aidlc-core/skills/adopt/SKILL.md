@@ -118,13 +118,22 @@ For each discovered root produce a `root` entry (`definitions.root` in the profi
 |---|---|---|
 | `product-repo` | own VCS root, our code, one deliverable | candidate `repos[]` entry |
 | `monorepo` | own VCS root + a workspace manifest (pnpm/npm/yarn workspaces, `nx.json`, `turbo.json`, `lerna.json`, Maven modules, Gradle composite, `Cargo.toml [workspace]`, Bazel) | candidate `repos[]` entry **with `packages[]`** |
-| `non-repo` | no VCS root — docs, scratch, notes | excluded from `repos[]`, and the report says why |
+| `control-plane` | the folder holding `.code-workspace`, the board, `docs/adr/`, `aidlc.config.json` and the tracked profile — **usually its own git repo**, and no product code | excluded from `repos[]` **by name**, never a routing target |
+| `non-repo` | **no VCS root** — docs, scratch, notes | excluded from `repos[]`, and the report says why |
 | `reference-only` | a clone we read but do not change (vendor SDK, tracked upstream) | **never** a routing target |
 | `already-adopted` | carries its own `aidlc.config.json` | reconcile, do not re-derive |
 | `not-cloned` | declared in the workspace file but absent on disk | recorded; **never fabricate a path** |
 
 Every classification is **proposed for confirmation** — present the list once, compactly, and let the
 user correct it. Only `product-repo` and `monorepo` may become `repos[]` entries later.
+
+**The control plane needs its own row for a specific reason.** In a poly workspace it is normally a git
+repo — it holds the board, the ADRs, the config and the profile that §10 requires be *tracked*. Neither
+of the two labels it would otherwise get is harmless: `non-repo` is factually false and loses the fact
+that what you write there has history (which §9's drift baseline depends on), while `product-repo` makes
+it a **routing target**, so `/aidlc:run` dispatches work to a repo with no code. If it holds product
+code *as well* as the board, it is a `product-repo` that happens to hold the board — say so and treat it
+as one.
 
 Then, per root, establish the three things that otherwise fail silently much later:
 
@@ -153,8 +162,11 @@ to a commit recorded by its parent, which is incompatible with the per-repo rele
 entry implies. Record them under `vcs.submodules` and say so.
 
 **Paths are hostile.** Spaces, UNC (`\\server\share\...`), and cross-drive paths must survive into the
-profile and back out. Store `absolutePath` verbatim, always quote paths in any command you run, and
-never rebuild a path by string-joining a relative fragment onto the wrong base.
+profile and back out. Always quote paths in any command you run, and never rebuild a path by
+string-joining a relative fragment onto the wrong base. Store `absolutePath` **canonicalised**, not
+verbatim (`resolve-root.mjs`'s `canonicalPath` — forward slashes, drive-letter form, original case
+kept): "verbatim" preserves whichever form discovery happened to produce, and §3 shows what mixing
+forms costs. One root, one spelling, everywhere in the profile.
 
 ## 3 · Per-root scan — manifests first, source last
 
@@ -175,14 +187,41 @@ to prevent. The correct probe is two steps:
 1. **Marker test.** Is there a `<root>/.git`? A **directory** ⇒ a normal repo root. A **file** ⇒ a
    linked worktree or a submodule (it holds a `gitdir:` pointer) — resolve and label it as such, never
    as a plain repo. Also check `<root>/.hg`, `<root>/.svn`, `<root>/.p4config`, `<root>/$tf`.
-2. **Confirm the boundary.** `git -C "<root>" rev-parse --show-toplevel` and require the result to
-   **equal the root** after normalising separators and case (git returns forward slashes; Windows paths
-   compare case-insensitively). Equal ⇒ the root is its own repo. Different ⇒ the root is **not** a
-   repo; it sits *inside* the returned one. Record that as `enclosingRepo` and report it as a hazard —
-   files there are inside someone else's index, one `git add -A` from being committed to it — and
-   record this root's own `vcs.system` from its markers (`none`, `mercurial`, …), never from the
-   ancestor. The same rule governs the **control plane**: if it is not its own repo root, `scan.commit`
-   is `unknown`, not the enclosing repo's HEAD.
+2. **Confirm the boundary.** `git -C "<root>" rev-parse --show-toplevel`, and require the result to
+   **equal the root**. Ask even when step 1 found no marker: a root with no `.git` of its own is
+   precisely the enclosing-repo case. Equal ⇒ the root is its own repo. Different ⇒ the root is
+   **not** a repo; it sits *inside* the returned one. Record that as `enclosingRepo` and report it as
+   a hazard — files there are inside someone else's index, one `git add -A` from being committed to
+   it — and record this root's own `vcs.system` from its markers (`none`, `mercurial`, …), never from
+   the ancestor. The same rule governs the **control plane**: if it is not its own repo root,
+   `scan.commit` is `unknown`, not the enclosing repo's HEAD.
+
+**Do both steps with the helper, not by eye:**
+
+```
+node "<this skill's directory>/resolve-root.mjs" "<root>" ["<root>" …]
+```
+
+"Equal" is the whole check, and it has now produced a confidently wrong profile **twice** — which is
+why it is code with a test suite rather than a comparison you make in your head. Phase 1 used
+`rev-parse --is-inside-work-tree`, which answers `true` for any folder beneath any repo. The
+replacement compared paths in **different forms**: `rev-parse --show-toplevel` always answers in drive
+form (`C:/Users/…`), while the folder scan in §1.2 hands you MSYS form (`/c/Users/…`) on Windows,
+because Claude Code's Bash tool is Git Bash. They never compare equal, so **every** repo came back
+"not a repo, enclosed by itself" — and the control plane doing so drops `scan.commit` to `unknown`,
+which is what the staleness check and `/aidlc:remove`'s verification baseline both read.
+
+Both failures look like a working check, because the negative case still comes out right.
+
+**Canonicalise every root path once, at discovery, before it is compared, probed or recorded.** §1
+requires running both discovery paths, and they disagree on form: the workspace file resolved through
+node gives `C:\…`, the folder scan gives `/c/…`. Mixing them has a second bite — MSYS paths are not
+valid to non-MSYS tools, so `fs.existsSync("/c/…")` is **false** for a directory that exists, and
+`not-cloned` is a legitimate classification. An uncanonicalised root therefore reads as *"declared but
+never cloned"* while sitting on disk. `resolve-root.mjs` exports `canonicalPath` (what to store) and
+`normaliseRootPath` (what to compare) for exactly this; if it is missing, canonicalise by hand —
+backslashes to forward slashes, `/c/x` and `/mnt/c/x` and `/cygdrive/c/x` to `C:/x`, strip `\\?\`,
+drop trailing slashes, and compare case-insensitively — and say in the report that you did it by hand.
 
 Only once step 2 says the root *is* a git repo, ask the rest — all read-only, all allowlisted, always
 `git -C "<root>"` so no `cd` is needed: `rev-parse --abbrev-ref HEAD` (current branch) ·
@@ -197,10 +236,19 @@ from. Do not stop there and do not guess `main` because it is common. Work down:
 
 1. `rev-parse --abbrev-ref <remote>/HEAD` ⇒ **high**.
 2. `for-each-ref --format=%(refname:short) refs/remotes/<remote>` — if exactly one of
-   `main`/`master`/`trunk` exists remotely ⇒ **medium**.
-3. Local branches — if exactly one of `main`/`master` exists **and** every other local branch is
-   reachable from it or reaches it (`merge-base --is-ancestor`) ⇒ **medium**, citing both.
-4. Otherwise `unknown`, and the apply step asks.
+   `main`/`master`/`trunk`/`develop` exists remotely ⇒ **medium**.
+3. **Cardinality before naming.** `for-each-ref --format=%(refname:short) refs/heads` — if the repo
+   has **exactly one local branch**, that branch is the default: there is nothing for a name
+   heuristic to disambiguate ⇒ **medium**, citing the count. A repo whose only branch is `trunk`,
+   `dev` or `mainline` is answered here, and it is the commonest shape a name test gets wrong.
+4. Otherwise, among several local branches — if exactly one of `main`/`master`/`trunk`/`develop`
+   exists **and** every other local branch is reachable from it or reaches it
+   (`merge-base --is-ancestor`, either direction) ⇒ **medium**, citing both.
+5. Otherwise `unknown`, and the apply step asks.
+
+Keep the trunk-ish set the same at every step. An earlier version counted `trunk` at step 2 and not
+at step 3, which left a single-branch `trunk` repo — one branch, checked out, nothing ambiguous about
+it — recorded `unknown`.
 
 This matters more than most facts: `defaultBranch` is what `<base>` falls back to, so leaving it unknown
 when the repo's own refs answer it strands the pipeline with nowhere to branch from.
@@ -253,6 +301,20 @@ runs it** plus its `source`. Two distinctions carry all the weight:
 - A command that **provably does not exist** is `status: absent` with `absence` evidence naming what
   you searched. It is a **coverage hole**, and downstream it must never be counted green. It is *not*
   `unknown`, and it is *never* replaced by an AIDLC default.
+- A step **the stack cannot have** is `status: not-applicable`, not `absent`. A Django service is
+  deployed from source and has no `build`; Go type-checks during `go build`, so a separate `typecheck`
+  cannot exist; a repo with no schema has no `migrate`. The difference is whether the team could ever
+  close it: `absent` is a hole they could fill, `not-applicable` is a step that does not exist for this
+  stack. Recording the second as the first makes every future run report holes nobody can fill, and
+  makes `/aidlc:adopt-backlog` propose *"add a build gate"* as the first item a brownfield team reads —
+  and §8's own rule is that a backlog whose first item is provably wrong is one nobody reads twice.
+  **`not-applicable` must carry evidence saying why**, because it suppresses a coverage hole, and an
+  unexplained suppression silently excuses a gate the project really is missing.
+- **`not-applicable` is a `gates[]` status, not a fact form.** In `entryPoints` the answer stays
+  `absent`: that map records *which commands exist*, and "no build command exists" is simply true. The
+  three fact forms (`known` / `absent` / `unknown`) stay exhaustive — there is no fourth, anywhere. The
+  gate is where the coverage-hole meaning lives, so the gate is where the distinction belongs. Put the
+  *why* in the entry point's `absence` note as well, so the two records agree.
 - A command needing services (compose, testcontainers, a live DB) is marked
   `environmentDependent: true`, so a later failure is diagnosed as *environment unavailable* rather
   than *code broken*.
@@ -268,8 +330,8 @@ points, the pre-existing hooks and the CI config:
   `typecheck` → `boundaries` → `build` → `test`, so a run fails in seconds rather than minutes.
 - **`required`.** A `present` gate is required unless the project itself treats it as advisory — CI
   `continue-on-error`, a script ending `|| true`, a hook stage marked manual. Cite that evidence when you
-  set it false. An `absent` gate is **never** required: it cannot block, and marking it required is how a
-  coverage hole comes to read as green.
+  set it false. An `absent` or `not-applicable` gate is **never** required: it cannot block, and marking
+  it required is how a coverage hole comes to read as green.
 - **`scope`.** `affected` where an affected-graph runner exists (Nx, Turbo) — the cheap correct default,
   and the run must name the affected set. `package` for a gate defined inside one package of a monorepo.
   `changed-paths` only for a suite too slow to run whole. Otherwise `repo`.
@@ -413,16 +475,31 @@ isolation is security-reviewed regardless of cadence". A path recorded as sensit
 from the seeds is a path that will be reviewed on the ordinary cadence — recorded as dangerous, treated
 as routine. The validator rejects that, because it is invisible in a report that otherwise looks complete.
 
-Four rules specific to this section:
+Five rules specific to this section:
 
-1. **`unknown` is emphatically not `not-multi-tenant`.** Finding no tenant column because you sampled
+1. **Tenancy describes the system the root takes part in, not only the schema it owns.** A gateway, a
+   proxy, a worker, a frontend — a real workspace has several roots with no schema at all, and every
+   signal in the table above assumes one. Follow the table literally on a stateless root and you land on
+   `not-multi-tenant`, which is the **worst** answer available: it tells every later reviewer that
+   cross-tenant leaks are impossible there, and it empties `securityReviewPathSeeds` for that root. The
+   fixture case that makes this concrete is an 18-line Go handler that reads a tenant slug off the `Host`
+   header and injects it downstream — it owns nothing and *decides everything*, and a bug in it is a
+   cross-tenant read with no database involved. So: a root with no schema **inherits** the workspace's
+   tenancy at `medium` confidence, with an `absence` note recording that it owns no schema and where the
+   value came from — and any file that **determines, forwards or trusts** the tenant is a
+   `tenantIsolationPaths` entry, so it reaches the seeds. Reserve `not-multi-tenant` for something with
+   no tenants anywhere in its call path (a build tool, a standalone library), and evidence *that*, rather
+   than inferring it from an absence of columns. Note why this one is self-sealing: the validator's
+   tenancy invariants are all conditioned on the root being multi-tenant, so a wrong
+   `not-multi-tenant` switches every downstream check off and the profile still passes.
+2. **`unknown` is emphatically not `not-multi-tenant`.** Finding no tenant column because you sampled
    30 files of 4,000 is not evidence of single tenancy — and getting this backwards is the worst
    available outcome, since it tells every later reviewer that cross-tenant leaks are impossible here.
-2. **Still no runtime access.** No database connection, no query, no deploy API, no health endpoint.
+3. **Still no runtime access.** No database connection, no query, no deploy API, no health endpoint.
    Tenancy is read from the schema and the code that uses it (`rules/safety.md`).
-3. **Env files stay closed.** Environment *names* come from CI/CD config, never from reading a `.env`.
+4. **Env files stay closed.** Environment *names* come from CI/CD config, never from reading a `.env`.
    §0's contract is unchanged by this section needing environment names.
-4. **This block informs; it does not gate.** It feeds the implementer, reviewer and security briefs.
+5. **This block informs; it does not gate.** It feeds the implementer, reviewer and security briefs.
    Exactly two things become conditional gates downstream, and both hang on an evidenced fact: a
    destructive migration where `liveDataConstraint` is `expand-contract` is a review **blocker**, and a
    diff touching an `apiContracts`, `authPaths` or `tenantIsolationPaths` entry is reviewed regardless
@@ -484,6 +561,25 @@ support in principle: today that is `aidlc-stack-web` for TS/JS, and markdown/Ji
   step writes into `.aidlc/extensions.json` so `/aidlc:scaffold-skill` and `/aidlc:promote` can act on
   it. The scan itself writes nothing there.
 
+**Separate "AIDLC cannot" from "the project has not".** Two different facts with two different next
+steps, and collapsing them into one `support` value puts non-work in front of `/aidlc:scaffold-skill`:
+
+| `support` | Means | Where it goes |
+|---|---|---|
+| `unsupported` | **AIDLC** does not cover this surface (a Go stack, a Linear tracker) | a `gaps[]` entry — something AIDLC could build |
+| `not-present` | **the project** does not have this surface (no CI, no release tooling, no VCS) | the support matrix, plus `debtFindings[]` where it is genuinely work — and **no `gaps[]` entry** |
+
+A `detected` value of `"none"` is the tell: nothing is *unsupported* about a CI system that does not
+exist. A repo with no CI is a fact about the repo, and AIDLC supports GitHub Actions perfectly well —
+filing it as a capability gap aims `/aidlc:scaffold-skill` at a skill with no subject, while the real
+finding (its PRs merge unverified) already belongs in `debtFindings[]` as `ungated-integration`.
+
+- **`gaps[].kind` is `skill` · `agent` · `plugin` · `adapter` · `project-action`.** The first four are
+  things AIDLC would build. **`project-action`** is a gap only the project can close — `git init` on a
+  zip drop, adopting a tracker, upgrading an EOL runtime — recorded so an unsupported surface is never
+  left with no named next step, and **never proposed to `/aidlc:scaffold-skill`**. Reach for it instead
+  of inventing a `skill` entry for work AIDLC has no part in.
+
 ## 8 · Debt worth tracking — the findings that are work, not facts
 
 Everything above records what the project **is**. This records what the scan noticed is **missing or
@@ -494,7 +590,7 @@ is written to a board. Cap with `--max-debt <n>` (default 20, recorded in
 
 | Kind | What evidences it |
 |---|---|
-| `absent-gate` | A gate from §3 recorded `status: "absent"`. Name it in `gate` — and only where the root really lacks it, because a backlog whose first item is provably wrong is one nobody reads twice |
+| `absent-gate` | A gate from §3 recorded `status: "absent"`. Name it in `gate` — and only where the root really lacks it, because a backlog whose first item is provably wrong is one nobody reads twice. **Never for a `not-applicable` gate**: "add a build gate to the Django service" is work nobody can do |
 | `untested-critical-path` | An `authPaths` / `billingPaths` / `tenantIsolationPaths` entry (§5) with no test file beside it and no matching name under the test directory |
 | `unreviewed-sensitive-path` | The same kind of path whose history shows no review: a single commit, or merges with no PR reference where every other path has one |
 | `eol-dependency` | The **declared** runtime or dependency version (`.nvmrc`, `engines`, `requires-python`, `<java.version>`, `go 1.x`, a Gemfile ruby line). The evidence is the declaration; the end-of-life judgement is **not evidence** — put it in `note` as something to confirm, because this scan makes no network calls and cannot read a release calendar. Confidence `medium` at best |
@@ -601,7 +697,7 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
     "roots": [ {
       "name": "…", "path": "<as declared>", "absolutePath": "<abs>",
       "nestedUnderControlPlane": true, "declaredBy": "code-workspace|folder-scan|config|user",
-      "classification": { /* fact → product-repo|monorepo|non-repo|reference-only|already-adopted|not-cloned|unknown */ },
+      "classification": { /* fact → product-repo|monorepo|control-plane|non-repo|reference-only|already-adopted|not-cloned|unknown */ },
       "reachable": { "value": true, "remedy": "…" },
       "trust": { "trusted": { /* fact */ }, "pluginEnabled": { /* fact */ }, "remedy": "…" },
       "vcs": { "system": { /* fact */ }, "support": "supported|partial|unsupported|unknown",
@@ -617,14 +713,30 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
                       "entryPoints": {}, "evidence": [] } ],
       "workspaceTooling": { /* fact — note if it is an affected-graph runner */ },
       "releaseTooling":   { /* fact → {tool, independentVersioning} — or absent */ },
+      /* Every entry below is a `fact`. These are the VALUE shapes, which the skeleton has to spell
+         out because this skill may not fetch the published schema — the enums especially, since a
+         plausible spelling like "SOC 2" is a violation where `soc2` is the legal value. */
       "saas": {
-        "tenancy": {}, "tenantKey": {}, "tenantIsolationPaths": {}, "authPaths": {}, "billingPaths": {},
-        "featureFlags": {}, "migrations": {}, "liveDataConstraint": {}, "apiContracts": {},
-        "environments": {}, "deployStrategy": {}, "freezeWindows": {}, "compliance": {},
-        "messaging": {}, "observability": {}, "integrations": {}, "experimentation": {},
+        "tenancy":     { /* fact → "shared-schema" | "schema-per-tenant" | "database-per-tenant" | "single-tenant" | "not-multi-tenant" */ },
+        "tenantKey":   { /* fact → "tenant_id" — the column or claim name itself */ },
+        "tenantIsolationPaths": { /* fact → ["acme/tenancy/"] */ },
+        "authPaths":   { /* fact → ["acme/accounts/"] */ },
+        "billingPaths":{ /* fact → ["acme/billing/"] */ },
+        "featureFlags":{ /* fact → {provider, paths[], required?} */ },
+        "migrations":  { /* fact → {tool, directories[]} */ },
+        "liveDataConstraint": { /* fact → "expand-contract" | "not-required" */ },
+        "apiContracts":{ /* fact → [{path, kind: "openapi"|"graphql"|"proto"|"grpc"|"asyncapi"|"json-schema"|"wsdl", public}] */ },
+        "environments":{ /* fact → [{name, kind?: "dev"|"test"|"staging"|"production"|"preview"|"other"}] */ },
+        "deployStrategy": { /* fact → "rolling" | "blue-green" | "canary" | "recreate" | "release-train" | "manual" | "continuous" */ },
+        "freezeWindows":  { /* fact → [{when, source}] — `source` because an unsourced freeze blocks an integration on a rumour */ },
+        "compliance":  { /* fact → [{regime: "soc2"|"hipaa"|"gdpr"|"pci"|"iso27001"|"fedramp"|"other", signal}] — LOWERCASE slugs, not "SOC 2" */ },
+        "messaging":   { /* fact → [{name, kind: "queue"|"broker"|"stream"|"scheduler"|"webhook", paths[]}] */ },
+        "observability": { /* fact → [{name, paths[]}] */ },
+        "integrations":  { /* fact → [{name, paths[], credentialShape?}] */ },
+        "experimentation": { /* fact → [{name, paths[]}] */ },
         "securityReviewPathSeeds": [ /* union of the isolation/auth/billing/compliance paths above */ ]
       },
-      "gates": [ { "name": "test", "status": "present|absent", "cmd": "<verbatim; forbidden when absent>",
+      "gates": [ { "name": "test", "status": "present|absent|not-applicable", "cmd": "<verbatim; forbidden unless present>",
                    "cwd": "…", "source": "package.json scripts.test", "required": true,
                    "scope": "repo|package|affected|changed-paths", "package": "…",
                    "timeoutMinutes": 20, "environmentDependent": true, "services": ["postgres"],
@@ -639,10 +751,12 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
     } ]
   },
   "surfaces": [ { "kind": "stack|tracker|vcs|ci|migration-tool|container|hooks|ide|release-channel|other",
-                  "detected": "…", "root": "…", "support": "…", "providedBy": "…",
+                  "detected": "…", "root": "…",
+                  "support": "supported|partial|unsupported|unknown|not-present", "providedBy": "…",
                   "consequence": "<one line — required>", "evidence": [] } ],
-  "gaps":     [ { "name": "…", "kind": "skill|agent|plugin|adapter", "surface": "…", "why": "…", "workaround": "…" } ],
-  "debtFindings": [ { "kind": "absent-gate", "title": "<the work as an OUTCOME>", "severity": "high|medium|low",
+  "gaps":     [ { "name": "…", "kind": "skill|agent|plugin|adapter|project-action", "surface": "…", "why": "…", "workaround": "…" } ],
+  "debtFindings": [ { "kind": "absent-gate|untested-critical-path|eol-dependency|todo-cluster|unreviewed-sensitive-path|docs-drift|committed-secret|pii-in-fixtures|cross-platform-hazard|ungated-integration|other",
+                      "title": "<the work as an OUTCOME>", "severity": "high|medium|low",
                       "root": "…", "package": "…", "gate": "<required iff kind=absent-gate>",
                       "paths": ["…"], "suggestedType": "story|task|bug|spike", "suggestedSize": "S|M|L|XL",
                       "sensitive": false, "trackerSafeTitle": "<required iff sensitive>",
@@ -652,12 +766,14 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
     "baseline": { "kind": "previous-profile|config-only|none", "path": "…", "scannedAt": "…",
                   "commit": "…", "profileVersion": 1, "depth": "standard", "appliedAt": "…" },
     "depthChanged": false, "comparedAgainstConfig": true, "unmanaged": ["…"],
-    "changes": [ { "kind": "gate-changed", "surface": "repos[].api…verify.steps.test", "root": "…",
+    "changes": [ { "kind": "root-added|root-removed|classification-changed|package-added|package-removed|gate-added|gate-removed|gate-changed|stack-changed|convention-changed|saas-changed|topology-changed|release-tooling-changed|surface-support-changed|adr-superseded|other",
+                   "surface": "repos[].api…verify.steps.test", "root": "…",
                    "package": "…", "was": "…", "now": "…",
                    "source": "code|config|human-edit|scan-depth|unknown",
                    "action": "propose|report-only|leave-alone", "evidence": [], "note": "…" } ]
   },
-  "adrCandidates": [ { "decisionKind": "tenancy-model", "title": "<the decision as a statement>",
+  "adrCandidates": [ { "decisionKind": "framework|data-store|auth-model|tenancy-model|api-style|deployment-topology|messaging|migration-strategy|frontend-architecture|build-tooling|observability|other",
+                       "title": "<the decision as a statement>",
                        "status": "propose|already-recorded", "existingAdr": "<required iff already-recorded>",
                        "reversibilityCost": "high|medium|low", "root": "…", "decidedAt": { /* fact */ },
                        "consequencesObserved": ["<observation, never judgement>"], "evidence": []
@@ -718,7 +834,33 @@ silently degrades the next re-adoption from a diff to a guess.
 put a timestamp-only commit in front of the team each time and, worse, move the baseline the *next* scan
 compares against. So compare what you are about to write against what is already there, **excluding the
 inherently variable fields** (`scan.scannedAt`, `scan.budget.durationSeconds`, and `drift`, which merely
-echoes this comparison):
+echoes this comparison) — **and excluding `scan.commit` when, and only when, the commits differ by
+adoption artifacts alone:**
+
+```
+node "<this skill's directory>/converged.mjs" <existing profile.json> <candidate profile.json> [changed-paths-file]
+```
+
+where the changed-paths file is
+
+```
+git -C "<control plane>" diff --name-only <recorded scan.commit>..HEAD -- . ':(exclude).aidlc/adoption/'
+```
+
+That `scan.commit` carve-out is not a nicety — without it the profile can **never** converge, because
+this section requires the profile be *tracked* and committing it is what moves HEAD. Scan at `A`, commit
+the profile, HEAD is `B`; the next scan records `B`, so it rewrites; you commit that, HEAD is `C`; and so
+on forever on a project that never changed. Each rewrite also moves the baseline the next scan compares
+against, which is the precise failure this rule exists to prevent.
+
+The carve-out is deliberately **evidence-based rather than blanket**. A project that really moved must
+record the commit it was actually read at, so `scan.commit` is ignored only when the diff between the
+recorded commit and HEAD touches nothing outside `.aidlc/adoption/`. When it is ignored, say so in one
+line — *"the recorded commit is 3 behind HEAD, all of them adoption artifacts"* — so a reader is never
+left wondering whether the profile is stale. When the paths are unknown, keep `scan.commit` in the
+comparison: the conservative answer is to write.
+
+Then, on the comparison itself:
 
 - **Nothing else differs ⇒ write neither file.** Report *"no drift — this profile already describes the
   workspace at `<commit>`"*, and leave `git status` clean. The artifacts describe **state**, not events;

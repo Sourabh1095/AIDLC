@@ -1179,6 +1179,43 @@ try {
     if (depthsAgree) console.log("ok    schema agreement: drift.baseline.depth matches scan.depth");
     else { fails++; console.log(`FAIL  schema agreement: drift.baseline.depth ${JSON.stringify(baseDepths)} != scan.depth ${JSON.stringify(scanDepths)}`); }
   }
+
+  // ---- 10. SKILL agreement ----
+  // The schema is published on GitHub and the skill is forbidden from fetching it: §10's skeleton
+  // IS the contract an offline agent works from, and the skill says so ("it is sufficient"). So an
+  // enum value the validator enforces but the skill never mentions is unusable by construction --
+  // and the failure is not a rejected profile, it is a WRONG one. The live run hit this exactly:
+  // `project-action` existed in the schema and the validator, the skeleton listed only
+  // skill|agent|plugin|adapter, and the cheapest way to satisfy "an unsupported surface must be
+  // recorded as a capability gap" was to invent a `skill` gap for a repo that simply has no CI --
+  // pointing /aidlc:scaffold-skill at work with no subject, which is what `project-action` was
+  // added to prevent. So: every value of every enum a scan must WRITE has to appear in the skill.
+  const skillPath = join(HERE, "SKILL.md");
+  if (!existsSync(skillPath)) {
+    console.log("skip  SKILL agreement — SKILL.md not reachable");
+  } else {
+    const skill = readFileSync(skillPath, "utf8");
+    const AUTHORED = [
+      "STATUSES", "CONFIDENCES", "EVIDENCE_KINDS", "RESOLVED_FROM", "SHAPES", "TOPOLOGIES",
+      "CLASSIFICATIONS", "SKIP_REASONS", "SUPPORTS", "SURFACE_KINDS", "GAP_KINDS", "DOC_KINDS",
+      "DECLARED_BY", "GATE_STATUSES", "GATE_SCOPES", "COMMIT_STYLES", "MERGE_STRATEGIES",
+      "PUSH_ACCESS", "TENANCY_MODELS", "LIVE_DATA_CONSTRAINTS", "DEPLOY_STRATEGIES",
+      "API_CONTRACT_KINDS", "ENVIRONMENT_KINDS", "COMPLIANCE_REGIMES", "MESSAGING_KINDS",
+      "ADR_DECISION_KINDS", "ADR_CANDIDATE_STATUSES", "REVERSIBILITY_COSTS", "DEBT_KINDS",
+      "DEBT_SEVERITIES", "DEBT_ITEM_TYPES", "DEBT_SIZES", "DRIFT_BASELINE_KINDS",
+      "DRIFT_CHANGE_KINDS", "DRIFT_SOURCES", "DRIFT_ACTIONS", "DEPTHS",
+    ];
+    for (const name of AUTHORED) {
+      n++;
+      const missing = (V[name] ?? []).filter((v) => !skill.includes(v));
+      if (missing.length === 0) console.log(`ok    SKILL names every ${name} value`);
+      else {
+        fails++;
+        console.log(`FAIL  SKILL.md never mentions ${missing.length} ${name} value(s): ${JSON.stringify(missing)}
+      An offline agent cannot use a value the skill does not name. Add it to §10's skeleton or the relevant section.`);
+      }
+    }
+  }
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

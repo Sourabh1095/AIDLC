@@ -65,11 +65,20 @@ export function resolveGate(config, repoName, packageName) {
 }
 
 // Lines the run skill writes into `## Findings`: one per absent gate.
+//
+// `not-applicable` is deliberately NOT a hole. A Django service has no build step and Go type-checks
+// during `go build`: reporting those as holes puts findings in every run that nobody can ever close,
+// which teaches the team to skip the section. Only `absent` — a gate the project could have and does
+// not — is a hole.
 export function coverageHoles(steps, repoName, packageName) {
   return steps
     .filter((s) => s.status === "absent")
     .map((s) => `coverage hole: no \`${s.name}\` gate in \`${repoName}${packageName ? "/" + packageName : ""}\` (recorded absent at adoption) — not counted green`);
 }
+
+// Steps the stack cannot have. Worth listing ONCE in the run file so "we never ran a build" reads as
+// a deliberate recorded fact rather than an omission — but never as a finding.
+export const notApplicable = (steps) => steps.filter((s) => s.status === "not-applicable");
 
 // Steps that need services: a failure is "environment unavailable", not "code broken".
 export const environmentDependent = (steps) => steps.filter((s) => s.environmentDependent === true);
