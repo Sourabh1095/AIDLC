@@ -2,9 +2,10 @@
 
 **Status:** Phase 1 shipped in `aidlc` **0.30.0**; Phase 2 in **0.31.0** (+ **0.31.1** fixes); Phase 3 in
 **0.32.0**; Phase 4 in **0.33.0**. All four are implemented. **0.34.0** carries the first live run of the
-Phases 3–4 **scan** half — seven defects, every one of which produced a plausible profile rather than an
-error; see *Phase 3/4 — the live scan run* below. `/aidlc:adopt-apply`, `-adr`, `-backlog` and the Phase 4
-lifecycle legs remain unexercised, and are listed there.
+Phases 3–4 **scan** half (seven defects) and **0.34.1** the first live run of **`/aidlc:adopt-apply`**
+(three more) — every one of the ten produced a plausible artifact rather than an error. See *the live scan
+run* and *the live apply run* below. `/aidlc:adopt-adr`, `/aidlc:adopt-backlog` and most Phase 4 lifecycle
+legs remain unexercised, and are listed there.
 **Authored:** 2026-07-29.
 
 AIDLC lands cleanly on an existing repo — `/aidlc:init` merges rather than clobbers
@@ -477,6 +478,92 @@ profile remains specified-but-unrun, and the Phase 2 precedent says that is wher
   and without a manifest, verified by `git diff` against `adoption.commit`.
 - **Open questions 4 and 5** (is a blank-rationale ADR useful? how many debt findings is a gift?) are
   untouched. Both ask how people react, and no fixture can answer either.
+
+### Phase 3/4 — the live apply run (2026-07-31)
+
+With the scan's contract fixed, `/aidlc:adopt-apply` was run against the same fixture, end to end: load
+and validate, read the merge baseline, build the proposal, write, and verify. **Three more defects, all of
+the same family as the scan's — plausible output, no error.** Two were in code the scan run had just
+added, which is its own lesson: a fix that is not exercised downstream is a fix on probation.
+
+**Confirmed working.** `repos[]` built from the two `product-repo` roots and the one `monorepo` root, with
+the `control-plane`, `non-repo` and `not-cloned` roots each excluded with a stated reason; `edge-svc`
+carrying an **absolute** `path` because it is not nested, while the other two stay relative;
+`packages[]` with manifest names (`@acme/ui`, not `ui`), the `@acme/config` ← `@acme/ui` ← `@acme/web`
+dependency chain, and `releasable` false only for the changeset-ignored private package; the `saas` block
+written per repo with every `unknown` **omitted rather than defaulted**; `pipeline.securityReviewPaths`
+seeded by union — all five profile seeds present, and a cross-check confirming **no** auth,
+tenant-isolation or billing path failed to reach it; the SOC 2 + GDPR signals producing a cadence
+**recommendation** rather than a silent change; `rules/git-workflow.md` rendered with each repo's own
+conventions and every AIDLC default **labelled as a default**, including the `guard`-hook warning for
+`edge-svc`'s `trunk`; and `CLAUDE.md` merged additively — verified mechanically, not by eye: all 16
+hand-written non-blank lines present, byte-identical, **in their original order**, with 38 lines added
+below them.
+
+The payoff test was gate resolution. `resolve-gate.mjs` reading the written config resolves
+`@acme/web` to *typecheck → test → build* with `lint` reported as **that package's own coverage hole** —
+because `@acme/web` declares no lint script, so a package-level `absent` entry claims the name and stops
+the repo's `pnpm lint` (which Turbo would skip for that package anyway) from reading as covered. That is
+Phase 2's defect #4 confirmed fixed at the package layer, on a real config rather than a fixture.
+
+**The three defects.**
+
+1. **`adopt-apply` could not produce a schema-valid config: the two required keys are the two it never
+   writes.** `aidlc.config.json`'s `required` is `["project", "workItems"]`. §3 builds `workspace`,
+   `repos[]`, `packages[]`, `architecture`, the gate block, `saas`, the conventions and the `adoption`
+   block — and never mentions either. The only occurrence of "tracker" in the whole skill is the §5
+   disclaimer *"This command does not touch a tracker."* So a config assembled exactly as §3 describes
+   fails the schema check §4.5 tells you to run. The usual defence — `init` writes them first — does not
+   hold: `init` Step 3.0 offers adopt as one of **three** setup paths, §2.2's table has a row for
+   *"File/key absent"*, and when `init` **did** run, a tracker it recorded that differs from the one the
+   scan **detected** is a `detected X · configured Y` conflict nothing looks for. The sharp end is
+   `project.key`, documented as the *"Uppercase work-item ID prefix"*: an agent that cannot find it infers
+   one, and the plausible inference is wrong — the fixture's board is `PLAT-14`/`PLAT-31`/`PLAT-40` while
+   the loudest name in the workspace is **ACME** (the package name, the commit prefix `ACME-402:`, the
+   CODEOWNERS teams). Guess `ACME` and every item `/aidlc:adopt-backlog` files is misfiled, silently,
+   because nothing cross-checks a created item's prefix against the board. Fixed with a new **§3.0** that
+   writes both first, derives `workItems.source` from the tracker surface, and takes `project.key` from
+   **the IDs the board already uses** — never from a repo name, and asked outright where no board exists.
+   `adopt` §7 now requires the tracker surface to cite that prefix as evidence.
+2. **`not-applicable` gates were handed to the runner as `undefined`.** The scan run had just added the
+   third gate status and taught `coverageHoles()` to skip it — but the CLI's notion of *what actually
+   executes* was an **inline predicate**, `steps.filter(s => s.status !== "absent")`, which excluded
+   `absent` and not `not-applicable`. So the resolved order for the Django service read
+   `lint → security-scan → test → build` with `build`'s command printed as `undefined`, and the Go
+   service the same for `typecheck`. The deeper problem is that "which steps are runnable" lived in the
+   CLI's printing code rather than being exported, so the run skill had to re-derive the same rule from
+   prose — one rule, two places, one of them tested. Now `runnableSteps(steps)` is exported, used by the
+   CLI, referenced by `run` §7, and pinned by tests including *"no runnable step is ever missing its
+   command"*. A sweep across every repo and package of the written config reports **20 runnable steps, 0
+   without a command**.
+3. **Re-applying was never idempotent, because the manifest carries its own timestamps.** §3.5 excluded
+   `adoption.appliedAt` from the comparison — and `adoption.writes[]` has an `at` per entry, which this
+   command **rebuilds on every run**. So each re-apply produced three fresh timestamps, differed from
+   disk, wrote, advanced `appliedAt`, and did it again next time. This is the scan run's convergence
+   treadmill in the config, and the fourth time this codebase has lost the same rule by omitting a field
+   from an ignore list. So the rule is no longer written down twice: `converged.mjs` now answers *"should
+   I write?"* for **both** artifacts, with `--config` and an ignore list covering `appliedAt` and every
+   `writes[].at`. Deliberately still compared: `adoption.scannedAt` (it moves only when the profile
+   really moved) and `adoption.upgrades[].at` (history, appended not rebuilt). Proven on the real config:
+   a candidate with identical content and all four timestamps advanced reports *converged — write
+   nothing*, while flipping `liveDataConstraint` to `not-required` is caught at
+   `repos.0.saas.liveDataConstraint`.
+
+A fourth, smaller thing the run caught before it could bite: the **gate status enum had been extended in
+the profile schema and not in the config schema**, so `adopt-apply` carrying the status through — which
+§3.2 now instructs — would have written a config violating its own schema. The two schemas are separate
+files that nothing linked, so there is now a **cross-schema agreement check** over the enums
+`adopt-apply` copies between them (gate status, gate scope, `saas.tenancy`, `saas.liveDataConstraint`).
+
+**Suites:** `validate-profile` **238**, `resolve-gate` **38**, `resolve-root` **38**, `converged` **32** —
+346 cases.
+
+**Still unexercised after this run.** Within `adopt-apply`: **§2.1's in-place upgrade** (needs a
+pre-0.31-shaped unstamped config), **`--only` partial adoption**, and **applying drift deltas** (the
+fixture's `drift.changes[]` was legitimately empty, so the `propose` / `report-only` / `leave-alone`
+routing table has still never been driven). Beyond it: **`/aidlc:adopt-adr`**, **`/aidlc:adopt-backlog`**,
+the **`human-edit` drift attribution**, and **`/aidlc:remove`** with and without a manifest. Open
+questions 4 and 5 are untouched, and no fixture can answer either.
 
 ### Deviations from this spec, and why
 

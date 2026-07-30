@@ -80,6 +80,13 @@ export function coverageHoles(steps, repoName, packageName) {
 // a deliberate recorded fact rather than an omission — but never as a finding.
 export const notApplicable = (steps) => steps.filter((s) => s.status === "not-applicable");
 
+// The steps that actually EXECUTE, in order. Exported rather than left as an inline predicate because
+// the answer has to be identical in the CLI and in the run skill, and a rule applied in two places with
+// only one of them tested is how the live run found `not-applicable` steps being handed to the shell as
+// `undefined`: only `absent` was filtered, so a Django service tried to run a build gate that cannot
+// exist. Anything without a cmd is not runnable — that is the whole rule.
+export const runnableSteps = (steps) => steps.filter((s) => s.status === "present");
+
 // Steps that need services: a failure is "environment unavailable", not "code broken".
 export const environmentDependent = (steps) => steps.filter((s) => s.environmentDependent === true);
 
@@ -97,7 +104,7 @@ if (isMain) {
   const r = resolveGate(config, repoName, packageName);
   if (r.fallback || r.note) console.log(`note: ${r.note}`);
   if (r.layers.length) console.log(`layers: ${r.layers.join("  +  ")}`);
-  const runnable = r.steps.filter((s) => s.status !== "absent");
+  const runnable = runnableSteps(r.steps);
   console.log(`\norder: ${runnable.map((s) => s.name).join(" -> ") || "(nothing runnable)"}`);
   for (const s of runnable) {
     const bits = [`[${s.scope ?? "repo"}]`];
@@ -108,6 +115,10 @@ if (isMain) {
     if (s.timeoutMinutes) bits.push(`timeout ${s.timeoutMinutes}m`);
     console.log(`  ${String(s.name).padEnd(11)} ${s.cmd}   ${bits.join(" ")}   (from ${r.from[s.name]})`);
   }
+  const na = notApplicable(r.steps);
+  if (na.length)
+    console.log(`
+not applicable to this stack: ${na.map((s) => s.name).join(", ")} — recorded at adoption, neither run nor a finding`);
   const holes = coverageHoles(r.steps, repoName, packageName);
   if (holes.length) { console.log("\n## Findings"); for (const h of holes) console.log(`- ${h}`); }
 }

@@ -118,6 +118,29 @@ overwrite.
 
 ## 3 · Build the proposal
 
+### 3.0 · `project` and `workItems` — the two the schema requires, and the one you must never invent
+
+`docs/aidlc.config.schema.json` marks exactly two top-level keys **required**: `project` (`key`, `name`)
+and `workItems` (`source`). Everything else in §3 is optional. Write these **first**, or the config you
+assemble fails the schema check §4.5 tells you to run — and `/aidlc:adopt-backlog`, the next command in
+the sequence, has no adapter to resolve.
+
+Usually `/aidlc:init` wrote them already; then they are existing values and a disagreement is a conflict
+for §2.2's table, defaulting to keep. When they are absent — `init` Step 3.0 offers adopt as one of three
+setup paths, so this happens — derive them:
+
+- **`workItems.source`** from the profile's `tracker` surface: `markdown` · `jira` · `ado`. An unsupported
+  tracker is **not** a blocker (§7 of the scan): offer the markdown backlog with the trade-off stated.
+- **`project.name`** from the workspace or the dominant repo, and say which you used.
+- **`project.key` is the uppercase work-item ID prefix, and it must never be inferred from a repo name.**
+  Read it from the **IDs the existing board already uses** — `backlog/PLAT-14-….md` with `id: PLAT-14`
+  means the key is `PLAT` — or from the Jira/ADO project. The prefix a codebase *looks* like it should
+  have is routinely not the one its board uses: a workspace whose package names, commit subjects
+  (`ACME-402:`) and CODEOWNERS all say `ACME` can have a board keyed `PLAT`, and nothing downstream
+  cross-checks a created item's prefix against the items already there. Get it wrong and every item
+  `/aidlc:adopt-backlog` files is misfiled, silently. If no board exists to read it from, **ask** — this
+  is exactly §2.2's `low`-confidence rule, and a guess here is expensive in a way that is hard to undo.
+
 ### 3.1 · Topology, repos and stack (from `workspace` + roots)
 
 - `workspace.layout` from `workspace.topology`: `poly` for many repos, `mono` for `single-app`, and `mono`
@@ -276,8 +299,23 @@ which `CLAUDE.md` lines and which `permissions.allow` entries were ours — and 
 (delete the file) destroys content the team wrote. Be specific: `"CLAUDE.md ## Commands"`,
 `"CLAUDE.md ## Project facts (4 bullets)"`, `"permissions.allow[+12 entries]"`.
 
-**`appliedAt` is a timestamp, so it would break idempotency if written unconditionally.** Compare the
-proposal to the file on disk **with `adoption.appliedAt` excluded from the comparison**:
+**Timestamps would break idempotency if written unconditionally, and `appliedAt` is not the only one.**
+Compare the proposal to the file on disk with the run-to-run fields excluded — use the shared, tested
+rule rather than re-deriving the exclusion list here:
+
+```
+node "<plugin>/skills/adopt/converged.mjs" .claude/aidlc.config.json <candidate>.json --config
+```
+
+Excluded: **`adoption.appliedAt`** *and* **every `adoption.writes[].at`**. That second one is easy to
+miss and worse than the first, because this command **rebuilds the whole manifest every time it runs** —
+so each re-apply produced three fresh timestamps, differed from disk, wrote, advanced `appliedAt`, and
+did the same again next time. Deliberately **not** excluded: `adoption.scannedAt` (it comes from the
+profile, so it changes only when the profile really moved) and `adoption.upgrades[].at` (that array is
+history — appended when an upgrade happens, never rebuilt, so a no-op re-apply adds nothing to it; if
+you ever rebuild it, add it to the list in `converged.mjs` rather than here).
+
+Then:
 
 - **Identical ⇒ write nothing at all.** Report "no changes — this workspace already matches the profile."
   `appliedAt` keeps its original value, the file stays byte-identical, and `git status` is clean. Writing

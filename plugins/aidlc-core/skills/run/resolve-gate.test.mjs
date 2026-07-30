@@ -3,7 +3,7 @@
 // The layering rule exists because a live adoption run proved the obvious reading wrong: taking
 // only the narrowest step list made a Python package inside a TypeScript monorepo lose the
 // repo-wide lint gate, silently. Every case below is a way that can happen again.
-import { resolveGate, coverageHoles, environmentDependent, notApplicable } from "./resolve-gate.mjs";
+import { resolveGate, coverageHoles, environmentDependent, notApplicable, runnableSteps } from "./resolve-gate.mjs";
 
 let n = 0, fails = 0;
 function check(label, actual, expected) {
@@ -147,8 +147,16 @@ const naCfg = {
     { name: "build", status: "not-applicable", required: false },
   ] } } } } },
 };
-check("a not-applicable step still resolves into the ordered step list",
+check("a not-applicable step is still RECORDED in the resolved list",
   resolveGate(naCfg, "api").steps.map((s) => s.name), ["lint", "typecheck", "build"]);
+// ...but it must never reach the runner. The live run found not-applicable steps being printed in the
+// executable order with cmd `undefined`, because only `absent` was filtered out.
+check("only present steps are runnable",
+  runnableSteps(resolveGate(naCfg, "api").steps).map((s) => s.name), ["lint"]);
+check("no runnable step is ever missing its command",
+  runnableSteps(resolveGate(naCfg, "api").steps).every((s) => typeof s.cmd === "string" && s.cmd.length > 0), true);
+check("an absent step is not runnable either",
+  runnableSteps([{ name: "typecheck", status: "absent", required: false }]).length, 0);
 check("only the absent step becomes a coverage hole",
   coverageHoles(resolveGate(naCfg, "api").steps, "api").length, 1);
 check("the hole is the absent gate, not the not-applicable one",

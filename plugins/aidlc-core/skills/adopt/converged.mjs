@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// Decide whether a freshly derived profile says anything new — i.e. whether to write at all.
+// Decide whether a freshly derived artifact says anything new — i.e. whether to write at all.
+// Covers BOTH artifacts that make an idempotency promise: the adoption profile (adopt §10) and
+// aidlc.config.json (adopt-apply §3.5). One tested function, because the rule is the same one and it
+// has now failed four times in this codebase by omitting a field from the ignore list.
 //
-//   node converged.mjs <existing profile.json> <candidate profile.json> [changed-paths-file]
+//   node converged.mjs <existing.json> <candidate.json> [changed-paths-file] [--config]
 //
 // Prints "converged" (write nothing) or "differs: <first differing pointer>" and exits 0 / 1.
 //
@@ -43,6 +46,21 @@ export const IGNORED_WHEN_ONLY_ADOPTION_MOVED = [
   "scan.commit",
 ];
 
+// aidlc.config.json's equivalents (adopt-apply §3.5). `appliedAt` was the documented one;
+// `writes[].at` is the one the live run found, and it is worse because the apply step REBUILDS the
+// manifest every time it runs — so every re-apply differed, wrote, advanced `appliedAt`, and did it
+// again next time. `[]` walks every element of an array.
+export const CONFIG_ALWAYS_IGNORED = [
+  "adoption.appliedAt",
+  "adoption.writes[].at",
+];
+
+// `adoption.scannedAt` is deliberately NOT ignored: it comes from the profile, so it changes only when
+// the profile really changed, which is a difference worth writing. `adoption.upgrades[].at` is not
+// ignored either, for a different reason — that array is history, appended when an upgrade happens and
+// never rebuilt, so a no-op re-apply adds nothing to it. If an implementation ever rebuilds it, this
+// list is where the fix goes.
+
 const ADOPTION_PREFIX = ".aidlc/adoption/";
 
 // `changedPaths` is the output of the git diff above, as an array. Pass null when unknown — the
@@ -53,14 +71,22 @@ export function onlyAdoptionArtifactsMoved(changedPaths) {
   return changedPaths.every((p) => String(p).replace(/\\/g, "/").trim().startsWith(ADOPTION_PREFIX));
 }
 
+function deleteAt(node, keys) {
+  if (node == null || typeof node !== "object") return;
+  const [head, ...rest] = keys;
+  if (head.endsWith("[]")) {
+    const arr = node[head.slice(0, -2)];
+    if (!Array.isArray(arr)) return;
+    for (const el of arr) rest.length ? deleteAt(el, rest) : void 0;
+    return;
+  }
+  if (rest.length === 0) { delete node[head]; return; }
+  deleteAt(node[head], rest);
+}
+
 function strip(obj, pointers) {
   const clone = structuredClone(obj);
-  for (const pointer of pointers) {
-    const keys = pointer.split(".");
-    let node = clone;
-    for (let i = 0; i < keys.length - 1 && node != null; i++) node = node[keys[i]];
-    if (node != null && typeof node === "object") delete node[keys[keys.length - 1]];
-  }
+  for (const pointer of pointers) deleteAt(clone, pointer.split("."));
   return clone;
 }
 
@@ -84,8 +110,17 @@ function firstDifference(a, b, path = "") {
   return path || "(root)";
 }
 
-export function converged(existing, candidate, changedPaths = null) {
-  if (!existing || !candidate) return { converged: false, reason: "no existing profile to compare against" };
+export function converged(existing, candidate, changedPaths = null, kind = "profile") {
+  if (!existing || !candidate)
+    return { converged: false, reason: `no existing ${kind} to compare against` };
+  if (kind === "config") {
+    const a = strip(existing, CONFIG_ALWAYS_IGNORED);
+    const b = strip(candidate, CONFIG_ALWAYS_IGNORED);
+    const diff = firstDifference(a, b);
+    return diff === null
+      ? { converged: true, reason: "this workspace already matches the profile — write nothing, and appliedAt keeps its original value" }
+      : { converged: false, firstDifference: diff };
+  }
   const ignored = [...ALWAYS_IGNORED];
   const commitExcusable = onlyAdoptionArtifactsMoved(changedPaths);
   if (commitExcusable) ignored.push(...IGNORED_WHEN_ONLY_ADOPTION_MOVED);
@@ -106,9 +141,11 @@ export function converged(existing, candidate, changedPaths = null) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const [existingPath, candidatePath, changedPathsFile] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const kind = argv.includes("--config") ? "config" : "profile";
+  const [existingPath, candidatePath, changedPathsFile] = argv.filter((a) => a !== "--config");
   if (!existingPath || !candidatePath) {
-    console.error("usage: node converged.mjs <existing profile.json> <candidate profile.json> [changed-paths-file]");
+    console.error("usage: node converged.mjs <existing.json> <candidate.json> [changed-paths-file] [--config]");
     process.exit(2);
   }
   const read = (p) => JSON.parse(readFileSync(p, "utf8"));
@@ -116,7 +153,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (changedPathsFile) {
     changed = readFileSync(changedPathsFile, "utf8").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   }
-  const r = converged(read(existingPath), read(candidatePath), changed);
+  const r = converged(read(existingPath), read(candidatePath), changed, kind);
   if (r.converged) {
     console.log(`converged — write neither file. ${r.reason}`);
     process.exit(0);

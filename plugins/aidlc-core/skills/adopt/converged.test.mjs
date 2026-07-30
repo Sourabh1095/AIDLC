@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Tests for converged.mjs — the §10 "write only on a real difference" rule.
 
-import { converged, onlyAdoptionArtifactsMoved, ALWAYS_IGNORED } from "./converged.mjs";
+import { converged, onlyAdoptionArtifactsMoved, ALWAYS_IGNORED, CONFIG_ALWAYS_IGNORED } from "./converged.mjs";
 
 let n = 0, fails = 0;
 function check(name, got, want) {
@@ -89,6 +89,72 @@ ok("a sibling .aidlc path is NOT adoption-only", !onlyAdoptionArtifactsMoved([".
 ok("a lookalike prefix does not pass", !onlyAdoptionArtifactsMoved([".aidlc/adoption-notes.md"]));
 ok("null is not adoption-only", !onlyAdoptionArtifactsMoved(null));
 ok("a missing existing profile is never convergence", !converged(null, base(), []).converged);
+
+// ---- the config side (adopt-apply §3.5) ------------------------------------------------------
+const cfg = () => ({
+  configVersion: 1,
+  project: { key: "PLAT", name: "Acme" },
+  repos: [{ name: "api", path: "api" }],
+  pipeline: { gates: { verify: { repos: { api: { steps: [{ name: "lint", status: "present", cmd: "make lint", required: true }] } } } } },
+  adoption: {
+    scannedAt: "2026-07-31T06:22:11Z",
+    commit: "21cde66",
+    appliedAt: "2026-07-31T07:04:00Z",
+    writes: [
+      { path: ".claude/aidlc.config.json", ownership: "created", at: "2026-07-31T07:04:00Z" },
+      { path: "CLAUDE.md", ownership: "merged", sections: ["## Commands"], at: "2026-07-31T07:04:00Z" },
+    ],
+  },
+});
+
+{
+  const a = cfg(), b = cfg();
+  b.adoption.appliedAt = "2026-08-14T11:00:00Z";
+  check("a re-apply that only advances appliedAt is converged",
+    converged(a, b, null, "config").converged, true);
+}
+{
+  // The live-run defect: the apply step REBUILDS writes[] every time, so each `at` is fresh.
+  const a = cfg(), b = cfg();
+  b.adoption.appliedAt = "2026-08-14T11:00:00Z";
+  for (const w of b.adoption.writes) w.at = "2026-08-14T11:00:00Z";
+  check("a re-apply that also regenerates every writes[].at is STILL converged",
+    converged(a, b, null, "config").converged, true);
+  ok("writes[].at is in the config ignore list", CONFIG_ALWAYS_IGNORED.includes("adoption.writes[].at"));
+}
+{
+  const a = cfg(), b = cfg();
+  b.adoption.writes.push({ path: ".claude/rules/git-workflow.md", ownership: "rendered", at: "2026-08-14T11:00:00Z" });
+  check("a NEW writes[] entry is a real difference — adoption touched another file",
+    converged(a, b, null, "config").converged, false);
+}
+{
+  const a = cfg(), b = cfg();
+  b.adoption.writes[1].sections = ["## Commands", "## Project facts"];
+  check("a changed sections[] is a real difference — /aidlc:remove reads it",
+    converged(a, b, null, "config").converged, false);
+}
+{
+  const a = cfg(), b = cfg();
+  b.pipeline.gates.verify.repos.api.steps[0].cmd = "make lint-all";
+  const r = converged(a, b, null, "config");
+  check("a changed gate command is a real difference", r.converged, false);
+  check("...located precisely", r.firstDifference, "pipeline.gates.verify.repos.api.steps.0.cmd");
+}
+{
+  const a = cfg(), b = cfg();
+  b.adoption.scannedAt = "2026-09-01T00:00:00Z";
+  check("a changed scannedAt IS a difference: it means the profile itself moved",
+    converged(a, b, null, "config").converged, false);
+}
+ok("the profile ignore list is not applied to configs", !CONFIG_ALWAYS_IGNORED.includes("drift"));
+ok("a missing existing config is never convergence", !converged(null, cfg(), null, "config").converged);
+{
+  // the array wildcard must not blow up on a config with no writes[] at all
+  const a = cfg(), b = cfg();
+  delete a.adoption.writes; delete b.adoption.writes;
+  check("a config with no writes[] compares cleanly", converged(a, b, null, "config").converged, true);
+}
 
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

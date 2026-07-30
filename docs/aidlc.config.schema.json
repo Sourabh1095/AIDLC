@@ -494,9 +494,9 @@
         "properties": {
           "name": { "type": "string", "description": "Short stable id — lint, typecheck, test, format, build, boundaries, or a project-specific one. Unique within its step list." },
           "status": {
-            "enum": ["present", "absent"],
+            "enum": ["present", "absent", "not-applicable"],
             "default": "present",
-            "description": "present: the project has this gate and `cmd` runs it. absent: the project provably does NOT have it — kept in the list on purpose so the run reports it in `## Findings` as a coverage hole. An absent gate carries no cmd, is never `required`, and is never counted green. Deleting the entry instead of recording it absent is what makes a missing gate invisible."
+            "description": "present: the project has this gate and `cmd` runs it. absent: the project provably does NOT have it — kept in the list on purpose so the run reports it in `## Findings` as a coverage hole. not-applicable: the STACK has no such step (a Django service is deployed from source so has no build; Go type-checks during `go build` so has no separate typecheck) — carried through so the run can list it as inapplicable, and never reported as a coverage hole, because a finding nobody can ever close teaches the team to skip the section. Neither absent nor not-applicable carries a cmd, neither is ever `required`, and neither is counted green. Deleting the entry instead of recording it is what makes a missing gate invisible. This enum must stay identical to the adoption profile's `definitions.gate.properties.status`, which /aidlc:adopt-apply copies values through from."
           },
           "cmd": { "type": "string", "description": "The command verbatim, as the project runs it (`pnpm test`, `uv run pytest`, `mvn -B verify`, `cargo clippy -- -D warnings`). Required when status=present." },
           "cwd": { "type": "string", "description": "Directory to run it from, relative to the repo root. Omit for the repo root itself." },

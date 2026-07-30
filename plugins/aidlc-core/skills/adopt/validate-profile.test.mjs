@@ -1180,6 +1180,44 @@ try {
     else { fails++; console.log(`FAIL  schema agreement: drift.baseline.depth ${JSON.stringify(baseDepths)} != scan.depth ${JSON.stringify(scanDepths)}`); }
   }
 
+  // ---- 9b. CROSS-schema agreement ----
+  // /aidlc:adopt-apply copies gate values straight from the profile into aidlc.config.json, so the two
+  // schemas' gate enums have to be the same set. They are separate files that nothing links, and the
+  // live run found them already diverged: the profile learned `not-applicable` and the config did not,
+  // which meant adopt-apply carrying the status through wrote a config violating its OWN schema -- and
+  // §4.5's "check it against the schema" is the only thing that would have caught it.
+  const cfgSchemaPath = join(HERE, "..", "..", "..", "..", "docs", "aidlc.config.schema.json");
+  if (!existsSync(cfgSchemaPath) || !existsSync(schemaPath)) {
+    console.log("skip  cross-schema agreement — one of the two schemas is not reachable");
+  } else {
+    const cfgSchema = JSON.parse(readFileSync(cfgSchemaPath, "utf8"));
+    const profSchema = JSON.parse(readFileSync(schemaPath, "utf8"));
+    const PAIRS = [
+      ["gate status", profSchema?.definitions?.gate?.properties?.status?.enum,
+        cfgSchema?.definitions?.gateSteps?.items?.properties?.status?.enum],
+      ["gate scope", profSchema?.definitions?.gate?.properties?.scope?.enum,
+        cfgSchema?.definitions?.gateSteps?.items?.properties?.scope?.enum],
+      ["saas tenancy", profSchema?.definitions?.saasProfile?.properties?.tenancy?.allOf?.[1]?.properties?.value?.enum,
+        cfgSchema?.definitions?.saas?.properties?.tenancy?.enum],
+      ["saas liveDataConstraint", profSchema?.definitions?.saasProfile?.properties?.liveDataConstraint?.allOf?.[1]?.properties?.value?.enum,
+        cfgSchema?.definitions?.saas?.properties?.liveDataConstraint?.enum],
+    ];
+    for (const [label, fromProfile, fromConfig] of PAIRS) {
+      n++;
+      const both = Array.isArray(fromProfile) && Array.isArray(fromConfig);
+      const same = both && fromProfile.length === fromConfig.length &&
+        fromProfile.every((v) => fromConfig.includes(v));
+      if (same) console.log(`ok    cross-schema agreement: ${label}`);
+      else {
+        fails++;
+        console.log(`FAIL  cross-schema agreement: ${label}
+      profile: ${JSON.stringify(fromProfile)}
+      config:  ${JSON.stringify(fromConfig)}
+      adopt-apply copies these values through, so a value legal in one and not the other writes an invalid config.`);
+      }
+    }
+  }
+
   // ---- 10. SKILL agreement ----
   // The schema is published on GitHub and the skill is forbidden from fetching it: §10's skeleton
   // IS the contract an offline agent works from, and the skill says so ("it is sufficient"). So an

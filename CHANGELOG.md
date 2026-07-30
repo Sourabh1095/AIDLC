@@ -7,6 +7,63 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.34.1] — 2026-07-31
+
+### `aidlc` — brownfield: the first live run of `/aidlc:adopt-apply`, and three more defects
+
+0.34.0 fixed the adoption **scan** against a live run. This does the same for the **write half**.
+`/aidlc:adopt-apply` was run end to end against the same fixture — load, validate, read the merge
+baseline, build the proposal, write, verify — and found **three more defects, none of which raised an
+error**. Two were in code 0.34.0 had just added, which is its own lesson: a fix that is not exercised
+downstream is a fix on probation. Spec: `docs/brownfield-adoption.md` (*the live apply run*).
+
+**What the run confirmed.** `repos[]` built from the product and monorepo roots with the `control-plane`,
+`non-repo` and `not-cloned` roots each excluded and the reason stated; the non-nested repo carrying an
+absolute path while the others stay relative; `packages[]` with manifest names and the full dependency
+chain, `releasable` false only for the private changeset-ignored package; every `unknown` **omitted rather
+than defaulted** from the `saas` block; `securityReviewPaths` union-seeded with a cross-check proving no
+auth, tenant-isolation or billing path was left out; compliance producing a **recommendation** not a
+silent cadence change; `rules/git-workflow.md` rendered per repo with AIDLC defaults labelled as defaults;
+and `CLAUDE.md` merged additively — checked mechanically, all 16 hand-written lines byte-identical and in
+their original order, 38 added below. Gate resolution off the written config puts `@acme/web` on
+*typecheck → test → build* and reports its missing `lint` as that package's own coverage hole — Phase 2's
+gate-layering defect confirmed fixed at the package layer, on a real config.
+
+- **`/aidlc:adopt-apply` could not produce a schema-valid config.** The schema's `required` is
+  `["project", "workItems"]` and §3 never mentioned either, so a config built exactly as documented fails
+  the schema check §4.5 tells you to run. Worse than a validation error: `project.key` is the work-item ID
+  prefix, so an agent that cannot find it infers one — and the fixture's board is keyed `PLAT` while every
+  loud signal in the workspace says `ACME` (package name, commit prefix, CODEOWNERS). Guess wrong and every
+  item `/aidlc:adopt-backlog` creates is misfiled, silently, because nothing cross-checks a new item's
+  prefix against the board. New **§3.0** writes both keys first, takes `workItems.source` from the tracker
+  surface, and derives `project.key` from **the IDs the board already uses** — never a repo name, and asked
+  outright when there is no board to read. `adopt` §7 now records that prefix as tracker evidence.
+- **`not-applicable` gates were handed to the runner as `undefined`.** 0.34.0 added the third gate status
+  and taught `coverageHoles()` to skip it, but *what actually executes* was an inline predicate in the
+  CLI — `status !== "absent"` — which let `not-applicable` through. The Django service's resolved order
+  read `… → build` with the command printed as `undefined`. The rule also lived in two places with only one
+  tested, so `runnableSteps(steps)` is now exported, used by the CLI, referenced by `run` §7, and pinned by
+  tests including *"no runnable step is ever missing its command"*. A sweep of the written config: **20
+  runnable steps, 0 without a command.**
+- **Re-applying was never idempotent, because the manifest carries its own timestamps.** §3.5 excluded
+  `adoption.appliedAt` — but `adoption.writes[]` has an `at` per entry and this command **rebuilds the
+  manifest every run**, so every re-apply differed, wrote, advanced `appliedAt`, and repeated. That is the
+  fourth time this codebase has lost the same rule by omitting a field from an ignore list, so the rule
+  stopped being prose in two places: **`converged.mjs` now answers "should I write?" for the config too**
+  (`--config`), ignoring `appliedAt` and every `writes[].at` while still comparing `scannedAt` (it moves
+  only when the profile moved) and `upgrades[].at` (history, appended not rebuilt).
+
+Caught before it could bite: the gate status enum had been extended in the **profile** schema and not the
+**config** schema, so carrying the status through would have written a config violating its own schema.
+There is now a **cross-schema agreement check** over every enum `adopt-apply` copies between the two.
+
+**Suites:** `validate-profile` 238, `resolve-gate` 38, `resolve-root` 38, `converged` 32 — 346 cases.
+
+**Still unexercised.** Inside `adopt-apply`: the in-place upgrade (§2.1), `--only` partial adoption, and
+applying drift deltas — the fixture's `changes[]` was legitimately empty, so the
+`propose`/`report-only`/`leave-alone` table has still never been driven. Beyond it: `/aidlc:adopt-adr`,
+`/aidlc:adopt-backlog`, the `human-edit` drift attribution, and `/aidlc:remove`.
+
 ## [0.34.0] — 2026-07-31
 
 ### `aidlc` — brownfield: the first live run of the Phase 3/4 scan, and the seven defects it found

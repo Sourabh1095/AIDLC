@@ -557,6 +557,11 @@ support in principle: today that is `aidlc-stack-web` for TS/JS, and markdown/Ji
 - An unsupported tracker (GitHub Issues, Linear, Shortcut, a spreadsheet, none at all) is **never a
   blocker**: offer the markdown backlog as the adapter and state the trade-off (local, no team
   visibility outside the repo).
+- **For the tracker surface specifically, cite the ID prefix the board actually uses** — an item path or
+  an `id:` line, e.g. `backlog/PLAT-14-….md:2` → `id: PLAT-14`. `/aidlc:adopt-apply` §3.0 writes that
+  prefix into `project.key`, and it is the one value in the config that cannot be inferred from the code:
+  a workspace whose package names and commit subjects all say `ACME` can have a board keyed `PLAT`, and an
+  item filed under the wrong prefix matches nothing on the existing board.
 - Each `partial`/`unsupported` surface becomes a `gaps[]` proposal — the entry that a later approved
   step writes into `.aidlc/extensions.json` so `/aidlc:scaffold-skill` and `/aidlc:promote` can act on
   it. The scan itself writes nothing there.
