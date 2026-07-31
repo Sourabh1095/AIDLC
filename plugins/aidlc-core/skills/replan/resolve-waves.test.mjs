@@ -6,8 +6,8 @@
 // stale plan silently followed. Wherever the packing cannot prove a placement is safe, the expected
 // answer is HELD.
 import {
-  resolveWaves, replanSettings, isContainer, rankOf, waveSummary,
-  planFingerprint, checkFreshness, fingerprintFields,
+  resolveWaves, replanSettings, isContainer, rankOf, waveSummary, stageSummary,
+  planFingerprint, checkFreshness, fingerprintFields, stageOf, stageLabels, UNSTAGED,
   CONTAINER_TYPES, LEAF_TYPES, REPLAN_DEFAULTS,
 } from "./resolve-waves.mjs";
 
@@ -225,6 +225,86 @@ check("rankOf reads P-levels", [rankOf(it("a", { priority: "P1" })).priority, ra
   ], POLY);
   check("a same-repo P1 rolls forward; the runnable P2 joins wave 1", shape(r), [["A", "C"], ["B"]]);
 }
+
+// ---------------------------------------------------------------- stages (grouping directives)
+// The bug these pin: `order` alone cannot express "ALL of these before ANY of those". Ranking the
+// backend 1..3 and the UI 4..5 and hoping is exactly what silently fails, and it fails WORST in poly,
+// where the free frontend slot pulls a UI item into wave 1 however low it ranks.
+const be = (id, extra = {}) => it(id, { repo: "backend", stage: 1, stageLabel: "backend", ...extra });
+const ui = (id, extra = {}) => it(id, { repo: "frontend", stage: 2, stageLabel: "ui", ...extra });
+
+check("stageOf takes integers only — a bare label carries no order", [stageOf({ stage: 2 }), stageOf({ stage: "UI" }), stageOf({})], [2, null, null]);
+check("stageLabels maps the number a human cannot read to the word they typed",
+  [...stageLabels([it("A", { stage: 1, stageLabel: "backend" }), it("B", { stage: 2, stageLabel: "ui" })])], [[1, "backend"], [2, "ui"]]);
+{
+  // The exact reproduction: without stages this packs w1[BE-1|UI-1] -> w2[BE-2|UI-2] -> w3[BE-3].
+  const items = [be("BE-1", { order: 1 }), be("BE-2", { order: 2 }), be("BE-3", { order: 3 }), ui("UI-1", { order: 4 }), ui("UI-2", { order: 5 })];
+  const r = resolveWaves(items, POLY);
+  check("poly: a stage barrier keeps every UI item out until the backend has drained",
+    shape(r), [["BE-1"], ["BE-2"], ["BE-3"], ["UI-1"], ["UI-2"]]);
+  check("...and the one-per-repo rule still binds INSIDE a stage (one checkout, sprint §1.3)",
+    r.waves.every((w) => w.items.length === 1), true);
+  check("...each wave carries the stage it belongs to", r.waves.map((w) => w.stageLabel), ["backend", "backend", "backend", "ui", "ui"]);
+  check("...and the barrier is legible in one line", stageSummary(r), "backend: w1[BE-1] -> w2[BE-2] -> w3[BE-3]  ||  ui: w4[UI-1] -> w5[UI-2]");
+}
+{
+  const r = resolveWaves([be("BE-1"), be("BE-2"), be("BE-3"), ui("UI-1"), ui("UI-2")], MONO);
+  check("mono: the barrier holds too — width comes from worktrees, order comes from the stage",
+    shape(r), [["BE-1", "BE-2", "BE-3"], ["UI-1", "UI-2"]]);
+}
+{
+  // Gate on PLACEABLE work: a blocked ticket must not freeze the whole UI half of the board.
+  const r = resolveWaves([be("BE-1"), be("BE-2", { status: "blocked" }), ui("UI-1")], POLY);
+  check("a held item in an earlier stage does not stall the later stage", shape(r), [["BE-1"], ["UI-1"]]);
+  check("...but the unsatisfied directive is said out loud, not discovered later",
+    r.warnings.some((w) => w.includes("BE-2") && w.includes("not fully satisfied")), true);
+}
+{
+  // A stage is a preference; a dependency is correctness. When they disagree, correctness wins.
+  const r = resolveWaves([be("BE-1", { dependsOn: ["UI-1"] }), ui("UI-1")], POLY);
+  check("a stage that contradicts dependsOn is relaxed, not obeyed into a broken build", shape(r), [["UI-1"], ["BE-1"]]);
+  check("...and the contradiction is reported", r.warnings.some((w) => w.includes("contradicts the dependency graph")), true);
+  check("...only once, however many waves it takes to drain",
+    r.warnings.filter((w) => w.includes("contradicts the dependency graph")).length, 1);
+}
+{
+  const r = resolveWaves([be("BE-1"), ui("UI-1"), it("X", { repo: "db" })], POLY);
+  check("an unstaged item runs LAST — too early silently breaks the directive, too late merely costs time",
+    shape(r), [["BE-1"], ["UI-1"], ["X"]]);
+  check("...and is named, because an unclassified item is a question for the analyst",
+    r.warnings.some((w) => w.includes("X") && w.includes("not assigned one")), true);
+}
+check("a non-numeric stage is dropped LOUDLY — a silent drop looks like a directive that was honoured",
+  resolveWaves([it("S1", { stage: "UI" })], POLY).warnings.some((w) => w.includes("non-numeric")), true);
+{
+  // The whole feature is opt-in: no stage anywhere and the packing is what it always was.
+  const plain = [it("S1", { repo: "backend" }), it("S2", { repo: "frontend" }), it("S3", { repo: "db" })];
+  const r = resolveWaves(plain, POLY);
+  check("no stage declared ⇒ no barrier, and the old packing is untouched", shape(r), [["S1", "S2", "S3"]]);
+  check("...no stage vocabulary leaks into the result", [r.stages, stageSummary(r), r.stats.staged], [[], null, false]);
+  check("...and UNSTAGED cancels out of the rank rather than reordering anything",
+    rankOf(it("S1")).stage, UNSTAGED);
+}
+{
+  // In-flight work outranks every directive: wave 0 is a read, whatever stage the item is in.
+  const r = resolveWaves([ui("UI-1", { status: "in_progress" }), be("BE-1")], POLY);
+  check("a frozen item is not pulled back by a barrier it violates", shape(r), [{ frozen: ["UI-1"] }, ["BE-1"]]);
+  check("...and wave 0 claims no stage", r.waves[0].stage, null);
+}
+{
+  // The result is serialized straight into .aidlc/plan.md. Infinity would become `null` there without
+  // anything saying so, and a stage number that silently became null is a barrier nobody can audit.
+  const r = resolveWaves([be("BE-1"), it("X", { repo: "db" })], POLY);
+  check("the unstaged bucket serializes as a deliberate null, not an Infinity artifact",
+    JSON.parse(JSON.stringify(r.stages)), [{ stage: 1, label: "backend" }, { stage: null, label: "unstaged" }]);
+  check("...and the trailing wave is labelled `unstaged`, distinguishing it from a relaxed barrier",
+    r.waves.map((w) => [w.stage, w.stageLabel]), [[1, "backend"], [null, "unstaged"]]);
+}
+check("stages are reported in order, with their labels, for the plan file",
+  resolveWaves([be("BE-1"), ui("UI-1")], POLY).stages, [{ stage: 1, label: "backend" }, { stage: 2, label: "ui" }]);
+check("stage beats order — that is the entire point of having both",
+  shape(resolveWaves([it("A", { stage: 2, order: 1, repo: "backend" }), it("B", { stage: 1, order: 99, repo: "frontend" })], POLY)),
+  [["B"], ["A"]]);
 
 // ---------------------------------------------------------------- summary + stats
 {

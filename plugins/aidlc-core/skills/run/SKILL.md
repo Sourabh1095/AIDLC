@@ -68,6 +68,44 @@ If they differ, the scope moved mid-flight — do NOT restart and do NOT ignore:
 4. If the change invalidates the branch's core approach (analyst verdict), stop and tell the
    user: finish-as-scoped / rework-in-place / close-and-split are their call.
 
+## 1a · PLAN position — say it, never enforce it
+
+**Fresh starts only — skip this entire section on a resume.** A resumed item has a live run file, which
+means `/aidlc:replan` pinned it to wave 0 and never re-planned it. It is in order by definition.
+
+If `.aidlc/plan.md` exists at the control plane, there is an active wave schedule (`aidlc:replan`) that
+`/aidlc:next` and `/aidlc:sprint` follow — and this command does not. That is correct: you were handed an
+ID, and a named ID is an explicit instruction that a schedule does not get to override (the same reason
+this skill is `disable-model-invocation`). But running silently out of order is the problem. A user who
+typed *"complete all BE first and then start with UI"*, approved the plan, and then starts a UI item by
+hand should be told they just stepped over their own barrier — not stopped, and not left to find out when
+the frontend lands against a backend that does not exist yet.
+
+So: read the plan's frontmatter and its wave tables, locate `<ID>`, and emit **at most one line** before
+continuing into §2. Four cases:
+
+| Where the ID sits | What to say |
+|---|---|
+| In the **earliest wave with open items** — the current wave | **nothing.** It is in order; a notice here is noise on every well-behaved run. |
+| In a **later wave** | `PROJ-104 is plan wave 3 (stage \`ui\`); wave 1 has 2 open items (PROJ-102, PROJ-120). Running it anyway.` Name the stage only when the plan has one. |
+| **Held** in the plan | `PROJ-111 is held in the plan — <the packer's reason, verbatim>. Running it anyway.` Held means the packer could not prove a placement was safe, so this one is worth the user's eye even though it does not stop. |
+| **Absent** from the plan | `PROJ-130 is not in the plan (cut 2026-07-31) — the plan predates it or has gone stale.` |
+
+Three things this section does **not** do, each deliberately:
+
+- **It does not refuse, prompt, or wait for confirmation.** One line, then straight into §2. An explicit
+  ID is a decision already made; re-asking makes the pipeline something to argue with.
+- **It does not run the freshness check.** `--freshness` costs a full board query, which `/aidlc:next`
+  and `/aidlc:sprint` pay because they are *obeying* the plan. This is only reporting a position, so it
+  reads the file and quotes the plan's own `plan:` date instead — letting the user judge staleness at a
+  glance is proportionate; a board sweep for a one-line notice is not.
+- **It writes nothing** — not the plan, not the tracker. Running an item out of wave order does not
+  re-plan anything, and the next `/aidlc:sprint` will simply find that item already done.
+
+**Do not repeat a wave the caller already named.** `/aidlc:next` §4 announces `plan wave 2` in its pick
+line and `/aidlc:sprint` §1.4 names the wave before launching; both then hand off here by reading this
+file verbatim. Saying it twice makes one plan look like two.
+
 ## 2 · CLASSIFY → pipeline variant
 
 | type | variant |

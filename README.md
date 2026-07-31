@@ -105,7 +105,7 @@ squash-only web app, from first scan through a merged PR to a drift report six w
 | `/aidlc:next` | Pick the highest-priority ready item and run it |
 | `/aidlc:status` | Dashboard: active runs + backlog snapshot |
 | `/aidlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
-| `/aidlc:replan [what changed]` | Priorities changed? Re-sequence the not-yet-started work into **waves** of items that can run at once; `next`/`sprint` follow it. In-flight work is never touched, and nothing is written to the tracker |
+| `/aidlc:replan [how you want it re-planned]` | Priorities changed? Say so in your own words — `checkout before search`, or `complete all BE first and then start with UI`. Re-sequences the not-yet-started work into **waves** of items that can run at once (a grouping directive becomes a hard barrier); `next`/`sprint` follow it. In-flight work is never touched, and nothing is written to the tracker |
 | `/aidlc:release` | Cut a release: semver from commits, changelog, tag, notes (publish is approval-gated) |
 | `/aidlc:sprint N` | Run N independent items in parallel (mono: worktrees · poly: per-repo) with a live board |
 | `/aidlc:repo add <name>` | Declare + bootstrap a repo in a poly workspace (config entry + `git init` + base commit) |
@@ -152,7 +152,11 @@ edit, the orchestrator commits — one writer to git, still one branch and one P
 **frontend and backend** built simultaneously against a contract that lands first, with an integration
 join proving the seam. Full design: `docs/architecture.md`.
 
-When the client's priorities move mid-project (`aidlc` v0.37.0), `/aidlc:replan` re-sequences what has
+When the client's priorities move mid-project (`aidlc` v0.38.0), `/aidlc:replan` re-sequences what has
 not started into ordered **waves** — so a reprioritization keeps the concurrency the decomposition was
-designed for instead of quietly serializing it. Work already in flight always finishes as-is, and the
-plan is an execution overlay: the board stays exactly as the product owner left it.
+designed for instead of quietly serializing it. You say how you want it re-planned in your own words,
+and there are two kinds of answer: an **ordering** (*"checkout before search"*) moves items up a list,
+while a **grouping** (*"all BE first, then UI"*) means all of one set before any of another — which no
+re-ranking can deliver, so it becomes a barrier the packer enforces. Work already in flight always
+finishes as-is, and the plan is an execution overlay: the board stays exactly as the product owner
+left it.

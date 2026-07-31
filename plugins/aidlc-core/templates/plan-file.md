@@ -7,6 +7,7 @@ layout: {{LAYOUT}}
 crossRepoSplit: {{CROSS_REPO_SPLIT}}
 maxWave: {{MAX_WAVE}}
 schedule: {{WAVE_SUMMARY}}
+stages: {{STAGE_SUMMARY}}
 waves: {{WAVE_COUNT}}
 frozen: {{FROZEN_COUNT}}
 held: {{HELD_COUNT}}
@@ -18,8 +19,18 @@ generated: {{NOW_UTC}}
 
 {{DRIVER_DETAIL}}
 
-<!-- What changed and where it came from: the prompt, or the requirement doc + the lines that moved.
-     A plan whose driver reads "re-prioritized" explains nothing six weeks later. -->
+<!-- What changed and where it came from: the prompt verbatim, or the requirement doc + the lines that
+     moved. A plan whose driver reads "re-prioritized" explains nothing six weeks later.
+
+     If the driver GROUPED the work ("all BE first, then UI"), say which items landed in which stage
+     and on what basis — a stage is a judgment about what an item IS, not about which repo it sits in,
+     and it is the line most worth arguing with later. Delete `stages:` above and this paragraph when
+     the driver expressed no grouping; an empty barrier reads as one that was dropped. -->
+
+<!-- Stage | Items | What put them here
+     ------|-------|-------------------
+     1 backend | PROJ-102, PROJ-103, PROJ-120 | server-side, incl. the db migration
+     2 ui      | PROJ-104, PROJ-105           | everything behind the checkout screen           -->
 
 ## Frozen — wave 0 (in flight, NOT re-planned)
 
@@ -33,7 +44,11 @@ generated: {{NOW_UTC}}
 ## Waves
 
 <!-- Wave N+1 starts when every item in wave N is terminal. Within a wave, items are concurrent:
-     /aidlc:sprint launches them together. Ordering inside a wave is presentation only. -->
+     /aidlc:sprint launches them together. Ordering inside a wave is presentation only.
+
+     When the driver grouped, head each wave with its stage and draw the barrier between stages, as
+     `──── barrier: <stage> may start ────`. The barrier is the thing the driver bought; a flat wave
+     list hides whether it was honoured, and hides the wall-clock it cost. -->
 
 ### Wave 1
 

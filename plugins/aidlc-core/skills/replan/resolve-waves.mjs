@@ -29,6 +29,14 @@
 // serialize anything that mutates a shared tree") applied one level coarser than `resolve-fanout.mjs`
 // applies it: that one packs the tasks of ONE item into windows, this one packs ITEMS into waves.
 //
+// STAGES — the constraint a rank cannot express. `order` says "this before that". It cannot say "ALL
+// of these before ANY of those", which is what a driver like *"finish the backend, then start the UI"*
+// actually asks for. A greedy rank-ordered packer puts a low-ranked item in wave 1 the moment a slot is
+// free, and in poly the one-item-per-repo rule GUARANTEES that: with the backend slot taken, the free
+// frontend slot pulls a UI item forward however low it ranks. So a grouping directive gets its own
+// vocabulary — a `stage` per item, assigned by the analyst from the driver, enforced here as a barrier.
+// Absent any declared stage there is no barrier and the packing is exactly what it always was.
+//
 // FOUR THINGS THIS REFUSES TO GUESS:
 //
 //   1. **In-flight work is not re-planned.** A leaf already running is pinned to wave 0 exactly as it
@@ -96,12 +104,27 @@ export function isContainer(item, childrenByParent) {
   return kids.some((k) => !isTerminal(k));
 }
 
-// Rank for ordering within and across waves. An explicit `order` (the analyst's re-prioritized rank,
-// which is what a replan actually produces) wins; otherwise P1..P4; ties break on id so the same input
-// always yields the same schedule.
+// The stage an item belongs to, or null for "the driver did not group this one".
+//
+// Numeric only, and deliberately so: a stage expresses an ORDER between groups, and a bare label
+// ("BE", "UI") carries none. The analyst emits `{stage: 1, stageLabel: "backend"}` — the integer is
+// the barrier, the label is for the human reading the plan six weeks later.
+export const stageOf = (item) => (Number.isFinite(item?.stage) ? Number(item.stage) : null);
+
+// Where an item sits when stages are in play but it was never assigned one: last, after every declared
+// stage. The asymmetry is the module's usual one — running an unclassified item too LATE costs
+// wall-clock and is visible in the schedule; running it too EARLY silently violates the directive the
+// user typed. It is warned about either way, never just moved.
+export const UNSTAGED = Number.POSITIVE_INFINITY;
+
+// Rank for ordering within and across waves. Stage first — a grouping directive outranks the
+// item-level order inside it — then an explicit `order` (the analyst's re-prioritized rank, which is
+// what a replan actually produces), then P1..P4; ties break on id so the same input always yields the
+// same schedule. With no stages declared every item is UNSTAGED and that first term drops out.
 export function rankOf(item) {
   const explicit = Number.isFinite(item.order) ? Number(item.order) : null;
   return {
+    stage: stageOf(item) ?? UNSTAGED,
     order: explicit ?? Number.POSITIVE_INFINITY,
     priority: PRIORITY_RANK[String(item.priority ?? "").toUpperCase()] ?? 5,
     id: String(item.id ?? ""),
@@ -110,10 +133,24 @@ export function rankOf(item) {
 
 const byRank = (a, b) => {
   const ra = rankOf(a), rb = rankOf(b);
+  if (ra.stage !== rb.stage) return ra.stage - rb.stage;
   if (ra.order !== rb.order) return ra.order - rb.order;
   if (ra.priority !== rb.priority) return ra.priority - rb.priority;
   return ra.id.localeCompare(rb.id, "en");
 };
+
+// stage number -> the analyst's human label for it, for the report and the plan file. First label wins;
+// an unlabelled stage still reads sensibly.
+export function stageLabels(items) {
+  const m = new Map();
+  for (const it of items ?? []) {
+    const s = stageOf(it);
+    if (s === null || m.has(s)) continue;
+    const label = norm(it.stageLabel);
+    if (label) m.set(s, label);
+  }
+  return m;
+}
 
 // Expand a dependency onto the set of LEAVES that must actually precede the dependent. A dep on a
 // container means "after everything under it", so it resolves to that container's non-terminal
@@ -141,9 +178,12 @@ function expandDep(depId, index, childrenByParent, seen = new Set()) {
 /**
  * Pack items into ordered waves.
  *
- * @param items  normalized WorkItems, plus two optional planning fields the caller supplies:
- *               `frozen: true`  — this LEAF has a non-terminal run file (it is running right now)
- *               `order: <int>`  — the re-prioritized rank this replan is applying
+ * @param items  normalized WorkItems, plus four optional planning fields the caller supplies:
+ *               `frozen: true`      — this LEAF has a non-terminal run file (it is running right now)
+ *               `order: <int>`      — the re-prioritized rank this replan is applying
+ *               `stage: <int>`      — the group this item belongs to, when the driver asked for a
+ *                                     grouping ("all BE first, then UI"). No item staged ⇒ no barrier.
+ *               `stageLabel: <str>` — that group's human name, for the report
  * @param config `.claude/aidlc.config.json` (only `repos[]` and `pipeline.replan` are read)
  */
 export function resolveWaves(items, config = {}) {
@@ -253,15 +293,41 @@ export function resolveWaves(items, config = {}) {
     }
   }
 
+  // ---- stages ----------------------------------------------------------------------------------
+  // The barrier only exists if the driver actually asked for one. A backlog with no staged item packs
+  // byte-identically to how it packed before stages existed.
+  const stagesDeclared = schedulable.some((it) => stageOf(it) !== null);
+  const labels = stageLabels(all);
+  const labelFor = (st) => labels.get(st) ?? (st === UNSTAGED ? "unstaged" : `stage ${st}`);
+  const stageRank = (it) => stageOf(it) ?? UNSTAGED;
+  // UNSTAGED is Infinity, which `JSON.stringify` turns into `null` without saying so — and this result
+  // is serialized straight into the plan file. Normalize on the way out so the null is deliberate.
+  const publicStage = (st) => (st === UNSTAGED || st == null ? null : st);
+
+  // A `stage` that is not an integer cannot order anything, so it is dropped — but never in silence,
+  // because a dropped stage looks exactly like a directive that was honoured.
+  for (const it of all) {
+    if (it.stage != null && stageOf(it) === null) {
+      warnings.push(`${it.id} has a non-numeric \`stage\` (${JSON.stringify(it.stage)}) — a stage is an integer because it expresses an order between groups; ignored`);
+    }
+  }
+  if (stagesDeclared) {
+    const loose = schedulable.filter((it) => stageOf(it) === null).map((it) => it.id);
+    if (loose.length) {
+      warnings.push(`the driver groups work into stages but ${loose.join(", ")} ${loose.length > 1 ? "were" : "was"} not assigned one — ${loose.length > 1 ? "they run" : "it runs"} last, after every declared stage; assign a stage or confirm that is right`);
+    }
+  }
+
   // ---- pack ------------------------------------------------------------------------------------
   const waves = [];
-  if (frozen.length) waves.push({ n: 0, frozen: true, items: frozen });
+  if (frozen.length) waves.push({ n: 0, frozen: true, stage: null, stageLabel: null, items: frozen });
 
   const placed = new Set(frozen.map((it) => it.id));
   // Scheduled waves always start at 1. Wave 0 *means* "already in flight" and keeps that meaning
   // whether or not anything happens to be running — a wave number that shifts meaning with the state
   // of the board is a number nobody can quote back at you.
   let waveNo = 1;
+  const conflicted = new Set();   // stages already reported as contradicting the dependency graph
 
   while (queue.length) {
     const ready = queue.filter((it) => [...(predecessors.get(it.id) ?? new Set())].every((p) => placed.has(p) || !index.has(p)));
@@ -272,25 +338,73 @@ export function resolveWaves(items, config = {}) {
       break;
     }
 
-    ready.sort(byRank);
+    // The barrier: while any item of the earliest still-unplaced stage remains, no later stage may
+    // enter a wave. Note it gates on what is IN THE QUEUE — held items were already removed, so one
+    // blocked ticket cannot stall every later stage. That is deliberate, and §4 reports it.
+    let gate = null;
+    let candidates = ready;
+    if (stagesDeclared) {
+      gate = Math.min(...queue.map(stageRank));
+      const gated = ready.filter((it) => stageRank(it) === gate);
+      if (gated.length) {
+        candidates = gated;
+      } else {
+        // Every remaining item of the gating stage depends on work in a LATER stage. The grouping the
+        // user asked for contradicts the dependency graph, and only one of the two can be honoured:
+        // `dependsOn` is correctness (run it early and it builds against something that is not there),
+        // a stage is a preference. Correctness wins — out loud, once per stage.
+        if (!conflicted.has(gate)) {
+          conflicted.add(gate);
+          warnings.push(`stage \`${labelFor(gate)}\` cannot open on its own — every item left in it dependsOn later-stage work, so the grouping in the driver contradicts the dependency graph. \`dependsOn\` wins; the stage order is relaxed from here`);
+        }
+        gate = null;
+      }
+    }
+
+    candidates = [...candidates].sort(byRank);
     const wave = [];
     const reposUsed = new Set();
-    for (const it of ready) {
+    for (const it of candidates) {
       if (wave.length >= s.maxWave) break;
       if (s.onePerRepo && reposUsed.has(it.repo)) continue;   // next wave — one item per working tree
       wave.push(it);
       if (it.repo) reposUsed.add(it.repo);
     }
 
-    waves.push({ n: waveNo, frozen: false, items: wave });
+    waves.push({
+      n: waveNo,
+      frozen: false,
+      // Two different nulls, told apart by the label: `stage: null, stageLabel: null` is a wave the
+      // barrier was RELAXED for (§ the dependsOn conflict above); `stage: null, stageLabel:
+      // "unstaged"` is the trailing bucket of items the analyst never grouped.
+      stage: gate === null ? null : publicStage(gate),
+      stageLabel: gate === null ? null : labelFor(gate),
+      items: wave,
+    });
     for (const it of wave) placed.add(it.id);
     queue = queue.filter((it) => !placed.has(it.id));
     waveNo++;
   }
 
+  // Gating on placeable work keeps the pipeline moving when something in an earlier stage is stuck —
+  // but it means the directive was not fully satisfied, and that must be stated rather than discovered
+  // when the UI lands before the backend it needed.
+  if (stagesDeclared && held.length) {
+    const heldStages = held.map((h) => ({ id: h.id, stage: stageRank(index.get(h.id) ?? {}) }));
+    const opened = [...new Set(waves.filter((w) => !w.frozen && w.stageLabel !== null).map((w) => stageRank(w.items[0] ?? {})))].sort((a, b) => a - b);
+    for (const st of opened) {
+      const earlier = heldStages.filter((h) => h.stage < st).map((h) => h.id);
+      if (!earlier.length) continue;
+      warnings.push(`stage \`${labelFor(st)}\` was scheduled while ${earlier.join(", ")} in an earlier stage ${earlier.length > 1 ? "are" : "is"} held — the grouping in the driver is not fully satisfied; unblock and re-plan, or accept this order`);
+    }
+  }
+
   const scheduled = waves.filter((w) => !w.frozen).reduce((n, w) => n + w.items.length, 0);
   return {
     waves, held, containers, warnings, settings: s,
+    stages: stagesDeclared
+      ? [...new Set(schedulable.map(stageRank))].sort((a, b) => a - b).map((st) => ({ stage: publicStage(st), label: labelFor(st) }))
+      : [],
     stats: {
       total: all.length,
       done: done.length,
@@ -299,18 +413,42 @@ export function resolveWaves(items, config = {}) {
       held: held.length,
       waves: waves.filter((w) => !w.frozen).length,
       widest: waves.reduce((m, w) => Math.max(m, w.items.length), 0),
+      staged: stagesDeclared,
     },
   };
 }
 
-// The one line the plan file records, so the schedule is readable without parsing the tables.
+// The one line the plan file records, so the schedule is readable without parsing the tables. Its
+// format is fixed: `/aidlc:next`, `/aidlc:sprint` and `/aidlc:status` all quote it back at the user,
+// so stages get their own line below rather than being wedged into this one.
 export const waveSummary = (r) =>
   r.waves.map((w) => `w${w.n}[${w.items.map((it) => it.id).join("|")}]${w.frozen ? "*" : ""}`).join(" -> ");
+
+// The same schedule with the barriers shown — `||` is where one stage ends and the next may begin.
+// Null when the driver expressed no grouping, which is how the plan file knows to omit the line.
+export function stageSummary(r) {
+  const scheduled = r.waves.filter((w) => !w.frozen);
+  if (!r.stages?.length || !scheduled.length) return null;
+  const groups = [];
+  for (const w of scheduled) {
+    const label = w.stageLabel ?? "relaxed";
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.waves.push(w);
+    else groups.push({ label, waves: [w] });
+  }
+  return groups
+    .map((g) => `${g.label}: ${g.waves.map((w) => `w${w.n}[${w.items.map((it) => it.id).join("|")}]`).join(" -> ")}`)
+    .join("  ||  ");
+}
 
 // ---- staleness ---------------------------------------------------------------------------------
 // A persisted plan is obeyed by `/aidlc:next` and `/aidlc:sprint`, which makes "is it still true?" a
 // correctness question rather than a nicety. The fingerprint covers exactly the fields the packing
 // depends on — change any of them and the wave boundaries may be wrong.
+//
+// `order` and `stage` are deliberately NOT in it. Both are this plan's own judgment, not board state;
+// they cannot drift out from under it, because nothing but a replan can change them. Fingerprinting
+// them would make every plan look stale against a board that never moved.
 
 export const fingerprintFields = (it) => [
   norm(it.id), lower(it.type), lower(it.status), String(it.priority ?? ""),
@@ -404,13 +542,24 @@ if (isMain) {
   const r = resolveWaves(items, config);
   console.log(`layout: ${r.settings.layout}  maxWave=${r.settings.maxWave}  onePerRepo=${r.settings.onePerRepo}`);
   console.log(`schedule: ${waveSummary(r) || "(nothing to schedule)"}`);
+  const ss = stageSummary(r);
+  if (ss) console.log(`stages:   ${ss}`);
   console.log(`fingerprint: ${planFingerprint(items)}`);
   console.log(`${r.stats.scheduled} item(s) across ${r.stats.waves} wave(s) · ${r.stats.frozen} frozen · ${r.stats.held} held · ${r.stats.done} done\n`);
 
+  let shownStage;
   for (const w of r.waves) {
+    // The barrier is what a grouping directive actually bought, so it is drawn rather than left to be
+    // inferred from the labels on either side of it.
+    if (!w.frozen && r.stages.length) {
+      if (shownStage !== undefined && w.stageLabel !== shownStage) {
+        console.log(`  ──── barrier: ${w.stageLabel ?? "stage order relaxed"} may start ────`);
+      }
+      shownStage = w.stageLabel;
+    }
     console.log(w.frozen
       ? `  WAVE ${w.n} — IN FLIGHT (frozen, not re-planned):`
-      : `  WAVE ${w.n} (${w.items.length} concurrent):`);
+      : `  WAVE ${w.n} (${w.items.length} concurrent)${w.stageLabel ? ` — stage ${w.stageLabel}` : ""}:`);
     for (const it of w.items) console.log(`    ${String(it.id).padEnd(12)} ${(it.repo ?? "-").padEnd(14)} ${it.title ?? ""}`);
   }
   if (r.containers.length) {

@@ -232,12 +232,23 @@ Three properties make the overlay trustworthy rather than a second source of tru
   would freeze whole epics and make the board unplannable the instant any child moved. Containers are
   coordination units — never frozen, never scheduled, their children are the work.
 - **The packing is computed, not judged.** The *order* is human judgment (an analyst reading the changed
-  intent); which items may share a wave is decided by three constraints that each fail silently —
-  a violated `dependsOn`, two poly items racing one working tree (sprint §1.3, which does **not** bind in
-  mono where each item gets a worktree), and the width cap. So it is `skills/replan/resolve-waves.mjs`,
-  pinned by `resolve-waves.test.mjs` — the same argument `resolve-fanout.mjs` makes one grain finer.
-  This is D7's coarsest level: fan-out packs one item's *tasks* into windows; replan packs *items* into
-  waves.
+  intent); which items may share a wave is decided by four constraints that each fail silently —
+  a violated `dependsOn`, a breached **stage barrier**, two poly items racing one working tree (sprint
+  §1.3, which does **not** bind in mono where each item gets a worktree), and the width cap. So it is
+  `skills/replan/resolve-waves.mjs`, pinned by `resolve-waves.test.mjs` — the same argument
+  `resolve-fanout.mjs` makes one grain finer. This is D7's coarsest level: fan-out packs one item's
+  *tasks* into windows; replan packs *items* into waves.
+- **A grouping directive is a barrier, because a rank cannot express one.** *"Finish the backend before
+  starting the UI"* says **all** of one set before **any** of another; `order` only says *this before
+  that*. Rank the backend 1–3 and the UI 4–5 and a greedy packer still puts a UI item in wave 1 the
+  moment a slot is free — and in poly the one-item-per-repo rule *guarantees* a free frontend slot, so
+  the directive fails 100% of the time in exactly the layout that most needs it. So the analyst emits a
+  `stage` per item and the packer gates on it. The barrier is a **band, not a queue**: inside a stage
+  everything still runs as wide as the other three constraints allow. It yields, loudly, in two cases —
+  it gates on *schedulable* work so one blocked ticket cannot freeze every later stage, and `dependsOn`
+  overrides it, because a dependency is correctness and a phase is a preference. And it stays **plan
+  state**: encoding a phase as a tracker `dependsOn` would outlive the plan that wanted it and
+  re-serialize the board permanently.
 - **A stale plan falls back loudly rather than steering silently.** The plan records the item fields the
   packing depended on; `next`/`sprint` diff them against the live board first. Items merely progressing
   is the plan working; new work is additive (follow it, say what is unscheduled); a planned item that

@@ -144,6 +144,7 @@ So choosing `direct` isn't choosing to be careless. It's choosing not to file a 
 | "Where is everything?" | `/aidlc:status` |
 | Backlog is messy / items missing AC / before sprint planning | `/aidlc:groom` |
 | **The client changed their mind about the order** — "checkout before search", "security items first for the audit", a revised requirements doc | `/aidlc:replan client wants checkout live before search` (§2a) — re-sequences what hasn't started into **waves**; work in flight finishes untouched; **nothing is written to your tracker** |
+| **You want the work phased** — "all the backend first, then the UI", "everything for the demo, then the rest" | `/aidlc:replan complete all BE first and then start with UI` (§2a) — same command; a grouping directive becomes a hard barrier, not just a re-ranking |
 | Work several items at once | `/aidlc:sprint 3` |
 | **Make a screen or the whole app award-grade** (new or existing) | `/aidlc-ux:design /dashboard` · `/aidlc-ux:design "redesign the landing page"` |
 | Same, anchored to your brand | drop a logo/font/screenshot in `design/brand/` (or set `ux.brand`), then run `/aidlc-ux:design …` |
@@ -156,13 +157,27 @@ So choosing `direct` isn't choosing to be careless. It's choosing not to file a 
 Clients change their minds, and they do it while things are running. `/aidlc:replan` is the command
 for that — it changes **when** work happens, never **what** the work is.
 
+**You tell it how you want things re-planned, in your own words.** That argument is the whole input:
+
 ```
 /aidlc:replan client wants checkout live before search
+/aidlc:replan complete all BE first and then start with UI
+/aidlc:replan security items first for the audit
+/aidlc:replan ./requirements-v3.docx
 ```
 
-You can also point it at a revised requirements doc (`/aidlc:replan ./requirements-v3.docx` — it diffs
-against what the backlog already reflects), or run it bare to re-derive the order from the board as it
-stands, which is what you want after a grooming pass or a decomposition.
+Point it at a revised requirements doc and it diffs against what the backlog already reflects. Run it
+**bare** and it asks you what changed rather than guessing — and "nothing changed, just re-derive from
+the board" is one of the answers, which is what you want after a grooming pass or a decomposition.
+
+Two kinds of directive, and the difference matters:
+
+- **Ordering** — *"checkout before search"*. Moves items up and down one list.
+- **Grouping** — *"all BE first, then UI"*. Says *all* of one group before *any* of another. This is
+  not the same thing, and re-ranking cannot deliver it: rank the backend 1–3 and the UI 4–5 and a
+  scheduler will still start a UI item in wave 1 the moment a slot frees up. In a multi-repo workspace
+  it *always* will, because the free frontend slot has nothing else to put in it. So a grouping
+  directive becomes a **barrier** the packer enforces, and you see it drawn in the plan.
 
 **What comes back is a schedule, not a list.** Re-ordering alone would quietly cost you the
 parallelism: move one item to the top and a frontend/backend pair that used to build side by side ends
@@ -183,8 +198,43 @@ Held:   PROJ-111 blocked · PROJ-112 unrouted — route it and re-plan
 Board deltas (not written): PROJ-102 P3→P1, PROJ-110 P1→P3
 ```
 
-Then `/aidlc:sprint` launches wave 1's items together, and `/aidlc:next` picks from the current wave
-rather than from raw priority order. Wave *N+1* starts when wave *N* is done.
+Ask for phasing and you get the same schedule with the barrier drawn in it, plus what it cost:
+
+```
+Replan — driver: "complete all BE first and then start with UI"   [grouping: backend → ui]
+
+  stage backend
+    wave 1   PROJ-102 backend  Orders API   ‖  PROJ-120 db  Schema migration
+    wave 2   PROJ-103 backend  Payments API
+  ──── barrier ────
+  stage ui
+    wave 3   PROJ-104 frontend Checkout screen
+    wave 4   PROJ-105 frontend Order history
+
+Cost:   4 waves, was 2 — PROJ-104/105 could have run alongside the backend. That is the directive.
+```
+
+Notice the backend items still run **side by side** inside their own stage. "All BE first" holds the UI
+back; it does not put the backend in single file. And notice the cost line: a barrier trades throughput
+for order, and you are the one who should decide that was worth it.
+
+**Starting the work — the plan does not launch itself.** A replan writes the schedule; you start each
+wave by hand:
+
+```
+/aidlc:sprint     # launches the current wave's items together → "wave 1 done — wave 2 is …"
+/aidlc:sprint     # the next wave, when you're ready
+/aidlc:next       # or one item at a time from the current wave
+/aidlc:status     # which wave you're on, and whether the plan has gone stale
+```
+
+`sprint` and `next` both read the plan and follow it. `/aidlc:run PROJ-123` does **not** — you named an
+ID, so you get that ID, whatever wave it sits in. It will say so in one line (`PROJ-104 is plan wave 3
+(stage ui); wave 1 has 2 open items. Running it anyway.`) and then run it. Nothing is blocked and
+nothing is re-planned; the next sprint just finds that item already done.
+
+Wave *N+1* becomes current when wave *N* is finished, but no command loops — crossing a wave boundary,
+and especially crossing a stage barrier, is always you pressing the key.
 
 **Three things worth knowing before you run it:**
 
@@ -207,6 +257,15 @@ rather than from raw priority order. Wave *N+1* starts when wave *N* is done.
 Some items may come back **held** rather than scheduled — blocked, not yet routed to a repo, or sitting
 on a dependency cycle. That is deliberate: the packer refuses to guess placements it cannot prove are
 safe, and each one is listed with the reason so it becomes grooming work rather than a silent omission.
+
+A barrier yields in exactly two situations, and tells you both times rather than quietly doing it:
+
+- **A held item does not stall the stages behind it.** One blocked backend ticket must not freeze the
+  entire UI half of your board, so the next stage opens and the report says the grouping was not fully
+  met. Unblock it and re-plan, or accept the order you got.
+- **A real dependency outranks the grouping.** If something in the backend genuinely depends on
+  UI-stage work, the barrier relaxes rather than scheduling a build against something that is not
+  there. A dependency is correctness; a phase is a preference.
 
 ### Getting requirements INTO the backlog
 

@@ -7,6 +7,98 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.38.0] — 2026-07-31
+
+### `aidlc` — `/aidlc:replan` takes a phasing directive, not just a ranking
+
+0.37.0 shipped `/aidlc:replan` with an argument, and it worked for the driver it was designed around:
+*"checkout before search"* becomes an `order` per item and the packer sorts by it. But the argument was
+only ever a **re-ranking**, and the most common thing a client actually says is not one:
+
+```
+/aidlc:replan complete all BE first and then start with UI
+```
+
+That is a **grouping** — *all* of one set before *any* of another — and `order` cannot express it.
+Ranking the backend 1–3 and the UI 4–5 was the obvious workaround, and it silently did not work:
+
+```
+POLY:  w1[BE-1|UI-1] -> w2[BE-2|UI-2] -> w3[BE-3]      <- UI starts in wave 1
+MONO:  w1[BE-1|BE-2|BE-3] -> w2[UI-1|UI-2]             <- correct only by luck of greedy fill
+```
+
+The packer takes the highest-ranked *ready* items each wave, so a low rank only loses a slot to
+something better — it never loses one to *nothing*. In poly it is worse than a coin flip: the
+one-item-per-repo rule means the backend fills one slot and the free frontend slot has nothing to put in
+it *but* a UI item, so the directive fails **every time**, in exactly the layout that most needs it. And
+in mono it appeared to work, which is the worse failure — it holds until one backend item is blocked,
+then the UI slides forward and nothing says so.
+
+**Stages.** When the driver groups, the analyst now emits `stage: <int>` and `stageLabel: <str>` per
+item, and `resolve-waves.mjs` gates on them: no later stage enters a wave while any schedulable item of
+an earlier one remains. It is a **band, not a queue** — inside a stage the packing stays as wide as
+`dependsOn`, one-per-repo and `maxWave` allow, so *"all BE first"* runs the backend wide and holds the
+UI back rather than putting the backend in single file. That is the same *reset the order, keep the
+parallelism* promise 0.37.0 opened with, one grain coarser.
+
+It yields in exactly two places, and reports both rather than absorbing them:
+
+- **It gates on schedulable work, not on held work.** One blocked ticket in stage 1 must not freeze the
+  whole UI half of the board, so the next stage opens and the report says the grouping was not fully
+  met.
+- **`dependsOn` overrides it.** If everything left in a stage depends on later-stage work, the grouping
+  contradicts the graph. A dependency is correctness; a phase is a preference. The stage relaxes, once,
+  out loud.
+
+**A stage is plan state and stays there.** The tempting shortcut — write `UI-1 dependsOn BE-1` to
+simulate the barrier — is now explicitly forbidden: it puts a phasing preference into the tracker as
+though it were a technical dependency, where it outlives the replan that wanted it and re-serializes the
+board permanently. Stages live and die with `.aidlc/plan.md`, like everything else the overlay knows.
+They are also **deliberately absent from the freshness fingerprint**: `order` and `stage` are the plan's
+own judgment, not board state, so fingerprinting them would make every plan look stale against a board
+that never moved.
+
+**Stages are opt-in.** Absent a grouping in the driver, no item is staged, there is no barrier, and the
+packing is byte-identical to 0.37.0 — pinned by a test. Inventing a phasing the user did not ask for
+would serialize a backlog designed to run wide, under their own words. An item the analyst leaves
+unstaged runs *after* every declared stage (too late costs wall-clock and is visible; too early breaks
+the directive and is not) and is named in the report as a question.
+
+**Bare `/aidlc:replan` now asks instead of guessing.** It used to silently re-derive the waves from the
+board, which is indistinguishable from a replan that honoured a directive — the user gets a schedule
+they never asked for and no signal that their intent went unread. It now asks how they want it
+re-planned, with *"nothing changed — just re-derive from the board"* as one of the answers rather than
+the default.
+
+`resolve-waves.test.mjs`: 74 → 98 cases. The new ones pin the reproduction above in both layouts, the
+two yields, the opt-in guarantee, and that the unstaged bucket serializes as a deliberate `null` rather
+than an `Infinity` that `JSON.stringify` quietly turns into one on its way into the plan file.
+
+### `aidlc:run` — a plan-position notice, so the barrier has no third door
+
+`/aidlc:next` and `/aidlc:sprint` read `.aidlc/plan.md` and follow it. `/aidlc:run <ID>` never has, and
+should not: a named ID is an explicit instruction, and a schedule does not get to override one — the
+same reasoning that makes this skill `disable-model-invocation` in the first place.
+
+But *silently* out of order and *deliberately* out of order are different things, and stages made the
+difference matter. A user who types "all BE first, then UI", approves the plan, and then hand-starts a UI
+item has stepped over the barrier they just asked for — and the only signal used to be a frontend
+landing against a backend that does not exist yet. A barrier two of three entry points know about is a
+barrier with a hole in it.
+
+New `run` §1a: locate the ID in the plan, emit **at most one line**, continue.
+
+```
+PROJ-104 is plan wave 3 (stage `ui`); wave 1 has 2 open items (PROJ-102, PROJ-120). Running it anyway.
+```
+
+Silent when the item is in the current wave (a notice on every well-behaved run is noise), and silent on
+a **resume** — a live run file means replan pinned the item to wave 0 and never re-planned it, so it is
+in order by definition. It does not refuse, prompt, or write anything, and it deliberately skips the
+`--freshness` sweep that `next`/`sprint` pay for: they are *obeying* the plan, this is only reporting a
+position, so it quotes the plan's own date and lets the reader judge. Held and not-in-the-plan get their
+own line. Callers that already named the wave (`next` §4, `sprint` §1.4) are not repeated.
+
 ## [0.37.0] — 2026-07-31
 
 ### `aidlc` — priorities change mid-project: `/aidlc:replan`
