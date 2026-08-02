@@ -78,6 +78,13 @@ to govern.
 - Never publish a package or push an image (`npm publish`, `twine upload`, `cargo publish`,
   `docker push`, …) without explicit instruction — each is its own approval, separate from the release.
 
+## Journal it
+
+Once the tag lands (`aidlc:journal`, kind `release`):
+`node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> release "<repo> v<version> · <tag>"`.
+In a poly workspace each repo releases on its own cadence, so the journal is the only place the
+workspace-wide sequence is visible at all.
+
 ## Release notes style
 
 Lead with the 1–3 changes users care about, in their words. Then the grouped list with work-item

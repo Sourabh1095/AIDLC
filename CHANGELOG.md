@@ -7,6 +7,67 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.48.0] — 2026-08-02
+
+### The workspace journal — sessions now start knowing what happened (`aidlc` 0.48.0)
+
+**Run files are excellent memory and the wrong shape for orientation.** Each records *one item* in
+depth, they are committed to *feature branches*, and completed ones move to `archive/`. Three
+properties that are all correct for an audit trail and all wrong for the question a new session
+actually opens with. So the framework knew a great deal about the item you happened to be running and
+nothing about the project: it could not see that a replan re-cut the schedule yesterday, that six
+direct fixes landed on `main`, or that the last consult already concluded billing does **not** belong
+in the API repo. The cost is not abstract — **settled questions get re-litigated**, because nothing
+remembered they were settled.
+
+`.aidlc/journal.md` at the control plane: one line per event, a **closed** kind vocabulary
+(`run` · `blocked` · `direct` · `tracked` · `consult` · `decision` · `replan` · `board` · `adopt` ·
+`upgrade` · `release`), tracked in git, rotated at 500 entries. Eight commands write it at the moment
+they finish something, and it survives `/aidlc:remove` — it is the project's own record of what
+happened, and none of that stops being true because the framework is leaving.
+
+Three constraints stop it becoming a second source of truth: an entry is a **pointer** (depth stays in
+the run file, the ADR or git history), it is written **on completion, never on intent**, and **on any
+conflict the run file, the board and the ADR win**.
+
+### SessionStart went from six lines to something worth reading
+
+It used to inject active runs plus the top three *markdown* backlog items — so a Jira or ADO project,
+which is most team projects, got run frontmatter and nothing else. It now leads with what needs a
+human, in priority order and under a hard 14-line budget:
+
+```
+⛔ Blocked — needs you (1):
+- PROJ-131 [blocked] branch=feature/PROJ-131-y
+Active AIDLC runs (1):
+- PROJ-124 [verify] repo=core-api branch=feature/PROJ-124-x
+Execution plan: 4 waves, cut 2026-07-31 by priya@acme.com — /aidlc:status
+Board (as of 2026-08-02T17:04Z): 12 todo · 3 in progress · next PROJ-125 (P1, story) avatar upload
+Recently:
+- 2026-08-02T17:04Z replan: 4 waves — client wants checkout before search
+- 2026-08-02T17:04Z consult: billing in the API repo? → no (ADR-0007), confidence medium
+```
+
+**The `board` line is how a snapshot reaches a Jira or ADO session at all.** A SessionStart hook has no
+tools and no network budget, so it cannot query a tracker; `/aidlc:status` records the snapshot after a
+*successful* query and the hook reads that instead. It carries its own timestamp, so staleness is
+visible rather than assumed — and it is deliberately not written when the tracker was unreachable,
+because a snapshot that looks current and isn't is worse than none.
+
+Every section is independently guarded, so one unreadable file cannot cost the others, and the whole
+thing stays silent outside an AIDLC project.
+
+### Deliberately not done: a `SessionEnd` hook
+
+The obvious way to journal a session summary. Rejected: an unrecognised event name in `hooks.json`
+risks the file being rejected wholesale, which is the F49 blast radius applied to the guard hooks —
+and the commands know what happened semantically better than a hook does anyway.
+
+46 tests, weighted toward the two properties that matter for something read at session start: it never
+throws (garbage in the file, an unwritable path, a missing directory all degrade to empty rather than
+breaking the session), and the tail stays cheap forever via rotation. One real bug found by them:
+`tail(root, 0)` returned the **entire file**, because `slice(-0)` is `slice(0)`.
+
 ## [0.47.0] — 2026-08-02
 
 ### `/aidlc:upgrade` — catch a project up with the plugin (`aidlc` 0.47.0)

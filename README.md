@@ -201,6 +201,11 @@ plan, assumptions, findings and log. It is committed to the item's branch, so th
 audit trail and any session can resume mid-pipeline — close your laptop at `implement`, reopen
 tomorrow, `/aidlc:run PROJ-123` continues from there.
 
+**Sessions start knowing what happened.** `.aidlc/journal.md` records one line per event — runs that
+landed, small fixes, what a consult concluded, when the order was re-planned — and a SessionStart hook
+reads it back with your blocked runs, the active wave and the last board snapshot. Run files are each
+item's memory; this is the workspace's.
+
 **Process is proportional to consequence.** Four tiers — *answer*, *direct* (a gated commit, no
 ticket), *tracked* (branch + run file), *full* (the pipeline) — with a project-wide floor you set. Five
 escalation triggers override it, each naming something you cannot fix by noticing later: auth or

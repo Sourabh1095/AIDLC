@@ -112,6 +112,12 @@ new        /aidlc:do · /aidlc:replan · /aidlc:review-feedback · /aidlc:doctor
 Next: apply the staged settings, then /aidlc:doctor to confirm.
 ```
 
+## 6 · Journal it
+
+`node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> upgrade "aidlc <from> → <to> · <n> config keys · settings <staged|current>"`
+(`aidlc:journal`, kind `upgrade`). An upgrade changes how every later run reads the project, and the
+only other record is a `configVersion` bump nobody looks at.
+
 ## Rules
 
 - **Never rewrite a value a human authored.** An upgrade relocates keys. If a real value change looks

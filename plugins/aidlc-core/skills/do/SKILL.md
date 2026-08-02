@@ -114,7 +114,20 @@ This is the prompt you would otherwise answer cold, and the whole value is the g
 4. **Answer**: one **recommendation with a confidence level**, the strongest argument against it,
    and what would change your mind. Say *"it doesn't fit, and here is why"* when that is the answer —
    a consult that always agrees is worthless.
-5. **Offer at most one next action**, then stop:
+5. **Journal the conclusion** (`aidlc:journal`) — one line, the question and the answer, not the
+   reasoning:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> consult \
+     "<the question>? → <the answer> (<the ADR or evidence>), confidence <level>"
+   ```
+
+   This is the entry that earns the journal its keep. A consult ends with **no artifact** by design
+   (§Rules), which is right for ceremony and wrong for memory: without this line the next session has
+   no idea the question was ever asked, and will happily re-derive a different answer. The pointer is
+   what matters — where to read why, not a summary of why.
+
+6. **Offer at most one next action**, then stop:
    - worth building → `/aidlc:run <requirement>` (or `/aidlc:intake` to just file it)
    - a real architectural decision → offer to record an ADR in `docs/adr/`
    - the answer needs evidence you do not have → offer a **spike item** (`aidlc:research` runs it,
@@ -148,6 +161,16 @@ Committing on the default branch is permitted at this tier (the guard hook still
 protected branch, so it waits for a human) — note it in the report when it happens. If the change turns
 out to be bigger than it looked once you are in the code, say so and move up a tier rather than finishing
 a sprawl under a tier that promised a one-liner.
+
+**Journal it** (`aidlc:journal`, kind `direct`; `tracked` for tier 2) — the commit subject and the
+branch it landed on. A tier-1 change deliberately leaves no item and no run file, so the journal line
+is the *only* durable record that it happened, and "why is there an uncommitted-looking change on
+`main`?" is a question somebody asks a week later:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> direct \
+  "<commit subject> · on <branch><, not pushed>"
+```
 
 ### BUILD (tier 2–3) — hand off, never reimplement
 

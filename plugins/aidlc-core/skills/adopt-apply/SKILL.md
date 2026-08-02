@@ -445,3 +445,7 @@ Say this plainly at the end:
   written above, deletes what adoption created, reverts only the sections it merged, and leaves the
   project's own files untouched.
 - Nothing here remediates a finding — fixing is normal pipeline work through the normal doors.
+- **Journal it** (`aidlc:journal`, kind `adopt`): `node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> adopt "applied <n> surfaces — <what changed>"`.
+  A scan rewriting the gate, the git conventions and `CLAUDE.md` at once is a large, invisible change to
+  how every later run behaves; a session two weeks from now should not have to diff the config to learn
+  it happened.

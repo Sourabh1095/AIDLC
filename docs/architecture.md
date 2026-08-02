@@ -36,6 +36,22 @@ from the recorded phase). It's committed to the feature branch, so every PR carr
 audit trail. Tracker comments are the *external* progress signal; the run file is the
 *internal* machine state; the run file wins on conflict.
 
+**D2a — The journal is the workspace's memory; run files are each item's.** D2's properties are
+correct for an audit trail and wrong for orientation: a run file covers **one item** in depth, lives on
+a **feature branch**, and moves to `archive/` when done. So the framework knew a great deal about the
+item you happened to be running and nothing about the project — a new session could not see that a
+replan re-cut the schedule yesterday, or that the last consult already settled the question it was
+about to answer again. The cost is concrete: **settled questions get re-litigated**, because nothing
+remembered they were settled.
+
+`.aidlc/journal.md` at the control plane is one line per event, a closed kind vocabulary, tracked in
+git, rotated at 500 entries, and read back by the SessionStart hook. Three constraints keep it from
+becoming a second source of truth: an entry is a **pointer** (the depth stays in the run file, the ADR
+or git history), it is written **on completion, never on intent**, and **on any conflict the run file,
+the board and the ADR win**. It is also what finally gives a Jira or ADO session a backlog snapshot at
+all — a SessionStart hook has no tools and cannot query a tracker, so `/aidlc:status` records a `board`
+line and the hook reads that instead. See `aidlc:journal`.
+
 **D3 — Agents only where isolation pays.** An agent needs its own context window (big
 exploration/diffs), a different tool surface, or independent adversarial judgment (the
 reviewer must not share the implementer's reasoning). Everything else — docker knowledge,
@@ -375,7 +391,7 @@ silently crippled by a guessed tool id.
 Commands: `do`, `run`, `next`, `sprint`, `status`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
 `promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
-`run-state`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
+`run-state`, `journal`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
 Playbooks: `ceremony`, `requirements`, `planning`, `architecture`, `code-review`, `testing`,
 `debugging`, `security`, `ci-cd`, `docs-writing`, `research`, `maintenance`. Stack pack
 (`aidlc-stack-web` plugin): `coding-standards-ts`, `project-structure`, `nextjs`, `nestjs`,

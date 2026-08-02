@@ -866,6 +866,17 @@ post-merge cleanup instead, because the merge happens in-session at §8; the con
 coordination file archives at the control plane. If a run file already merged un-archived, do **not**
 direct-push — `run-state` names the branch-and-PR fallback.
 
+**Journal one line at the control plane** (`aidlc:journal`) — the run file is about to be archived onto
+a feature branch, where the next session cannot see it:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> run \
+  "{ID} done · <n> fix cycles · <PR url | local-merge:sha><, repo=<repo> in poly>"
+```
+
+A run that ends `blocked` (§7) journals `blocked` with the item, the phase and the blocking finding
+instead. Never let a failed append affect the run — it returns null and says nothing by design.
+
 Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
 resolved, anything needing human eyes. **Where the run bound Tasks (§5), say so in the item line** —
 `PROJ-123 · 5 board Tasks closed` (and name any left open, per the reconciliation above). The board

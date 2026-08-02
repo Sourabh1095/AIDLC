@@ -135,6 +135,20 @@ cross-machine signal and it is right there in the status counts.
 
 If the source is `markdown`, this is just frontmatter parsing over `backlog/items/*.md` — do not spawn a subagent for this.
 
+**Then journal the snapshot** (`aidlc:journal`, kind `board`). This step is the only place in the
+framework that reliably has a fresh board reading, and the SessionStart hook cannot get one for itself
+— it is a hook, with no tools and no network budget. So without this line every Jira and ADO project
+opens a session with no sense of its backlog at all, which is most team projects:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> board \
+  "<n> todo · <n> in progress · next <ID> (<priority>, <type>) <title>"
+```
+
+Write it only on a **successful** query — a snapshot recorded from a failed or unreachable tracker is
+worse than none, because it carries a timestamp that makes it look current. Skip it silently when
+Step 1.5 reported the tracker unreachable.
+
 ## Step 3 — Local extensions (when `.aidlc/extensions.json` has entries)
 
 One line per noteworthy entry:

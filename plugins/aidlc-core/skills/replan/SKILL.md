@@ -242,6 +242,10 @@ On approval, from `${CLAUDE_PLUGIN_ROOT}/templates/plan-file.md`:
 5. Timestamps from the real clock (`date -u` / `Get-Date`), never invented. Record **`cutBy:`** — the
    identity that ran this replan (`team.me`, else `git config user.email`). A plan is a judgment call
    about delivery order, and six weeks later "who decided this" is as load-bearing as `driver:`.
+5a. **Journal it** (`aidlc:journal`, kind `replan`) — wave count and the driver verbatim:
+   `node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> replan "<n> waves — <driver>"`.
+   Re-ordering the whole project is the single most surprising thing a later session can walk into, and
+   the plan file says *what* the order is while the journal line says *when it changed and why*.
 6. **Commit and push it (shared mode).** The plan is a **team decision, not a local file** — `/aidlc:next`
    and `/aidlc:sprint` obey it, so a plan that stays on one laptop means every developer silently follows
    a different schedule and the freshness check cannot detect it (it diffs the plan against the *board*,
