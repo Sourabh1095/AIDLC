@@ -1,0 +1,78 @@
+# Bee-Logical AIDLC — repo gate.
+#
+# This repo is not an application: `plugins/**` executes on other people's machines,
+# against repos none of us can see. Two consequences shape this file.
+#
+# 1. The hooks are the thing that must never regress unwatched. F45 established the
+#    asymmetry the hard way: a broken ALLOW rule blocks a run loudly, while a broken
+#    DENY rule is completely silent — "verified by watching a run succeed" proves
+#    nothing about the half that protects anyone. So the suites run on every push and
+#    every PR, and a red suite blocks the merge.
+#
+# 2. It runs on Windows and Linux. The framework is developed on Windows and its hooks
+#    do drive letters, UNC paths, `\` vs `/` and CRLF — a Linux-only gate would let a
+#    Windows-only assumption ship, and vice versa.
+#
+# There are no dependencies to install: the plugins are dependency-free Node by design,
+# and the repo-level checks are too, so there is nothing here to `npm ci`.
+#
+# Hardening note: the two `actions/*` steps are pinned by major tag. For a stricter
+# supply-chain posture, pin them to a full commit SHA (`actions/checkout@<sha>`) and
+# let Dependabot bump them.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # guard.test.mjs builds real git fixtures, so git must be configured to commit.
+      - name: Configure git identity for test fixtures
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name "AIDLC CI"
+          git config --global init.defaultBranch main
+      - name: Run all *.test.mjs
+        run: npm test
+
+  checks:
+    name: repo checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Each step is separate so a failure names the class of problem in the UI
+      # rather than making you read a combined log.
+      - name: "Manifests: versions, licenses, hook script targets"
+        run: npm run check:manifests
+      - name: "Permission rules: the F44/F45/F48/F49 shapes"
+        run: npm run check:permissions
+      - name: "Templates: parse + agree with the config schema"
+        run: npm run check:templates
+      - name: "Cross-references: skills, agents, plugin-root paths, doc links"
+        run: npm run check:xrefs

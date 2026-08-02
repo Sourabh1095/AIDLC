@@ -7,7 +7,7 @@
     "name": "Bee-Logical",
     "email": "sourabh@bee-logical.com"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "keywords": ["aidlc", "ui", "ux", "figma", "design-system", "motion", "gsap", "awwwards", "frontend"],
   "mcpServers": "./.mcp.json"
 }

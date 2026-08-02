@@ -7,6 +7,103 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.45.2] — 2026-08-02
+
+### Fix: a newline disabled every Bash guard check (`aidlc` 0.45.1)
+
+**`guard.mjs` and `dep-vet.mjs` segmented commands with `cmd.split(/[|;&]+/)`, which does not treat a
+newline as a separator.** A multi-line command therefore collapsed into ONE segment, and segment
+identity is read from `argv[0]` — so any command whose *first line* was `git …` was classified as a
+git segment. Git segments deliberately skip every content check (git executes no SQL, cluster,
+filesystem or credential operations), and `dep-vet` found no package manager and returned. Both failed
+**open**, and silently:
+
+| Command | Before | After |
+|---|---|---|
+| `git status`⏎`cat ~/.ssh/id_rsa` | allowed | blocked |
+| `git log --oneline`⏎`psql -h prod.example.com` | allowed | blocked |
+| `git status`⏎`cat .env` | allowed | blocked |
+| `git diff`⏎`kubectl --context production delete pod` | allowed | blocked |
+| `git status`⏎`rm -rf /etc/passwd` | allowed | blocked |
+| `git status`⏎`npm install left-pad` | ungated | gated |
+
+Multi-line Bash is ordinary — heredocs, multi-step sequences, and the very git flows this framework's
+own skills instruct — so this sat on the normal path, not a contrived one. Only the exfil check
+survived, because it evaluates the whole command string outside the segment loop.
+
+**Fix: a quote-aware splitter, shared.** `hooks/scripts/lib/shell-parse.mjs` now owns `splitSegments`,
+`tokenize`, `commandArgv` and `commandName`, and both hooks import them. Quote-awareness is what makes
+the fix correct rather than merely wider: a newline *inside quotes* is not a separator, so
+`git commit -m "line one⏎line two"` stays one command and its message body is never parsed as commands
+to execute — the same parse-don't-regex rule F46 established. `tokenize`/`commandArgv` were previously
+byte-identical copies in both hooks, which is exactly the drift `lib/` exists to prevent.
+
+Not modelled, both failing loudly rather than silently: backslash escaping (`\;` splits early → a
+false-positive block) and unquoted heredoc bodies.
+
+**30 regression tests added** (guard 74 → 94, dep-vet 39 → 49), one per row above plus the
+quoted-message false-positive cases.
+
+### The repo now gates itself
+
+**There was no CI.** 672 test assertions existed and nothing ran them — while `/aidlc:status` §1.6
+warns users when *their* repo is `mode: remote` with no required-check policy. F45's lesson is the
+reason this matters most for the hooks: a broken **allow** rule blocks a run loudly, a broken **deny**
+rule is completely silent, so "verified by watching a run succeed" proves nothing about the half that
+protects anyone.
+
+`.github/workflows/ci.yml` runs on every push and PR, on **Linux and Windows** × Node 20/22 (the hooks
+handle drive letters, UNC paths and CRLF; a Linux-only gate would let a Windows-only assumption ship):
+
+- **`npm test`** — discovers and runs every `*.test.mjs` under `plugins/`. Discovery rather than a
+  hardcoded list, because a test file that is written but never wired up is the same as no test file.
+- **`check:manifests`** — marketplace ↔ plugin.json name/version/license agreement, and every
+  `hooks.json` command target exists. *A renamed hook script leaves the hook registered and inert, with
+  no error anywhere.*
+- **`check:permissions`** — a static lint for the four permission-rule shapes that already shipped
+  broken: `Write(<path>)` rules that match nothing (**F44**, then **F48** — the same mistake reapplied
+  one cycle later, whose own write-up asked for this lint), `:*` composed with a mid-pattern `*` and
+  trailing ` *` without an exact-match sibling (**F45**), `//` comments in strict JSON (**F49**), plus
+  the stale pre-0.28 env denies that permanently override `pipeline.envFileAccess`. It is a lint of
+  known-bad *shapes*, not a matcher — F45 established the documentation is wrong on both points, so
+  only a live probe can prove a rule matches. What it guarantees is that a shape already known to match
+  nothing never ships again.
+- **`check:templates`** — every shipped JSON parses; the config templates agree with
+  `aidlc.config.schema.json`'s enums, types and required keys; the run-file template's frontmatter and
+  `aidlc:run-state`'s Format block declare the same fields.
+- **`check:xrefs`** — every `aidlc:<skill>` pointer, dispatched agent name, `${CLAUDE_PLUGIN_ROOT}/…`
+  path and relative doc link resolves (1,274 references). A stale pointer is the worst failure
+  available: the model reads an instruction to load something absent and improvises, with no error.
+
+Each check was **negative-tested against deliberately broken fixtures** before being called done —
+F45's process criticism ("authored against documentation and shipped unexecuted") applied to the
+tooling built in response to it.
+
+### The `team` block was missing from the config schema
+
+Found by `check:templates` on its first run. **`team.mode`, `me`, `pickScope` and `groomAutoApply` were
+described nowhere in `aidlc.config.schema.json`** — despite `team.mode` appearing in the README's
+config table, shipping in the project template, and being read by `next`, `sprint`, `groom`, `status`,
+`ceremony` and `work-items`. Because `additionalProperties` is `true` by design (additive keys must not
+bump `configVersion`), an undeclared block validates silently: `"mode": "share"` passed cleanly and
+**every team behaviour turned off**, which is precisely the class of failure D12 exists to prevent —
+and it would present as "the pipeline ignored my team settings", with nothing anywhere to say why.
+
+The block is now declared with its enums, defaults and the reasoning behind each field, so an editor
+completes it and a typo fails loudly. `check:templates` proves the enum bites (`"share"` → error).
+
+Worth stating as a general rule, since `additionalProperties: true` is deliberate and stays: **a key
+the schema does not describe is a key with no completion, no validation and no documentation.** The
+new check warns on every undeclared top-level key for exactly that reason.
+
+### Also
+
+- **Plugin manifests said `"license": "UNLICENSED"`** while `LICENSE` and the README say MIT. The
+  manifest is what install tooling reads. Corrected in all three; `check:manifests` now derives the
+  expected id from `LICENSE` itself so there is one source. No version bump for `aidlc-stack-web` or
+  `aidlc-ux` — a metadata correction is not a reason to tell users to update.
+- **`CONTRIBUTING.md`** documents `npm test` / `npm run check` / `npm run verify`.
+
 ## [0.45.1] — 2026-08-02
 
 ### Docs: the same audit, on what we tell people

@@ -102,6 +102,36 @@ check("rm -rf /etc/passwd", "block", "rm -rf absolute outside repo");
 check("npm ci", "allow", "npm ci");
 check("git add -A", "allow", "git add");
 
+// ================= MULTI-LINE COMMANDS (newline is a separator) =================
+// Regression: `cmd.split(/[|;&]+/)` did not treat a newline as a separator, so a
+// multi-line command collapsed into ONE segment. Segment identity comes from
+// argv[0], so a leading `git …` line classified the whole thing as a git segment —
+// and git segments skip every content check below (git runs no SQL, cluster,
+// filesystem or credential operations). Every row here returned rc=0 before the fix.
+check("git status\ncat ~/.ssh/id_rsa", "block", "newline: credential read after git");
+check("git log --oneline\npsql -h prod.example.com", "block", "newline: prod psql after git");
+check("git diff\nkubectl --context production delete pod api-0", "block", "newline: prod kubectl after git");
+check('git status\npsql -h db.example.com -c "DROP DATABASE app"', "block", "newline: DROP after git");
+check("git status\nrm -rf /etc/passwd", "block", "newline: rm -rf absolute after git");
+check("git add -A\ncat ~/.aws/credentials", "block", "newline: cloud credentials after git");
+check("git status\r\ncat ~/.ssh/id_rsa", "block", "CRLF newline: credential read after git");
+check("git fetch\ngit push origin main", "block", "newline: protected push on the second line");
+check("git status\ngit push --force", "block", "newline: force push on the second line");
+// The same bypass, one layer out: a non-git first line was already caught, but keep
+// it pinned so a future change to segment identity cannot regress it silently.
+check("echo starting\ncat ~/.ssh/id_rsa", "block", "newline: credential read after echo");
+check("cd /tmp\nrm -rf /etc/passwd", "block", "newline: rm -rf after cd");
+// A newline INSIDE quotes is NOT a separator — a multi-line commit message is one
+// command, and its body must never be parsed as commands to execute. This is the
+// false positive that makes quote-awareness (not a wider regex) the required fix.
+check('git commit -m "fix: notes\nnever cat ~/.ssh/id_rsa"', "allow", "newline inside a quoted message");
+check('git commit -m "chore: cleanup\nran rm -rf /tmp/junk by hand"', "allow", "quoted message mentions rm -rf");
+check('git commit -m "docs: prod psql runbook\nDROP DATABASE steps"', "allow", "quoted message mentions DROP");
+// Benign multi-line sequences stay allowed.
+check("git add -A\ngit commit -m ok\ngit push", "allow", "newline: benign git sequence on a feature branch");
+check("npm ci\nnpm run build\nnpm test", "allow", "newline: benign build sequence");
+check("git status\ncat README.md", "allow", "newline: reading an ordinary file");
+
 // ================= ACCIDENTAL GITLINK (poly control plane) =================
 check('git commit -m "chore: normal commit"', "allow", "commit with nothing staged");
 
@@ -257,6 +287,12 @@ checkEnv("cat README.md", envDeny, "allow", "bash deny: read non-env file");
 checkEnv("docker compose --env-file .env up", envDeny, "allow", "bash deny: --env-file passthrough allowed");
 checkEnv("npm run build", envDeny, "allow", "bash deny: unrelated command");
 checkEnv('git commit -m "note: echo X > .env"', envDeny, "allow", "bash deny: git segment skips env check");
+// …but only because the message is QUOTED. A real env access on a later line of a
+// multi-line command is its own segment and must still be blocked (the newline
+// bypass — see lib/shell-parse.mjs).
+checkEnv("git status\ncat .env", envDeny, "block", "bash deny: newline env read after git");
+checkEnv("git add -A\necho X > .env", envDeny, "block", "bash deny: newline env write after git");
+checkEnv("git status\r\ncat backend/.env.local", envDeny, "block", "bash deny: CRLF newline env read");
 // ask → step aside (normal permission flow handles it)
 checkEnv("echo X > .env", envAsk, "allow", "bash ask: redirect write .env");
 checkEnv("cat .env", envAsk, "allow", "bash ask: read .env");

@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execSync } from "node:child_process";
 import { isEnvFile, envAccessFor as _envAccessFor } from "./lib/env-access.mjs";
+import { splitSegments, commandArgv, commandName } from "./lib/shell-parse.mjs";
 
 let data;
 try {
@@ -93,43 +94,9 @@ function stagedGitlinks(repoCwd) {
   return links.filter((p) => !registered.has(p));
 }
 
-// Split a shell segment into argv, honouring quotes. A quoted argument stays ONE
-// token, so its contents can never be mistaken for a flag or a subcommand. Parsing
-// (rather than regex-matching quote-blanked text) is what makes the checks below
-// fail closed: a path containing a space used to defeat the old `-C\s+\S+` pattern
-// and silently skip every push check (F46).
-function tokenize(seg) {
-  const out = [];
-  let cur = "";
-  let quote = null;
-  let quoted = false;
-  for (const c of seg) {
-    if (quote) {
-      if (c === quote) quote = null;
-      else cur += c;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-      quoted = true;
-    } else if (/\s/.test(c)) {
-      if (cur || quoted) out.push(cur);
-      cur = "";
-      quoted = false;
-    } else cur += c;
-  }
-  if (cur || quoted) out.push(cur);
-  return out;
-}
-
-// argv with leading env assignments and sudo removed.
-function commandArgv(seg) {
-  const argv = tokenize(seg);
-  while (argv.length && /^\w+=/.test(argv[0])) argv.shift();
-  if (argv.length && argv[0].split(/[\\/]/).pop() === "sudo") {
-    argv.shift();
-    while (argv.length && argv[0].startsWith("-")) argv.shift();
-  }
-  return argv;
-}
+// `splitSegments` / `commandArgv` / `commandName` live in ./lib/shell-parse.mjs,
+// shared with dep-vet.mjs — see that file for the quote-aware parsing rationale
+// and for why an unquoted NEWLINE has to be a segment separator.
 
 // git global options that consume a SEPARATE following value.
 const GIT_VALUE_OPTS = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix"]);
@@ -220,14 +187,14 @@ function envRedirectTarget(seg) {
 // A command that writes a file to an env path: tee/cp/mv/install/dd of=/truncate, or an
 // in-place sed. Returns the env path, or "".
 function envCmdWriteTarget(argv) {
-  const cmd = argv[0] ? argv[0].split(/[\\/]/).pop() : "";
-  if (["tee", "cp", "mv", "install", "dd", "truncate"].includes(cmd)) {
+  const name = commandName(argv);
+  if (["tee", "cp", "mv", "install", "dd", "truncate"].includes(name)) {
     for (const a of argv.slice(1)) {
       if (isEnvBase(a)) return a.replace(/^['"]|['"]$/g, "");
       if (/^of=/.test(a) && isEnvBase(a.slice(3))) return a.slice(3);
     }
   }
-  if (cmd === "sed" && argv.some((a) => a === "-i" || /^-i\S*$/.test(a))) {
+  if (name === "sed" && argv.some((a) => a === "-i" || /^-i\S*$/.test(a))) {
     const t = argv.slice(1).find(isEnvBase);
     if (t) return t.replace(/^['"]|['"]$/g, "");
   }
@@ -238,17 +205,18 @@ function envCmdWriteTarget(argv) {
 // the env path, or "".
 const ENV_READERS = new Set(["cat", "type", "Get-Content", "gc", "bat", "less", "more", "head", "tail", "nl", "xxd", "od"]);
 function envReadTarget(argv) {
-  const cmd = argv[0] ? argv[0].split(/[\\/]/).pop() : "";
-  if (!ENV_READERS.has(cmd)) return "";
+  if (!ENV_READERS.has(commandName(argv))) return "";
   const t = argv.slice(1).find(isEnvBase);
   return t ? t.replace(/^['"]|['"]$/g, "") : "";
 }
 
 // Segment per shell separator so flags/tokens from OTHER commands in a compound line
-// (`rm -f x && git push`) don't leak across the checks.
-for (const rawSeg of cmd.split(/[|;&]+/)) {
+// (`rm -f x && git push`) don't leak across the checks. The separator set includes an
+// unquoted NEWLINE: without it a multi-line command is one segment, and a leading
+// `git …` line makes every check below skip (see ./lib/shell-parse.mjs).
+for (const rawSeg of splitSegments(cmd)) {
   const argv = commandArgv(rawSeg);
-  const isGit = argv.length > 0 && argv[0].split(/[\\/]/).pop() === "git";
+  const isGit = commandName(argv) === "git";
 
   if (isGit) {
     const { dashC, sub, args } = parseGit(argv);

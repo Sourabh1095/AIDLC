@@ -7,6 +7,6 @@
     "name": "Bee-Logical",
     "email": "sourabh@bee-logical.com"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "keywords": ["aidlc", "nextjs", "nestjs", "postgres", "mongodb", "docker", "typescript"]
 }

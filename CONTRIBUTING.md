@@ -75,6 +75,30 @@ Then exercise the real path — scaffold a throwaway project with `/aidlc:init` 
 item through `/aidlc:run`. Reading the diff is not verification; the pipeline's behaviour is
 emergent, and skills fail in ways that only show up when a real item routes through them.
 
+### Before you open the PR
+
+No dependencies to install — the plugins are dependency-free Node by design, and so are these checks.
+
+```
+npm run verify        # everything below
+npm test              # every *.test.mjs under plugins/ (discovered, not listed)
+npm run check         # manifests · permission rules · templates · cross-references
+```
+
+CI runs the same thing on Linux and Windows. What each check is for:
+
+| Check | Catches |
+|---|---|
+| `check:manifests` | marketplace ↔ plugin.json version/name/license drift; a `hooks.json` pointing at a script that no longer exists — which leaves the hook registered and **silently inert** |
+| `check:permissions` | the permission-rule shapes that have already shipped broken: `Write(<path>)` rules that match nothing, `:*` after a mid-pattern `*`, a trailing ` *` with no exact-match sibling, `//` in strict JSON |
+| `check:templates` | a template that does not parse or disagrees with `aidlc.config.schema.json` — it ships verbatim into every new adopter's repo |
+| `check:xrefs` | a stale `aidlc:<skill>` pointer, agent name, `${CLAUDE_PLUGIN_ROOT}` path or doc link |
+
+**If you touch `hooks/`, add a test for the case you fixed *and* the case you must not break.** The
+failure modes are asymmetric and it is the reason these suites exist: a broken *allow* rule blocks a
+run loudly, while a broken *deny* rule is completely silent. A green run is not evidence that the deny
+half still works — only a test that expects a block is.
+
 ## Reporting bugs
 
 The pipeline's state lives in `.aidlc/runs/<ID>.md`. That run file is usually the single most useful

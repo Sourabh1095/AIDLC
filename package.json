@@ -1,0 +1,20 @@
+{
+  "name": "aidlc-marketplace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repo-level checks for the Bee-Logical AIDLC marketplace. Not published, not shipped inside any plugin — the plugins themselves are dependency-free Node and must stay that way.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "check:manifests": "node scripts/check-manifests.mjs",
+    "check:permissions": "node scripts/lint-permissions.mjs",
+    "check:templates": "node scripts/check-templates.mjs",
+    "check:xrefs": "node scripts/check-xrefs.mjs",
+    "check": "npm run check:manifests && npm run check:permissions && npm run check:templates && npm run check:xrefs",
+    "verify": "npm test && npm run check"
+  }
+}

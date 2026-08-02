@@ -18,7 +18,55 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F50**._
+_Numbering continues across cycles — the next finding is **F52**._
+
+### F50 🔴 — A newline in a Bash command disabled every guard check (fail-open, silent)
+**Symptom.** Found by audit, not by a run — which is itself the finding: nothing would have surfaced
+it, because it produces no error and no log line. `guard.mjs` and `dep-vet.mjs` both segmented with
+`cmd.split(/[|;&]+/)`. **Newline is not in that character class**, so a multi-line command collapsed
+into ONE segment. Segment identity comes from `argv[0]`, so a command whose *first line* was `git …`
+was classified as a git segment — and git segments deliberately `continue` past every content check
+(git executes no SQL, cluster, filesystem or credential operations). Verified by probing the real
+hooks: `git status`⏎`cat ~/.ssh/id_rsa`, `git status`⏎`cat .env`,
+`git log`⏎`psql -h prod.example.com`, `git status`⏎`rm -rf /etc/passwd` and
+`git status`⏎`npm install left-pad` all returned **rc=0**. Only the exfil check survived, because it
+evaluates the whole command string outside the loop.
+**Root cause.** The separator set was written for `;`/`&&`/`||` pipelines and never revisited when
+multi-line Bash became ordinary. This is the **F46 shape one layer out**: F46 fixed command *identity*
+(a quote-aware tokenizer, so a spaced `-C` path can't silently skip the push checks) but left command
+*segmentation* as a regex — so the same "parse, don't regex" argument had been accepted for tokens and
+not for segments. The reachable path is not exotic: heredocs, multi-step sequences, and the git flows
+this framework's own skills instruct.
+**Resolution.** New `hooks/scripts/lib/shell-parse.mjs` owning `splitSegments` + `tokenize` +
+`commandArgv` + `commandName`, imported by both hooks. The splitter is **quote-aware**, which is what
+makes the fix correct rather than merely wider: a newline inside quotes is not a separator, so
+`git commit -m "line one⏎line two"` stays one command and its message body is never parsed as commands
+to execute. `tokenize`/`commandArgv` were byte-identical copies in both hooks before this — the exact
+drift `lib/` was created to prevent. 30 regression tests added (guard 74→94, dep-vet 39→49).
+**Lesson worth keeping:** F46's fix was applied to one layer of the same parse. When a "parse, don't
+regex" fix lands, **ask which other layer of the same command still uses a regex** — here it was the
+step immediately before the one that got fixed.
+
+### F51 🔴 — The plugin repo had no CI: 672 assertions, nothing ran them
+**Symptom.** `.github/` carried issue templates and a PR template and no `workflows/`. There was no
+`package.json` and no runner, so exercising the suites meant invoking 11 files by hand. Meanwhile
+`/aidlc:status` §1.6 warns *users* when their repo is `mode: remote` with no required-check policy —
+the framework failed its own check.
+**Root cause.** The suites were each written alongside the defect they pinned (F42–F49) and were run
+at the moment of writing. Nothing made them a **gate**, so their value decayed to whoever remembered.
+For the hooks specifically this is the F45 asymmetry: a broken *allow* rule blocks a run loudly, a
+broken *deny* rule is silent — so the half that protects anyone is the half no human notices.
+**Resolution.** `.github/workflows/ci.yml` (Linux + Windows × Node 20/22) running `npm test`
+(discovered, not listed) plus four static checks — manifests, permission-rule shapes, templates vs
+schema, cross-references. Dependency-free, so there is no `npm ci` and no supply chain added to the
+repo that argues hardest against unvetted dependencies. Each check was negative-tested against broken
+fixtures before being called done. `check:permissions` finally implements the lint **F48 asked for**
+("Consider a template lint that rejects any `Write(<path>)` rule outright") and extends it to the F45
+and F49 shapes; `check:templates` immediately found the missing `team` block in
+`aidlc.config.schema.json`.
+**Lesson worth keeping:** a finding's regression test is only worth what runs it. F48's own lesson was
+*"a fixed finding is only fixed where it was applied… nothing mechanical enforces it"* — the mechanical
+enforcement is the deliverable, not the test file.
 
 ### F48 🟡 — Reintroduced F44's no-op `Write(path)` rules in the env `ask` floor
 **Symptom.** (RTO Tool, aidlc@0.28.0.) Every session start prints: *"Permission ask rule

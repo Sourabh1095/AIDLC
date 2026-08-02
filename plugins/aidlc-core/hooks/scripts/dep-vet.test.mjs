@@ -83,5 +83,22 @@ check("npm test", "allow", "npm test");
 check('git commit -m "npm i lodash in the notes"', "allow", "pkg name only inside a quoted message");
 check("git status", "allow", "unrelated git");
 
+// --- Multi-line commands: a NEWLINE is a segment separator (lib/shell-parse.mjs) ---
+// Before this, `cmd.split(/[|;&]+/)` left a multi-line command as ONE segment, so
+// argv[0] came from the FIRST line. A leading `git`/`echo`/`cd` line meant no known
+// package manager was found and the gate silently never fired.
+check("git status\nnpm install left-pad", "gate", "newline: add after a git line");
+check("git log --oneline\npnpm add axios", "gate", "newline: pnpm add after git");
+check("echo building\nyarn add react", "gate", "newline: add after echo");
+check("cd apps/web\nnpm i clsx", "gate", "newline: add after cd");
+check("npm run build\nnpm i zod\nnpm test", "gate", "newline: add in the middle");
+check("git status\r\nnpm i lodash", "gate", "CRLF newline: add after git");
+check("pip install -r req.txt\npip install requests", "gate", "newline: real add after a -r install");
+// …and a newline INSIDE quotes is not a separator: a multi-line commit message is
+// one command, and its body must never be read as a command to execute.
+check('git commit -m "release notes\n- ran npm i lodash locally"', "allow", "newline inside a quoted message");
+check("git status\nnpm ci", "allow", "newline: lockfile install stays ungated");
+check("git status\nnpm run build", "allow", "newline: unrelated script stays ungated");
+
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

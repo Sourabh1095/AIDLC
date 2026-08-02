@@ -14,7 +14,11 @@
 // uses, and for the same reason. A regex anchored on `npm\s+(install|add)` is defeated
 // by any global option in between: `npm --prefix ./api install lodash` and
 // `npm --loglevel=silly i evil-pkg` both slipped the gate entirely (the F46 shape).
+// Segmentation and tokenization are shared with guard.mjs via ./lib/shell-parse.mjs,
+// which is also where an unquoted NEWLINE became a separator: without that,
+// `git status\nnpm install left-pad` is one `git` segment and this gate never fires.
 import { readFileSync } from "node:fs";
+import { splitSegments, commandArgv, commandName } from "./lib/shell-parse.mjs";
 
 let data;
 try {
@@ -25,41 +29,6 @@ try {
 
 const cmd = (data.tool_input && data.tool_input.command) || "";
 if (!cmd) process.exit(0);
-
-// Split a shell segment into argv, honouring quotes. A quoted argument stays ONE token,
-// so a package name inside a commit message can never be read as a package to install.
-function tokenize(seg) {
-  const out = [];
-  let cur = "";
-  let quote = null;
-  let quoted = false;
-  for (const c of seg) {
-    if (quote) {
-      if (c === quote) quote = null;
-      else cur += c;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-      quoted = true;
-    } else if (/\s/.test(c)) {
-      if (cur || quoted) out.push(cur);
-      cur = "";
-      quoted = false;
-    } else cur += c;
-  }
-  if (cur || quoted) out.push(cur);
-  return out;
-}
-
-// argv with leading env assignments and sudo removed.
-function commandArgv(seg) {
-  const argv = tokenize(seg);
-  while (argv.length && /^\w+=/.test(argv[0])) argv.shift();
-  if (argv.length && argv[0].split(/[\\/]/).pop() === "sudo") {
-    argv.shift();
-    while (argv.length && argv[0].startsWith("-")) argv.shift();
-  }
-  return argv;
-}
 
 // Per-ecosystem rules. `adds` = subcommands that CHOOSE a new dependency; `lockfile` =
 // subcommands that only materialise what is already declared. `valueOpts` are global
@@ -89,7 +58,7 @@ const isFlag = (t) => t.startsWith("-");
 function addedPackages(segment) {
   const argv = commandArgv(segment);
   if (!argv.length) return [];
-  const tool = argv[0].split(/[\\/]/).pop();
+  const tool = commandName(argv);
   const rule = TOOLS[tool];
   if (!rule) return [];
 
@@ -132,7 +101,7 @@ function addedPackages(segment) {
 }
 
 const pkgs = [];
-for (const seg of cmd.split(/[|;&]+/)) {
+for (const seg of splitSegments(cmd)) {
   for (const p of addedPackages(seg)) if (!pkgs.includes(p)) pkgs.push(p);
 }
 

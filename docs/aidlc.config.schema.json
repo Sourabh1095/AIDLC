@@ -36,6 +36,31 @@
         "ado": { "type": "object" }
       }
     },
+    "team": {
+      "type": "object",
+      "description": "Who works on this project. EVERY team behaviour in the framework is gated on mode=shared, so a solo project (the default) behaves exactly as it did before any of this existed — which is why the flag is one field rather than a dozen. See architecture.md D12: the isolation mechanisms everywhere else are filesystem-scoped (worktrees, one-item-per-tree, the run file) and answer 'can these two units share my disk?'; none of them answer 'is somebody else already doing this?'. Set at /aidlc:init or /aidlc:adopt-apply, which ASK rather than infer from repo contributors — that read is wrong on both sides (a solo dev inheriting a repo with twelve past authors; a new team repo with one).",
+      "properties": {
+        "mode": {
+          "enum": ["solo", "shared"],
+          "default": "solo",
+          "description": "solo (default): one operator, who cannot collide with themselves — no ownership filtering, no control-plane freshness checks, groom applies inline. shared: several developers on one backlog. Turning it on scopes picks to your assigned items, makes groom propose rather than overwrite a colleague's acceptance criteria, floors pipeline.ceremony at 'tracked' (unless set explicitly), widens ceremony's in-flight-collision trigger to consult the board and open PRs, and makes the commands that read shared control-plane state report whether it is current. It also makes workItems.source=markdown a warned configuration — in shared mode the backlog IS the git tree, so concurrent grooms conflict in the plan of record and query() returns whatever branch the caller stands on."
+        },
+        "me": {
+          "type": "string",
+          "description": "The identity THE TRACKER stores for you, which is not always your git email: Jira wants the account email (resolved to an accountId), ADO a UPN or display name, markdown whatever the item's `assignee:` field holds. Falls back to `git config user.email` when empty. This is what /aidlc:next and /aidlc:sprint filter on, so a wrong value yields an empty queue that looks exactly like an empty backlog. Unresolvable identity is never widened to 'any' — every assigned item is treated as someone else's, which fails toward asking rather than toward two people on one branch."
+        },
+        "pickScope": {
+          "enum": ["mine-then-unassigned", "mine-only", "any"],
+          "default": "mine-then-unassigned",
+          "description": "Which items /aidlc:next and /aidlc:sprint may pick, in shared mode only. mine-then-unassigned (default): your work first, then anything nobody has claimed. mine-only: for a team that assigns everything at planning, where taking unclaimed work is a process error. any: solo behaviour — no assignee filter. Overridable per invocation with --mine / --unassigned / --any; note --unassigned has no config equivalent by design, since 'only ever take unclaimed work' is a one-off intent rather than a standing policy."
+        },
+        "groomAutoApply": {
+          "type": "array",
+          "items": { "enum": ["ac", "size"] },
+          "description": "What /aidlc:groom's analyst may write to the board WITHOUT asking. DERIVED FROM mode unless set explicitly: solo → [\"ac\", \"size\"] (today's behaviour), shared → [] (refinements and sizes are proposed in the report and applied on approval). The reasoning is the same one that keeps priority, dependsOn, estimate and assignee out of the adapter contract: acceptance criteria belong to their author the moment the author is not the operator, and two concurrent overwrites both read back cleanly. Factual comments and flags are always applied regardless — they add information and remove none."
+        }
+      }
+    },
     "workspace": {
       "type": "object",
       "description": "Workspace topology. Absent or layout=mono → single repo (the top-level git/stack/ux blocks apply). layout=poly → the repos[] array defines each git repo; this file sits at the workspace control plane. The product repos are USUALLY subfolders of the control plane, but need not be: in a multi-root IDE workspace (a *.code-workspace folders[] list) the roots may live under different parents or on different drives, and a repo entry then carries an absolute path. The control plane is the folder holding the .code-workspace file when there is one, else the opened folder — never a product repo.",
