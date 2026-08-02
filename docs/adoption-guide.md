@@ -13,13 +13,26 @@ How to use the Bee-Logical Claude AIDLC in any project — new or existing.
 
 ```
 /plugin marketplace add bee-logical/AIDLC
-/plugin install aidlc@bee-logical
-/plugin install aidlc-stack-web@bee-logical   # if the project is on the Next.js/NestJS/PG/Mongo stack
+
+/plugin install aidlc@bee-logical             # required — the pipeline itself
+/plugin install aidlc-stack-web@bee-logical   # optional — TypeScript / Next.js / NestJS / PG / Mongo
+/plugin install aidlc-ux@bee-logical          # optional — the design pod
 ```
 
-The `aidlc-ux` design pod is **enabled by default** when you add the marketplace — no install line
-needed. It only activates on UI work (backend/infra items never invoke it), so leaving it on costs
-nothing on non-UI projects. To turn it off for a project, set `ux.enabled: false` in
+All three carry `defaultEnabled: true` in the marketplace manifest, so adding the marketplace is often
+enough on its own; the explicit `install` lines above are never wrong and make the intent obvious in a
+team's setup notes.
+
+**Install only what the project is.** The three plugins are deliberately separable:
+
+| Plugin | Adds | Skip it when |
+|---|---|---|
+| `aidlc` | the pipeline, agents, tracker adapters, guard hooks. **Stack-agnostic** — no language or package manager assumed | never; it is the framework |
+| `aidlc-stack-web` | TypeScript/Next.js/NestJS/Postgres/Mongo conventions, the tooling + structure + CI templates, the Prettier format hook | the project is not Node/TypeScript — a Python or Go repo gains nothing and inherits no npm assumptions |
+| `aidlc-ux` | the 7-agent design pod, plus the Figma and Playwright MCP servers | the project has no UI worth judging — you also avoid installing a browser-automation server you never use |
+
+The design pod only activates on UI work (backend and infra items never invoke it), so leaving it
+installed costs nothing on a mixed project. To turn it off for one project, set `ux.enabled: false` in
 `.claude/aidlc.config.json`.
 
 > Working from a local clone instead: `/plugin marketplace add D:\path\to\AIDLC`
@@ -36,9 +49,14 @@ claude
 ```
 
 Answer the Q&A (project key, name, work-item source, **solo or a team**, git host, stack, commands).
-**Approve the `.claude/settings.json` write when prompted** — Claude Code guards permission
-files at the harness level, so this one file always asks. Review the scaffold with
-`git status`, then commit it.
+**Approve the `.claude/settings.json` write when prompted** — Claude Code guards permission files at
+the harness level, so this one file always asks. Review the scaffold with `git status`, then commit it.
+
+> **If the project already has a `.claude/settings.json`,** init will *not* edit it — AIDLC's own
+> `protect-paths` hook blocks writes to an existing permission file, deliberately, because a hook
+> cannot tell "the setup command" from "an agent widening its own permissions". Init instead writes the
+> merged result to `.aidlc/staged-claude/settings.json`, shows you the diff, and you apply it. The same
+> is true in reverse for `/aidlc:remove`.
 
 **Trust the workspace.** Claude Code ignores a project's `permissions.allow` rules until the
 workspace is trusted — an untrusted headless run has every git/npm command denied. Opening
@@ -278,17 +296,23 @@ Five values are worth knowing, because they each mean something narrower than th
 
 The plugin ships MCP servers pre-wired; you provide credentials:
 
-| Server | Auth |
-|--------|------|
-| `context7` | None required (free tier) |
-| `github` | Set `GITHUB_PERSONAL_ACCESS_TOKEN` env var (repo + PR scopes) |
-| `playwright` | None (drives a local browser) |
-| `atlassian` (Jira) | Remote server — OAuth browser prompt on first use |
-| `azure-devops` | Set `ADO_MCP_ORG` env var to your org name; sign-in via `az login` |
-| `figma` (from `aidlc-ux`) | Remote server (`https://mcp.figma.com/mcp`) — OAuth via `/mcp` → `figma`. Only needed when your screens are designed in Figma |
+Each plugin ships only the servers it actually uses, so a workspace installs nothing it has no use for:
 
-If a server fails to start, `claude --debug` shows why; the pipeline degrades gracefully
-(GitHub operations fall back to the `gh` CLI, Azure Boards falls back to `az boards`).
+| Server | Ships with | Auth |
+|--------|-----------|------|
+| `context7` | `aidlc` | None required (free tier). Current library docs, so versions come from the registry rather than memory |
+| `atlassian` (Jira) | `aidlc` | Remote server — OAuth browser prompt on first use |
+| `azure-devops` | `aidlc` | Set `ADO_MCP_ORG` env var to your org name; sign in via `az login` |
+| `figma` | `aidlc-ux` | Remote server (`https://mcp.figma.com/mcp`) — OAuth via `/mcp` → `figma`. Only needed when your screens or design system live in Figma |
+| `playwright` | `aidlc-ux` | None (drives a local browser). Used only to render and screenshot your UI for the jury and the fidelity check |
+
+**GitHub needs no MCP server** — the pipeline uses the `gh` CLI, so authenticate with `gh auth login`
+and nothing else is required. (An earlier release bundled a `github` MCP server; it was removed because
+it errored for everyone who had not set a token, and the CLI path was already the one in use.)
+
+If a server fails to start, `claude --debug` shows why; the pipeline degrades gracefully — Azure Boards
+falls back to `az boards`, and the design pod reports `BLOCKED` rather than inventing a design it could
+not read.
 
 > **Azure DevOps: "connected" ≠ "authenticated" (a sharp edge).** `/mcp` showing
 > `azure-devops · connected · N tools` only means the MCP **process started** — it authenticates on the
@@ -388,25 +412,19 @@ Two consequences `/aidlc:init` states at the time rather than letting you discov
 Every team behaviour is gated on `mode: shared`. A solo project is unchanged. Day-to-day details are in
 `user-guide.md` §1c.
 
-## 5. Daily workflow
+## 5. Your first run
 
-1. Groom your backlog: add items to `backlog/items/` (see `backlog/README.md`) or your tracker.
-2. `/aidlc:next` — picks the top ready item (in shared mode, the top item **assigned to you**), or
-   `/aidlc:run PROJ-123` for a specific one.
-3. The pipeline branches, implements, reviews, tests, fixes, pushes, and opens a PR —
-   commenting progress on the work item as it goes.
-4. **You review and merge the PR.** That's the human gate.
-5. **Comments came back?** `/aidlc:review-feedback PROJ-123` works the reviewer's threads as findings,
-   fixes them, pushes, and replies on each. A run reaching `done` means the pipeline finished, not that
-   the change was accepted.
-6. `/aidlc:status` any time — active runs, blockers, what's next. After merges it offers cleanup
-   (transition item to Done, archive the run file).
+Setup is done. One loop, to confirm it works end to end:
 
-### When a run gets BLOCKED
+1. Add an item — `backlog/items/` (see `backlog/README.md`) or your tracker.
+2. `/aidlc:next` — picks the top ready item, or `/aidlc:run PROJ-123` for a specific one.
+3. The pipeline branches, implements, verifies, pushes and opens a PR.
+4. **You review and merge.** That is the human gate, and it does not move.
 
-After `maxFixCycles` (default 3) failed fix attempts, the pipeline stops, records findings in
-`.aidlc/runs/<ID>.md`, and comments on the item. Fix the underlying issue (or adjust the item),
-then rerun `/aidlc:run <ID>` — it resumes from the recorded phase.
+That is the whole shape. **Everything about day-to-day use — which command in which situation, the
+item lifecycle, resuming across sessions, blocked runs, review feedback, troubleshooting — lives in
+[`user-guide.md`](user-guide.md), which is the one place it is maintained.** This guide stops at
+setup on purpose; a second copy of the daily workflow is a second copy to keep true.
 
 ## 6. Customizing per project
 
@@ -433,28 +451,13 @@ the pipeline scaffolds these itself when it hits a capability gap, and tracks re
 into the shared plugin for platform review; after it merges, `/plugin marketplace update` +
 `/aidlc:sync` removes your local copy. See `docs/promotion-policy.md` for the acceptance bar.
 
-## 7. Working several items at once
+## 7. What to read next
 
-`/aidlc:sprint 3` picks the top independent ready items (an analyst checks they don't touch the
-same code), runs each through a headless pipeline, and shows a live board. Conflicting items queue
-automatically.
-
-How each run is isolated depends on your layout. In **mono**, every item gets its own **git
-worktree**, and a blocked run keeps that worktree for resumption. In **poly**, the runs launch from
-the **control plane** with the cwd unchanged — `/aidlc:run` already routes each item into its own
-repo checkout, so separate repos provide the isolation and no worktree is created. The constraint
-there is one in-flight item per repo: a second item targeting the same repo queues behind the first.
-
-**On a shared project, keep N small.** Every isolation mechanism here — worktrees, checkouts, the
-one-item-per-repo rule — is about *your* filesystem. None of it knows that a colleague is running their
-own sprint against the same repos. In shared mode the selection is scoped to items assigned to you
-(so you won't launch a pipeline on somebody else's ticket), and a plan wave is filtered the same way
-before launch:
-
-```
-wave 2 is PROJ-103 ‖ PROJ-104 ‖ PROJ-107; launching 2 (PROJ-107 is Rahul's)
-```
-
-That's ownership filtering, not the plan going stale, and it's reported as such. Beyond that, a team
-already has parallelism across people — a sprint multiplies *your* share of it, and it multiplies
-mistakes too.
+| You want | Read |
+|---|---|
+| Day-to-day use — which command when, the lifecycle, resuming, troubleshooting | [`user-guide.md`](user-guide.md) |
+| A full greenfield run, start to finish | [`example-walkthrough.md`](example-walkthrough.md) |
+| An existing codebase adopted, start to finish | [`brownfield-walkthrough.md`](brownfield-walkthrough.md) |
+| Why the framework is shaped this way | [`architecture.md`](architecture.md) |
+| Whether a permission rule is right for your org | [`permissions-rationale.md`](permissions-rationale.md) |
+| Every config key | [`aidlc.config.schema.json`](aidlc.config.schema.json) |

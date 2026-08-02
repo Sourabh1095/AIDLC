@@ -1,6 +1,10 @@
 # Architecture — Bee-Logical Claude AIDLC
 
-**Status:** All phases (0–5) implemented + polyrepo + team mode · core v0.42.x · `aidlc-ux` design pod v0.6.x
+**Status:** all planned phases implemented, plus polyrepo, team mode, brownfield adoption and wave
+re-planning. This document is the **design rationale** — the decisions and why they were made. For what
+shipped when, read [`../CHANGELOG.md`](../CHANGELOG.md); for current versions, the plugin manifests.
+Version numbers are deliberately not repeated here, because a doc that carries them goes stale on every
+release and nothing catches it.
 
 ## 1. Core design decisions
 
@@ -217,7 +221,7 @@ answer, rewriting the board, is the wrong one twice over.
 
 - **The board is the product owner's record of what they asked for.** `priority`, `dependsOn` and
   sprint/iteration are where that intent lives. A pipeline that rewrites them is overwriting the
-  statement it is supposed to be serving — and it is no coincidence that the 7-op adapter contract (D4)
+  statement it is supposed to be serving — and it is no coincidence that the adapter contract (D4)
   has no op for any of the three: they are set at authoring time, by a person.
 - **Re-ordering without re-packing silently costs the concurrency.** Move one item to the top and a
   contract-first pair that used to run side by side (D9) can end up in two different waves with no
@@ -319,7 +323,7 @@ read the working tree, so two branches cut from one base both produced `0012`, b
 (neither diff shows the other), both merged, and `superseded-by-0012` became permanently ambiguous with
 no error anywhere. Numbers are now reserved from the integration branch plus open PRs.
 
-## 2. Implemented (Phases 0–2)
+## 2. What is implemented
 
 ### Pipeline
 
@@ -332,7 +336,15 @@ no error anywhere. Numbers are now reserved from the integration branch plus ope
 verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) → BLOCKED if exhausted
 ```
 
-### Agents (9)
+### Agents — 9 in core, 7 in the design pod
+
+Every agent, in every plugin, owes the orchestrator the same contract (`aidlc:agent-contract`): a
+terminal verdict rather than a pending one, a `## Log` line on the run file, and a report that is
+routing facts rather than a transcript. That skill also decides which agents get a `tools:` allowlist
+and which cannot have one — an agent driving a large third-party MCP, or the tracker adapter, would be
+silently crippled by a guessed tool id.
+
+**Core (`aidlc`)**
 
 | Agent | Role | Isolation reason | Model tier |
 |-------|------|------------------|-----------|
@@ -344,7 +356,19 @@ verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) �
 | `aidlc-security` | input→sink tracing, authz, dependency audit (conditional trigger) | adversarial depth, read-only surface | opus |
 | `aidlc-devops` | container/CI/release items, red-check diagnosis | different tool domain | sonnet |
 | `aidlc-docwriter` | README/CHANGELOG/API docs on the PR branch | mechanical, cheap | haiku |
-| `aidlc-researcher` | spikes → cited decision reports | web-heavy exploration + high-stakes tech-selection judgment | opus |
+| `aidlc-researcher` | technical spikes → cited decision reports (not design research) | web-heavy exploration + high-stakes tech-selection judgment | opus |
+
+**Design pod (`aidlc-ux`)** — dispatched only on UI items, never on backend or infra work.
+
+| Agent | Role | Isolation reason | Model tier |
+|-------|------|------------------|-----------|
+| `aidlc-ux-writer` | the experience story: vision, tone, journey, one signature moment | direction set before any pixel | sonnet |
+| `aidlc-ux-researcher` | award-winning references mined for transferable technique (not technical research) | web-heavy, cited | sonnet |
+| `aidlc-design-system` | the tokenized system every component consumes — the uniformity anchor | owns one contract end to end | sonnet |
+| `aidlc-motion` | animation, micro-interactions, scroll/parallax, within a perf + a11y budget | different craft + tool domain | sonnet |
+| `aidlc-figma` | extracts an existing Figma file into a written spec or a system extraction | rate-limited MCP, extract-once discipline | sonnet |
+| `aidlc-fidelity` | renders the build and classifies every deviation from the Figma reference | must not see the maker's reasoning | opus |
+| `aidlc-ux-jury` | renders the built UI and scores it /10 on a fixed rubric, blind to the makers | independence *is* the product | opus |
 
 ### Skills
 
@@ -377,53 +401,41 @@ package-add commands, across every supported ecosystem, to vet the dependency be
 tool, so the hook that runs it ships with the JavaScript pack. Core installs no formatting hook; a
 project's own formatter still runs as part of its resolved gate.
 
-### Phase 3 — Real trackers + Azure ✅ (v0.3.0)
+### Two structural choices worth stating on their own
 
-Implemented: `wi-jira` (Atlassian MCP; JQL; transition-by-target-status; statusMap),
-`wi-ado` (ADO MCP + `az boards` fallback; WIQL; Agile/Scrum process detection; state-stepping
-with tag fallbacks), Azure Repos PR path in `git-workflow`, `/aidlc:groom` (autonomy
-boundaries: AC/sizing applied, decompositions/priorities proposed only), bundled `atlassian` +
-`azure-devops` MCP servers, project `.mcp.json.example` (read-only Postgres/MongoDB, Sentry,
-Notion, Figma). Adapter contract unchanged — the pipeline runs identically over all three sources.
+**Trackers are adapters, not integrations.** `wi-jira`, `wi-ado` and `wi-markdown` each implement the
+same eight-operation contract over a single canonical `WorkItem`, so the pipeline runs *identically*
+over all three and adding a fourth means writing one skill, not touching the orchestrator. Everything
+tracker-specific — JQL vs WIQL, per-type state categories, Agile/Scrum process detection, transition
+stepping — lives inside its adapter.
 
-### Phase 4 — Depth agents + stack pack ✅ (v0.4.0)
+**Stack knowledge is a separate plugin.** `aidlc-stack-web` is a pack rather than part of core so a
+future `aidlc-stack-python` can slot in without touching the pipeline, and so core never assumes a
+package manager. Core degrades gracefully with no pack installed: it verifies against whatever gate the
+project declares. This is the same layering rule stated above, applied at the plugin boundary.
 
-Implemented: the five depth agents (`aidlc-architect` opus + ADRs, `aidlc-security` opus with
-conditional trigger, `aidlc-devops` incl. red-check diagnosis, `aidlc-docwriter` haiku,
-`aidlc-researcher`), the seven phase skills (`architecture`, `security`, `ci-cd`, `release`,
-`docs-writing`, `research`, `maintenance`) + ADR template, orchestrator wiring (security in
-the verify batch, spikes → researcher, infra plans → devops), and the `aidlc-stack-web` plugin
-(8 stack skills). Separate plugin so other stacks (e.g. `aidlc-stack-python`) can slot in
-without touching core — stack skills are namespaced `aidlc-stack-web:*`.
+**Self-extension is bounded.** When the pipeline hits a genuine capability gap it searches installed
+plugins, then project-local skills, then the `extensions.json` registry, and only then creates
+something — a skill by default, an agent only behind the agent test (isolated context, a different tool
+surface, or independent adversarial judgment). Reuse is tracked; at two uses `/aidlc:status` surfaces it
+as a promotion candidate; `/aidlc:promote` generalizes and PRs it into the right plugin under
+[`promotion-policy.md`](promotion-policy.md); `/aidlc:sync` removes the local fork once it lands. The
+framework grows itself, curated — it does not accumulate one-off skills nobody loads twice.
 
-### Phase 5 — Self-extension & scale ✅ (v0.5.0)
+*Phase-by-phase delivery history has moved to [`../CHANGELOG.md`](../CHANGELOG.md), which is the one
+place it is maintained.*
 
-Implemented: capability-gap protocol in the orchestrator (search plugins → local →
-`extensions.json` registry; create as last resort; skill by default, agents behind the
-agent-test justification); `scaffold-skill`/`scaffold-agent` with mandatory `x-aidlc` metadata
-and reuse tracking (`/aidlc:status` surfaces candidates at reuseCount ≥ 2); `/aidlc:promote`
-(validate → secret-scan → generalize with shown diff → package into the right plugin on
-`promote/<name>` → user-confirmed PR with the reviewer checklist); `/aidlc:sync` (deletes local
-forks shadowed by promoted versions, resolves shadowing conflicts); `/aidlc:sprint N` (analyst
-independence check → worktree + headless run per item → live board from run-file polling →
-cleanup); governance via `docs/promotion-policy.md` (`plugins/**` platform-owned).
+### Design pod (`aidlc-ux`)
 
-### Design pod ✅ (`aidlc-ux` plugin, v0.1–0.6)
+A separate plugin for UI work, with **two independent sources** and a different quality gate for each.
+The seven roles are in the agent table above; `/aidlc-ux:design` runs narrative → research → design
+system → build/redesign + motion → a jury loop that iterates until the composite ≥ `ux.juryThreshold`
+(default 9), capped at `ux.maxJuryRounds`. It works greenfield (establish the project standard),
+retrofit (adopt the existing system, redesign a scoped surface) and full redesign; brand references
+(logo/colors/fonts) are hard constraints, not inspiration.
 
-A separate, default-enabled plugin for UI work, with **two design sources** and a different quality
-gate for each.
-
-**Generated (no Figma).** Five roles: `aidlc-ux-writer` (narrative), `aidlc-ux-researcher` (cited
-Awwwards inspiration), `aidlc-design-system` (the tokenized uniformity anchor — also audits existing
-UIs and honors brand anchors), `aidlc-motion` (animation within a perf+a11y budget), and
-`aidlc-ux-jury` (opus; renders via Playwright and scores a weighted rubric /10, blind to the makers).
-`/aidlc-ux:design` runs narrative → research → design system → build/redesign + motion → a jury loop
-that iterates until composite ≥ `ux.juryThreshold` (default 9), capped at `ux.maxJuryRounds`. Works
-greenfield (establish the project standard), retrofit (adopt the existing system, redesign a scoped
-surface) and full redesign; brand references (logo/colors/fonts) are hard constraints.
-
-**Figma (v0.5–0.6).** Two independent axes, both resolved before the pipeline runs: `designSource`
-(are the screens drawn?) and `systemSource` (are the values given?). All four combinations occur.
+**The Figma fork.** Two axes, both resolved before the pipeline runs: `designSource` (are the screens
+drawn?) and `systemSource` (are the values given?). All four combinations occur.
 
 *Screens in Figma (`designSource: figma`).* The pod implements rather than invents. The plugin
 ships its own `figma` MCP server (remote, OAuth). `aidlc-figma` extracts the design once —
@@ -435,7 +447,7 @@ every difference `[BLOCKING]`/`[MINOR]`/`[ADAPTATION]`. Gate = **zero blocking**
 `ux.figma.maxFidelityRounds`. `/aidlc-ux:figma` links a file, maps frames to the app's real routes,
 and `sync` re-extracts to report design drift against the built routes.
 
-*A design system in Figma (`systemSource: figma`, v0.6).* The common enterprise case: a brand hands
+*A design system in Figma (`systemSource: figma`).* The common enterprise case: a brand hands
 over a UI kit, not mockups. `aidlc-figma` runs in **library mode** — wave 1 pulls the whole variable
 set plus the component *inventory* over the canonical pages; wave 2 pulls a component's detail the
 first time a screen needs it (a sixty-component system would not survive the monthly call budget
@@ -469,7 +481,7 @@ and per package (different frontends, different mockups and dev ports); `ux.figm
 ## 3. Post-v1 candidates (not committed)
 
 - Additional stack packs (`aidlc-stack-python`, `aidlc-stack-dotnet`) as demand appears.
-- More adapters via the same 7-op contract (Linear, GitHub Issues).
+- More adapters via the same eight-operation contract (Linear, GitHub Issues).
 - Sentry-fed bug intake: production error → draft bug item with stack trace context.
 - Metrics: cycle-time and fix-cycle stats aggregated from archived run files.
 

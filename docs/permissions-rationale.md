@@ -21,7 +21,8 @@ patterns, and per-workspace switches — that static patterns cannot express).
 | `git push` | Required for hands-off PR creation. Force variants denied; protected branches blocked by the guard hook. |
 | `gh pr create/view/comment/checks/list` | The pipeline's PR flow and CI feedback. Deliberately NOT `gh pr merge` — merging is the human gate. |
 | `az repos pr *`, `az boards *` | Same flow on Azure DevOps (PRs + work items). Not `az` wholesale — deploy/keyvault subcommands stay out. |
-| `npm/pnpm/yarn/npx/node` | Build, test, lint, run. Install included: the pipeline must add dependencies. `npm publish` is in ask. |
+| `npm/pnpm/yarn/npx/node` | Build, test, lint, run. Install included: the pipeline must add dependencies — but **adding a new package is gated by the `dep-vet` hook** (an `ask`, across every supported ecosystem: npm/pnpm/yarn/bun, pip/uv/poetry, cargo, go, gem, composer, dotnet), so a supply-chain check happens before install rather than after code depends on the choice. Lockfile installs (`npm ci`, `pip install -r`) are not gated. `npm publish` is in ask. |
+| **Your stack's commands are not here — add them** | The shipped allow-list is Node-shaped because that is the stack pack this repo ships. **Core itself is stack-agnostic**, so a Python, Go or .NET project should add its own gate commands (`Bash(pytest:*)`, `Bash(go test:*)`, `Bash(dotnet test:*)`) to `allow` — otherwise its own verification prompts on every run, which is the pattern that trains people to click through prompts. `/aidlc:adopt-apply` records the real gate commands in config; widening the allow-list to match them is a deliberate, human edit. |
 | `docker build/compose/run/ps/logs/exec/stop/images` | Local dev environments and integration tests. `docker push` (registry mutation) is in ask; prune in ask. |
 | `WebSearch` | Research during runs (library issues, error messages). |
 
@@ -34,7 +35,7 @@ patterns, and per-workspace switches — that static patterns cannot express).
 | `Read(**/secrets/**, ~/.ssh, ~/.aws)` | The pipeline never needs the VALUES in secret stores. Removes the exfiltration surface. |
 | `.env` files — enforced by the `env-guard.mjs` + `guard.mjs` hooks (see the env-file note below), NOT a static deny | Env files can carry secrets, so by default the pipeline may neither read nor change them. This is a hook, not a `Read(.env*)` deny, because it must be a **switch** — and a static `deny` can never be relaxed by anything (that is the whole discovery this design corrects). |
 | `gh secret *`, `az keyvault *` | Secret stores are human-managed. |
-| `kubectl apply/delete`, `terraform apply/destroy`, `az webapp deploy`, `az deployment` | Deployments and infra mutation are release-process actions, not pipeline actions. Phase 4's devops agent will get scoped, per-project exceptions if a project's process allows it. |
+| `kubectl apply/delete`, `terraform apply/destroy`, `az webapp deploy`, `az deployment` | Deployments and infra mutation are release-process actions, not pipeline actions. The devops agent owns CI config and local containers, never a deploy; a project whose process genuinely deploys from the repo adds a narrowly-scoped allow rule (see *Per-project tuning*). |
 | `Edit/Write(.claude/settings*.json)` | The agent must not be able to widen its own permissions. Also enforced by `protect-paths.mjs` (which additionally covers hook scripts). |
 
 ## ASK — legitimate but blast-radius-ambiguous
@@ -46,7 +47,7 @@ patterns, and per-workspace switches — that static patterns cannot express).
 | `npm publish`, `docker push`, `gh release create`, `az pipelines run` | Registry/release mutations — visible outside the repo. |
 | `gh api graphql` | The only way to read a GitHub PR's **inline review threads** (`gh pr view --json comments` returns just the top-level conversation), so `/aidlc:review-feedback` needs it — but the same endpoint runs mutations, including the `resolveReviewThread` that command uses. One endpoint, both directions, no flag to tell them apart from a permission rule: that is precisely what `ask` is for. Bare `gh api` stays out of the allowlist entirely for the same reason `/aidlc:adopt` leaves it out — `--method POST` is one flag away. |
 | `docker system prune` | Deletes shared local state beyond the project. |
-| `psql`, `mongosh` | Raw DB shells can mutate anything they can reach. Guard hook blocks prod-looking targets outright; localhost usage just needs a click. Prefer read-only MCP servers (Phase 3/4) for queries. |
+| `psql`, `mongosh` | Raw DB shells can mutate anything they can reach. Guard hook blocks prod-looking targets outright; localhost usage just needs a click. Prefer a read-only database MCP server for queries (`.mcp.json.example` ships both wired read-only). |
 | `Read(**/.env)`, `Read(**/.env.*)`, `Edit(**/.env)`, `Edit(**/.env.*)` | The **fail-safe floor** for env files (see the note below). Never a `deny` and never a silent `allow` — so even if the `env-guard` hook is not running (plugin disabled), touching an env file prompts rather than being silently readable. **`Edit` only, never `Write(path)`** — file permission checks match only `Read(path)` and `Edit(path)`; a `Write(path)` rule is accepted but never matched and warns at startup, and `Edit` already covers every file-editing tool including Write (F44, re-broken and re-fixed as F48). |
 
 ## Env-file access — two layers that must agree
@@ -73,8 +74,14 @@ switch inert. The resolution:
 Net: the default is a hard deny (via the hook), opting in is a single edit to `aidlc.config.json`, and
 the two layers agree. **Migration:** projects scaffolded before 0.28 still have the old
 `Read(./.env)` / `Read(./.env.*)` **deny** in their `settings.json`; that hard deny overrides the
-switch, so it must be removed (and the `ask` rules added) — `/aidlc:init`'s settings merge does this,
-or edit the file by hand. The agent cannot: `settings.json` is protected by `protect-paths.mjs`.
+switch, so it must be removed and the `ask` rules added.
+
+**You apply that edit, not the agent.** `protect-paths.mjs` blocks writes to an existing
+`settings.json`, so `/aidlc:init` computes the migrated file, writes it to
+`.aidlc/staged-claude/settings.json`, and shows you the diff — applying it is one copy, by hand. This
+is not an oversight to route around: a hook cannot distinguish the setup command from an agent widening
+its own permissions, and that is exactly the distinction this deny exists to make. `/aidlc:remove`
+reverts the same way.
 
 ## Per-project tuning
 

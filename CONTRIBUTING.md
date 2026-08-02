@@ -36,10 +36,14 @@ removing a promoted skill. This file does not restate them — that document is 
 | Path | What it is |
 |------|-----------|
 | `.claude-plugin/marketplace.json` | The marketplace manifest — plugin list and versions |
-| `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator, agents, skills, hooks, project template |
-| `plugins/aidlc-stack-web/` | Stack pack: TS standards, Next.js, NestJS, Postgres, Mongo, Docker |
-| `plugins/aidlc-ux/` | The design pod: UX narrative, design system, motion, jury |
-| `docs/` | Architecture, adoption guide, promotion policy, permissions rationale |
+| `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator, 9 agents, skills, guard hooks, project template. **Stack-agnostic** — no language or package manager assumed |
+| `plugins/aidlc-stack-web/` | Stack pack: TS standards, project structure, Next.js, NestJS, Postgres, Mongo, Docker, the Node CI half, the Prettier format hook |
+| `plugins/aidlc-ux/` | The design pod: 7 agents (narrative, research, design system, motion, Figma, fidelity, jury) + the Figma and Playwright MCP servers |
+| `docs/` | Architecture, adoption + user guides, walkthroughs, promotion policy, permissions rationale, schemas |
+
+**Where a change belongs** is the first review question. Anything that assumes a package manager, a
+language toolchain or a browser goes in a pack, not core — that boundary is why a Python project can
+install `aidlc` alone and inherit no npm assumptions.
 
 ## Contributing a skill or agent
 

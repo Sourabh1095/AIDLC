@@ -7,6 +7,61 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.45.1] — 2026-08-02
+
+### Docs: the same audit, on what we tell people
+
+Docs-only — no plugin behaviour changes, so plugin versions are unchanged.
+
+**The README is now written for someone who has never seen this.** It had drifted into
+release-notes-by-version prose: six paragraphs each opening *"(`aidlc` v0.3x.0)"*, which reads as a
+changelog and answers none of a newcomer's questions. It now leads with what the thing is, an
+explicit **"is this for you?"** (including when it is *not* — you want an agent that merges its own
+work, or a hosted service), a **use-case table** mapping a goal to the command that serves it, and a
+per-plugin install table saying which to skip and why. Release history lives in this file, which is
+the one place it is maintained.
+
+**It was also incomplete: 5 of the 25 commands were missing** — `/aidlc:dogfood`,
+`/aidlc:scaffold-skill`, `/aidlc:scaffold-agent`, and both `aidlc-ux` commands. `/aidlc-ux:design` is
+an entire plugin's front door and appeared nowhere in the command reference.
+
+**Stale facts, fixed:**
+
+- **`adoption-guide.md` documented a `github` MCP server that does not exist** — it was deleted in
+  `72b98a7` ("drop unused github MCP server that errored without a token"), but the guide still told
+  every new developer to set `GITHUB_PERSONAL_ACCESS_TOKEN` for it. GitHub goes through the `gh` CLI;
+  the table now says so, and lists which plugin ships each server (Playwright moved to `aidlc-ux` in
+  0.43.0 and was still filed under core).
+- **`architecture.md`** carried `core v0.42.x` in its status line and three "Phase N ✅ (v0.x.0)"
+  sections — release history in a rationale document, already stale (*"8 stack skills"* when there are
+  10). The phase sections collapse into the three structural choices actually worth stating; history
+  points here. Its agent table listed 9 and now lists all 16, with the design pod's 7 no longer
+  re-described in prose further down.
+- **The adapter contract was called "7-op" in one place and "8-operation" in two others.** It is eight.
+- **`permissions-rationale.md` contradicted itself** on env migration: *"`/aidlc:init`'s settings merge
+  does this"* immediately followed by *"The agent cannot: `settings.json` is protected"*. Both halves
+  were half-true before 0.44.0 made the staging path explicit; now it states plainly that you apply
+  that edit and why a hook cannot make an exception for the setup command. Two "Phase 4 will…" future
+  tenses about shipped work were also removed.
+- **The Node-shaped allow-list is now called out as something a non-Node project must extend.** Core
+  went stack-agnostic in 0.43.0, but the shipped `settings.json` still allows only npm/node — so a
+  Python project's own `pytest` gate prompts on every run, which is exactly the pattern that trains
+  people to click through prompts.
+
+**Duplication.** `adoption-guide.md` had grown a *Daily workflow* and a *Working several items at
+once* section — both `user-guide.md`'s job, and the adoption guide's own header already said so. The
+adoption guide now stops at setup and points onward. The sprint-isolation content that was only in the
+adoption guide (mono worktrees vs poly control-plane launch, one-item-per-repo, why to keep N small on
+a team) moved into `user-guide.md` rather than being dropped.
+
+*Checked and clean:* every `/aidlc:*` and `/aidlc-ux:*` command referenced anywhere in the docs
+resolves to a real skill; every inter-doc link resolves; all 45 `F<n>` finding citations in the
+plugins are findable in the findings docs; no verbatim paragraph is duplicated across docs.
+
+*Known inconsistency, left for a decision:* `LICENSE` is MIT while all three `plugin.json` manifests
+declare `"license": "UNLICENSED"`. The README now matches the LICENSE file, since that is what a
+public repo's readers rely on, but the manifests are a legal statement and were not changed silently.
+
 ## [0.45.0] — 2026-08-02
 
 ### `format.mjs` moves to the web pack — and starts working in poly

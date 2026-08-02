@@ -586,6 +586,35 @@ you should know if nothing tests the seam.
 And the case that saves the most time: **when the interface already exists and your feature doesn't change
 it, there is no contract item and no waiting at all** — both sides start immediately.
 
+### 3c′. When several *items* are worked at once (`/aidlc:sprint`)
+
+`/aidlc:sprint 3` picks the top independent ready items — an analyst checks they don't touch the same
+code — runs each through its own headless pipeline, and shows a live board. Conflicting items queue
+automatically rather than racing. Default 3, hard cap 5.
+
+**How the runs are isolated depends on your layout**, and it is worth knowing which you are in:
+
+| Layout | Each run launches from | Isolation comes from |
+|---|---|---|
+| **mono** | its own **git worktree** | the worktree — a blocked run keeps its worktree so you can resume inside it |
+| **poly** | the **control plane**, cwd unchanged | separate repo checkouts — `/aidlc:run` already routes each item into its own repo, so no worktree is created |
+
+In poly the binding constraint is **one in-flight item per repo**: a second item targeting the same
+repo queues behind the first, because two runs in one checkout would share a branch and an index.
+
+**On a shared project, keep N small.** Every isolation mechanism above — worktrees, checkouts, the
+one-item-per-repo rule — is about *your* filesystem. None of it knows a colleague is running their own
+sprint against the same repos. Shared mode scopes selection to items assigned to you, so you won't
+launch a pipeline on somebody else's ticket, and a plan wave is filtered the same way before launch:
+
+```
+wave 2 is PROJ-103 ‖ PROJ-104 ‖ PROJ-107; launching 2 (PROJ-107 is Rahul's)
+```
+
+That is ownership filtering, not the plan going stale, and it is reported as such. Beyond that, a team
+already has parallelism across people — a sprint multiplies *your* share of it, and it multiplies
+mistakes too.
+
 ### 3d. Tasks: the tier your effort is counted in
 
 A Story is what gets a branch and a PR. That is a fact about **git** — a branch and a PR are one per

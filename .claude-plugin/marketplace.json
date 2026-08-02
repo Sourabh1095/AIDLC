@@ -5,7 +5,7 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AIDLC (AI Development Life Cycle) framework for all projects.",
-  "version": "0.45.0",
+  "version": "0.45.1",
   "plugins": [
     {
       "name": "aidlc",
