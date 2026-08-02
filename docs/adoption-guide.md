@@ -35,7 +35,7 @@ claude
 /aidlc:init
 ```
 
-Answer the Q&A (project key, name, work-item source, git host, stack, commands).
+Answer the Q&A (project key, name, work-item source, **solo or a team**, git host, stack, commands).
 **Approve the `.claude/settings.json` write when prompted** — Claude Code guards permission
 files at the harness level, so this one file always asks. Review the scaffold with
 `git status`, then commit it.
@@ -358,14 +358,48 @@ the actual repos, routes each piece to the right repo, and — for anything span
 unified board across all repos; `/aidlc:release <repo>` cuts a per-repo release. Mono projects are
 unaffected — an empty `repos[]` behaves exactly as before.
 
+### Several developers on one project
+
+`/aidlc:init` asks whether this is a solo or a shared project — plainly, rather than guessing from the
+repo's contributor list, which is wrong in both directions (an inherited repo shows a dozen past
+contributors and one active maintainer; a brand-new team repo shows one). On a brownfield project
+`/aidlc:adopt` counts authors active in the last 90 days and `/aidlc:adopt-apply` puts that number in
+front of you as a **signal**, still asking rather than deciding.
+
+Answering "a team" writes:
+
+```json
+"team": { "mode": "shared", "me": "you@acme.com" }
+```
+
+**`team.me` must be the identity your tracker stores** — the account email in Jira, the UPN in Azure
+Boards. It defaults from `git config user.email`, which is usually the same and occasionally isn't. A
+mismatch makes `/aidlc:next` return nothing, which is indistinguishable from an empty backlog. Verify it
+once against a real item on your board.
+
+Two consequences `/aidlc:init` states at the time rather than letting you discover them:
+
+- **`pipeline.ceremony` floors at `tracked`** unless you explicitly pick `direct`. Tier 1's safety
+  argument — a local commit is one `git reset` away — quietly assumes one working tree.
+- **`workItems.source: markdown` earns a warning.** The backlog becomes git-tracked files that several
+  people groom concurrently, and each developer's `query` reads whatever branch they're on. Not blocked
+  (a small co-located team on one default branch manages), but Jira or ADO is the right answer.
+
+Every team behaviour is gated on `mode: shared`. A solo project is unchanged. Day-to-day details are in
+`user-guide.md` §1c.
+
 ## 5. Daily workflow
 
 1. Groom your backlog: add items to `backlog/items/` (see `backlog/README.md`) or your tracker.
-2. `/aidlc:next` — picks the top ready item, or `/aidlc:run PROJ-123` for a specific one.
+2. `/aidlc:next` — picks the top ready item (in shared mode, the top item **assigned to you**), or
+   `/aidlc:run PROJ-123` for a specific one.
 3. The pipeline branches, implements, reviews, tests, fixes, pushes, and opens a PR —
    commenting progress on the work item as it goes.
 4. **You review and merge the PR.** That's the human gate.
-5. `/aidlc:status` any time — active runs, blockers, what's next. After merges it offers cleanup
+5. **Comments came back?** `/aidlc:review-feedback PROJ-123` works the reviewer's threads as findings,
+   fixes them, pushes, and replies on each. A run reaching `done` means the pipeline finished, not that
+   the change was accepted.
+6. `/aidlc:status` any time — active runs, blockers, what's next. After merges it offers cleanup
    (transition item to Done, archive the run file).
 
 ### When a run gets BLOCKED
@@ -385,6 +419,10 @@ Edit `.claude/aidlc.config.json`:
   default branch that it makes only once you confirm; flip back to `remote` when you add an origin).
   In poly this is per-repo on each `repos[]` entry, so one repo can be local while another has a remote.
 - `workspace.layout` + `repos[]`: switch to **polyrepo** (see §4 · *Polyrepo* above)
+- `team.mode`: `solo` (default) | `shared`, plus `team.me` (your **tracker** identity). Optional:
+  `team.pickScope` (`mine-then-unassigned` default · `mine-only` · `any`) and `team.groomAutoApply`
+  (`["ac", "size"]` to keep grooming writing in place on a shared project). See §4 · *Several
+  developers* above.
 - `pipeline.maxFixCycles`, `pipeline.architectThreshold`
 - `pipeline.gates.ambiguousRequirements`: `assume-and-log` (default) | `ask-human`
   — flip to `ask-human` on lower-trust projects to pause when acceptance criteria are ambiguous.
@@ -406,3 +444,17 @@ worktree**, and a blocked run keeps that worktree for resumption. In **poly**, t
 the **control plane** with the cwd unchanged — `/aidlc:run` already routes each item into its own
 repo checkout, so separate repos provide the isolation and no worktree is created. The constraint
 there is one in-flight item per repo: a second item targeting the same repo queues behind the first.
+
+**On a shared project, keep N small.** Every isolation mechanism here — worktrees, checkouts, the
+one-item-per-repo rule — is about *your* filesystem. None of it knows that a colleague is running their
+own sprint against the same repos. In shared mode the selection is scoped to items assigned to you
+(so you won't launch a pipeline on somebody else's ticket), and a plan wave is filtered the same way
+before launch:
+
+```
+wave 2 is PROJ-103 ‖ PROJ-104 ‖ PROJ-107; launching 2 (PROJ-107 is Rahul's)
+```
+
+That's ownership filtering, not the plan going stale, and it's reported as such. Beyond that, a team
+already has parallelism across people — a sprint multiplies *your* share of it, and it multiplies
+mistakes too.

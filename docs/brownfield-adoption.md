@@ -1291,6 +1291,8 @@ for this epic, with the reason.
 | D7 | CODEOWNERS / required reviewers / approval counts | Detected and honoured at PR time | ADOPT-5 |
 | D8 | Regulated change control (traceability evidence) | Compliance signal raises review cadence; run file is the audit trail | ADOPT-9 |
 | D9 | Hotfix path (prod incident bypassing normal flow) | Recorded as a distinct branch/integration route | ADOPT-5 |
+| D10 | **Several developers on one backlog** | `conventions.activeAuthors` recorded as a **signal** (authors in the last 90 days), never a verdict — apply *asks* whether this is a shared project. On yes: `team.mode: shared` + `team.me`, ceremony floors at `tracked`, a markdown backlog earns a warning | ADOPT-5 |
+| D11 | Items already assigned on the board | Read, never written. `/aidlc:next` and `/aidlc:sprint` scope to the operator's own items; there is no `assign` op, because who does the work is a staffing decision of the same class as `priority` | ADOPT-3 |
 
 ### E · SaaS runtime reality
 

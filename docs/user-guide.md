@@ -19,6 +19,10 @@ resuming works, and how the framework remembers everything. (Setup/installation 
 - **You are the merge gate** for tracked work. The pipeline takes an item from backlog to an open PR
   without you; only a human merges. **No remote yet?** Set `git.mode: local` — instead of a PR the pipeline
   proposes a local `--no-ff` merge after verify and waits for your OK; it never merges on its own.
+- **Solo by default; tell it when you're a team.** With `team.mode: shared`, `/aidlc:next` picks from
+  what's **assigned to you**, grooming proposes instead of rewriting your colleagues' acceptance
+  criteria, and verify checks whether the base branch moved under you. Everything is gated on that one
+  flag, so a solo project is untouched. See §1c.
 - **One repo or many.** In a **polyrepo** workspace (several git repos under one control plane), the
   model is *one **runnable leaf** → one repo → one branch → one PR*: the orchestrator routes each leaf
   to the right repo, and a cross-repo feature fans out so each leaf targets one repo. Epics/Features
@@ -116,6 +120,98 @@ pipeline, for audit-bound teams). It only ever raises the tier.
 
 So choosing `direct` isn't choosing to be careless. It's choosing not to file a ticket for a typo.
 
+## 1c. Working as a team
+
+Turn it on in `.claude/aidlc.config.json` (or answer "a team" at `/aidlc:init`):
+
+```json
+"team": { "mode": "shared", "me": "you@acme.com" }
+```
+
+`team.me` is **the identity your tracker knows you by** — the account email in Jira, the UPN in Azure
+Boards. It defaults to `git config user.email`, which is usually right and occasionally isn't. Get it
+wrong and `/aidlc:next` returns nothing, which looks exactly like an empty backlog. That's the one
+setting worth checking twice.
+
+### What changes
+
+| | Solo | Shared |
+|---|---|---|
+| `/aidlc:next` picks | top-priority ready item | top-priority **assigned to you**, then unassigned |
+| `/aidlc:groom` AC + sizes | rewritten in place | **proposed**, applied on your approval |
+| Ceremony floor | `direct` | `tracked` (unless you set it) |
+| Verify | runs the gate | checks the **base branch moved** first |
+| `.aidlc/plan.md` | a local file | committed, pushed, stamped `cutBy` |
+| Control plane | read as-is | ahead/behind reported before anything trusts it |
+
+### Nobody picks up your work by accident
+
+A tracker gives an item one assignee. The pipeline **reads** that and never writes it: who does the
+work is a staffing decision, same as `priority`. If an item is on the wrong person, move it on the
+board and AIDLC follows on the next pick.
+
+```
+You: /aidlc:next
+
+AIDLC: Nothing assigned to you is ready. 4 items are ready for Priya and Rahul.
+       Ask for one, or `/aidlc:next --any` to take one anyway.
+```
+
+That's the useful answer, not a dead end — and it's deliberately different from "the backlog is empty",
+because the two need opposite responses. Per-invocation overrides: `--mine`, `--unassigned`, `--any`.
+Set the standing preference with `team.pickScope` (`mine-then-unassigned` default, or `mine-only` if
+picking up unclaimed work is a process error on your team).
+
+### Grooming somebody else's backlog
+
+Grooming rewrites acceptance criteria across the whole board. That's a chore you want done when the
+items are yours and an overwrite of a colleague's words when they aren't — and two people grooming at
+once overwrite each other with both writes verifying cleanly. So in shared mode AC refinements and
+sizes land in the report for approval instead. Items a teammate groomed in the last few hours are
+skipped and listed:
+
+```
+Groomed 18 items (whole backlog · shared mode — AC and sizes are proposals, nothing written yet):
+- AC refinements proposed: PROJ-124, PROJ-131 (+2 criteria each)
+- Skipped: PROJ-140 (groomed by Rahul 40m ago)
+```
+
+`--mine` and `--unassigned` narrow the sweep. Override the autonomy with `team.groomAutoApply`
+(`["ac", "size"]` restores the solo behaviour).
+
+### What AIDLC can and cannot see
+
+Worth knowing precisely, because it's the difference between trusting the tool and being surprised by it:
+
+- **Run files live on feature branches**, in each developer's own clone. So `/aidlc:status` shows
+  **your machine's** runs — never the team's. It says so rather than letting an empty table read as an
+  idle team.
+- **The board is the cross-machine truth.** A started item goes `in_progress` and drops out of
+  everyone's `/aidlc:next` query. That's the real protection against two people on one item, and it's
+  why the board's status counts matter more than the run table in shared mode.
+- **None of this is a lock.** The window between "the query said ready" and "the board says in progress"
+  is small but real. AIDLC doesn't pretend otherwise — a guard documented as local is usable; one that
+  reads as global is a trap.
+
+### The shared control plane
+
+`.aidlc/plan.md`, the backlog (if markdown), and cross-repo coordination files are **git-tracked state
+at the workspace root** that several people write. `/aidlc:replan` now commits and pushes the plan with
+a `cutBy:` stamp, and every command that *obeys* shared state checks it's current first:
+
+```
+control plane is 4 behind origin/main — `git pull` before trusting the plan
+```
+
+It reports and continues — **never auto-pulls**. Conflicting your backlog underneath you mid-command is
+worse than a stale read. (`/aidlc:run` skips this check: you handed it an explicit ID, which settles the
+question a plan would have answered.)
+
+**One caveat worth acting on: `workItems.source: markdown` is a solo adapter.** The backlog is the git
+tree, so concurrent grooms produce merge conflicts in your plan of record and `query` returns whatever
+branch you happen to be standing on. `/aidlc:init` and `/aidlc:adopt` warn once; it isn't blocked, and a
+small co-located team on one default branch gets away with it. A real team should be on Jira or ADO.
+
 ## 2. Command cheat-sheet — which command, when
 
 | Situation | Command |
@@ -141,8 +237,11 @@ So choosing `direct` isn't choosing to be careless. It's choosing not to file a 
 | "Just work on the next most important thing" | `/aidlc:next` |
 | Work a specific item | `/aidlc:run PROJ-123` |
 | Yesterday's run stopped / new session / anything interrupted | `/aidlc:run PROJ-123` (same command — it resumes) |
+| **A reviewer left comments on the PR** | `/aidlc:review-feedback PROJ-123` — pulls the unresolved threads, fixes them through the normal cycle, pushes, and replies on each. A comment you disagree with gets answered on the thread and flagged to you; nothing you didn't fix gets resolved (§3e) |
 | "Where is everything?" | `/aidlc:status` |
-| Backlog is messy / items missing AC / before sprint planning | `/aidlc:groom` |
+| **Several developers on one backlog** | `"team": { "mode": "shared", "me": "you@acme.com" }` — `/aidlc:next` picks only your items, grooming proposes rather than rewrites, verify checks base drift (§1c) |
+| **`/aidlc:next` says nothing is ready but the board is full** | Everything ready is assigned to someone else — that's the shared-mode answer, not a bug. Ask for one, or `/aidlc:next --any` (§1c) |
+| Backlog is messy / items missing AC / before sprint planning | `/aidlc:groom` (in shared mode: `--mine` to sweep only yours) |
 | **The client changed their mind about the order** — "checkout before search", "security items first for the audit", a revised requirements doc | `/aidlc:replan client wants checkout live before search` (§2a) — re-sequences what hasn't started into **waves**; work in flight finishes untouched; **nothing is written to your tracker** |
 | **You want the work phased** — "all the backend first, then the UI", "everything for the demo, then the rest" | `/aidlc:replan complete all BE first and then start with UI` (§2a) — same command; a grouping directive becomes a hard barrier, not just a re-ranking |
 | Work several items at once | `/aidlc:sprint 3` |
@@ -292,8 +391,10 @@ Hand-writing markdown items (per `backlog/README.md`) always works too.
 the work item at each step:
 
 ```
-start → requirements → design → implement → verify → pr → docs → done
-                                              ↑______↓  (fix cycles, max 3)
+start → requirements → design → implement → verify → pr → docs → done → (human review) → merged
+                                              ↑______↓                        ↓
+                                     (fix cycles, max 3)          /aidlc:review-feedback
+                                                                    (its own budget)
 ```
 
 1. **start** — branch `feature/PROJ-123-slug` created, item → In Progress.
@@ -305,15 +406,21 @@ start → requirements → design → implement → verify → pr → docs → d
 4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green; each
    commit names the Task it spent, and closing a plan step closes that Task (§3d). Where
    the plan's tasks touch **provably disjoint files**, several implementers work them at once — see §3c.
-5. **verify** — agent-driven review, **each on its own cadence** (`pipeline.verification`). By
+5. **verify** — first, **has the base branch moved?** On a shared repo it usually has. AIDLC fetches
+   and decides on *path overlap*, not commit count: base moved somewhere your branch never opened → it
+   notes that and carries on; base moved into files your branch edits → it merges the base in and
+   **re-runs the gate**, because a green result from before the merge describes a tree that's gone. The
+   PR body then says what the gate was actually green against. Then agent-driven review, **each on its own cadence** (`pipeline.verification`). By
    default (economical) reviewer + QA are **on-demand** and security runs **per-epic** (confirmed),
    so a typical item runs no LLM agent here — the deterministic CI gate (lint/type/tests/boundaries)
    is the per-item floor. When agents do run, blocker/major findings loop back to the implementer up
    to `maxFixCycles`. **The cadence is yours to set** — see §3b.
 6. **pr** — branch pushed, PR opened with AC checklist, assumptions, test evidence. Item → In Review.
 7. **docs** — README/CHANGELOG/API docs amended onto the PR if the change is user-visible.
-8. **done** — summary report. **You review and merge the PR.** After merge, `/aidlc:status`
-   offers cleanup (item → Done, run file archived).
+8. **done** — summary report. **`done` means the pipeline finished, not that the change was
+   accepted**: the item sits at In Review and a human reads the PR. Comments come back →
+   `/aidlc:review-feedback PROJ-123` (§3e). After merge, `/aidlc:status` offers cleanup
+   (item → Done, run file archived).
 
 Bugs differ in one way: QA writes a *failing reproduction test first*, then the fix must make
 it pass. Spikes produce a cited decision report in `docs/research/` instead of a PR. Epics get
@@ -528,6 +635,47 @@ The knob is `pipeline.taskSync`:
 
 Set `taskSync.trailer: "leaf"` if your tooling parses commit trailers strictly and can't take a second id.
 
+### 3e. When the reviewer comments (the loop that runs every day)
+
+The pipeline's own verification is adversarial but internal — the reviewer agent, QA and security all
+read the diff before anyone else does. Then the PR opens and **a person reads it**, and on a team their
+comments are the most frequent input the pipeline gets.
+
+```
+/aidlc:review-feedback PROJ-124
+```
+
+It pulls the **unresolved** threads (inline code comments included — those are where review feedback
+actually lives), records each as a finding with the reviewer's name against it, and runs the ordinary
+fix cycle:
+
+```
+- [MAJOR][open] review(@priya) src/api/avatar.ts:42 — validate content-type before trusting the extension
+- [MINOR][open] review(@rahul) src/api/avatar.ts:88 — prefer the shared `assertOwner` helper
+```
+
+Then it commits, pushes, and **replies on every thread** naming the commit that addressed it. Bot
+comments (CI, coverage) are filtered out — forty coverage notices are not forty findings.
+
+**Three rules, because a person wrote these and not an agent:**
+
+- **A comment you disagree with is not silently skipped.** It's marked `[disputed]`, answered on the
+  thread with the reasoning, and flagged to you — then AIDLC stops. Whether the comment stands is the
+  reviewer's call, not the pipeline's, and not a thing to keep arguing about in a run file.
+- **Nothing gets resolved that wasn't fixed.** Questions you merely answered stay open for the reviewer
+  to close. Making an unaddressed comment vanish from someone's queue is the most damaging thing this
+  command could do.
+- **It never merges.** The human gate is the entire point of the PR.
+
+**It has its own budget.** `reviewRounds`, capped at `maxFixCycles` but counted separately from the
+pipeline's internal `fixCycles` — a run that spent three cycles arguing with its own reviewer shouldn't
+arrive at a human's *first* comment already blocked. Four rounds of human feedback means you need a
+conversation, not a fifth automated attempt, and it stops there and says so.
+
+**You rarely need to remember the command.** `/aidlc:status` surfaces it (`PROJ-124's PR has 6
+unresolved comments from @priya`), and so does resuming the run — `/aidlc:run PROJ-124` on a finished
+run checks the PR before answering, so "nothing to do" is never the reply when six comments are waiting.
+
 ## 4. Stopping and resuming (end of day → next morning)
 
 **You never need to "save".** State persists continuously:
@@ -544,6 +692,11 @@ Set `taskSync.trailer: "leaf"` if your tooling parses commit trailers strictly a
 3. `/aidlc:run PROJ-123` — it reads the run file, verifies the branch, and continues from the
    recorded phase. Completed phases are never redone; a half-done plan continues at the first
    unticked task.
+
+**Resuming a run that already finished** doesn't just say "nothing to do" — it looks at the PR first.
+Merged → post-merge cleanup. Open with review comments waiting → it goes straight into the feedback
+loop (§3e). Open and quiet → it tells you it's awaiting review. That's the common overnight case on a
+team: you left a PR open, somebody reviewed it while you slept.
 
 **If the run ended BLOCKED** (findings unresolved after 3 fix cycles, missing credential,
 contradictory AC): the run file's `## Findings` section and the work-item comment say exactly
@@ -586,7 +739,9 @@ its own run file and branch.
 | Research/spike outcomes | `docs/research/` | forever | decisions with evidence + dates |
 | Design system & UX artifacts | `design/` (+ `design/brand/`, jury reports) | forever (committed) | one uniform system every UI item follows; auditable scores |
 | Project conventions | `CLAUDE.md` + `.claude/rules/` | every session (always loaded) | invariants: branch names, safety |
-| Project configuration | `.claude/aidlc.config.json` | forever | tracker, git host, autonomy gates |
+| Project configuration | `.claude/aidlc.config.json` | forever | tracker, git host, autonomy gates, solo-vs-team |
+| Delivery order (waves) | `.aidlc/plan.md` (control plane) | forever; **shared** — committed + pushed with `cutBy` | what `next`/`sprint` run and in what order |
+| Who owns an item | your tracker's assignee field | forever | AIDLC **reads** it to scope picks; it never writes it |
 | Locally grown capabilities | `.claude/skills|agents/` + `.aidlc/extensions.json` | forever; promotable to all projects | self-extension with reuse tracking |
 
 The deliberate consequence: **the conversation context is disposable.** Anything that matters
@@ -603,6 +758,13 @@ in-flight work.
 | Push/PR failed (no auth) | `gh auth login` / `az login`, rerun — the run resumes at the pr phase |
 | Pipeline blocked a command you actually wanted | That's the guard hook; run it yourself in a terminal if you're sure — the pipeline can't, by design |
 | Two runs touched the same file | Shouldn't happen via `/aidlc:sprint` (independence check); if manual runs collided, merge the first PR, then rerun the second item — verify will catch conflicts |
+| `/aidlc:next` returns nothing but the board is full | Shared mode picks only what's assigned to you. If that's wrong, check `team.me` matches your **tracker** identity (Jira account email, ADO UPN) — not just your git email. Genuinely nothing of yours is ready → ask for an item, or `/aidlc:next --any` |
+| `/aidlc:status` shows no active runs but the team is clearly working | Correct and expected: run files live on feature branches in each person's clone, so the run table is **yours**. The board's `in_progress` count is the cross-machine view |
+| "control plane is N behind origin" | You're reading a possibly-stale `.aidlc/plan.md` or markdown backlog. `git pull` at the workspace root. AIDLC reports it and never auto-pulls — a pull mid-command could conflict your backlog underneath you |
+| A colleague and I both groomed and my AC changes vanished | That's why shared mode proposes instead of applying. If you overrode it with `team.groomAutoApply`, the last writer wins and both writes verify cleanly — set it back to `[]` |
+| PR merged clean but broke `main` | Base drift: your gate ran against an old base. Verify checks this now (§3, step 5) — if it was skipped, the repo is `mode: local` (nothing to fetch) or the overlap check found none. The PR body records what it was green against |
+| Two ADRs with the same number | Fixed going forward — numbers come from the integration branch plus open PRs. For a pair already merged, **don't renumber**: the old number is cited in commits and other ADRs. Give the newer one the next free number and cross-link both |
+| `gh api graphql` keeps prompting during review-feedback | By design — the same endpoint reads review threads and mutates them, so no permission rule can separate them. It's on `ask`, not the allowlist |
 | Skill/agent seems missing after plugin update | `/aidlc:sync` reconciles local vs plugin |
 | Jury never reaches 9 / loops a lot | It stops at `ux.maxJuryRounds` and ships the best round with the critique attached — read the latest `design/jury-report-r*.md`; lower `juryThreshold` or raise `maxJuryRounds` if the bar/effort is genuinely off |
 | Design pod ran on a non-UI item (or skipped a UI one) | Set the item's `ui`/`backend` intent explicitly with a label; or set `ux.enabled: false` to disable the pod for the whole project |

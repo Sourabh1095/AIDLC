@@ -232,6 +232,12 @@ in `.claude/aidlc.config.json` → `ux` (`juryThreshold`, `maxJuryRounds`, `jury
   `/aidlc:intake add due dates to todos` to make it a new story. Ambiguous cases stop and ask you.
 - **A run gets BLOCKED**: read `## Findings` in its run file; fix the cause (or amend the
   item); `/aidlc:run <ID>` to resume.
+- **The PR came back with comments** (yours or a colleague's): `/aidlc:review-feedback TODO-3` — it
+  reads the unresolved threads, fixes them, pushes, and replies on each one. `done` on a run means the
+  pipeline finished, not that the change was accepted.
+- **Someone else joins the project**: set `"team": { "mode": "shared", "me": "you@..." }` in
+  `.claude/aidlc.config.json`. `/aidlc:next` then picks only what's assigned to you and grooming stops
+  rewriting other people's acceptance criteria — `docs/user-guide.md` §1c.
 
 ## 8. What you end up with
 

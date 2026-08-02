@@ -107,6 +107,8 @@ billing-api   integration branch develop · branches PAY-nn-slug · merge commit
               ↳ branchPattern recovered from merge-commit subjects; refs alone showed only develop/main
 web           default main · squash-only · commit style conventional · no CODEOWNERS
               ↳ mergeStrategy: no merge commits on main, so squash OR rebase — medium confidence
+active authors  6 across both roots in the last 90 days
+              ↳ a signal, not a verdict — apply will ASK whether this is a shared project
 
 ## Runtime constraints — billing-api
 | Constraint | What it means for a change |
@@ -159,14 +161,22 @@ this repo. The second is the difference between a PR that merges and a PR opened
 ```
 
 It shows the complete diff with evidence inline, asks the low-confidence facts as questions rather than
-proposing them, and writes nothing until you approve. On this project it asks two:
+proposing them, and writes nothing until you approve. On this project it asks three:
 
 ```
 Questions (low confidence or unknown — not proposed as values):
   1. web merge strategy reads as squash OR rebase from history alone. Which is it?  [squash]
   2. No gate duration is known — no CI job timeout is declared and the suite was never run.
      Start with the full suite and revisit, or scope per item now?  [full suite]
+  3. 6 authors committed in the last 90 days. Is this a shared project?  [yes]
+     → team.mode: shared, team.me from git config (confirm it matches your Jira account)
+     → ceremony floors at `tracked`; /aidlc:next will pick only items assigned to you
 ```
+
+The third is asked rather than inferred on purpose. A contributor count is wrong in both directions —
+an inherited repo shows a dozen historical authors and one active maintainer; a repo a team created
+last month shows one — and getting it wrong either scopes you out of your own backlog or lets three
+people's pipelines pick the same ticket.
 
 And it names one conflict, because `CLAUDE.md` already had a line:
 
