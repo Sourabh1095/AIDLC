@@ -7,6 +7,55 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.49.0] — 2026-08-02
+
+### Tracker MCP servers move out of core (`aidlc` 0.49.0)
+
+> **⚠ MIGRATION — Jira projects must install one plugin.** Core no longer ships the Atlassian MCP
+> server. If `workItems.source` is `"jira"`, run
+> **`/plugin install aidlc-tracker-jira@bee-logical`** and re-authenticate at `/mcp`. Without it every
+> tracker operation fails — `wi-jira` has no CLI fallback.
+>
+> **ADO projects are not broken and need do nothing.** The `wi-ado` adapter's tier-2 `az boards` /
+> `az rest` path covers every operation and is already what headless runs use, so an ADO project keeps
+> working on the tier it was using anyway. Install `aidlc-tracker-ado@bee-logical` if you want the
+> richer interactive tier back.
+>
+> **`/aidlc:doctor` reports both**, and reports them differently — a hard failure for Jira, a warning
+> for ADO. If something is off after updating, that is the fastest way to see it.
+
+**Every AIDLC workspace was starting three MCP servers, and no project could use more than one of
+them.** Core bundled `context7`, `atlassian` **and** `azure-devops`, so a markdown-backlog project paid
+two `npx` cold starts plus an OAuth-capable SSE connection for nothing — and the ADO server launched
+`npx -y @azure-devops/mcp ""` for every user who had never set `ADO_MCP_ORG`, which is everyone not on
+Azure DevOps.
+
+The argument for fixing it was already written down, in `aidlc-ux`'s own description: *"bundles the
+Figma and Playwright MCP servers it needs, so a backend-only workspace installs neither."* That
+reasoning applies to trackers exactly as well, and simply had not been applied. **A server is not free
+the way an unloaded skill is** — D5's "costs zero tokens until a task triggers it" is true of skills and
+false of MCP servers, which start per session whether or not anything calls them.
+
+So: `aidlc-tracker-jira` and `aidlc-tracker-ado`, both `defaultEnabled: false`. Core ships **Context7
+only** — stack-agnostic, zero-config, no auth, and consulted by every dependency decision (the dep-vet
+hook's own message tells you to verify versions through it).
+
+**The adapters did not move, and that was the harder call.** `wi-jira` and `wi-ado` stay in core. D4's
+promise is that adding a tracker is one `wi-*` skill and zero orchestrator changes; moving the adapters
+out would make the orchestrator's hot path depend on a plugin that may not be installed, in order to
+save tokens D5 already says are zero until a skill loads. **What was costing something was the server,
+so that is what moved.**
+
+**The split is asymmetric because the adapters are.** Jira's MCP is the only path; ADO has three tiers
+and the second one is complete. Reporting them identically would be wrong in one direction or the
+other — so `doctor` fails on a missing Jira plugin and warns on a missing ADO one, `init` says which
+applies the moment you pick a tracker, and both adapter skills open by stating their own dependency.
+
+One consequence worth knowing if you allowlist MCP tools: **the tool-id prefix changes** for the two
+tracker servers, since it embeds the owning plugin. Do not guess the new one — read it from `/mcp` or
+`--verbose`, exactly as F47 concluded. A bare `mcp__*` allow rule is skipped with a warning and grants
+nothing.
+
 ## [0.48.0] — 2026-08-02
 
 ### The workspace journal — sessions now start knowing what happened (`aidlc` 0.48.0)

@@ -2,12 +2,5 @@
   "context7": {
     "command": "npx",
     "args": ["-y", "@upstash/context7-mcp"]
-  },
-  "atlassian": {
-    "url": "https://mcp.atlassian.com/v1/sse"
-  },
-  "azure-devops": {
-    "command": "npx",
-    "args": ["-y", "@azure-devops/mcp", "${ADO_MCP_ORG}"]
   }
 }

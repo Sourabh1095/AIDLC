@@ -1,0 +1,10 @@
+{
+  "name": "aidlc-tracker-jira",
+  "displayName": "AIDLC Tracker — Jira",
+  "description": "The Atlassian MCP server for AIDLC's Jira work-item adapter. REQUIRED when .claude/aidlc.config.json sets workItems.source: \"jira\" — the adapter has no CLI fallback, unlike Azure DevOps. Ships nothing but the server: the wi-jira adapter itself lives in core, so the pipeline's tracker contract stays in one place. Authenticate via OAuth on first use.",
+  "version": "1.0.0",
+  "author": { "name": "Bee-Logical", "email": "sourabh@bee-logical.com" },
+  "license": "MIT",
+  "keywords": ["aidlc", "jira", "atlassian", "work-items", "tracker"],
+  "mcpServers": "./.mcp.json"
+}

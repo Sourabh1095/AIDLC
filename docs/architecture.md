@@ -399,6 +399,23 @@ Playbooks: `ceremony`, `requirements`, `planning`, `architecture`, `code-review`
 plugin): `design`, `figma`, `ux-narrative`, `design-research`, `design-system`, `design-jury`,
 `figma-handoff`, `motion`. (`x-aidlc`-templated scaffolds ship in `templates/`.)
 
+**MCP servers follow the same layering rule as skills, and it took a while to apply it to itself.**
+`aidlc-ux` had always made the argument out loud — *"bundles the Figma and Playwright MCP servers it
+needs, so a backend-only workspace installs neither"* — while core bundled **both** tracker servers,
+so every workspace started three, two of which no single project could use, and the ADO one launched
+`npx @azure-devops/mcp ""` for everyone who had never set `ADO_MCP_ORG`. A server is not free the way
+an unloaded skill is: it starts per session whether or not anything calls it. So the trackers moved to
+`aidlc-tracker-jira` / `aidlc-tracker-ado` (0.49.0) and core ships only **Context7**, which is
+stack-agnostic, zero-config and consulted by every dependency decision.
+
+**The adapters stayed in core.** Only the servers moved. D4's promise is that adding a tracker is one
+`wi-*` skill and zero orchestrator changes; moving the adapters out would make the orchestrator's hot
+path depend on a plugin that may not be installed, to save tokens that D5 already says are zero until
+a skill is loaded. What was costing something was the server, so that is what moved. The split is
+**asymmetric by necessity**: `wi-jira` has no CLI fallback, so its plugin is required; `wi-ado`'s
+`az boards` tier covers every operation, so its plugin is an optimization — and `/aidlc:doctor` reports
+the two differently for that reason.
+
 **Layering rule:** core is stack-agnostic. Anything that assumes a package manager, a language
 toolchain or a browser belongs in a pack — `ci-cd` holds host mechanics and the diagnosis protocol
 while `aidlc-stack-web:ci-web` holds the npm gate; the Playwright MCP ships with `aidlc-ux`, the only

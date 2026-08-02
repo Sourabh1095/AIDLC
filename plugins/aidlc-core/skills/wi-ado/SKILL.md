@@ -10,7 +10,11 @@ Implements the `aidlc:work-items` contract over Azure Boards. Config:
 `.claude/aidlc.config.json → workItems.ado` = `{ org, project, statusMap }`.
 
 **Tool preference (three tiers — prefer the first that works):**
-1. **`azure-devops` MCP server** (bundled) — discover tool names via ToolSearch for `work item`
+1. **`azure-devops` MCP server** — ships in the optional **`aidlc-tracker-ado`** plugin, not in core.
+   **Its absence is not a failure:** tier 2 below covers every operation and is already what headless
+   runs use, so an ADO project with no tracker plugin works — on the tier it was using anyway. Install
+   it for the richer interactive tier (`ADO_MCP_ORG` must be set in the shell that launches Claude
+   Code). Discover tool names via ToolSearch for `work item`
    (typical: `wit_get_work_item`, `wit_create_work_item`, `wit_update_work_item`,
    `wit_add_work_item_comment`, WIQL query tools).
 2. **`az boards` CLI** (`az ...`, already permitted) — covers every operation below. Use when the MCP

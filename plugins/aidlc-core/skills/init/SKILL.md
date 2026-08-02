@@ -116,6 +116,15 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
 1. **Project key** (e.g. `PROJ`) — uppercase, used as work-item ID prefix.
 2. **Project name** (human-readable).
 3. **Work-item source**: `markdown` (default) | `jira` | `ado`. If jira/ado, also collect site/org + project.
+   - **Say which plugin the choice needs, at the moment they choose it.** Core ships no tracker MCP
+     server, so a tracker picked here does not become reachable on its own — and the failure arrives
+     later, at the first `fetch`, looking like a broken pipeline rather than a missing install:
+     - **`jira`** → `/plugin install aidlc-tracker-jira@<marketplace>` is **required**. `wi-jira` has no
+       CLI fallback; without the Atlassian MCP every tracker operation fails.
+     - **`ado`** → `/plugin install aidlc-tracker-ado@<marketplace>` is **optional**. The adapter's
+       `az boards`/`az rest` tier covers every operation and is what headless runs use anyway, so ADO
+       works without it. Mention it once; do not insist.
+     - **`markdown`** → nothing to install, no server, no auth.
    - **ADO — populate `statusMap` from the board's REAL states, PER TYPE, don't assume defaults
      (F7 + F20).** Many boards are customized (e.g. *Development in Progress / Ready for QA / Closed*,
      not Agile's Active/Resolved), and **state names are scoped per work-item-type** — an Epic's

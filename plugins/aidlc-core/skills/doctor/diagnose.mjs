@@ -204,6 +204,48 @@ for (const f of settingsFiles) {
   }
 }
 
+// --- 4b. The tracker's MCP plugin ------------------------------------------------------------
+// Core stopped shipping the Jira and ADO servers in 0.49: every workspace was starting three MCP
+// servers, two of them useless for any given project, and the ADO one spawned
+// `npx @azure-devops/mcp ""` for everyone who had never set ADO_MCP_ORG. The two adapters are NOT
+// symmetric about this, and reporting them the same way would be wrong in one direction or the other:
+//   jira — the Atlassian MCP is the ONLY path (wi-jira: "do not fall back to guessing"), so a
+//          missing plugin is a hard FAIL and the tracker will not work at all.
+//   ado  — tier 2 (`az boards`/`az rest`) covers every operation and is already what headless runs
+//          use, so a missing plugin is a WARN: the project works, on a tier it was using anyway.
+{
+  const source = cfg?.workItems?.source;
+  const need = source === "jira" ? "aidlc-tracker-jira" : source === "ado" ? "aidlc-tracker-ado" : null;
+  if (need && allSettings.length) {
+    const enabled = allSettings.flatMap((s) =>
+      Object.entries(s.parsed.enabledPlugins ?? {})
+        .filter(([, v]) => v !== false)
+        .map(([k]) => k.split("@")[0]),
+    );
+    const have = enabled.includes(need);
+    if (have) add("ok", "tracker-plugin", `tracker plugin (${source})`, `${need} is enabled`);
+    else if (source === "jira")
+      add(
+        "fail",
+        "tracker-plugin",
+        "tracker plugin (jira)",
+        "`workItems.source: \"jira\"` but `aidlc-tracker-jira` is not enabled",
+        "The Jira adapter has no CLI fallback — the Atlassian MCP is the only path, so every tracker " +
+          "operation will fail. Run /plugin install aidlc-tracker-jira@<marketplace>, then authenticate at /mcp.",
+      );
+    else
+      add(
+        "warn",
+        "tracker-plugin",
+        "tracker plugin (ado)",
+        "`aidlc-tracker-ado` is not enabled — the adapter will use its `az boards`/`az rest` tier",
+        "That tier covers every operation and is what headless runs use anyway, so this is not broken. " +
+          "Install aidlc-tracker-ado@<marketplace> for the richer interactive tier (needs ADO_MCP_ORG set " +
+          "in the shell that launches Claude Code).",
+      );
+  }
+}
+
 // --- 5. Permission rules (F44/F45/F48) ------------------------------------------------------
 for (const { label, parsed } of allSettings) {
   const findings = lintPermissionRules(parsed.permissions ?? {});

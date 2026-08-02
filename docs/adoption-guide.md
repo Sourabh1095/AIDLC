@@ -14,20 +14,30 @@ How to use the Bee-Logical Claude AIDLC in any project — new or existing.
 ```
 /plugin marketplace add bee-logical/AIDLC
 
-/plugin install aidlc@bee-logical             # required — the pipeline itself
-/plugin install aidlc-stack-web@bee-logical   # optional — TypeScript / Next.js / NestJS / PG / Mongo
-/plugin install aidlc-ux@bee-logical          # optional — the design pod
+/plugin install aidlc@bee-logical                # required — the pipeline itself
+/plugin install aidlc-tracker-jira@bee-logical   # REQUIRED if workItems.source is "jira"
+/plugin install aidlc-tracker-ado@bee-logical    # optional — ADO also works through the az CLI
+/plugin install aidlc-stack-web@bee-logical      # optional — TypeScript / Next.js / NestJS / PG / Mongo
+/plugin install aidlc-ux@bee-logical             # optional — the design pod
 ```
 
-All three carry `defaultEnabled: true` in the marketplace manifest, so adding the marketplace is often
-enough on its own; the explicit `install` lines above are never wrong and make the intent obvious in a
-team's setup notes.
+`aidlc`, `aidlc-stack-web` and `aidlc-ux` carry `defaultEnabled: true`, so adding the marketplace is
+often enough for those. The two **tracker** plugins default to OFF, because each ships an MCP server
+only one kind of project can use. The explicit `install` lines are never wrong and make the intent
+obvious in a team's setup notes.
 
-**Install only what the project is.** The three plugins are deliberately separable:
+**Core ships no tracker server.** It used to bundle both, so every workspace started three MCP servers
+regardless of which tracker it used — and the ADO one launched `npx @azure-devops/mcp ""` for everyone
+who had never set `ADO_MCP_ORG`. The **adapters** (`wi-jira`, `wi-ado`) are still in core: what moved
+out is the per-session cost, not the tracker contract.
+
+**Install only what the project is.** The plugins are deliberately separable:
 
 | Plugin | Adds | Skip it when |
 |---|---|---|
-| `aidlc` | the pipeline, agents, tracker adapters, guard hooks. **Stack-agnostic** — no language or package manager assumed | never; it is the framework |
+| `aidlc` | the pipeline, agents, tracker adapters, guard hooks, and the Context7 MCP. **Stack-agnostic** — no language or package manager assumed | never; it is the framework |
+| `aidlc-tracker-jira` | the Atlassian MCP server | the project is not on Jira. **Do not skip it if it is** — `wi-jira` has no CLI fallback |
+| `aidlc-tracker-ado` | the Azure DevOps MCP server | you are happy on the `az boards`/`az rest` tier, which covers every operation and is what headless runs use anyway |
 | `aidlc-stack-web` | TypeScript/Next.js/NestJS/Postgres/Mongo conventions, the tooling + structure + CI templates, the Prettier format hook | the project is not Node/TypeScript — a Python or Go repo gains nothing and inherits no npm assumptions |
 | `aidlc-ux` | the 7-agent design pod, plus the Figma and Playwright MCP servers | the project has no UI worth judging — you also avoid installing a browser-automation server you never use |
 

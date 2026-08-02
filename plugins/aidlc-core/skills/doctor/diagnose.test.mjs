@@ -134,6 +134,60 @@ check(
   "fail",
 );
 
+// --- Tracker MCP plugin (0.49 split) ------------------------------------------------------------
+// Asymmetric on purpose: Jira has no CLI fallback, ADO does.
+const withPlugins = (...names) => ({
+  enabledPlugins: Object.fromEntries(names.map((n) => [`${n}@bee-logical`, true])),
+  extraKnownMarketplaces: { "bee-logical": {} },
+  permissions: { allow: [], deny: [], ask: [] },
+});
+const src = (s) => ({ ...BASE_CONFIG, workItems: { source: s } });
+check(
+  "jira without its plugin FAILS — the adapter has no fallback",
+  workspace({ config: src("jira"), settings: withPlugins("aidlc") }),
+  "tracker-plugin",
+  "fail",
+);
+check(
+  "jira with its plugin passes",
+  workspace({ config: src("jira"), settings: withPlugins("aidlc", "aidlc-tracker-jira") }),
+  "tracker-plugin",
+  "ok",
+);
+check(
+  "ado without its plugin only WARNS — the az tier covers it",
+  workspace({ config: src("ado"), settings: withPlugins("aidlc") }),
+  "tracker-plugin",
+  "warn",
+);
+check(
+  "ado with its plugin passes",
+  workspace({ config: src("ado"), settings: withPlugins("aidlc", "aidlc-tracker-ado") }),
+  "tracker-plugin",
+  "ok",
+);
+check(
+  "markdown needs no tracker plugin at all",
+  workspace({ config: src("markdown"), settings: withPlugins("aidlc") }),
+  "tracker-plugin",
+  "<absent>",
+);
+check(
+  "the wrong tracker plugin does not satisfy the check",
+  workspace({ config: src("jira"), settings: withPlugins("aidlc", "aidlc-tracker-ado") }),
+  "tracker-plugin",
+  "fail",
+);
+check(
+  "an explicitly disabled tracker plugin does not count",
+  workspace({
+    config: src("jira"),
+    settings: { ...withPlugins("aidlc"), enabledPlugins: { "aidlc@bee-logical": true, "aidlc-tracker-jira@bee-logical": false } },
+  }),
+  "tracker-plugin",
+  "fail",
+);
+
 // --- Permission rules (F44/F45/F48) ---------------------------------------------------------
 check(
   "a Write(path) rule fails",

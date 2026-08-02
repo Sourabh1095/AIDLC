@@ -6,8 +6,14 @@ user-invocable: false
 
 # wi-jira — Jira adapter (Atlassian MCP)
 
-Implements the `aidlc:work-items` contract over Jira. Requires the `atlassian` MCP server
-(bundled; user authenticates via OAuth on first use). Config: `.claude/aidlc.config.json →
+Implements the `aidlc:work-items` contract over Jira. Requires the `atlassian` MCP server, which ships
+in the **`aidlc-tracker-jira`** plugin — install it (`/plugin install aidlc-tracker-jira@<marketplace>`)
+and authenticate via OAuth on first use.
+
+**This adapter has no CLI fallback**, unlike `wi-ado`'s `az boards` tier: if the server is missing or
+unauthenticated, every operation fails and there is nothing to degrade to. Say that plainly and stop —
+do not improvise a REST call or guess at issue state. `/aidlc:doctor` reports a missing plugin as a hard
+failure for exactly this reason. Config: `.claude/aidlc.config.json →
 workItems.jira` = `{ site, project, statusMap }`.
 
 Discover the exact MCP tool names at runtime (ToolSearch for `jira`) — typical names:

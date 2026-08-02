@@ -1,0 +1,10 @@
+{
+  "name": "aidlc-tracker-ado",
+  "displayName": "AIDLC Tracker — Azure DevOps",
+  "description": "The Azure DevOps MCP server for AIDLC's ADO work-item adapter. OPTIONAL: the wi-ado adapter's tier-2 `az boards`/`az rest` path covers every operation and is already what headless runs use, so ADO works without this — the server is a richer interactive tier, not a dependency. Needs ADO_MCP_ORG set in the shell that launches Claude Code. Ships nothing but the server; the adapter lives in core.",
+  "version": "1.0.0",
+  "author": { "name": "Bee-Logical", "email": "sourabh@bee-logical.com" },
+  "license": "MIT",
+  "keywords": ["aidlc", "azure-devops", "ado", "work-items", "tracker"],
+  "mcpServers": "./.mcp.json"
+}

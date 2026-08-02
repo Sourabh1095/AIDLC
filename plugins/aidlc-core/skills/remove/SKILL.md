@@ -173,7 +173,8 @@ Verification is the point of the manifest, so do it rather than asserting it:
    verification was not possible rather than implying it passed.
 3. **Confirm the plugins are still installed.** This command removed AIDLC from the *project*; the
    plugins remain at user scope. Uninstalling is a separate step **per plugin** — `/plugin uninstall
-   aidlc@bee-logical`, and likewise `aidlc-stack-web@bee-logical` / `aidlc-ux@bee-logical` where they
+   aidlc@bee-logical`, and likewise `aidlc-stack-web@bee-logical` / `aidlc-ux@bee-logical` /
+   `aidlc-tracker-jira@bee-logical` / `aidlc-tracker-ado@bee-logical` where they
    were installed — and `/aidlc:` (or `/aidlc-ux:`) will keep answering until each runs, which is a
    feature if the user is removing in order to re-adopt. Name the ones you can see enabled rather than
    assuming only core.

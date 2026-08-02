@@ -5,18 +5,40 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AIDLC (AI Development Life Cycle) framework for all projects.",
-  "version": "0.48.0",
+  "version": "0.49.0",
   "plugins": [
     {
       "name": "aidlc",
       "source": "./plugins/aidlc-core",
       "displayName": "AIDLC Core",
       "description": "AIDLC (AI Development Life Cycle) orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — across one repo or a multi-repo workspace, with or without a git remote, end to end. Stack-agnostic by design; language and framework expertise comes from stack packs.",
-      "version": "0.48.0",
+      "version": "0.49.0",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["aidlc", "orchestration", "agile", "automation"],
       "defaultEnabled": true
+    },
+    {
+      "name": "aidlc-tracker-jira",
+      "source": "./plugins/aidlc-tracker-jira",
+      "displayName": "AIDLC Tracker — Jira",
+      "description": "The Atlassian MCP server for AIDLC's Jira adapter. Required when workItems.source is \"jira\" — that adapter has no CLI fallback. Install only on Jira projects; core ships no tracker server, so a markdown or ADO workspace starts neither.",
+      "version": "1.0.0",
+      "author": { "name": "Bee-Logical" },
+      "category": "development",
+      "tags": ["aidlc", "jira", "atlassian", "work-items"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "aidlc-tracker-ado",
+      "source": "./plugins/aidlc-tracker-ado",
+      "displayName": "AIDLC Tracker — Azure DevOps",
+      "description": "The Azure DevOps MCP server for AIDLC's ADO adapter. Optional — the adapter's `az boards`/`az rest` tier covers every operation and is what headless runs already use, so ADO works without this. Install it for the richer interactive tier; needs ADO_MCP_ORG in the launching shell.",
+      "version": "1.0.0",
+      "author": { "name": "Bee-Logical" },
+      "category": "development",
+      "tags": ["aidlc", "azure-devops", "ado", "work-items"],
+      "defaultEnabled": false
     },
     {
       "name": "aidlc-stack-web",

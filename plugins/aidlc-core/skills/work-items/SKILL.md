@@ -13,9 +13,15 @@ contract; a per-source adapter skill implements them. This is what makes tracker
 
 1. Read `.claude/aidlc.config.json` → `workItems.source`.
 2. Load exactly one adapter skill:
-   - `markdown` → `aidlc:wi-markdown`
-   - `jira` → `aidlc:wi-jira` (Atlassian MCP; OAuth on first use)
-   - `ado` → `aidlc:wi-ado` (ADO MCP or `az boards` CLI)
+   - `markdown` → `aidlc:wi-markdown` (no server, no setup)
+   - `jira` → `aidlc:wi-jira` — **needs the `aidlc-tracker-jira` plugin** for the Atlassian MCP (OAuth on
+     first use). There is no CLI fallback; without it the adapter cannot work.
+   - `ado` → `aidlc:wi-ado` — the `aidlc-tracker-ado` plugin is **optional**; the `az boards`/`az rest`
+     tier covers every operation without it.
+
+   **The adapters live in core; only their MCP servers are packaged separately.** Core ships no tracker
+   server at all, so a markdown workspace starts none and adding a fourth tracker is still one `wi-*`
+   skill (D4). What moved out is the per-session cost, not the contract.
 3. Perform all operations through that adapter for the rest of the session.
 
 ## Canonical WorkItem schema

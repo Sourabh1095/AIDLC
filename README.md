@@ -70,14 +70,18 @@ Per developer, once:
 ```
 /plugin marketplace add bee-logical/AIDLC     # or a local path / Azure Repos URL
 
-/plugin install aidlc@bee-logical             # required — the pipeline itself
-/plugin install aidlc-stack-web@bee-logical   # optional — TypeScript/Next.js/NestJS/Postgres/Mongo
-/plugin install aidlc-ux@bee-logical          # optional — the design pod (only fires on UI items)
+/plugin install aidlc@bee-logical                # required — the pipeline itself
+/plugin install aidlc-tracker-jira@bee-logical   # required IF your tracker is Jira
+/plugin install aidlc-tracker-ado@bee-logical    # optional — ADO also works via the az CLI
+/plugin install aidlc-stack-web@bee-logical      # optional — TypeScript/Next.js/NestJS/Postgres/Mongo
+/plugin install aidlc-ux@bee-logical             # optional — the design pod (only fires on UI items)
 ```
 
 | Plugin | What it adds | Install it when |
 |---|---|---|
-| **`aidlc`** | The orchestrator, 9 pipeline agents, the tracker adapters, run state, the guard hooks. **Stack-agnostic** — it never assumes a language or package manager. | Always |
+| **`aidlc`** | The orchestrator, 9 pipeline agents, the tracker adapters, run state, the guard hooks. **Stack-agnostic** — it never assumes a language or package manager. Ships one MCP server (Context7) and no tracker server. | Always |
+| **`aidlc-tracker-jira`** | The Atlassian MCP server. `wi-jira` has **no CLI fallback**, so this is not optional on a Jira project. | `workItems.source: jira` |
+| **`aidlc-tracker-ado`** | The Azure DevOps MCP server. Optional — the adapter's `az boards`/`az rest` tier covers every operation and is what headless runs already use. | You want the richer interactive tier on ADO |
 | **`aidlc-stack-web`** | TypeScript standards, enterprise project structure, Next.js/NestJS/Postgres/Mongo conventions, migrations, Docker, API design, the Node CI half, the Prettier format hook. | Your project is TypeScript/Node |
 | **`aidlc-ux`** | 7 design agents, the Figma and Playwright MCP servers, and a design pipeline that gates on either a jury score or fidelity to a Figma design. | Your project has a UI worth judging |
 
