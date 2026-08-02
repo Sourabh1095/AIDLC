@@ -5,8 +5,8 @@
 // stop:       if a run is mid-flight, surface a one-line status so the user
 //             sees where the pipeline stands.
 // Poly-aware: scans the control-plane run dir plus each declared repo's .aidlc/runs.
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { readRuns } from "./lib/run-files.mjs";
 
 const mode = process.argv[2] || "stop";
 
@@ -18,50 +18,10 @@ try {
 }
 const cwd = data.cwd || process.cwd();
 
-function frontmatter(file) {
-  try {
-    const m = readFileSync(file, "utf8").match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (!m) return null;
-    const fm = {};
-    for (const line of m[1].split(/\r?\n/)) {
-      const kv = line.match(/^(\w[\w-]*):\s*(.*)$/);
-      if (kv) fm[kv[1]] = kv[2].trim();
-    }
-    return fm;
-  } catch {
-    return null;
-  }
-}
-
-// Run dirs to scan: the control plane, plus each declared repo (poly).
-function runDirs() {
-  const dirs = [join(cwd, ".aidlc", "runs")];
-  try {
-    const cfg = JSON.parse(readFileSync(join(cwd, ".claude", "aidlc.config.json"), "utf8"));
-    const root = (cfg.workspace && cfg.workspace.root) || ".";
-    for (const r of cfg.repos || [])
-      if (r && r.path) dirs.push(join(cwd, root, r.path, ".aidlc", "runs"));
-  } catch {
-    /* mono or no config → control plane only */
-  }
-  return dirs.filter((d) => existsSync(d));
-}
-
-const dirs = runDirs();
-if (!dirs.length) process.exit(0);
-
-let inflight = [];
-try {
-  const seen = new Set();
-  inflight = dirs
-    .flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".md")).map((f) => frontmatter(join(d, f))))
-    .filter(Boolean)
-    .filter((r) => r.phase && !["done", "blocked"].includes(r.phase))
-    .filter((r) => (r.item && seen.has(r.item) ? false : (seen.add(r.item), true)));
-} catch {
-  process.exit(0);
-}
-
+// A blocked run is deliberately NOT in flight here: it is waiting on a human, so
+// nagging about it at every Stop/PreCompact is noise. (session-context does surface
+// blocked runs — a session opening on one is exactly when you want to see it.)
+const inflight = readRuns(cwd, (r) => r.phase && !["done", "blocked"].includes(r.phase));
 if (!inflight.length) process.exit(0);
 
 const summary = inflight.map((r) => `${r.item}@${r.phase}`).join(", ");

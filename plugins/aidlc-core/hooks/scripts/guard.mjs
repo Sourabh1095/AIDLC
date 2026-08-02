@@ -14,9 +14,10 @@
 // therefore resolves against the `-C` target, NOT the session cwd — the control plane
 // sits on `main` permanently, so reading HEAD from cwd blocks every legitimate
 // feature-branch push (F46).
-import { readFileSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { execSync } from "node:child_process";
+import { isEnvFile, envAccessFor as _envAccessFor } from "./lib/env-access.mjs";
 
 let data;
 try {
@@ -168,50 +169,12 @@ const refDest = (r) => (r.includes(":") ? r.slice(r.lastIndexOf(":") + 1) : r).r
 // The env-guard hook governs the Read|Edit|Write TOOLS; a shell command that reads or
 // writes an env file bypasses it. This mirrors the same switch on the Bash path. The
 // harness `deny` on env was removed so the switch could work, so this is what keeps the
-// default-deny honest for shell commands. Fails closed.
-const isEnvBase = (t) => {
-  const b = String(t)
-    .replace(/^['"]|['"]$/g, "")
-    .replace(/\\/g, "/")
-    .split("/")
-    .pop();
-  return /^\.env(\.|$)/.test(b);
-};
-
-// Resolve pipeline.envFileAccess by walking UP from a starting directory to the nearest
-// .claude/aidlc.config.json — the same layout-independent resolution the env-guard hook
-// uses (mono: the repo root; poly: the control plane, reached from a product subrepo of
-// any depth). The first config found governs; only the exact string "ask" opens the
-// gate; anything else — none found, unreadable, unknown value — is "deny" (fail closed).
-// Cached per starting directory.
-const _accessCache = new Map();
-function envFileAccess(startDir) {
-  if (_accessCache.has(startDir)) return _accessCache.get(startDir);
-  let access = "deny";
-  let dir = startDir;
-  for (;;) {
-    const cfgPath = join(dir, ".claude", "aidlc.config.json");
-    if (existsSync(cfgPath)) {
-      try {
-        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-        if (cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask") access = "ask";
-      } catch {
-        /* present but unreadable/malformed → keep deny */
-      }
-      break; // nearest config governs, opted-in or not
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break; // filesystem root, no config found
-    dir = parent;
-  }
-  _accessCache.set(startDir, access);
-  return access;
-}
-
-// Access for a specific env path a command touches: resolve the switch from that path's
-// OWN directory (relative paths resolved against cwd), not from cwd — so a poly
-// product-repo env file finds the control-plane opt-in regardless of the session cwd.
-const envAccessFor = (envPath) => envFileAccess(dirname(resolve(cwd, envPath)));
+// default-deny honest for shell commands.
+//
+// Resolver, matcher and fail-closed semantics live in ./lib/env-access.mjs and are
+// SHARED with env-guard.mjs — two enforcement points, one definition of the switch.
+const isEnvBase = isEnvFile;
+const envAccessFor = (envPath) => _envAccessFor(envPath, cwd);
 
 // Target of an output redirection whose basename is an env file — quote-aware, so a
 // quoted ">.env" inside an echo string is NOT read as a real redirect (the same

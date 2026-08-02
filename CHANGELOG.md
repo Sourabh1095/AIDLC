@@ -7,6 +7,61 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.44.0] — 2026-08-02
+
+### The same audit, on the hooks and templates
+
+0.43.0 swept the skills and agents for rules stated twice. This is the other half: the hook scripts,
+the project template, and the artifact templates. Two of the findings are gates that were not gating.
+
+**`dep-vet` could be walked straight past.** The hook regex was anchored on
+`(npm|pnpm|yarn|bun)\s+(install|add|i)`, so **any global option before the subcommand defeated it**:
+`npm --prefix ./api install lodash` and `npm --loglevel=silly i evil-pkg` both installed with no
+prompt at all. This is the exact shape `guard.mjs` fixed in F46 and wrote down as the reason it
+tokenizes rather than regex-matches — the lesson had been learned in one hook and not carried to its
+neighbour. `dep-vet` now tokenizes into argv and steps over global options (and their separate values)
+to reach the subcommand.
+
+While there: it gated **only the JavaScript ecosystem**, so a Python, Rust, Go, Ruby, PHP or .NET repo
+got no dependency gate whatsoever — and its prompt still recited `peerDependencies`, `engines` and
+`npm audit` after 0.43.0 made `aidlc:security` ecosystem-neutral. It now covers pip/pip3/uv/poetry/
+pipenv, cargo, go, gem, composer and `dotnet add package`, distinguishes an **add** from a
+**lockfile/manifest install** per ecosystem (`pip install -r requirements.txt` and `poetry install`
+are correctly silent), and its three tests are worded the way the skill words them. The suite went
+17 → 39 cases, covering both bypasses and every new ecosystem.
+
+**`/aidlc:init` and `/aidlc:remove` documented a flow their own guardrail forbids.**
+`protect-paths.mjs` hard-blocks Edit/Write on an *existing* `.claude/settings.json`, and the project
+template's `deny` list carries `Edit(.claude/settings.json)` on top of it. Yet init documented merging
+into an existing settings file and remove documented reverting one, claiming *"Claude Code guards this
+file at the harness level, so the write will prompt regardless"* — it does not prompt, it blocks, from
+two independent mechanisms. The guardrail is right (a hook cannot distinguish "the removal command"
+from "an agent rewriting its own permissions"), so both skills now **stage** the new content to
+`.aidlc/staged-claude/settings.json` and have the user apply it — the same staging path init already
+used for headless sessions. `remove`'s §5 verification says so explicitly rather than letting the
+file's absence from `git status` read as "already reverted", and `protect-paths.mjs` carries a note so
+nobody special-cases the hook later.
+
+**The run-file template had drifted from the skill that specifies it.** `aidlc:run-state`'s format
+block documented 11 frontmatter fields; the template ships 19. The 8 undocumented ones — `repo`,
+`package`, `contractAffecting`, `ui`, `uxScope`, `uxMode`, `designSource`, `systemSource` — are read
+by `/aidlc:status`, `/aidlc:run`, the design pod and both run-file hooks, so they were fields
+something read and nothing documented. Now documented with what each means, plus a line naming the
+template as the source of truth for the field set.
+
+**Hook code deduped.** `frontmatter()` and `runDirs()` existed verbatim in both `session-context.mjs`
+and `checkpoint.mjs`; the env-access resolver and its `.env` matcher existed twice more, in
+`guard.mjs` and `env-guard.mjs`, with the F50 walk-up fix copy-pasted into both. Extracted to
+`hooks/scripts/lib/run-files.mjs` and `lib/env-access.mjs`. The two enforcement points for env access
+are still two — they sit on different tool events — but there is now one definition of what the switch
+means. The behavioural difference between the run-file readers is preserved and now stated:
+`session-context` surfaces blocked runs (opening a session on one is when you want to know),
+`checkpoint` does not (nagging at every Stop is noise).
+
+**Also:** the tooling README pointed at `ci-cd` for a gate that moved to `aidlc-stack-web:ci-web` in
+0.43.0, and `.mcp.json.example` explained that Figma ships with `aidlc-ux` without mentioning that
+Playwright now does too.
+
 ## [0.43.0] — 2026-08-02
 
 ### One home per rule — an audit of what the three plugins were saying twice

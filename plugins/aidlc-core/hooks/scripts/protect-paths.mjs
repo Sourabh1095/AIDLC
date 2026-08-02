@@ -23,6 +23,13 @@ function block(reason) {
 
 // Guardrail self-modification — block only when the file already exists; first-time
 // creation is the /aidlc:init bootstrap and is allowed.
+//
+// This blocks two flows that legitimately need to change the file — /aidlc:init merging
+// into a project's existing settings, and /aidlc:remove reverting them. That is intended:
+// there is no way for a hook to tell "the removal command" from "an agent rewriting its
+// own permissions", and getting that wrong once is worse than the inconvenience. Both
+// skills therefore STAGE the new content to `.aidlc/staged-claude/settings.json` and have
+// the user apply it. Do not "fix" this hook to special-case them.
 if (/\/\.claude\/settings(\.local)?\.json$/.test(p) || /^\.claude\/settings(\.local)?\.json$/.test(p)) {
   let exists = true;
   try {

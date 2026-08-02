@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 // PreToolUse[Bash] — dependency pre-install gate.
-// A new dependency is a supply-chain + compatibility decision, and it's cheapest
-// to get right BEFORE any code is written against it. This intercepts package-ADD
-// commands (npm i <pkg>, npm install <pkg>, pnpm/yarn/bun add …) and asks the
-// operator to vet the package FIRST — safe, latest-stable, compatible — per the
-// `aidlc:security` dependency policy. Plain installs from the lockfile
-// (`npm ci`, bare `npm install`, `pnpm i`) are NOT gated. Exit 0 always; the gate
-// is a permission "ask", never a hard block. Never throw.
+// A new dependency is a supply-chain + compatibility decision, and it's cheapest to get
+// right BEFORE any code is written against it. This intercepts package-ADD commands and
+// asks the operator to vet the package first — safe, latest-stable, compatible — per the
+// `aidlc:security` dependency policy. Installs that only materialise an existing
+// lockfile/manifest (`npm ci`, bare `npm install`, `pip install -r req.txt`, `go mod
+// download`) are NOT gated: nothing new is being chosen.
+//
+// Exit 0 always; the gate is a permission "ask", never a hard block. Never throws.
+//
+// Parsing: the command is TOKENIZED into argv and the tool's global options are stepped
+// over before reading the subcommand — the same parse-don't-regex approach guard.mjs
+// uses, and for the same reason. A regex anchored on `npm\s+(install|add)` is defeated
+// by any global option in between: `npm --prefix ./api install lodash` and
+// `npm --loglevel=silly i evil-pkg` both slipped the gate entirely (the F46 shape).
 import { readFileSync } from "node:fs";
 
 let data;
@@ -19,29 +26,109 @@ try {
 const cmd = (data.tool_input && data.tool_input.command) || "";
 if (!cmd) process.exit(0);
 
-// Blank quoted text so a package name inside a commit message / echo can't trigger.
-const stripQuotes = (s) => s.replace(/'[^']*'/g, " ").replace(/"[^"]*"/g, " ");
+// Split a shell segment into argv, honouring quotes. A quoted argument stays ONE token,
+// so a package name inside a commit message can never be read as a package to install.
+function tokenize(seg) {
+  const out = [];
+  let cur = "";
+  let quote = null;
+  let quoted = false;
+  for (const c of seg) {
+    if (quote) {
+      if (c === quote) quote = null;
+      else cur += c;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      quoted = true;
+    } else if (/\s/.test(c)) {
+      if (cur || quoted) out.push(cur);
+      cur = "";
+      quoted = false;
+    } else cur += c;
+  }
+  if (cur || quoted) out.push(cur);
+  return out;
+}
 
-// Collect package specifiers added by a single segment (empty ⇒ not an add).
+// argv with leading env assignments and sudo removed.
+function commandArgv(seg) {
+  const argv = tokenize(seg);
+  while (argv.length && /^\w+=/.test(argv[0])) argv.shift();
+  if (argv.length && argv[0].split(/[\\/]/).pop() === "sudo") {
+    argv.shift();
+    while (argv.length && argv[0].startsWith("-")) argv.shift();
+  }
+  return argv;
+}
+
+// Per-ecosystem rules. `adds` = subcommands that CHOOSE a new dependency; `lockfile` =
+// subcommands that only materialise what is already declared. `valueOpts` are global
+// options taking a SEPARATE following value, which must be stepped over to reach the
+// subcommand.
+const TOOLS = {
+  npm: { adds: ["install", "i", "add"], bareIsLockfile: true, valueOpts: ["--prefix", "-w", "--workspace", "--loglevel", "-C"] },
+  pnpm: { adds: ["install", "i", "add"], bareIsLockfile: true, valueOpts: ["--dir", "-C", "--filter", "-F", "--loglevel"] },
+  yarn: { adds: ["add"], bareIsLockfile: true, valueOpts: ["--cwd"] },
+  bun: { adds: ["add"], bareIsLockfile: true, valueOpts: ["--cwd"] },
+  pip: { adds: ["install"], bareIsLockfile: false, valueOpts: ["--target", "-t", "--index-url", "-i", "--find-links", "-f"] },
+  pip3: { adds: ["install"], bareIsLockfile: false, valueOpts: ["--target", "-t", "--index-url", "-i", "--find-links", "-f"] },
+  uv: { adds: ["add"], bareIsLockfile: false, valueOpts: ["--directory", "--project"] },
+  poetry: { adds: ["add"], bareIsLockfile: false, valueOpts: ["-C", "--directory"] },
+  pipenv: { adds: ["install"], bareIsLockfile: false, valueOpts: [] },
+  cargo: { adds: ["add"], bareIsLockfile: false, valueOpts: ["--manifest-path", "-Z"] },
+  go: { adds: ["get"], bareIsLockfile: false, valueOpts: ["-C"] },
+  gem: { adds: ["install"], bareIsLockfile: false, valueOpts: ["-i", "--install-dir"] },
+  composer: { adds: ["require"], bareIsLockfile: false, valueOpts: ["-d", "--working-dir"] },
+  dotnet: { adds: [], bareIsLockfile: false, valueOpts: [] }, // handled below: `dotnet add <proj> package <pkg>`
+};
+
+// Flags whose VALUE is a version/spec rather than a package (kept out of the package list).
+const isFlag = (t) => t.startsWith("-");
+
+// Package specifiers a single segment installs; [] when the segment is not an add.
 function addedPackages(segment) {
-  const seg = stripQuotes(segment).trim();
-  // Tool + subcommand that ADD packages (vs. lockfile installs).
-  //  - npm i|install|add <pkg…>   (bare npm i / install / ci ⇒ lockfile, no pkg token)
-  //  - pnpm add <pkg…> | pnpm i|install <pkg…>
-  //  - yarn add <pkg…> | bun add <pkg…>
-  const m = seg.match(/\b(npm|pnpm|yarn|bun)\s+(install|add|i)\b(.*)$/);
-  if (!m) return [];
-  const [, tool, sub, rest] = m;
-  // yarn/bun `install` (or bare) = lockfile, not an add; only `add` adds.
-  if ((tool === "yarn" || tool === "bun") && sub !== "add") return [];
-  // Package tokens = non-flag words after the subcommand. `npm install` with none
-  // ⇒ lockfile install ⇒ skip. Drop flags and their obvious inline values.
-  const tokens = rest
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((t) => !t.startsWith("-"));
-  // A local path/tarball is still a dependency add worth a glance, so keep those.
-  return tokens;
+  const argv = commandArgv(segment);
+  if (!argv.length) return [];
+  const tool = argv[0].split(/[\\/]/).pop();
+  const rule = TOOLS[tool];
+  if (!rule) return [];
+
+  // `dotnet add <project> package <pkg>` — the only two-word add form here.
+  if (tool === "dotnet") {
+    const ai = argv.indexOf("add");
+    const pi = argv.indexOf("package");
+    if (ai >= 0 && pi > ai) return argv.slice(pi + 1).filter((t) => !isFlag(t));
+    return [];
+  }
+
+  // Step over global options (and their separate values) to reach the subcommand. This
+  // is what a regex cannot do, and what let `npm --prefix ./api install x` through.
+  let i = 1;
+  while (i < argv.length && isFlag(argv[i])) {
+    if (rule.valueOpts.includes(argv[i]) && !argv[i].includes("=")) i += 2;
+    else i += 1;
+  }
+  const sub = argv[i];
+  if (!sub || !rule.adds.includes(sub)) return [];
+
+  // Remaining non-flag tokens are the packages. None ⇒ a lockfile/manifest install
+  // (`npm install`, `pip install` with only -r) ⇒ not an add.
+  const rest = argv.slice(i + 1);
+  const pkgs = [];
+  for (let j = 0; j < rest.length; j++) {
+    const t = rest[j];
+    if (isFlag(t)) {
+      // `-r requirements.txt` / `--requirement req.txt` install what is already declared.
+      if (/^(-r|--requirement|-c|--constraint)$/.test(t)) return [];
+      // Skip a separate value for the flags that take one and never name a package.
+      if (/^(--registry|--index-url|-i|--target|-t|--find-links|-f|--prefix|--cwd|--dir|-C|-d|--working-dir|--manifest-path|--directory|--project|--filter|-F|-w|--workspace|--loglevel)$/.test(t))
+        j++;
+      continue;
+    }
+    pkgs.push(t);
+  }
+  // `pip install -r req.txt` handled above; `go get` with no args updates existing deps.
+  return pkgs;
 }
 
 const pkgs = [];
@@ -60,13 +147,14 @@ process.stdout.write(
       permissionDecisionReason:
         `AIDLC dependency policy — vet BEFORE installing (${list}) so no code gets built on a bad choice. ` +
         `Confirm only once you have checked, for each new package: ` +
-        `(1) SAFE — maintained (recent publish, real repo activity), exact name (no typosquat), ` +
-        `sane license, no suspicious install scripts, no open CVEs (npm audit / advisory DB); ` +
-        `(2) LATEST STABLE — the current stable version (not a stale major, not alpha/beta/rc) — ` +
-        `verify the real version via Context7/registry, not memory; ` +
-        `(3) COMPATIBLE — its peerDependencies and engines fit this project's stack (framework major, ` +
-        `Node version) and it won't force a peer conflict (never --legacy-peer-deps/--force to silence one). ` +
-        `See aidlc:security → Dependency policy. If it fails any test, pick an alternative now, before coding.`,
+        `(1) SAFE — maintained (recent publish, real repo activity), exact name (no typosquat), sane ` +
+        `license, no code executed at install time, no open advisories (run this ecosystem's audit); ` +
+        `(2) LATEST STABLE — the current stable release (not a stale major, not alpha/beta/rc) — verify ` +
+        `the real version via Context7 or the registry, not memory; ` +
+        `(3) COMPATIBLE — it satisfies the declared compatibility constraints of this project's stack ` +
+        `(framework major, runtime version) and won't force a conflict you would have to silence with an ` +
+        `override flag. See aidlc:security → Dependency policy. If it fails any test, pick an alternative ` +
+        `now, before coding.`,
     },
   }),
 );

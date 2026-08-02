@@ -44,9 +44,9 @@ Point your `tsconfig.json` at the baseline:
 { "extends": "./tsconfig.base.json", "compilerOptions": { "module": "…", "target": "…" } }
 ```
 
-The `ci-cd` skill's baseline pipeline runs `typecheck` + `lint` + `format` (`prettier --check .`,
-**repo-wide** — not just `src/`) + `test` as a **hard PR gate**, so these can't be skipped by turning
-the reviewer off.
+The `aidlc-stack-web:ci-web` baseline pipeline runs `typecheck` + `lint` + `format`
+(`prettier --check .`, **repo-wide** — not just `src/`) + `test` as a **hard PR gate**, so these can't
+be skipped by turning the reviewer off.
 
 **Leave the repo format-clean at scaffold.** After scaffolding a repo (init or a `/aidlc:run` scaffold
 task), run `npm run format:write` (`prettier --write .`) once so the fresh repo passes its own

@@ -44,6 +44,31 @@ check("bun add hono", "gate", "bun add");
 check("pnpm install dayjs", "gate", "pnpm install pkg");
 check("cd apps/web && npm i clsx", "gate", "add in a compound command");
 
+// Global options BEFORE the subcommand — a regex anchored on `npm\s+install` misses
+// these entirely, so both used to bypass the gate silently (the F46 shape).
+check("npm --prefix ./api install lodash", "gate", "npm --prefix <path> install");
+check("npm --loglevel=silly i evil-pkg", "gate", "npm --loglevel=x i (inline value)");
+check("pnpm -C packages/ui add clsx", "gate", "pnpm -C <dir> add");
+check("sudo npm i -g typescript", "gate", "sudo-prefixed add");
+
+// Non-JS ecosystems — a Python or Rust repo got no gate at all before.
+check("pip install requests", "gate", "pip install");
+check("pip3 install 'django>=5'", "gate", "pip3 install with a version spec");
+check("uv add httpx", "gate", "uv add");
+check("poetry add pydantic", "gate", "poetry add");
+check("cargo add tokio", "gate", "cargo add");
+check("go get github.com/gin-gonic/gin", "gate", "go get");
+check("gem install rails", "gate", "gem install");
+check("composer require monolog/monolog", "gate", "composer require");
+check("dotnet add ./Api.csproj package Serilog", "gate", "dotnet add package");
+
+// Lockfile / manifest installs in those ecosystems → allow
+check("pip install -r requirements.txt", "allow", "pip install -r (declared deps)");
+check("pip install --requirement dev-requirements.txt", "allow", "pip --requirement");
+check("go mod download", "allow", "go mod download");
+check("cargo build", "allow", "cargo build");
+check("poetry install", "allow", "poetry install (lockfile)");
+
 // Lockfile installs / non-adds → allow
 check("npm ci", "allow", "npm ci");
 check("npm install", "allow", "bare npm install");

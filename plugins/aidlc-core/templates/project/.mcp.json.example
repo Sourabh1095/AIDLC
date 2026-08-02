@@ -1,5 +1,5 @@
 {
-  "$comment": "Optional project-scoped MCP servers. Copy the entries you need into a `.mcp.json` at the repo root, fill the env vars, and remove this comment key. Auth/credentials are per-user — never commit real connection strings. Use READ-ONLY database users: pipeline writes go through migrations, not ad-hoc queries. Figma is NOT here: the aidlc-ux plugin ships it, so re-declaring it locally would just shadow that server — authenticate via /mcp -> figma instead.",
+  "$comment": "Optional project-scoped MCP servers. Copy the entries you need into a `.mcp.json` at the repo root, fill the env vars, and remove this comment key. Auth/credentials are per-user — never commit real connection strings. Use READ-ONLY database users: pipeline writes go through migrations, not ad-hoc queries. Figma and Playwright are NOT here: the aidlc-ux plugin ships both (it is the only plugin that renders a UI), so re-declaring either locally would just shadow that server — authenticate Figma via /mcp -> figma instead. The tracker servers (atlassian, azure-devops) and context7 ship with aidlc core for the same reason.",
   "postgres": {
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_URL_RO}"]

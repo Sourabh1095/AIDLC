@@ -22,8 +22,9 @@
 // never be relaxed by a hook, so a user-flippable switch has to live where its value
 // can be read at runtime. This hook is that switch. It fails CLOSED — any doubt about
 // the config (none found up the tree, parse error, unknown value) is treated as "deny".
-import { readFileSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { isEnvFile, envFileAccess } from "./lib/env-access.mjs";
 
 let data;
 try {
@@ -40,37 +41,16 @@ if (!raw) process.exit(0);
 // product subfolders, monorepo apps/*). Catches `.env`, `.env.example`, `.env.local`,
 // `.env.production.local`, … but NOT `.envrc` (direnv) or `.env-sample`.
 const base = raw.replace(/\\/g, "/").split("/").pop();
-if (!/^\.env(\.|$)/.test(base)) process.exit(0);
+if (!isEnvFile(raw)) process.exit(0);
 
 const cwd = data.cwd || process.cwd();
 
-// Resolve the switch by walking UP from `startDir` to the nearest aidlc.config.json.
-// The first config found governs (opted-in or not); ONLY the exact string "ask" opens
-// the gate. No config anywhere up the tree, an unreadable/malformed one, or any other
-// value → "deny" (fail closed).
-function resolveAccess(startDir) {
-  let dir = startDir;
-  for (;;) {
-    const cfgPath = join(dir, ".claude", "aidlc.config.json");
-    if (existsSync(cfgPath)) {
-      try {
-        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-        return cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask" ? "ask" : "deny";
-      } catch {
-        return "deny"; // present but unreadable/malformed → fail closed
-      }
-    }
-    const parent = dirname(dir);
-    if (parent === dir) return "deny"; // reached the filesystem root, no config found
-    dir = parent;
-  }
-}
-
 // Anchor the search on the env file's own directory (relative paths resolved against
 // cwd), NOT on cwd itself — that is what lets a poly product-repo env file find the
-// control-plane switch no matter where the session cwd sits.
+// control-plane switch no matter where the session cwd sits. Resolver + fail-closed
+// semantics: ./lib/env-access.mjs, shared with the Bash-path backstop in guard.mjs.
 const searchStart = dirname(resolve(cwd, raw));
-const access = resolveAccess(searchStart);
+const access = envFileAccess(searchStart);
 
 const isRead = data.tool_name === "Read";
 const verb = isRead ? "read" : "change";

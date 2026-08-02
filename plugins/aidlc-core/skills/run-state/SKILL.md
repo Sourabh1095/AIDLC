@@ -19,16 +19,29 @@ a status rollup, and is NOT committed to any product branch. `/aidlc:status` agg
 
 ## Format (template: `${CLAUDE_PLUGIN_ROOT}/templates/run-file.md`)
 
+**The template is the source of truth for the field set; this block documents what each field means.**
+If you add a field to one, add it to the other — `/aidlc:status`, `/aidlc:run` and the session-context
+and checkpoint hooks all read this frontmatter, so a field that exists in only one place is a field
+something reads and nothing writes.
+
 ```markdown
 ---
 item: PROJ-123
 source: markdown
 type: story
+repo: backend          # poly: the routed repo (§2.5). null/absent in mono; `control-plane` for workspace work
+package: null          # monorepo: the resolved package inside that repo — scopes the plan and the gate
 branch: feature/PROJ-123-user-avatar-upload
 phase: implement       # start|requirements|design|implement|verify|pr|docs|done|blocked
 fixCycles: 0
 reviewRounds: 0        # human PR-feedback rounds (aidlc:review-feedback) — its own budget, not fixCycles'
+contractAffecting: false    # diff touches a declared saas.apiContracts path (run §7 trigger 2)
 fanout: 1 -> [2|3|4] -> 5   # the implement schedule actually used; null when all-serial
+ui: false              # run §2 UI detection — true dispatches the aidlc-ux design pod
+uxScope: null          # the page/route/component in scope, or null for the whole app
+uxMode: null           # greenfield | retrofit | redesign
+designSource: null     # figma (screens drawn → gate on fidelity) | generated (pod designs → gate on the jury)
+systemSource: null     # figma (tokens given) | project (pod invents or audits). Independent of designSource
 pr: null
 started: 2026-07-08T09:12Z
 updated: 2026-07-08T10:03Z
@@ -43,7 +56,10 @@ updated: 2026-07-08T10:03Z
 (ordered checkbox list of implementation tasks, each declaring the paths it touches — `aidlc:run` §6
 reads these to schedule concurrent implementers, so an undeclared task is always run serially)
 - [x] 1. Add avatar column migration  ·  paths: db/migrations/0007_avatar.sql  ·  foundation: true
-- [ ] 2. Upload endpoint  ·  paths: src/api/avatar.ts, src/api/avatar.test.ts
+- [ ] 2. Upload endpoint  ·  paths: src/api/avatar.ts, src/api/avatar.test.ts  ·  wi: PROJ-145
+
+(`wi:` binds a line to the board's Task tier — `aidlc:run` §5. Ticking the box is what
+transitions that Task; omit it for a plan-only step.)
 
 ## Findings
 (reviewer/qa findings; each with severity, status)

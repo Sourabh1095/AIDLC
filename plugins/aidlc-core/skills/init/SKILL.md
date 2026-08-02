@@ -43,7 +43,19 @@ improvise replacement files: the permission posture and rules must be the review
    ignores every one of them (Step 4.4).)
 2. Check for collisions: `CLAUDE.md`, `.claude/settings.json`, `.claude/aidlc.config.json`, `backlog/`, `.aidlc/`.
    - If `CLAUDE.md` exists: do NOT overwrite. Merge — append the template's "AIDLC workflow" and "Configuration" sections to the existing file.
-   - If `.claude/settings.json` exists: do NOT overwrite. Show the user the template's permission posture and ask whether to merge `allow`/`deny`/`ask` arrays (union, dedupe) or skip.
+   - If `.claude/settings.json` exists: do NOT overwrite — and **you cannot edit it either.**
+     `protect-paths.mjs` hard-blocks Edit/Write on an *existing* settings file (creation is the one
+     case it allows, which is why a fresh scaffold works), and an adopted project's own file may carry
+     `Edit(.claude/settings.json)` in its `deny` list on top of that. Neither is a prompt you can
+     approve past; both are correct — permission posture is human-managed, and a pipeline that can
+     rewrite its own guardrails has none.
+
+     So **stage the merge instead of applying it**: compute the union (`allow`/`deny`/`ask`,
+     deduped, with the migration below applied), write the result to
+     `.aidlc/staged-claude/settings.json`, show the user the diff against their current file, and
+     tell them to apply it — a copy command, or by hand. This is the same staging path the headless
+     note above describes, for the same reason. Verify your staged file parses (`JSON.parse`) before
+     handing it over; never leave the user a file that would silently disable their plugins.
      - **Migrate the deprecated env deny rules (do NOT just union).** A plain union keeps stale
        rules. If the existing `deny` list contains `Read(./.env)` or `Read(./.env.*)` (the pre-0.28
        hard deny), **remove them** and add the template's env rules to `ask`

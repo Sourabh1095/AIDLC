@@ -5,6 +5,7 @@
 // plus each declared repo's .aidlc/runs.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { frontmatter, readRuns } from "./lib/run-files.mjs";
 
 let data = {};
 try {
@@ -14,46 +15,12 @@ try {
 }
 const cwd = data.cwd || process.cwd();
 
-function frontmatter(file) {
-  try {
-    const text = readFileSync(file, "utf8");
-    const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (!m) return null;
-    const fm = {};
-    for (const line of m[1].split(/\r?\n/)) {
-      const kv = line.match(/^(\w[\w-]*):\s*(.*)$/);
-      if (kv) fm[kv[1]] = kv[2].trim();
-    }
-    return fm;
-  } catch {
-    return null;
-  }
-}
-
-// Run dirs to scan: the control plane, plus each declared repo (poly).
-function runDirs() {
-  const dirs = [join(cwd, ".aidlc", "runs")];
-  try {
-    const cfg = JSON.parse(readFileSync(join(cwd, ".claude", "aidlc.config.json"), "utf8"));
-    const root = (cfg.workspace && cfg.workspace.root) || ".";
-    for (const r of cfg.repos || [])
-      if (r && r.path) dirs.push(join(cwd, root, r.path, ".aidlc", "runs"));
-  } catch {
-    /* mono or no config → control plane only */
-  }
-  return dirs.filter((d) => existsSync(d));
-}
-
 const lines = [];
 
 try {
-  // Active runs (deduped by item across all repo dirs)
-  const seen = new Set();
-  const runs = runDirs()
-    .flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".md")).map((f) => frontmatter(join(d, f))))
-    .filter(Boolean)
-    .filter((r) => r.phase && r.phase !== "done")
-    .filter((r) => (r.item && seen.has(r.item) ? false : (seen.add(r.item), true)));
+  // Active runs. Unlike checkpoint, `blocked` IS surfaced (with ⛔): a session opening
+  // on a blocked run is exactly when the user needs to know.
+  const runs = readRuns(cwd, (r) => r.phase && r.phase !== "done");
   if (runs.length) {
     lines.push("Active AIDLC runs:");
     for (const r of runs)

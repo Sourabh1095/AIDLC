@@ -5,14 +5,14 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AIDLC (AI Development Life Cycle) framework for all projects.",
-  "version": "0.43.0",
+  "version": "0.44.0",
   "plugins": [
     {
       "name": "aidlc",
       "source": "./plugins/aidlc-core",
       "displayName": "AIDLC Core",
       "description": "AIDLC (AI Development Life Cycle) orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — across one repo or a multi-repo workspace, with or without a git remote, end to end. Stack-agnostic by design; language and framework expertise comes from stack packs.",
-      "version": "0.43.0",
+      "version": "0.44.0",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["aidlc", "orchestration", "agile", "automation"],
@@ -23,7 +23,7 @@
       "source": "./plugins/aidlc-stack-web",
       "displayName": "AIDLC Stack Pack — Web",
       "description": "Default web stack expertise for the AIDLC pipeline: TypeScript standards + strict tooling baseline (ESLint/Prettier/tsconfig/.gitattributes + optional husky/lint-staged) + enterprise project structure (scaffold + dependency-cruiser boundary gate) + the Node/TS CI half (templates, the npm gate, isolated-checkout dependency resolution, cross-platform lockfiles), Next.js, NestJS, Postgres, MongoDB, DB migrations, Docker, API design.",
-      "version": "0.11.0",
+      "version": "0.11.1",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["nextjs", "nestjs", "postgres", "mongodb", "docker", "typescript"],

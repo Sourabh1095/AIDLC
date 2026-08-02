@@ -54,7 +54,8 @@ of them is unrecoverable. A clean tree also makes §5's verification meaningful.
 |---|---|---|
 | **A · Framework machinery** — ours, no human content | `.claude/aidlc.config.json`, `.claude/rules/git-workflow.md`, `.claude/rules/safety.md`, AIDLC hook scripts, `.claude/aidlc.config.*.example.json`, `.aidlc/adoption/profile.json` | **Delete** |
 | **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
-| **C · Merged into files the project owned** | `CLAUDE.md`, `.claude/settings.json`, `.gitignore`, and any stack tooling config `init` merged into (`tsconfig.base.json`, `eslint.config.mjs`, …) | **Revert our sections only** |
+| **C · Merged into files the project owned** | `CLAUDE.md`, `.gitignore`, and any stack tooling config `init` merged into (`tsconfig.base.json`, `eslint.config.mjs`, …) | **Revert our sections only** |
+| **C′ · Guardrail file — reverted content is *staged*, never written** | `.claude/settings.json` (+ `.local`) | **Produce the reverted file for the user to apply** (§3) |
 
 Tier B is where judgement is required, so make the consequence explicit rather than offering a bare
 choice:
@@ -94,12 +95,26 @@ For each tier-C file, produce the reverted content and **show it as a diff**:
   what adoption wrote, do not delete it silently: show it and ask, because the difference is somebody's
   edit. If removing our sections would leave the file empty and the file did not exist before adoption,
   it is tier A after all — say so, and delete it.
-- **`.claude/settings.json`** — remove the `enabledPlugins` entry for the aidlc plugins, the AIDLC hook
-  registrations, and the `permissions.allow`/`deny` entries adoption added. **Union-added arrays are
-  reverted by subtraction, never by replacement:** remove exactly the entries in `sections[]` and keep
-  every entry the team added themselves. If the file did not exist before, delete it — but say plainly
-  that this drops the project's permission posture for **every** tool, not just ours, and let the user
-  choose. Claude Code guards this file at the harness level, so the write will prompt regardless.
+- **`.claude/settings.json`** — **you cannot edit this file, and that is deliberate.**
+  `protect-paths.mjs` hard-blocks Edit/Write on an existing settings file, and the file's own `deny`
+  list carries `Edit(.claude/settings.json)`. Both are guardrails against exactly what removal looks
+  like from a hook's point of view — a pipeline rewriting its own permissions — and neither is a
+  prompt you can approve past.
+
+  So **produce the reverted file, don't apply it**: remove the `enabledPlugins` entry for the aidlc
+  plugins, the AIDLC hook registrations, and the `permissions.allow`/`deny` entries adoption added,
+  write the result to `.aidlc/staged-claude/settings.json`, show the diff, and tell the user to apply
+  it themselves (one copy, or by hand). **Union-added arrays are reverted by subtraction, never by
+  replacement:** remove exactly the entries in `sections[]` and keep every entry the team added
+  themselves. Verify the staged file parses before handing it over.
+
+  **Deleting** the file *is* within reach (it is a shell `rm`, not an Edit) — but only offer that if
+  it did not exist before adoption, and say plainly that it drops the project's permission posture for
+  **every** tool, not just ours. Let the user choose.
+
+  Because this one file is applied by hand, §5's verification cannot claim it: report it as
+  *"staged, not applied — apply `.aidlc/staged-claude/settings.json` to finish"* rather than counting
+  it as reverted.
 - **`.gitignore`** — remove the AIDLC block and nothing else.
 - **Stack tooling** (`tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc.json`, `.editorconfig`,
   `.dependency-cruiser.cjs`, the enterprise skeleton) — these are the **most dangerous** to remove,
@@ -130,7 +145,9 @@ Verification is the point of the manifest, so do it rather than asserting it:
 1. **`git status --porcelain`, at the control plane and every repo** — show the user the real change set.
    **Every path in it must appear in the approved plan.** Anything else is a bug in this command; say so
    instead of moving on. This is the promise — *removal changed nothing except what you approved* — and it
-   is a **working-tree** question, answered in one command.
+   is a **working-tree** question, answered in one command. (`.claude/settings.json` will **not** appear:
+   it is staged for the user to apply, per §3. Say that explicitly rather than letting its absence read
+   as "already done".)
 2. **Per merged file, check it is back to its pre-adoption content** — a *history* question, and a
    different one. For each tier-C file in `adoption.writes[]`, compare what you left behind against
    `git show <adoption.commit>:<path>`:
@@ -158,8 +175,9 @@ Verification is the point of the manifest, so do it rather than asserting it:
    assuming only core.
 
 Then report, in this order: what was deleted · what was reverted, by section · **what was kept and why**
-(the most useful line, because it is what the team keeps) · what could not be verified · and, if the
-adoption report recorded a secret finding, that rotating it is still outstanding.
+(the most useful line, because it is what the team keeps) · **what is staged and still needs the user's
+hand** (`.claude/settings.json`) · what could not be verified · and, if the adoption report recorded a
+secret finding, that rotating it is still outstanding.
 
 ## 6 · What this command does not do
 
