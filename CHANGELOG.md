@@ -7,6 +7,86 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.39.0] — 2026-08-02
+
+### `aidlc` — the commits land on the tier the effort is counted in
+
+The leaf is a Story by default, and every commit, branch and PR referenced it. The reason was always
+about **git**: a branch and a PR are one per repo, and a Story is the smallest thing that is
+independently reviewable and revertable. Somewhere that got read as a claim about **effort**, which it
+never was. On most boards — and on ADO natively, where StoryPoints sit on the Story and RemainingWork
+hours sit on the Task — the Story says *something* and the Tasks beneath it are the work. As the report
+that opened this put it: *till user story, it just says something; the tasks beneath it are what is
+required to be done.*
+
+The pipeline had no view of that tier at all. Nothing read, created or transitioned a child Task in the
+default `crossRepoSplit: story` mode — the parent rollup (F19) walked *up* and nothing walked down. So a
+board could show a Story go New → Active → Done with every Task under it still New, no hours burning
+down, and no commit that named a task.
+
+**The duplication was the actual bug.** `aidlc:planning` has always required plan tasks to be
+commit-sized and path-declaring; a board's Tasks are that same list, authored by a human, one tier up in
+durability. AIDLC was modelling the breakdown twice and only ever writing to its own private markdown
+copy — on a feature branch, where nobody's burndown could see it.
+
+So the plan now **binds** to the board instead of shadowing it:
+
+```
+## Plan
+- [x] Add the profile DTOs   ·  paths: src/dto/profile.ts        ·  wi: PROJ-145
+- [ ] Wire the settings form ·  paths: src/screens/settings.tsx   ·  wi: PROJ-147
+```
+
+- **`run` §5 adopts.** Where the leaf has child Tasks they *are* the plan — seeded in the **board's own
+  order**, then enriched with the `paths`/`foundation`/`dependsOn` a board cannot carry (which is what
+  §6's fan-out resolver reads). A Task is never silently dropped or re-ordered; a step the Tasks don't
+  cover is a plan-only line that says so. The 3–8 bound explicitly does not apply to an adopted list —
+  but ~15+ Tasks on one leaf is reported as a sizing signal rather than truncated, because a plan that
+  quietly covers 8 of 15 reports green over work nobody did.
+- **`run` §6 mirrors.** A bound task's commit trailer names both IDs (`Refs: PROJ-123, PROJ-145`), and
+  ticking its checkbox transitions the Task. The sync is driven off the **checkboxes**, not off agent
+  reports, which is what makes it idempotent and resume-safe. The orchestrator owns the board write —
+  the implementer never calls the adapter, for the same reason it never commits in a parallel window.
+- **Four guards**, three mirroring the parent rollup: never reopen a terminal Task, never move one
+  already ahead of you, never fight a tracker that rejects the transition (a `## Log` note, not a
+  blocker), and **blocked stays on the leaf** — a Task flipped to blocked that no later phase reliably
+  flips back is board litter.
+
+**It never writes an estimate.** Not StoryPoints, not RemainingWork, not CompletedWork, not priority —
+in any mode. Those are the same class of field as `priority` and `dependsOn`, which the adapter contract
+has had no op for by design since it was written: they are a human's record of what they asked for and
+what they think it costs. The pipeline moves Tasks through their **states** so the burndown is honest
+about what is *done*; an invented estimate would make velocity a measurement of the pipeline's guesswork.
+(ADO does not zero `RemainingWork` on close unless the process says to — that stays the team's rule.)
+
+**And it does not shrink the PR.** Binding commits to Tasks does not make a Task the leaf: one Story is
+still one branch and one PR, because "add the DTO" is not independently shippable. A branch per Task is
+`workspace.crossRepoSplit: "task"`, which already existed and is a different trade.
+
+**New adapter op — `children(id, filter?)`**, the contract's eighth. Direct children, one tier, in the
+**board's** order, with **no** ready rule and **no** priority sort — the callers are asking *what is
+under this item*, not *what can I run*, so a done or AC-less child still comes back. Implemented on all
+three adapters: ADO reads the `Hierarchy-Forward` relations already on the item and orders by
+`BacklogPriority` (**not** `Priority`, the P1–P4 field, which would silently reshuffle a hand-ordered
+task list); Jira uses `parent = {id} ORDER BY rank ASC` with a documented fallback to the legacy
+`"Epic Link"` field; markdown globs on `parent:`. This also closes a hole that predates the feature —
+`run` §2's epic-consolidation check said "query the adapter" for children that are *already implemented*,
+which `query` would have filtered out as not-ready.
+
+**`pipeline.taskSync.mode` defaults to `adopt`, and needs no migration.** Where a leaf has no Tasks it
+behaves exactly as before and **creates nothing**, so a board that does not use the Task tier is
+unaffected by the default being on; the only new writes are state transitions on Tasks a human already
+authored under the item being run. `author` additionally *proposes* one Task per plan step where a leaf
+has none — creation is externally visible, so it takes the same propose-then-create gate as
+`/aidlc:intake`, never a silent write. `off` restores 0.38.0 behaviour exactly.
+
+On-by-default is the deliberate call, and it is the narrower one: this writes a *state* to a Task a
+human already parented to the item being run, where the parent rollup (F19) has written to a
+**different** item by default since it shipped. Off-by-default would have shipped the fix dormant on
+exactly the boards that need it. What on-by-default owes in return is visibility, so `run` §10 now names
+the count in its closing report — `PROJ-123 · 5 board Tasks closed` — rather than burying it in `## Log`.
+A board write nobody asked for on this particular run should be *stated*, not merely quiet.
+
 ## [0.38.0] — 2026-07-31
 
 ### `aidlc` — `/aidlc:replan` takes a phasing directive, not just a ranking

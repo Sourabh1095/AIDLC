@@ -160,3 +160,12 @@ while a **grouping** (*"all BE first, then UI"*) means all of one set before any
 re-ranking can deliver, so it becomes a barrier the packer enforces. Work already in flight always
 finishes as-is, and the plan is an execution overlay: the board stays exactly as the product owner
 left it.
+
+Delivery is tracked on the tier your team counts it in (`aidlc` v0.39.0). A Story owns the branch and
+the PR — that is a fact about git, not a claim that a Story is the unit of work — while the **Tasks**
+beneath it are what actually has to be done. The run file's plan and your board's Tasks were always the
+same commit-sized breakdown, so the plan now **binds** to them instead of keeping a private copy:
+AIDLC adopts your Tasks as the plan in your board's order, each commit names both IDs
+(`Refs: PROJ-123, PROJ-145`), and closing a plan step closes its Task. Still one branch and one PR —
+and it never writes an estimate, because points and hours are your record of what you asked for, not
+a number for the pipeline to invent.

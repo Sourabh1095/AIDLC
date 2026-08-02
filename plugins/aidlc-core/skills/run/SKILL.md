@@ -114,7 +114,7 @@ file verbatim. Saying it twice makes one plan look like two.
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **aidlc-researcher** per `aidlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `aidlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `aidlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (query the adapter), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **This pass also runs the integration join** for a feature whose children were split across an interface (§2.5 → *The join*): the children were each verified against the contract and never against each other, so the seam is the one thing no child's own run could prove. A missing join is a `MAJOR` finding, not a pass. **Before declaring the epic done, run the `/aidlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
+| epic | decompose only: dispatch `aidlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `aidlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (`children(<ID>)` — the adapter op, not `query`, which would filter out everything already done), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **This pass also runs the integration join** for a feature whose children were split across an interface (§2.5 → *The join*): the children were each verified against the contract and never against each other, so the seam is the one thing no child's own run could prove. A missing join is a `MAJOR` finding, not a pass. **Before declaring the epic done, run the `/aidlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
 
 ### Umbrella story (poly, `workspace.crossRepoSplit: task`)
 
@@ -391,6 +391,65 @@ apply, both about **ordering, which paths cannot express**:
 Prefer paths that are **files**, not directories or globs: two globs cannot be proven disjoint, so the
 resolver assumes they collide and serializes both.
 
+### Bind the plan to the board's Task tier
+
+The leaf is the branch/PR unit; the **Task tier is the team's unit of effort**
+(`aidlc:work-items` → *The Task tier*). The run file's `## Plan` and the board's child Tasks are the
+same breakdown, so bind them rather than keeping a private second copy. Read
+`pipeline.taskSync.mode` (default `adopt`) — `off` skips this whole block, plan as above and continue.
+
+Otherwise call **`children(<ID>, {type: "task"})`** *before* writing `## Plan`, and take one of three
+paths:
+
+**A · Tasks exist → they ARE the plan.** Seed `## Plan` from them, **in the board's order**, one plan
+line per Task, each carrying its ID as a `wi:` binding:
+
+```
+- [ ] Add the profile DTOs  ·  paths: src/dto/profile.ts  ·  wi: PROJ-145
+```
+
+Then do the work the board cannot do for you: **enrich each line with `paths:`, and with
+`foundation:`/`dependsOn:` where they apply**, grounded in the code exactly as above. A Task carries a
+title and (sometimes) a description; it never carries a path list, and §6 will hold every unenriched
+line serial. Three rules keep the binding honest:
+
+- **Never silently drop or re-order a Task.** The board is the human's record of the work. A Task you
+  cannot implement as written stays in the plan, unticked, with the reason on the line — it does not
+  vanish because it was inconvenient.
+- **A step the Tasks don't cover is a plan-only line** (no `wi:`). Add it, and say in `## Log` that it
+  is unbacked. In `author` mode, offer to create the Task for it.
+- **`aidlc:planning`'s 3–8 guidance does not apply to an adopted list** — it governs plans *you* author.
+  Take however many Tasks the board has. But a leaf arriving with ~15+ Tasks is a **sizing signal**: say
+  so in one line (the Story is probably an XL that should have been split), then run it as scoped. Do
+  not truncate — a plan that quietly covers 8 of 15 Tasks reports green over work nobody did.
+
+**B · No Tasks, `mode: author` → author them.** Write the grounded plan first (as above), then
+**propose the Task list to the user before creating anything** — `create` is externally visible, so it
+takes the same gate as `/aidlc:intake` §3. On approval, `create` one Task per plan task (parented to
+the leaf, its `paths:` line in the description, no estimate — see below) and write each returned ID
+back as that line's `wi:`. On decline, continue with an unbound plan; that is a fine outcome.
+
+**C · No Tasks, `mode: adopt` (the default) → nothing changes.** Write the plan as above with no `wi:`
+bindings. A board that does not use the Task tier behaves exactly as it did before this existed.
+
+**Never write an estimate, priority or `dependsOn` onto a Task**, in any mode. Those carry human intent
+and the contract has no op for them by design (`aidlc:work-items` → *What the contract deliberately
+cannot do*). You move Tasks through their **states**; what the work was supposed to cost stays the
+team's number.
+
+**When the architect writes the plan** (size ≥ `architectThreshold`), make the `children` call
+**first** and pass the adopted list in its brief. The binding is an input to planning, not an
+annotation bolted on afterwards: an architect that has not seen the team's Tasks will author a
+different decomposition, and reconciling the two after the fact is exactly the duplication this
+removes. It returns the plan already bound — do not re-map it.
+
+In **poly**, `children` may return Tasks routed to a different repo than this run's — that is the
+`crossRepoSplit: task` umbrella shape, and it is handled at §2, not here. If you reach this section and
+the children span repos, you are running an umbrella as if it were a leaf: go back to §2.
+
+Record `taskSync: adopted <n> | authored <n> | none` on the run file's `## Log`, so the audit trail
+states whether the board's breakdown drove this plan or the plan was AIDLC's own.
+
 Phase → `implement`. Checkpoint.
 
 ## 6 · IMPLEMENT
@@ -423,7 +482,8 @@ for. Dispatch them like this:
 2. **You commit, they don't.** This is the whole reason the fan-out is safe: the files are disjoint but
    git is not, and two agents racing `git add`/`commit` in one checkout is the collision D7 is really
    about. As each returns, `git add` **its declared paths** and commit in plan order with the task's own
-   message (`aidlc:git-workflow` → *Commits*), then tick its checkbox.
+   message (`aidlc:git-workflow` → *Commits*), then tick its checkbox. A window's bound Tasks sync at its
+   closing checkpoint (*Mirror progress to the bound Tasks*, below) — the board write is yours too.
 3. **Account for everything before moving on.** Each agent reports the paths it changed *and created*.
    After the window's commits, `git status` must be clean. Anything left over is a path an agent touched
    without declaring — commit it in a clearly-named reconciliation commit and **write it to `## Findings`
@@ -450,6 +510,11 @@ plan, tick plan checkboxes as completed, commits per logical unit in the project
 `## Log`. (In a parallel window, the commit and gate instructions are replaced by the fan-out contract
 above — the agent neither commits nor runs the full gate.)
 
+**Where a plan line carries a `wi:` binding (§5), its commit trailer names both IDs** — `Refs: <leaf>,
+<task>` — the leaf for the PR, the Task for the effort. Put that in the brief with the plan; the
+implementer reads the binding off the line it is working. It **never calls the adapter** — the board is
+the orchestrator's to write (below), exactly as git is the orchestrator's in a parallel window.
+
 **Runtime constraints go in the brief, as constraints — not as background.** Read `saas` from the
 resolved repo entry (or the top-level block in mono). Where a field is **absent, say nothing** — an
 unevidenced constraint asserted as fact is worse than silence. Where it is set, state the consequence:
@@ -469,6 +534,43 @@ them rather than merely reviewed against them afterwards.
 
 If implementer reports a hard blocker (missing dependency/credentials/contradictory AC) →
 phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STOP.
+
+### Mirror progress to the bound Tasks
+
+Where §5 bound plan lines to Tasks (`wi:`), the board's effort tier tracks the commits that spend it.
+**You do this, not the implementer** — one writer to the board, for the same reason there is one writer
+to git in a parallel window.
+
+**Sync on every checkpoint** from this phase onward — after each fan-out window, when the implementer
+returns, at phase end, and on resume. Read `## Plan` and, for each line carrying `wi:`:
+
+| Line state | Action |
+|---|---|
+| checkbox **ticked**, Task not yet terminal | `transition(<task>, done)` |
+| checkbox **unticked** and the task is **currently dispatched** (the serial task in hand, or any member of the open window), Task still `todo` | `transition(<task>, in_progress)` |
+| anything else | leave it alone |
+
+Driving it off the checkboxes rather than off agent reports is what makes it **idempotent and
+resume-safe**: the run file is the durable record, so re-syncing a partially-synced run is a no-op
+rather than a double-write. Every transition is **read-back-verified** like any other mutation
+(`aidlc:work-items` → *Write verification*).
+
+Four guards, three of them mirroring the parent rollup at §3a:
+
+- **Never reopen a terminal Task.** Not on a fix cycle, not on a scope-change resume, not when a later
+  window touches the same files. A Task that a human closed stays closed.
+- **Never move a Task that is already ahead of where you would put it** (in_review/done/blocked) —
+  leave it and note it. You only ever advance `todo`→`in_progress`→`done`.
+- **Never fight the tracker.** A rejected transition (team rollup rules, a required field, a state the
+  type does not have) is a `## Log` note and the run continues. This is bookkeeping; it does not gate
+  delivery.
+- **Blocked stays on the leaf.** When the run blocks on a bound task, `comment` the blocker onto that
+  Task and **leave its state alone**. The Story is already `blocked` and that is the item a human
+  triages; a Task flipped to blocked that no later phase reliably flips back is board litter.
+
+**Fix cycles** (§7) trail the leaf ID only where the reworked task's Task is already done — the effort
+was accounted for and re-opening it would double-count. Where it is still open, the fix commit trails
+both, and the finding note names the Task either way.
 
 **UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
 backend/structure is in place, hand the frontend off by following `aidlc-ux:design` for this item's
@@ -697,6 +799,13 @@ mode; branch-caused failures feed one extra fix cycle (respect `maxFixCycles` ov
 
 Phase → `done`. Final checkpoint + `## Log` summary (phases run, fix cycles, PR URL or local-merge sha).
 
+**Reconcile the bound Tasks once more.** The final checkpoint runs the §6 sync, so every ticked plan
+line's Task is closed. Any bound Task still open at this point is an **unticked plan line** — descoped,
+deferred, or quietly never done — and it must be **named in the report, not closed to tidy the board**.
+A Story going Done over an open Task is either honest (the Task moved out of scope, and a human should
+retire it) or a dropped requirement, and only the human can tell which. Closing it here would erase the
+one signal that distinguishes them.
+
 **Archive the run file ON THE BRANCH before it merges (F23) — poly per-repo runs.** A poly per-repo run
 file lives at `<repo.path>/.aidlc/runs/{ID}.md` and rides into `main` via the PR. If it rides in still
 under the **active** `runs/` dir, it can only be archived afterwards by a **direct-to-`main` commit**,
@@ -721,7 +830,10 @@ PR's branch flip the run file to `phase: done`, `git mv` it into `runs/archive/`
 branch → PR, or let `/aidlc:status` post-merge cleanup batch it.
 
 Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
-resolved, anything needing human eyes.
+resolved, anything needing human eyes. **Where the run bound Tasks (§5), say so in the item line** —
+`PROJ-123 · 5 board Tasks closed` (and name any left open, per the reconciliation above). The board
+write is a side effect the human did not explicitly ask for on this run; stating it in the report is
+how the default stays honest rather than merely quiet.
 - **Remote mode:** **Humans review and merge the PR — never merge it yourself.** The item stays at
   `in_review` until merge. **ADO does NOT auto-close a work item when its PR merges (F22)** (unlike a
   GitHub `Closes #X` / branch-policy setup) — so the DONE transition + parent rollup is a **required

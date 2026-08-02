@@ -35,6 +35,12 @@ wrong plan is expensive. Explore before deciding; decide before writing. Follow
    never infer the missing rationale, and if your design depends on why, say so as a risk.
 3. Write the plan into the run file's `## Plan` per `aidlc:planning`: 3–8 ordered, commit-sized
    checkbox tasks naming the files/modules each touches, plus explicit NON-goals.
+   **If your brief carries the board's child Tasks, those are the plan** — adopt them in the order
+   given, one line each, keeping the `wi:` id on the line, and spend your judgment on what the board
+   cannot hold: the paths each one touches, the `foundation:`/`dependsOn:` edges between them, and
+   whether the sequence is actually sound. Don't re-decompose around them or silently drop one; a Task
+   you think is wrong is a finding to report, not a line to delete. The 3–8 bound governs a plan you
+   author, not an adopted list.
 4. **ADR check** (per `aidlc:architecture`): if the design decision is hard to reverse — new
    dependency, schema/contract change, cross-service pattern, security posture — write
    `docs/adr/NNNN-<slug>.md` from the ADR template and reference it in the plan.

@@ -143,6 +143,11 @@ Report drift as a short list, each with the proposed reconciliation (do NOT muta
 - **Dropped requirement** — an AC/deliverable in an original not covered by any child and not on disk →
   file a follow-up (or flag for grooming).
 - **Tier/parent drift** — an open task hanging off a closed story, a child under the wrong parent.
+  Where the story's run bound its plan to that Task (`wi:` — `aidlc:work-items` → *The Task tier*), the
+  open Task means an **unticked plan line**: read the run file's `## Plan` and say which, because the
+  two readings need opposite fixes. *Descoped* → retire the Task. *Never done* → it is a **dropped
+  requirement**, and the story closed over it. Never offer "close the Task" as the tidy-up without
+  naming which one it is — that would erase the only signal distinguishing them.
 
 Apply fixes only on the user's pick; every applied transition is read-back-verified.
 

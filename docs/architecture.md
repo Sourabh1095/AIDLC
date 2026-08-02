@@ -39,9 +39,15 @@ Postgres patterns, commit conventions, adapter mechanics — is a skill loaded o
 whoever needs it. This is why there is no "postgres agent" and no "bug-fix agent".
 
 **D4 — One schema, pluggable trackers.** The pipeline speaks the canonical WorkItem schema
-through a 7-operation adapter contract (`fetch, query, create, transition, comment, link,
-updateAC`). Jira/ADO/markdown are adapter skills selected by `.claude/aidlc.config.json`.
+through an 8-operation adapter contract (`fetch, query, children, create, transition, comment,
+link, updateAC`). Jira/ADO/markdown are adapter skills selected by `.claude/aidlc.config.json`.
 Adding a tracker = one new `wi-*` skill, zero orchestrator changes.
+
+What the contract deliberately **omits** is as load-bearing as what it has: no op sets `priority`,
+edits a `dependsOn` edge on an existing item, assigns a sprint, or writes an **estimate**. Those
+fields carry human intent — what was asked for, and what it was judged to cost — so the pipeline
+re-orders *its own execution* (`.aidlc/plan.md`) and moves items through their *states*, leaving the
+board's judgment to the humans who authored it.
 
 **D5 — Flat token cost.** Always-loaded context is capped (~120 lines: project CLAUDE.md +
 two rules files). The framework's bulk (playbooks, stack expertise, adapters) costs zero
@@ -352,7 +358,7 @@ is present and `ux.enabled` — no hard dependency, so core still runs standalon
 
 ## 4. Extension points (for adopting teams)
 
-- **New tracker** → write a `wi-*` skill implementing the 7-operation contract; add a `source` value.
+- **New tracker** → write a `wi-*` skill implementing the 8-operation contract; add a `source` value.
 - **New stack** → new `aidlc-stack-*` plugin, carrying a `coding-standards-<lang>` skill, a strict
   tooling baseline in `templates/tooling/` (linter/formatter/type-checker configs), and a
   `project-structure` skill + skeleton/boundary configs in `templates/structure/` — all scaffolded by
@@ -364,4 +370,9 @@ is present and `ux.enabled` — no hard dependency, so core still runs standalon
 - **Verification cost/cadence** → `pipeline.verification` (`mode`: auto/manual/ask, `scope`:
   per-item/per-epic, plus `reviewer`/`qa`/`security` toggles); the human review of the PR is always
   the final gate, so `manual` degrades safely rather than skipping oversight.
+- **Where effort is accounted** → `pipeline.taskSync`. The leaf is the branch/PR unit for a reason
+  about git; the **Task tier** is where most teams count effort. The run file's plan and the board's
+  Tasks are the same commit-sized breakdown, so the plan binds to them (`wi:` per line) rather than
+  shadowing them: commits name both IDs, ticking a checkbox transitions the Task. States only —
+  estimates stay with the humans, per D4.
 - **Project-specific expertise** → `.claude/skills/` landing zone, `x-aidlc` metadata, promotion path when it proves reusable.

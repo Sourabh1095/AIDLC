@@ -57,12 +57,13 @@ Every adapter normalizes to and from this shape:
 - `links.branch` / `links.pr` stay **singular** — one run = one repo = one branch = one PR. An epic's
   PRs live on its children; the epic aggregates them.
 
-## Adapter operation contract (all seven, always)
+## Adapter operation contract (all eight, always)
 
 | Operation | Semantics |
 |---|---|
 | `fetch(id)` | One item → WorkItem. Error clearly if not found. |
 | `query(filter)` | Ready items by priority. filter = `{status?, type?, label?, limit?}`. "Ready" = status `todo`, has ≥1 AC (except task/spike), parent not blocked. `limit` bounds **one page**, not the whole set — a full sweep pages to completion (see *Full-backlog sweeps* below). |
+| `children(id, filter?)` | **Direct** children of `id` → WorkItem[] **in the board's own order**, one tier down only (no recursion). filter = `{type?, status?}`. Returns `[]` when there are none — an empty result is a fact, never an error. Unlike `query` it applies **no "ready" rule and no priority sort**: a child that is done, blocked or AC-less still comes back, because the callers are asking *"what is under this item"*, not *"what can I run"*. |
 | `create(item)` | Create a new item (epic decomposition, spike creation). Returns assigned id. |
 | `transition(id, status)` | Map canonical status → source workflow state. Each adapter documents its state map; project overrides live in config `statusMap`. |
 | `comment(id, markdown)` | Append a progress milestone comment (external progress signal for humans). |
@@ -239,6 +240,55 @@ leaf can span repos freely.
 Worked example (a "Profile page" epic), both tiers, in the user-guide. The orchestrator honors the
 knob in `aidlc:run` §2/§2.5; authoring skills (`intake`/`groom`/`planning`) propose the matching shape.
 The **runnable leaf is single-repo in both** — only its tier differs.
+
+## The Task tier — the unit of effort, bound to the commits that spend it
+
+The leaf is the **branch/PR unit**, and it is a Story by default for a physical reason: a branch and a
+PR are one per repo, and a Story is the smallest thing that is independently reviewable and revertable.
+That is a statement about *git*, and it was quietly read as a statement about *effort* — which it never
+was. On most boards (and on ADO natively: StoryPoints live on the Story, RemainingWork hours on the
+Task) the **Task tier is where a team accounts for the work actually done**. A Story says what; the
+Tasks beneath it are the doing.
+
+Both are true at once, and the pipeline holds them apart:
+
+| Tier | What it is | What the pipeline gives it |
+|---|---|---|
+| Story (the leaf) | one reviewable, revertable increment | one branch, one PR, one `in_progress`→`in_review`→`done` arc |
+| **Task** | **one unit of effort** | **one commit-sized plan step, its own commit, its own transition** |
+
+**The run file's `## Plan` and the board's Tasks are the same breakdown.** `aidlc:planning` already
+requires plan tasks to be commit-sized and path-declaring; a board's Tasks are that list, authored by a
+human, one tier up in durability. Modelling them twice and only ever writing to AIDLC's private copy is
+what leaves a board showing a Story go New → Active → Done with every Task under it still New. So the
+plan **binds** to them instead:
+
+- Each plan line may carry a **`wi:` binding** to the Task it implements —
+  `- [ ] Add the DTOs  ·  paths: src/dto/profile.ts  ·  wi: PROJ-145`.
+- A **bound task's commit names both IDs** in its trailer (`Refs: PROJ-123, PROJ-145`) — the Story for
+  the PR, the Task for the effort. See `aidlc:git-workflow` → *Commits*.
+- **Ticking the checkbox transitions the Task**, read-back-verified like any other write.
+
+Governed by `pipeline.taskSync.mode`, and the mechanics live in `aidlc:run` §5 (bind) and §6 (mirror):
+
+- **`adopt` (default).** Where child Tasks exist, they *are* the plan — seed `## Plan` from them and
+  mirror progress back. Where they don't, behave exactly as before and create nothing. A board that
+  does not use the Task tier is unaffected.
+- **`author`.** As `adopt`, plus: where a leaf has no Tasks, propose one per plan task and create them
+  on approval — creation is externally visible, so it goes through a gate like every other `create`.
+- **`off`.** The plan stays private; nothing below the leaf is read or written.
+
+**What this deliberately does NOT do: write an estimate.** The pipeline never sets a Task's
+StoryPoints, Effort or RemainingWork, in any mode. Those are the same class of field as `priority` and
+`dependsOn` — a human's record of what they asked for and what they think it costs (see *What the
+contract deliberately cannot do*). AIDLC moves a Task through its states so the burndown is honest about
+*what is done*; how much it was supposed to cost stays the team's number. An invented estimate would
+make velocity a measurement of the pipeline's guesswork.
+
+**Nor does it shrink the PR.** Binding commits to Tasks does not make a Task the leaf — one Story is
+still one branch and one PR, because a Task-sized PR ("add the DTO") is not independently shippable.
+If a team genuinely wants a branch per Task, that is the `crossRepoSplit: task` tier above, which is a
+different decision with a different cost.
 
 ## Contract-first siblings (how frontend and backend run at the same time)
 

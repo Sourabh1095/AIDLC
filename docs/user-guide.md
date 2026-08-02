@@ -297,8 +297,10 @@ start → requirements → design → implement → verify → pr → docs → d
 2. **requirements** — analyst validates/refines AC; ambiguities become logged assumptions
    (visible on the item AND in the PR later — three chances to veto a bad one).
 3. **design** — plan written into the run file (architect agent for M+ items, with an ADR if
-   the decision is hard to reverse).
-4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green. Where
+   the decision is hard to reverse). **If the item already has child Tasks on the board, those *are* the
+   plan** — AIDLC adopts them rather than inventing its own breakdown (§3d).
+4. **implement** — implementer codes plan-task by plan-task, conventional commits, tests green; each
+   commit names the Task it spent, and closing a plan step closes that Task (§3d). Where
    the plan's tasks touch **provably disjoint files**, several implementers work them at once — see §3c.
 5. **verify** — agent-driven review, **each on its own cadence** (`pipeline.verification`). By
    default (economical) reviewer + QA are **on-demand** and security runs **per-epic** (confirmed),
@@ -416,6 +418,55 @@ you should know if nothing tests the seam.
 
 And the case that saves the most time: **when the interface already exists and your feature doesn't change
 it, there is no contract item and no waiting at all** — both sides start immediately.
+
+### 3d. Tasks: the tier your effort is counted in
+
+A Story is what gets a branch and a PR. That is a fact about **git** — a branch and a PR are one per
+repo, and a Story is the smallest thing you can review and revert on its own. It is *not* a claim that a
+Story is the unit of work. On most boards it isn't: a Story says something, and the **Tasks** beneath it
+are what actually has to be done. ADO models exactly that — story points on the Story, remaining hours on
+the Task.
+
+The pipeline holds both. The run file's plan has always been a list of commit-sized steps; your board's
+Tasks are that same list, authored by a human. So AIDLC **binds them** instead of keeping a private
+second copy:
+
+```
+## Plan
+- [x] Add the profile DTOs      ·  paths: src/dto/profile.ts       ·  wi: PROJ-145
+- [x] GET /profile endpoint     ·  paths: src/profile/*.ts          ·  wi: PROJ-146
+- [ ] Wire the settings form    ·  paths: src/screens/settings.tsx  ·  wi: PROJ-147
+```
+
+Three things follow:
+
+- **Your Tasks become the plan.** If `PROJ-123` has child Tasks, AIDLC adopts them in *your* board order
+  rather than inventing its own breakdown. It still grounds each one in the code — adding the file paths
+  and ordering edges a board can't carry, which is what §3c's fan-out reads.
+- **Commits name both.** `Refs: PROJ-123, PROJ-145` — the Story that owns the PR, the Task whose effort
+  the commit spent. `git log --grep PROJ-145` now answers "what did this task actually cost".
+- **Ticking a checkbox closes the Task.** Progress lands on the tier your burndown reads, instead of a
+  Story sitting Active for two days while every Task under it says New.
+
+**One PR, still.** Binding commits to Tasks does not make a Task the leaf — "add the DTO" is not
+independently shippable, so it does not get its own PR. (If you genuinely want a branch per Task, that's
+`workspace.crossRepoSplit: "task"` in §1a — a different trade.)
+
+**AIDLC never writes an estimate.** Not story points, not remaining hours, not priority — in any mode.
+Those are your record of what you asked for and what you think it costs; the pipeline moves Tasks through
+their *states* so the burndown is honest about what's **done**, and leaves the numbers alone. An invented
+estimate would just make velocity a measurement of the tool's guesswork. (On ADO, note it doesn't zero
+`RemainingWork` on close either — if your burndown needs that, it's a process rule for you to set.)
+
+The knob is `pipeline.taskSync`:
+
+| `mode` | Behaviour |
+|---|---|
+| **`adopt`** (default) | Where a Story has Tasks, adopt and update them. Where it has none, do exactly what it always did and **create nothing** — so a board that doesn't use the Task tier notices no difference. |
+| `author` | Also **offers** to create a Task per plan step where a Story has none — shown for approval first, never a silent write. |
+| `off` | The plan stays private; nothing below the Story is read or written. |
+
+Set `taskSync.trailer: "leaf"` if your tooling parses commit trailers strictly and can't take a second id.
 
 ## 4. Stopping and resuming (end of day → next morning)
 

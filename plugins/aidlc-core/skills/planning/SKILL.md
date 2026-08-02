@@ -8,7 +8,15 @@ user-invocable: false
 
 ## Writing a plan (run file `## Plan`)
 
-- 3–8 ordered checkbox tasks; each one commit-sized (a reviewable logical unit).
+- 3–8 ordered checkbox tasks; each one commit-sized (a reviewable logical unit). **This bound governs a
+  plan you author.** When the board already carries child Tasks they *are* the breakdown and you adopt
+  them at whatever length they come (`aidlc:run` §5) — but a leaf arriving with ~15+ is a sizing signal
+  worth saying out loud, not a list to quietly truncate.
+- **Bind each task to the board's effort tier where one exists** — `· wi: PROJ-145` on the line. A plan
+  task and a tracker Task are the same unit modelled at two durabilities; the binding is what lets the
+  commit trailer name both and the Task transition when the checkbox ticks (`aidlc:work-items` → *The
+  Task tier*). A line with no `wi:` is a plan-only step, which is fine — say so rather than inventing a
+  binding.
 - Ground every task in the code: **declare the paths it touches** as a `paths:` list on the task. A plan
   that never names a file is a guess, not a plan — and now it is also unschedulable: `aidlc:run` §6 reads
   these to decide which tasks can be implemented concurrently, and a task with no declared paths is

@@ -1,6 +1,6 @@
 ---
 name: wi-jira
-description: Work-item adapter for Jira via the Atlassian MCP server. Implements fetch, query, create, transition, comment, link and updateAC over Jira issues using JQL and the project's status map. Load when workItems.source is "jira".
+description: Work-item adapter for Jira via the Atlassian MCP server. Implements fetch, query, children, create, transition, comment, link and updateAC over Jira issues using JQL and the project's status map. Load when workItems.source is "jira".
 user-invocable: false
 ---
 
@@ -50,6 +50,13 @@ Canonical → Jira defaults (override per project in `workItems.jira.statusMap`)
 - **query(filter)** — JQL:
   `project = {project} AND statusCategory = "To Do" AND issuetype IN (Story, Task, Bug, Spike) ORDER BY priority DESC, rank ASC`
   (+ `AND labels = {label}` when filtered). Apply the "ready" rule (≥1 AC except task/spike; parent not blocked) client-side after mapping. When a `limit` is given it bounds one page; with **no `limit`** (a full sweep) page through **all** matches via JQL `startAt`/`maxResults` until exhausted and report the total (`searchJiraIssuesUsingJql` returns `total`) — **never hard-cap a full-backlog sweep** (F34 — see `aidlc:work-items` → *Full-backlog sweeps*).
+- **children(id, filter?)** — JQL `parent = {id} ORDER BY rank ASC` (+ `AND issuetype = Task` /
+  `AND status = ...` when filtered); `rank` is the board's own order, which is what the callers want.
+  `parent` covers both the subtask link and the modern parent field; on a site that still models epics
+  through the legacy **"Epic Link"** custom field, epic children need `"Epic Link" = {id}` instead —
+  detect which convention the project uses from an existing issue rather than assuming, the same way
+  the AC field is detected. Map results through the `fetch` field mapping. Apply **no** ready rule and
+  **no** priority re-sort. No match ⇒ `[]`, not an error.
 - **create(item)** — create with mapped type/summary/description (AC embedded per the project's detected convention); set parent/epic link when given; add the `repo:<name>` label (or Component) when `repo` is set, and create "Depends on" issue links for each `dependsOn` ID (skip links to not-yet-created siblings and add them once all children exist). Return the new key.
 - **transition(id, status)** — Jira transitions are by ID, not name: first get available transitions, pick the one whose TARGET status matches the mapped name (case-insensitive); if none matches, apply the documented fallback and comment what happened. Never guess transition IDs.
 - **comment(id, markdown)** — add comment, prefixed `AIDLC:` so pipeline comments are filterable.

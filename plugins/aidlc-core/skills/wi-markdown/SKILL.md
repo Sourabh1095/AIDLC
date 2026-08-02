@@ -1,6 +1,6 @@
 ---
 name: wi-markdown
-description: Work-item adapter for the local markdown backlog (backlog/ folder). Implements fetch, query, create, transition, comment, link and updateAC over one-file-per-item markdown with YAML frontmatter. Load when workItems.source is "markdown".
+description: Work-item adapter for the local markdown backlog (backlog/ folder). Implements fetch, query, children, create, transition, comment, link and updateAC over one-file-per-item markdown with YAML frontmatter. Load when workItems.source is "markdown".
 user-invocable: false
 ---
 
@@ -29,6 +29,13 @@ files when `parent` is set). Sort by priority (P1 first), then by numeric id asc
 bounds the returned page; with **no `limit`** return *all* ready items (the glob already has them —
 never truncate a full sweep) and the total count is just the match count (F34 — see
 `aidlc:work-items` → *Full-backlog sweeps*).
+
+### children(id, filter?)
+Glob every item and epic file, parse **frontmatter only**, and return those whose `parent:` equals
+`id` — direct children, one tier, no recursion. Apply the filter's `type`/`status` if given; apply
+**no** ready rule and **no** priority sort (callers want what is under the item, not what can run).
+Order by numeric id ascending: a local backlog has no board rank, and creation order is the closest
+honest stand-in for one. No match ⇒ `[]`, which is a normal answer, not an error.
 
 ### create(item)
 1. Read `backlog/.sequence` → n. Write back n+1 immediately (before creating the file).

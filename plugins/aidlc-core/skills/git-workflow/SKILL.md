@@ -69,7 +69,12 @@ in poly — always `cd` into the target repo first.
   - `imperative-freeform`: a plain imperative subject, no type prefix
   - `mixed` or absent: use conventional, the safest superset — but do **not** rewrite or reformat the
     project's existing history to match.
-- Body references the item: `Refs: PROJ-123`
+- Body references the item: `Refs: PROJ-123`. **Where the plan line carries a `wi:` binding, name both
+  IDs** — `Refs: PROJ-123, PROJ-145` — the **leaf** (this branch and PR) and the **Task** (the unit of
+  effort the commit spent). See `aidlc:work-items` → *The Task tier* and `aidlc:run` §5/§6. Set
+  `pipeline.taskSync.trailer: "leaf"` to keep the single reference; `taskSync.mode: "off"` never produces
+  a binding in the first place. On a project whose `commitStyle` is `id-prefixed`, the **subject** still
+  carries the leaf alone (that is what the team's tooling parses) — the Task goes in the trailer.
 - One logical change per commit; the build/tests must pass at every commit.
 - The run file (`.aidlc/runs/<ID>.md`) is committed along with the work it describes.
 - **Bookkeeping commits (`.aidlc/**` only) — `--no-verify` + verify-before-push (F39).** A docs-only

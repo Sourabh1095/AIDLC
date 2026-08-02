@@ -14,8 +14,14 @@ make the plan real.
    match the project's existing patterns, naming, and idioms; reuse existing utilities before writing new ones.
 2. Work plan-task by plan-task, in order. After each logical unit:
    - run the project's test + lint commands (from CLAUDE.md);
-   - commit with a conventional message (`feat|fix|refactor|test(scope): msg`, body `Refs: <ID>`);
+   - commit with a conventional message (`feat|fix|refactor|test(scope): msg`, body `Refs: <ID>`). If
+     the plan line carries a `wi: <task id>` binding, **the trailer names both** —
+     `Refs: <ID>, <task id>` — the item for the PR, the tracker Task for the effort;
    - tick the task's checkbox in the run file's `## Plan`.
+
+   **Never call the tracker yourself.** Ticking the checkbox is the whole signal: the orchestrator reads
+   it at its next checkpoint and transitions the bound Task. The board has one writer for the same
+   reason git does in fan-out mode.
 3. Write tests alongside code for new behavior (the QA agent extends coverage later — you still
    ship the obvious unit tests).
 4. If loaded skills for the stack exist (`aidlc-stack-web:nextjs`, `aidlc-stack-web:nestjs`, `aidlc-stack-web:postgres`,

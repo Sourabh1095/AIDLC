@@ -1,6 +1,6 @@
 ---
 name: wi-ado
-description: Work-item adapter for Azure DevOps Boards via the ADO MCP server, with an az boards CLI fallback and a PAT+REST last-resort. Implements fetch, query, create, transition, comment, link and updateAC using WIQL and the project's status map. Load when workItems.source is "ado".
+description: Work-item adapter for Azure DevOps Boards via the ADO MCP server, with an az boards CLI fallback and a PAT+REST last-resort. Implements fetch, query, children, create, transition, comment, link and updateAC using WIQL and the project's status map. Load when workItems.source is "ado".
 user-invocable: false
 ---
 
@@ -134,6 +134,18 @@ apply the tag fallback and comment what happened.
   the caller passed `limit`, and then signal how many more remain. **Never hard-cap at a default page
   size (e.g. 50) on a full-backlog sweep** (F34 — see `aidlc:work-items` → *Full-backlog sweeps*). A cheap
   count is `SELECT [System.Id] FROM WorkItems WHERE …` run for its row count, or the query tool's total.
+- **children(id, filter?)** — the hierarchy links are already on the item, so no query is needed:
+  `az boards work-item show --id {n} --expand relations -o json` (or the MCP equivalent) returns one
+  `System.LinkTypes.Hierarchy-Forward` relation per **direct** child. Batch-fetch those ids
+  (`wit_get_work_items_batch_by_ids` / `az` in chunks of ~200) and map them exactly as `fetch` does.
+  Filter `type: "task"` ⇒ keep `System.WorkItemType = 'Task'`; `status` ⇒ filter on the mapped state.
+  **Order by backlog rank** — `Microsoft.VSTS.Common.BacklogPriority` ascending, ties by id — because
+  that is the order the board displays, and the caller is adopting the team's own sequence. Do **not**
+  sort by `Microsoft.VSTS.Common.Priority`: that is the P1–P4 field, a different thing that would
+  silently reshuffle a hand-ordered task list. Apply **no** ready rule (a done or AC-less child still
+  comes back). No children ⇒ `[]`, not an error. A WIQL `WorkItemLinks` query over
+  `System.LinkTypes.Hierarchy-Forward` with recursion **off** is the equivalent when a query path is
+  already open.
 - **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`. A canonical `epic` creates an ADO **Epic** by default; when decomposing a fetched **Feature**, create its children as **User Story** parented under it (see *Hierarchy*) — don't recreate the parent. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
 - **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above). **Then read back and assert** the state landed (see *Write verification*) — the `az.cmd` fallback can return cleanly without persisting.
 - **comment(id, markdown)** — `az boards work-item update --id {n} --discussion "AIDLC: ..."` (HTML allowed; keep it simple).
@@ -165,7 +177,7 @@ this as a doctor check.)
 ## PAT + REST last-resort (tier 3 — off by default)
 
 When **neither** the MCP nor `az` can reach the board and the user has explicitly provided a
-Personal Access Token, the same seven operations can run over the ADO REST API directly. This is a
+Personal Access Token, the same eight operations can run over the ADO REST API directly. This is a
 deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
 
 - **Gate it.** Use this tier only when (a) tiers 1–2 are confirmed unavailable, and (b) a PAT is
@@ -211,3 +223,15 @@ deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
   `aidlc:work-items` → *Parent rollup*) transitions an Epic/Feature via this same category resolution —
   which is exactly why it must be type-aware: rolling an Epic to in_progress lands on the Epic type's
   `InProgress` state, not the Story's.
+- **Task-tier sync is the same resolution, downward — and it touches `System.State` only.** The child
+  Task transitions from `aidlc:run` §6 (`aidlc:work-items` → *The Task tier*) resolve through the same
+  per-type state categories: a **Task**'s `InProgress`/`Completed` states are its own type's, not the
+  Story's, and `Removed` may not exist for it at all (see *Re-decomposition*). **Never write a Task's
+  scheduling fields** — `Microsoft.VSTS.Scheduling.RemainingWork`, `OriginalEstimate`, `CompletedWork`
+  — in any mode. Two ADO facts make that a rule rather than a preference: hours on a Task are the
+  team's own record of cost, and ADO does **not** zero `RemainingWork` when a Task closes unless the
+  process is configured to. If the team's burndown depends on that zeroing, it is their process rule to
+  set; a pipeline-invented number would make the burndown a measurement of AIDLC's guesswork. Likewise
+  when `taskSync.mode: "author"` creates Tasks: title + description (carrying the plan line's `paths:`)
+  and the parent link only — **no ACs** (`Microsoft.VSTS.Common.AcceptanceCriteria` is Story-tier and
+  does not exist on a Task) and no estimate.
