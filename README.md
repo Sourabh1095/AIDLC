@@ -49,6 +49,7 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Fix something small right now | `/aidlc:do "fix the typo in the header"` — edited, gated, committed, no ticket |
 | Adopt AIDLC on a codebase that already exists | `/aidlc:init` → `/aidlc:adopt` → `/aidlc:adopt-apply` |
 | Turn a client's requirements document into a populated board | `/aidlc:bootstrap ./requirements.docx` |
+| Work out why `/aidlc:*` commands vanished, or why a run blocks on permissions | `/aidlc:doctor` — read-only; reports the fault and the fix |
 | Work the top of your backlog | `/aidlc:next` |
 | Work several items at once | `/aidlc:sprint 3` |
 | Handle PR review comments | `/aidlc:review-feedback PROJ-123` |
@@ -160,6 +161,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:sprint N` | Run N independent items in parallel with a live board (mono: worktrees · poly: per-repo) |
 | `/aidlc:review-feedback <ID>` | Pull unresolved PR threads, fix them through the normal cycle, push, reply on each. A comment you disagree with gets answered on the thread — and nothing you didn't fix gets resolved |
 | `/aidlc:status` | Dashboard: active runs, blockers, backlog snapshot, drift |
+| `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |
 
 ### Shaping the work
 

@@ -22,10 +22,16 @@
 // established the documentation is wrong on both points, so only a live probe can do
 // that. What it can do is guarantee a shape already known to match nothing never
 // ships again, which is the half that kept recurring.
+//
+// The rules themselves live in the PLUGIN (skills/doctor/lint-rules.mjs), not here.
+// This file lints the templates the marketplace ships; `/aidlc:doctor` lints the user's
+// real settings with the same module. Two callers, one definition — a lint that means
+// something different in CI than it does on a user's machine is not a lint.
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createReport } from "./lib/report.mjs";
+import { lintPermissionRules, lintSettingsText } from "../plugins/aidlc-core/skills/doctor/lint-rules.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const r = createReport("permissions");
@@ -45,102 +51,28 @@ function findSettings(dir, out = []) {
 const files = existsSync(join(ROOT, "plugins")) ? findSettings(join(ROOT, "plugins")) : [];
 r.assert(files.length > 0, "plugins/", "found no shipped settings.json to lint — discovery is broken");
 
-// A rule's tool prefix and body: `Bash(git -C * status*)` → ["Bash", "git -C * status*"].
-const parseRule = (rule) => {
-  const m = /^([A-Za-z]+)\((.*)\)$/s.exec(rule);
-  return m ? { tool: m[1], body: m[2] } : { tool: rule, body: null };
-};
-
 for (const file of files) {
   const rel = file.slice(resolve(ROOT).length + 1).replace(/\\/g, "/");
   const raw = readFileSync(file, "utf8");
 
-  // F49 — strict JSON, no comments. Checked on the TEXT before parsing, because a
-  // `//` inside a string value is legal and JSON.parse alone would not distinguish
-  // "has a comment" from "is otherwise broken".
-  const withoutStrings = raw.replace(/"(?:[^"\\]|\\.)*"/g, '""');
-  r.assert(
-    !/(^|\s)\/\/|\/\*/.test(withoutStrings),
-    rel,
-    "contains a `//` or `/* */` comment. settings.json is STRICT JSON — Claude Code skips the entire file, " +
-      "including enabledPlugins, so every plugin silently disappears (F49). Delete the line instead.",
-  );
+  for (const f of lintSettingsText(raw)) r.error(rel, f.message);
 
   let cfg;
   try {
     cfg = JSON.parse(raw);
-  } catch (e) {
-    r.error(rel, `does not parse as strict JSON: ${e.message}`);
-    continue;
+  } catch {
+    continue; // lintSettingsText already reported it
   }
 
   const lists = cfg.permissions ?? {};
-  for (const listName of ["allow", "deny", "ask"]) {
-    const rules = lists[listName] ?? [];
-    r.counted(rules.length);
-    const asSet = new Set(rules);
+  // Count every rule as a check so the summary reflects the real surface area, not
+  // just the number of problems found.
+  r.counted(["allow", "deny", "ask"].reduce((n, l) => n + (lists[l]?.length ?? 0), 0));
 
-    for (const rule of rules) {
-      const at = `${rel} → permissions.${listName}`;
-      const { tool, body } = parseRule(rule);
-
-      // F44 / F48 — file permission checks match only Read(path) and Edit(path).
-      // A Write(path) rule is accepted, matched by nothing, and warns at startup.
-      // Edit already covers every file-editing tool including Write.
-      r.assert(
-        tool !== "Write" || body === null,
-        at,
-        `\`${rule}\` — a Write(<path>) rule is never matched by file permission checks (F44/F48). ` +
-          `Use Edit(${body}) instead; it already covers the Write tool.`,
-      );
-
-      if (tool !== "Bash" || body === null) continue;
-
-      // F45 (1) — `:*` does not compose with a mid-pattern `*`. Strip the trailing
-      // `:*`; if a `*` remains, the rule matches nothing.
-      if (body.endsWith(":*")) {
-        r.assert(
-          !body.slice(0, -2).includes("*"),
-          at,
-          `\`${rule}\` — a trailing \`:*\` does not compose with a mid-pattern \`*\` (F45). ` +
-            `This rule matches NOTHING. Write the trailing wildcard as \`*\`, not \`:*\`.` +
-            (listName === "deny" ? " On a deny list this fails silently — there is no protection here." : ""),
-        );
-      }
-
-      // F45 (2) — a trailing ` *` (space-star) does not match end-of-string, so the
-      // argument-less spelling slips through. Require an exact-match sibling. Enforced
-      // on `deny`/`ask` (a miss is silent and dangerous) and warned on `allow` (a miss
-      // merely blocks the run, loudly).
-      if (body.endsWith(" *")) {
-        const exact = `Bash(${body.slice(0, -2)})`;
-        const message =
-          `\`${rule}\` — a trailing \` *\` does not match end-of-string (F45), so the argument-less ` +
-          `spelling is not covered. Add \`${exact}\` alongside it.`;
-        if (listName === "allow") {
-          if (!asSet.has(exact)) r.warn(at, message);
-        } else {
-          r.assert(asSet.has(exact), at, message);
-        }
-      }
-    }
-
-    // Duplicates are harmless at runtime but always mean two people edited the same
-    // list without reading it — and a near-duplicate is how a stale rule survives a
-    // migration (F49's root cause was a migration applied by hand).
-    const dupes = rules.filter((x, i) => rules.indexOf(x) !== i);
-    r.assert(dupes.length === 0, `${rel} → permissions.${listName}`, `duplicate rule(s): ${[...new Set(dupes)].join(", ")}`);
-  }
-
-  // The pre-0.28 hard env denies can never be relaxed by pipeline.envFileAccess, so
-  // leaving them in place makes that switch do nothing (init's migration step, F48).
-  for (const stale of ["Read(./.env)", "Read(./.env.*)"]) {
-    r.assert(
-      !(lists.deny ?? []).includes(stale),
-      `${rel} → permissions.deny`,
-      `\`${stale}\` is the pre-0.28 hard deny. It overrides pipeline.envFileAccess permanently — ` +
-        `enforcement now lives in env-guard.mjs and settings carries only the \`ask\` floor.`,
-    );
+  for (const f of lintPermissionRules(lists)) {
+    const at = `${rel} → permissions.${f.list}`;
+    if (f.severity === "error") r.error(at, f.message);
+    else r.warn(at, f.message);
   }
 }
 

@@ -7,6 +7,54 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.46.0] — 2026-08-02
+
+### `/aidlc:doctor` — diagnose the workspace before it wastes a run (`aidlc` 0.46.0)
+
+**Five of the framework's eight most recent 🔴 findings were environment faults, not pipeline faults**,
+and each presented as something else:
+
+| Finding | What the user saw | What was wrong |
+|---|---|---|
+| F42 | `Unknown command: /aidlc:run`, **at rc=0** | the plugin was not enabled for that cwd |
+| F43 | every git call "requires approval" | poly uses `git -C`, which no allow rule matched |
+| F45 | rules verified present, nothing ran | the rules matched nothing — allow *and* deny |
+| F49 | all `/aidlc:*` commands vanished | a `//` comment made `settings.json` unparseable |
+| F6 | branches that didn't line up | control plane on `master`, config said `main` |
+
+Every one is visible in a file before a run starts. The pattern worth naming is why they were expensive:
+**an environment fault looks like a pipeline bug**, so it gets debugged in the wrong place — F49 cost a
+session chasing an unrelated stale marketplace error before the real cause surfaced.
+
+`/aidlc:doctor` is read-only and writes nothing. `skills/doctor/diagnose.mjs` does the deterministic
+half — Node version, config parse and required keys, config provenance vs the installed plugin, whether
+a verify gate is declared, the `envFileAccess` value, `shared` mode on the markdown adapter, every
+settings file parsing as strict JSON, plugin enablement at project **and** user scope with the
+marketplace known, permission-rule shapes, `git -C` coverage in poly, each declared repo resolving to a
+real git repo, the control-plane `.gitignore` covering every product repo by path, every registered hook
+script existing, and every run file parsing with a valid phase. The live half — tracker auth, `gh`/`az`
+auth, MCP tool ids, required-check policy, git identity, gate-runner presence — is in `SKILL.md`, and
+references `status` §1.5/§1.6 as their home rather than restating them.
+
+**The rule lint is now shared, not copied.** `skills/doctor/lint-rules.mjs` holds the F44/F45/F48/F49
+shapes, and both callers use it: the marketplace's CI lints the shipped templates, `/aidlc:doctor` lints
+the user's real settings. A lint that means something different in CI than on a user's machine is not a
+lint — and copy-pasted rule sets are how F48 happened (F44's fix applied to `deny` and not to `ask`).
+
+Two bugs found by the doctor's own tests, both worth stating because neither would have surfaced in use:
+
+- **`f.startsWith(homedir())` mislabels any project living under the user's home directory** — `~/dev/x`,
+  which is most of them — as the user-scope settings file. A project-scope problem would have been
+  reported against `~/.claude/settings.json`, pointing the remediation at the wrong file. Now compared by
+  resolved path.
+- The suite was reading the **developer's real `~/.claude/settings.json`**, so a check passed locally for
+  reasons unrelated to the fixture. `--home` makes it hermetic. User-scope settings genuinely participate
+  in the diagnosis (F42), so the fix is to control them, not to ignore them.
+
+72 tests across the two new suites, every one asserting a check **fires** — a diagnostic that quietly
+returns "all ok" is indistinguishable from a healthy workspace, which is the same silent-pass problem the
+rest of this repo keeps fixing. `npm test` discovered both without being told about them.
+
 ## [0.45.3] — 2026-08-02
 
 ### Fix: the rest of the guard's blast-radius gaps (`aidlc` 0.45.2)

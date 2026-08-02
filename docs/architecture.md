@@ -372,7 +372,7 @@ silently crippled by a guessed tool id.
 
 ### Skills
 
-Commands: `do`, `run`, `next`, `sprint`, `status`, `init`, `bootstrap`, `intake`, `adopt`,
+Commands: `do`, `run`, `next`, `sprint`, `status`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
 `promote`, `sync`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
 `run-state`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.

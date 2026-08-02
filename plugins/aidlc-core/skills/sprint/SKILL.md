@@ -153,6 +153,11 @@ Check the launch cwd deterministically first — it's a file read, not a run:
 Any check fails → **do not launch**. Report exactly which one and where the file was expected. In poly
 this will usually mean the launch cwd is wrong (a product repo instead of the control plane).
 
+These three are the launch-cwd subset, kept inline because they must run per launch. For the full
+picture — permission-rule shapes, `git -C` coverage, repo paths, settings parsing — point the user at
+**`/aidlc:doctor`**: a sprint that preflights clean can still have every item block on its first git
+call (F43), and that is a workspace fault worth finding before N pipelines discover it in parallel.
+
 ### 2c · Verify each launch actually started — never trust rc=0 (F42)
 
 After launching, before the launch counts as started, probe within ~90s:

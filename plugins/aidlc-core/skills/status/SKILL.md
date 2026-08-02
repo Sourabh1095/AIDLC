@@ -58,6 +58,12 @@ each child's repo, phase and PR state, so a cross-repo feature reads as one bloc
 
 ## Step 1.5 — Tracker doctor (fail clearly, not opaquely)
 
+> This step and Step 1.6 are the two environment checks the dashboard needs in order to be
+> *truthful*, so they stay here and this section remains their home. When the answer is "the
+> environment is broken" rather than "here is the board", point at **`/aidlc:doctor`** — it runs these
+> plus plugin enablement, permission-rule shapes, repo paths, hook scripts and settings parsing, which
+> are the faults that make every other reading meaningless.
+
 Before querying the adapter, confirm the tracker is actually **reachable + authenticated**, not merely
 "connected". For **ADO**: a registered MCP (`azure-devops · connected · N tools`) does not prove
 reachability — it authenticates on the first call and fails opaquely (*"Failed to find api location for
