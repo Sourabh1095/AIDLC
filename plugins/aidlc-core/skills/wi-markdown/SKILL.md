@@ -21,9 +21,18 @@ Glob `backlog/{items,epics}/{id}-*.md`, parse frontmatter + sections into a Work
 - `acceptanceCriteria` ← the `## Acceptance Criteria` checkbox lines (keep `[x]`/`[ ]` prefixes)
 - `description` ← `## Description` body · `links.url` ← the file path
 - `repo` ← the `repo:` field (null/empty when unrouted) · `dependsOn` ← the `dependsOn:` list
+- `assignee` ← the `assignee:` field (null/empty when unassigned). `create` writes it when the caller
+  supplies one (a human-approved roster — `/aidlc:bootstrap`); **nothing ever re-assigns an existing
+  item** (`aidlc:work-items` → *Ownership*)
 
 ### query(filter)
-Glob all item files, parse frontmatter only. Apply filter, drop non-ready items
+Glob all item files, parse frontmatter only. Apply filter — including **`assignee`** (see
+`aidlc:work-items` → *Ownership*): match the `assignee:` frontmatter field case-insensitively against
+the resolved identity (`team.me`, else `git config user.email`), treating an absent/empty field as
+unassigned; the `mine-then-unassigned` scope keeps both. There is no server-side `@Me` here, so the
+comparison is only as good as the convention the backlog was authored with — if `assignee:` values are
+display names and `team.me` is an email (or vice versa), say so rather than returning an empty queue
+that looks like "no work for you". Then drop non-ready items
 (ready = `status: todo` AND ≥1 AC (task/spike exempt) AND parent not `blocked` — check parent
 files when `parent` is set). Sort by priority (P1 first), then by numeric id ascending. A `limit`
 bounds the returned page; with **no `limit`** return *all* ready items (the glob already has them —
@@ -42,7 +51,8 @@ honest stand-in for one. No match ⇒ `[]`, which is a normal answer, not an err
 2. Id = `{PROJECT_KEY}-{n}` (key from `.claude/aidlc.config.json`).
 3. Instantiate `${CLAUDE_PLUGIN_ROOT}/templates/backlog-item.md` with the item's fields,
    slugify the title (lowercase, hyphens, ≤5 words) for the filename. Fill `repo:` (the routed
-   repo name, or blank for epics/unrouted) and `dependsOn:` (comma-separated IDs, or blank).
+   repo name, or blank for epics/unrouted), `dependsOn:` (comma-separated IDs, or blank) and
+   `assignee:` (only when the caller supplied one — otherwise blank; the pipeline does not pick owners).
 4. Epics go to `backlog/epics/`, everything else to `backlog/items/`.
 
 ### transition(id, status)
@@ -61,6 +71,16 @@ Set the `branch:` / `pr:` frontmatter fields (null → value; overwrite only if 
 ### updateAC(id, criteria[])
 Replace the `## Acceptance Criteria` checkbox list. Preserve `[x]` state for criteria whose
 text is unchanged; new criteria start `[ ]`. Append an Activity line noting AC were refined.
+
+## This adapter is for solo projects (`team.mode: solo`)
+
+The branch-visibility divergence below is a nuisance with one operator and a correctness problem with
+several: the backlog *is* the git tree, so two people grooming conflict in the plan of record, `query`
+returns whatever branch the caller stands on, and an `assignee:` field that lives only on someone's
+feature branch is invisible to everyone else. `/aidlc:init` and `/aidlc:adopt` warn when `team.mode:
+shared` meets `source: markdown`. It still works — a small co-located team sharing one default branch
+gets away with it — but Jira or ADO is the right answer, and the warning says so once rather than
+every command.
 
 ## Branch visibility (inherent to an in-repo backlog)
 

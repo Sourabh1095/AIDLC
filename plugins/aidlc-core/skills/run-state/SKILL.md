@@ -27,6 +27,7 @@ type: story
 branch: feature/PROJ-123-user-avatar-upload
 phase: implement       # start|requirements|design|implement|verify|pr|docs|done|blocked
 fixCycles: 0
+reviewRounds: 0        # human PR-feedback rounds (aidlc:review-feedback) — its own budget, not fixCycles'
 fanout: 1 -> [2|3|4] -> 5   # the implement schedule actually used; null when all-serial
 pr: null
 started: 2026-07-08T09:12Z
@@ -69,7 +70,20 @@ reads these to schedule concurrent implementers, so an undeclared task is always
 2. Verify the branch exists and is checked out (`git rev-parse --abbrev-ref HEAD`); if not, check it out.
 3. If phase is `blocked`: report the open Findings and ask the user how to proceed
    (retry fix cycle / adjust item / abandon) — this is the one place resume pauses.
-4. If phase is `done`: nothing to do; suggest `/aidlc:status` for post-merge cleanup.
+4. If phase is `done`, **the PR decides what happens next — do not answer "nothing to do" without
+   looking.** In remote mode a `done` run is a run awaiting a human, and that human may already have
+   replied:
+   - **PR merged** → post-merge cleanup (`/aidlc:status`): transition, parent rollup, archive.
+   - **PR open with unresolved review threads** → hand to `aidlc:review-feedback` with this ID. This is
+     the common case on a team and the reason this step is not a one-liner: a run that reports
+     "nothing to do" while six review comments sit on its PR is wrong in the most useless possible way.
+     That skill is **`disable-model-invocation`** (it commits and pushes), so the Skill tool cannot
+     reach it — **read `${CLAUDE_PLUGIN_ROOT}/skills/review-feedback/SKILL.md` and follow it verbatim**
+     with this ID as its `$ARGUMENTS`, exactly as `/aidlc:next` hands off to `run`. The user asked to
+     resume this run, so the handoff is explicit; don't stop and make them re-type a command.
+   - **PR open, no threads** → nothing to do; say it is awaiting review and name
+     `/aidlc:review-feedback` for when comments arrive.
+   - **`mode: local`** → integration already happened at `/aidlc:run` §8; suggest `/aidlc:status` cleanup.
 
 **Subagent contract** — every agent brief must include: the run-file path, which section(s) the
 agent appends to, and the instruction to return only a short verdict + pointer to what it wrote.
@@ -105,6 +119,13 @@ mode/layout (F23):**
 Resume + status therefore look for a run file in **both** `runs/` and `runs/archive/`; a file found
 only in `archive/` means the run already completed (suggest `/aidlc:status` cleanup / confirm the
 merge), never redo it.
+
+**Archived is not immutable — one path reopens it.** A poly+remote run archives on the branch
+*pre*-merge (F23), so an open PR's run file normally sits in `archive/` while the PR is still being
+reviewed. When review comments come back, `aidlc:review-feedback` `git mv`s it back to `runs/`, sets
+`phase: verify`, works the findings, and re-archives at the end. That is the only sanctioned
+un-archive: it keeps `/aidlc:status` honest (an actively-changing run must not read as finished) and it
+preserves F23's invariant, since the file still merges in archived.
 
 ## Invariants
 

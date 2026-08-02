@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude AIDLC
 
-**Status:** All phases (0–5) implemented + polyrepo · core v0.41.x · `aidlc-ux` design pod v0.6.x
+**Status:** All phases (0–5) implemented + polyrepo + team mode · core v0.42.x · `aidlc-ux` design pod v0.6.x
 
 ## 1. Core design decisions
 
@@ -16,7 +16,7 @@ A subagent has no channel to the user, so as a subagent each of those would sile
 
 Being in the main session is *reach*, not *permission*, so entry is gated separately: `run` carries
 **`disable-model-invocation: true`**, like every other command that writes (`init`, `adopt*`, `sprint`,
-`sync`, `repo`, `promote`, `remove`, `bootstrap`). It is the most side-effectful command in the
+`sync`, `repo`, `promote`, `remove`, `bootstrap`, `review-feedback`). It is the most side-effectful command in the
 framework — branch, commit, push, PR — and must never be entered because a prompt merely *sounded* like
 work. Its three doors are all a human choosing it: a typed `/aidlc:run`, a headless
 `claude -p "/aidlc:run {ID}"` from `sprint`, or an explicit handoff from `next`/`do`/`intake` after the
@@ -261,6 +261,64 @@ Three properties make the overlay trustworthy rather than a second source of tru
   vanished, was re-typed, re-routed or re-wired is **breaking** — announce it, ignore the plan, revert to
   priority order. Never silently obeyed, never a blocker.
 
+**D12 — A team's collisions happen in the merge, not in the working tree.** Every isolation mechanism
+above D11 is **filesystem-scoped**: worktrees, one-item-per-tree, disjoint-path fan-out, the run file
+that records what is in flight. Each of them answers *"can these two units of work share my disk?"* —
+and each is silent about the question a team actually asks, which is *"is somebody else already doing
+this?"* The framework had exactly one cross-machine primitive, and it was accidental: `/aidlc:next`
+queries `status: todo`, `/aidlc:run` §3 writes `in_progress`, so a started item leaves everyone's query.
+That coarse lock is why AIDLC does not fall over with a team; the gaps are everything it does not cover.
+
+`team.mode` (`solo` default · `shared`) gates the whole set, so a solo project is byte-identical to
+before. What `shared` changes, and the reasoning that decided each:
+
+- **Ownership is read, never written.** A tracker gives an item one assignee — Jira and ADO both enforce
+  it — so "two people on one task" is not a state to arbitrate. The bug was that no command *consulted*
+  it: `query` had no `assignee` filter, so three developers' `/aidlc:next` all returned the same
+  correctly-assigned item. The fix is a filter (`currentUser()` / `@Me` server-side), not an `assign`
+  op. **Who does the work is a staffing decision**, the same class as `priority` and `dependsOn`, and
+  D4's argument for keeping those out of the contract applies unchanged.
+- **The run file cannot be the cross-machine lock, and pretending otherwise is worse than not trying.**
+  It is committed to its feature branch, so a teammate's in-flight run is invisible by construction.
+  Rather than inventing a lock file (a shared-state consensus problem AIDLC has no business solving),
+  `next`, `sprint`, `status` and `ceremony` trigger 4 each say plainly which evidence is local and which
+  is the board's. A guard that is documented as local is usable; one that reads as global is a trap.
+- **AC belong to their author once the author is not the operator.** `groom` applied AC rewrites and
+  sizes inline — correct when you are the product owner, and an overwrite of somebody's words when you
+  are not, with both concurrent writes read-back-verifying cleanly. `team.groomAutoApply` derives from
+  the mode: everything proposed in `shared`, nothing changes in `solo`. This is D4's priority argument
+  arriving one field late; priority was only ever special because it was obvious.
+- **A green gate proves nothing without saying what it was green against.** Branching pinned `<base>`
+  and never looked again, so a long-lived branch verified against a tree that no longer existed —
+  producing semantic conflicts, which merge cleanly and fail later. Verify now checks drift first and
+  decides on **path overlap**, not commit count: *isolation, not similarity*, one grain further out.
+- **Human review is a phase, and it was missing.** §10 stamped `done` and `run-state`'s resume answered a
+  `done` run with "nothing to do" — so the single most frequent event on a team, a reviewer leaving
+  comments, dead-ended in the place the pipeline called complete. `aidlc:review-feedback` works threads
+  as attributed findings through the ordinary fix cycle, and the two rules that distinguish a person's
+  comment from an agent's are that **a disputed one is answered on the thread, not argued down in the
+  run file**, and **no thread is resolved that was not fixed**. It never merges: closing its own review
+  loop would remove the one gate D6 promises to keep.
+- **Shared control-plane state needs a freshness read, not a sync engine.** `.aidlc/plan.md` is a team
+  decision that `next` and `sprint` obey, and nothing pulled or pushed it — so each developer silently
+  followed a different schedule, undetectably, because the freshness check diffs the plan against the
+  *board* and the board had not changed. `replan` now commits and pushes it with `cutBy:`; readers report
+  ahead/behind and **never auto-pull** — conflicting somebody's backlog underneath them mid-command is
+  worse than a stale read.
+- **`source: markdown` is a solo adapter.** In shared mode the backlog *is* the git tree: concurrent
+  grooms conflict in the plan of record, and `query` returns whatever branch the caller stands on. Warned
+  once at `init`/`adopt`, never blocked — a small co-located team on one default branch gets away with
+  it, and arguing twice costs more than the risk.
+- **`ceremony`'s floor and its collision trigger were both solo-shaped.** Tier 1's safety argument is
+  *a local commit is `git reset` away*, which quietly assumes one tree; the floor becomes `tracked` in
+  shared mode unless set. And trigger 4 ("work an in-flight run already owns") could only read local run
+  files — structurally blind to the *more* likely collision — so it now consults the board and open PRs.
+
+One collision was silent and guaranteed rather than probabilistic: **ADR numbers**. `NNNN = next number`
+read the working tree, so two branches cut from one base both produced `0012`, both PRs passed review
+(neither diff shows the other), both merged, and `superseded-by-0012` became permanently ambiguous with
+no error anywhere. Numbers are now reserved from the integration branch plus open PRs.
+
 ## 2. Implemented (Phases 0–2)
 
 ### Pipeline
@@ -290,7 +348,8 @@ verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) �
 
 ### Skills
 
-Commands: `run`, `next`, `status`, `init`, `adopt`, `adopt-apply`, `adopt-adr`, `groom`, `replan`, `release`. Infrastructure: `run-state`,
+Commands: `run`, `next`, `status`, `init`, `adopt`, `adopt-apply`, `adopt-adr`, `groom`, `replan`,
+`review-feedback`, `release`. Infrastructure: `run-state`,
 `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`. Playbooks: `requirements`,
 `planning`, `architecture`, `code-review`, `testing`, `debugging`, `security`, `ci-cd`,
 `docs-writing`, `research`, `maintenance`. Stack pack (`aidlc-stack-web` plugin):
@@ -410,6 +469,9 @@ and per package (different frontends, different mockups and dev ports); `ux.figm
   encapsulation, layering) so the reviewer spends its judgment on what tools can't check. Core
   degrades gracefully without a pack.
 - **Different autonomy** → per-project `settings.json` + `pipeline.gates`; the pipeline reads, never hardcodes.
+- **Solo vs team** → `team.mode` (`solo` default · `shared`) + `team.me`; optional `team.pickScope`
+  (`mine-then-unassigned` · `mine-only` · `any`) and `team.groomAutoApply`. Every team behaviour is
+  gated on `shared`, so a solo project sees no change. See D12.
 - **Verification cost/cadence** → `pipeline.verification` (`mode`: auto/manual/ask, `scope`:
   per-item/per-epic, plus `reviewer`/`qa`/`security` toggles); the human review of the PR is always
   the final gate, so `manual` degrades safely rather than skipping oversight.

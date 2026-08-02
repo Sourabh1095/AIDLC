@@ -24,8 +24,13 @@
 - `/aidlc:run <ID>` — take one work item end-to-end (branch → implement → verify → PR). Verification
   cadence is configurable (`pipeline.verification`); by default reviewer/QA are on-demand and security
   runs per-epic, with the CI gate (lint/type/tests/boundaries) as the per-item floor.
-- `/aidlc:next` — pick the highest-priority ready item and run it.
-- `/aidlc:status` — dashboard of active runs and backlog.
+- `/aidlc:next` — pick the highest-priority ready item and run it. On a shared project this is scoped to
+  the items assigned to you (`team.me`), then unassigned ones — it never silently starts a colleague's work.
+- `/aidlc:review-feedback <ID>` — a reviewer left comments on the PR: pull the unresolved threads, fix
+  them through the normal cycle, push, and reply on each. A run reaching `done` means the pipeline
+  finished, not that the change was accepted.
+- `/aidlc:status` — dashboard of active runs and backlog. Active runs are **this machine's**; run files
+  live on feature branches, so the board's counts are the cross-machine truth.
 - `/aidlc:do <anything>` — the general front door: an opinion or fit question ("would this sit right
   here?"), an investigation, a small direct fix, or work described in plain language. It grounds in this
   project's ADRs, backlog, runs and stack before deciding. Prefer it over answering a project question
@@ -35,5 +40,6 @@
 - Architecture decisions go in `docs/adr/` as ADRs.
 
 ## Configuration
-- Per-project AIDLC settings: `.claude/aidlc.config.json` (work-item source, git host, autonomy gates).
+- Per-project AIDLC settings: `.claude/aidlc.config.json` (work-item source, git host, autonomy gates,
+  `team.mode` solo/shared).
 - Rules in `.claude/rules/` are always loaded — keep them tiny.

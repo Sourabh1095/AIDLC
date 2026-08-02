@@ -29,7 +29,7 @@ unavailable, tell the user to check `/mcp` and authenticate — do not fall back
 | `parent` | parent/epic link key |
 | `repo` | a `repo:<name>` label (default, no custom field needed) — or a Component if the project maps repos to components; detect which convention an existing issue uses before writing |
 | `dependsOn` | issue links of type **"Depends on"** (inward) — read the outward "Blocks" side too |
-| `labels` / `assignee` | labels / assignee displayName |
+| `labels` / `assignee` | labels / assignee displayName (read-only — the pipeline never writes it) |
 | `links.url` | `https://{site}/browse/{key}` |
 
 ## Status map
@@ -49,7 +49,13 @@ Canonical → Jira defaults (override per project in `workItems.jira.statusMap`)
 - **fetch(id)** — get the issue, map fields as above. Include the last ~5 comments in `sourceRaw` context when refining requirements.
 - **query(filter)** — JQL:
   `project = {project} AND statusCategory = "To Do" AND issuetype IN (Story, Task, Bug, Spike) ORDER BY priority DESC, rank ASC`
-  (+ `AND labels = {label}` when filtered). Apply the "ready" rule (≥1 AC except task/spike; parent not blocked) client-side after mapping. When a `limit` is given it bounds one page; with **no `limit`** (a full sweep) page through **all** matches via JQL `startAt`/`maxResults` until exhausted and report the total (`searchJiraIssuesUsingJql` returns `total`) — **never hard-cap a full-backlog sweep** (F34 — see `aidlc:work-items` → *Full-backlog sweeps*).
+  (+ `AND labels = {label}` when filtered). **`assignee` filter** (see `aidlc:work-items` → *Ownership*):
+  `"me"` → **`AND assignee = currentUser()`** — prefer this over resolving an id, since the MCP is
+  OAuth'd as that person and JQL evaluates it server-side; unassigned → `AND assignee IS EMPTY`; both
+  (the `mine-then-unassigned` scope) → `AND (assignee = currentUser() OR assignee IS EMPTY)`. A named
+  person other than the caller → resolve the email to an `accountId` (user-search tool) and compare on
+  that; **never** match on `displayName`, which is neither unique nor stable. Apply the
+  "ready" rule (≥1 AC except task/spike; parent not blocked) client-side after mapping. When a `limit` is given it bounds one page; with **no `limit`** (a full sweep) page through **all** matches via JQL `startAt`/`maxResults` until exhausted and report the total (`searchJiraIssuesUsingJql` returns `total`) — **never hard-cap a full-backlog sweep** (F34 — see `aidlc:work-items` → *Full-backlog sweeps*).
 - **children(id, filter?)** — JQL `parent = {id} ORDER BY rank ASC` (+ `AND issuetype = Task` /
   `AND status = ...` when filtered); `rank` is the board's own order, which is what the callers want.
   `parent` covers both the subtask link and the modern parent field; on a site that still models epics
@@ -68,3 +74,7 @@ Canonical → Jira defaults (override per project in `workItems.jira.statusMap`)
 - Respect the site's required fields on create (fetch createmeta if creation fails; report unfillable required fields to the user rather than inventing values).
 - Batch reads where the MCP tools allow it. When a `limit` is set, don't over-fetch (stop at ~`limit + 10`); but a **full sweep passes no `limit`** and must page to completion (see the `query` op above) — the cap applies per page, not to the whole backlog.
 - All writes are idempotent-by-check: re-read before transition/updateAC to avoid clobbering human edits made mid-run.
+- **`currentUser()` is the OAuth identity, not `team.me`.** They are normally the same person, but if
+  `team.me` is set and resolves to a different `accountId` than the authenticated account, say so once
+  and filter on `team.me` — the config is the deliberate statement. A mismatch usually means a shared
+  service account is authenticated, and silently picking up that account's queue is the wrong answer.

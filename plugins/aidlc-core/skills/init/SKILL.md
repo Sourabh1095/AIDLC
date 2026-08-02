@@ -119,6 +119,25 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      time, leave `statusMap` empty and note that `wi-ado` self-heals per-type on first run — but prefer
      getting it right up front. Never write the assumed flat `in_progress→Active`/`in_review→Resolved`
      defaults blindly.
+3a. **Who works on this project?** `solo` (default) | `shared` — several developers on one backlog.
+   This is one question with a wide blast radius, so ask it plainly ("just you, or a team?") rather than
+   inferring it from repo contributors, which is wrong on both sides (a solo dev inherits a repo with
+   twelve past contributors; a new team repo has one).
+   - **`solo`** — write `team: { mode: "solo", me: "" }` and change nothing else. Every team behaviour
+     in the framework is gated on `shared` and stays dormant.
+   - **`shared`** — also collect **`team.me`**, the identity the tracker knows you by (Jira: the account
+     email; ADO: the UPN). Default it from `git config user.email` and confirm rather than asking cold.
+     It is what `/aidlc:next` filters on, so a wrong value produces an empty queue that looks like an
+     empty backlog. Then two consequences, both stated at the time rather than discovered later:
+     - **`pipeline.ceremony` floors at `tracked`** unless the user explicitly picks `direct`
+       (`aidlc:ceremony` → *Picking the tier*). Say why in one line: a local commit on someone's `main`
+       is reversible but invisible.
+     - **`source: markdown` gets a warning, not a block** (`aidlc:work-items` → *Control-plane
+       freshness*). The backlog would be git-tracked files that several people groom concurrently, and
+       `assignee` would live on whichever branch each developer stands on. Offer jira/ado; if they keep
+       markdown, record it and move on — it is a real choice for a small co-located team and arguing
+       twice is worse than the risk.
+
 4. **Workspace layout** *(full-path only — the deferred/bootstrap path skips this; `/aidlc:bootstrap`
    infers it)*: `mono` (one repo for everything) | `poly` (several git repos in this workspace,
    e.g. backend/frontend/website/mobile). **Ask this as a real question — never silently default from

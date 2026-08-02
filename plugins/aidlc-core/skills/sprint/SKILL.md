@@ -36,6 +36,16 @@ disagreement, and is a reason to re-plan. Cap the launch at `min(N, wave size)`.
 
 1. Adapter `query({status: "todo", limit: N*2})` — ready items, priority order (skip items
    with non-terminal run files, epics with open children — same rules as `/aidlc:next`).
+   **Scope by ownership in shared mode**, exactly as `/aidlc:next` step 2 does (`team.pickScope`,
+   default `mine-then-unassigned`). A sprint launches N pipelines at once, so an unscoped selection is
+   the same collision as `next`'s multiplied by N — and it is worse here, because a headless run cannot
+   stop to ask whether it should really be branching on someone else's item. Also check the control
+   plane is current first (`aidlc:work-items` → *Control-plane freshness*): a plan-driven sprint that
+   launches from a stale `.aidlc/plan.md` launches the wrong wave.
+   **A wave from `.aidlc/plan.md` is scoped too.** The packer schedules the whole team's work — it has
+   no idea whose machine is running — so filter the wave to your scope before launching and say what you
+   dropped: `wave 2 is PROJ-103 ‖ PROJ-104 ‖ PROJ-107; launching 2 (PROJ-107 is Rahul's)`. Dropping a
+   wave member for ownership is **not** plan/reality drift and must not be reported as one.
 2. **Independence check** — dispatch **Agent → aidlc-analyst** with the candidate list, per
    `aidlc:planning` §dependency detection: likely file/subsystem overlap, AC referencing
    another candidate's output, parent-epic ordering, and **`dependsOn`** edges. Result: a
@@ -54,6 +64,13 @@ disagreement, and is a reason to re-plan. Cap the launch at `min(N, wave size)`.
    would branch and commit in the same checkout. In poly (control-plane launch, §2) that is a hard
    constraint: keep the first, **queue** the second behind it. Same for two `control-plane` items.
    In mono every item gets its own worktree, so this doesn't bind.
+
+   **This constraint is about YOUR filesystem, not the team's.** Worktrees, checkouts and the
+   one-item-per-tree rule are all local: they say nothing about Priya running her own sprint against the
+   same repos from her laptop. The cross-machine protections are the ownership scope in §1.1 (you only
+   launch your own items) and the board's `in_progress` transition (a started item leaves the query).
+   Neither is a lock, so in shared mode **keep N small** — the point of a sprint is your own parallelism,
+   and a team already has parallelism across people.
 4. Show the user the selected set + queue before launching (say which wave it is, when it came from a
    plan). Confirm once; then run hands-off.
 

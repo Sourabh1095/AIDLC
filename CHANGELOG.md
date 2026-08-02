@@ -7,6 +7,76 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.42.0] — 2026-08-02
+
+### Team mode — the pipeline stops assuming there is one of you
+
+Every isolation mechanism in AIDLC was **filesystem-scoped**: worktrees, one-item-per-tree, disjoint-path
+fan-out, the run file recording what is in flight. Each answers *"can these two units share my disk?"*
+and each is silent about the question a team asks — *"is somebody else already doing this?"* There was
+exactly one cross-machine primitive and it was accidental: `/aidlc:next` queries `status: todo`, `run` §3
+writes `in_progress`, so a started item leaves everyone's query. That coarse lock is why the framework
+did not fall over with a team. This release covers what it does not.
+
+**`team.mode`** (`solo` default · `shared`) gates all of it. A solo project is unchanged — not
+"compatible", identical.
+
+- **`/aidlc:next` and `/aidlc:sprint` read the assignee.** A board gives an item one owner and both
+  trackers enforce it, so "two people assigned one task" was never the bug. The bug was that **no command
+  consulted the field**: `query`'s filter had no `assignee`, so three developers running `/aidlc:next`
+  all got the same correctly-assigned item and the first to reach `run` §3 won while the other two had
+  branched. Now `query({assignee})` exists — `currentUser()` in JQL, `@Me` in WIQL, both server-side —
+  and `team.pickScope` (`mine-then-unassigned` default) decides the queue. **There is deliberately no
+  `assign` op:** who does the work is a staffing decision set by a person, the same class as `priority`
+  and `dependsOn`, and D4's argument for keeping those out of the contract applies unchanged.
+- **`/aidlc:review-feedback <ID>` — the phase that was missing.** `run` §10 stamped the run `done` and
+  `run-state`'s resume answered a `done` run with *"nothing to do"*, so the most frequent event on a
+  team — a reviewer leaving comments — dead-ended in the place the pipeline called complete. The new
+  command pulls unresolved threads (GitHub `reviewThreads` via GraphQL, since `--json comments` misses
+  every inline comment; ADO's threads API minus its system entries), records them as **attributed**
+  findings, and runs the ordinary fix cycle. Two rules separate a person's comment from an agent's: a
+  **disputed** one is answered on the thread rather than argued down in the run file, and **no thread is
+  resolved that was not fixed**. It never merges — closing its own review loop would remove the one gate
+  D6 promises to keep. Resume and `/aidlc:status` both route to it.
+- **Verify checks base drift first.** Branching pinned `<base>` and never looked again, so a
+  long-running branch ran lint, typecheck, the full suite and the reviewer's read against a tree that no
+  longer existed. The failures that produces are *semantic* conflicts — git merges them without
+  complaint. The check decides on **path overlap, not commit count** (*isolation, not similarity*, one
+  grain further out than D7): base moved somewhere this branch never opened → note it; base moved into
+  files this branch edits → merge it in and **re-run the gate**, because a result from before the merge
+  describes a tree that is gone. The PR body now says what the gate was green against.
+- **Grooming proposes instead of overwriting.** AC refinement and sizing were applied inline, which is
+  right when you are the product owner and an overwrite of somebody's words when you are not — with both
+  concurrent writes read-back-verifying cleanly. `team.groomAutoApply` derives from the mode (`["ac",
+  "size"]` solo, `[]` shared). Plus `--mine`/`--unassigned` scopes and a **concurrent-groom guard** that
+  skips items a colleague groomed in the last few hours, read from the comment the adapter already writes.
+- **`.aidlc/plan.md` is shared state and is now shared.** `next` and `sprint` obey it, and nothing pulled
+  or pushed it — so every developer silently followed a different schedule, undetectably, because the
+  freshness check diffs the plan against the *board* and the board had not changed. `replan` commits and
+  pushes it with a new **`cutBy:`**; readers report ahead/behind and **never auto-pull** (conflicting
+  someone's backlog underneath them mid-command is worse than a stale read).
+- **ADR numbers no longer collide.** `NNNN = next number` read the working tree, so two branches cut from
+  one base both produced `0012`, both PRs passed review (neither diff shows the other), both merged, and
+  `superseded-by-0012` became permanently ambiguous **with no error anywhere**. Numbers now come from the
+  integration branch plus open PRs; `adopt-adr` reserves its whole batch once, up front.
+- **`ceremony` was solo-shaped in two places.** Tier 1's safety argument — *a local commit is `git reset`
+  away* — quietly assumes one tree, so the floor is `tracked` in shared mode unless explicitly set. And
+  trigger 4 ("work an in-flight run already owns") could only read **local** run files, leaving it blind
+  to the *more* likely collision; it now consults the board and open PRs before a direct change.
+- **Honest about what is local.** A run file is committed to its feature branch, so a teammate's
+  in-flight run is invisible by construction. Rather than invent a lock file, `next`, `sprint`, `status`
+  and `ceremony` each state which evidence is local and which is the board's — a guard documented as
+  local is usable; one that reads as global is a trap. `/aidlc:status` says its run table is this
+  machine's, splits ready counts by owner, and shows the plan's `cutBy`.
+- **`source: markdown` is a solo adapter**, warned once at `init`/`adopt` and never blocked: in shared
+  mode the backlog *is* the git tree, so concurrent grooms conflict in the plan of record and `query`
+  returns whatever branch the caller stands on.
+- `/aidlc:init` asks *"just you, or a team?"* — plainly, because inferring it from contributors is wrong
+  in both directions. `/aidlc:adopt` records a `conventions.activeAuthors` count as a **signal**, and
+  `/aidlc:adopt-apply` puts it in front of the user rather than deciding.
+
+New design decision **D12** in `docs/architecture.md`.
+
 ## [0.41.0] — 2026-08-02
 
 ### `aidlc-ux` — a design system is not mockups, and it needed its own axis

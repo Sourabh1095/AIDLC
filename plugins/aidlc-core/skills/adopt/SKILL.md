@@ -365,6 +365,7 @@ evidence — an unbounded history walk on a large repo is its own cost problem. 
 | `codeowners` | `CODEOWNERS` at the repo root, `.github/` or `docs/` — record path + rule count, not the owner names |
 | `requiredReviewers`, `protectedBranches` | host API, **read-only GET only** (`gh api repos/{owner}/{repo}/branches/{b}/protection`, `az repos policy list`). Optional and skippable — `gh api` is deliberately *not* allowlisted (it can `--method POST`), so it will prompt; a user who declines is a normal outcome recorded `unknown` |
 | `pushAccess` | `gh api repos/{owner}/{repo} --jq .permissions.push` ⇒ `false` means `fork-only`; an `upstream` remote alongside a personal `origin` says the same |
+| `activeAuthors` | `shortlog -sne --since="90 days ago"` on the default branch — distinct authors with recent commits. This is the **`team.mode` signal**, and it is a *proposal only*: a repo with twelve historical contributors and one active maintainer is solo, and a brand-new team repo shows one author. Record the count and the window; `/aidlc:adopt-apply` asks, never decides (`aidlc:work-items` → *Ownership*). Normalize obvious duplicates (same person, two emails) before counting, or every rebase-happy repo looks like a crowd |
 
 Three rules that decide whether this is worth anything:
 

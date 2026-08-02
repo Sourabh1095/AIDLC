@@ -9,6 +9,7 @@ parent: {{PARENT}}
 repo: {{REPO}}
 dependsOn: [{{DEPENDS_ON}}]
 labels: [{{LABELS}}]
+assignee: {{ASSIGNEE}}
 branch: null
 pr: null
 ---

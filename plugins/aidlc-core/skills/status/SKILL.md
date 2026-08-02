@@ -7,6 +7,13 @@ description: Show the AIDLC dashboard — all active pipeline runs with their ph
 
 Render a compact status board for this project. Read-only — never mutate state here.
 
+## Step 0 — Control-plane freshness (shared mode only)
+
+Before anything else, one line per `aidlc:work-items` → *Control-plane freshness*: is this workspace's
+control plane current with its remote? Everything below reads shared state (`.aidlc/plan.md`, run files,
+the markdown backlog if that is the source), and a dashboard rendered from a control plane four commits
+behind is confidently wrong rather than usefully stale. Report and continue; never auto-pull.
+
 ## Step 1 — Active runs
 
 Build the repo registry (`aidlc:work-items` → *Repos & routing*). Glob run files from **every**
@@ -74,10 +81,13 @@ board's order, not the pipeline's. Read its frontmatter (`plan`, `driver`, `sche
 `fingerprint`) and render two lines plus the wave the project is on:
 
 ```
-Plan (2026-07-31, "client wants checkout live before search"):  wave 2 of 4
+Plan (2026-07-31, cut by priya@acme.com, "client wants checkout live before search"):  wave 2 of 4
   w0[PROJ-101]* -> w1[PROJ-102|PROJ-110] -> w2[PROJ-103|PROJ-104] -> w3[PROJ-120]
   held: PROJ-111 (blocked) · PROJ-112 (unrouted)
 ```
+
+Show `cutBy:` in shared mode — a plan you did not cut, on a control plane that is behind (Step 0), is
+the case where "the pipeline picked a strange item" has an answer nobody would otherwise find.
 
 The current wave is the earliest one with open items. Then run the freshness check against the items
 from Step 2 —
@@ -98,6 +108,18 @@ Load the `work-items` skill routing and query the active adapter (from `.claude/
 - count of items by status
 - top 5 ready items (status `todo`, priority order): show `id`, `type`, `priority`, `estimate`, `title`
 
+**In shared mode, show ownership and split the "ready" count** — `ready: 11 (3 yours, 5 assigned to
+others, 3 unassigned)` — and add an `Owner` column to the ready list. `/aidlc:next` will only pick from
+your scope (`aidlc:next` §2·0), so a dashboard that reports one number answers a question the pipeline
+does not act on. Also surface **items assigned to you that are already `in_progress` with no local run
+file**: that is either work you started elsewhere or an item someone assigned you mid-flight, and both
+are worth a line.
+
+The active-runs table above is still **your machine only** — run files live on feature branches in each
+developer's clone, so this dashboard cannot show what the team is running. Say so once in shared mode
+rather than letting an empty table read as an idle team; the board's `in_progress` count is the honest
+cross-machine signal and it is right there in the status counts.
+
 If the source is `markdown`, this is just frontmatter parsing over `backlog/items/*.md` — do not spawn a subagent for this.
 
 ## Step 3 — Local extensions (when `.aidlc/extensions.json` has entries)
@@ -115,6 +137,12 @@ End with one actionable line, e.g.:
   fresh plan, name the wave: "Wave 2 is ready (PROJ-103 ‖ PROJ-104) — `/aidlc:sprint`."
 - a plan with **breaking** drift → "`.aidlc/plan.md` is stale (PROJ-127 re-decomposed) — `/aidlc:replan`"
 - done runs with merged PRs → "PROJ-120's PR merged — run cleanup: transition item to Done and archive the run file."
+- **a done/`in_review` run whose PR has unresolved review threads** → "PROJ-124's PR has 6 unresolved
+  comments from @priya — `/aidlc:review-feedback PROJ-124`". Worth a cheap check on any open PR this
+  pipeline opened (`gh pr view --json reviewDecision` / the ADO thread count), because the run file says
+  `done` and nothing else in this dashboard would reveal that the change is waiting on the author, not
+  on the reviewer. **`changes_requested` with no local activity is the most actionable line on the
+  board** — surface it above the ready-items suggestion.
 
 ## Ground-truth reconciliation (drift detection — the audit, automated)
 

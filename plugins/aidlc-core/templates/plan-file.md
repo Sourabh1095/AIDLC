@@ -1,6 +1,7 @@
 ---
 plan: {{NOW_UTC}}
 supersedes: {{SUPERSEDES}}
+cutBy: {{CUT_BY}}
 driver: "{{DRIVER}}"
 source: {{SOURCE}}
 layout: {{LAYOUT}}

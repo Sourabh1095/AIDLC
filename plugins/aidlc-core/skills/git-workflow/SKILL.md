@@ -89,6 +89,44 @@ in poly — always `cd` into the target repo first.
   every commit, confirm it actually landed (`git rev-parse HEAD` advanced / `git status` clean /
   `git log -1` shows it) **before** pushing. Never push assuming the commit succeeded.
 
+## Base drift — the gate must run against a tree that still exists
+
+Branching takes `<base>` at its current tip and then **never looks at it again**. Solo on a short item
+that is fine. On any project where other work is landing — a team, or your own parallel sprint — a
+long-running branch verifies against a base that has moved: lint, typecheck, the whole suite, the
+reviewer's read of the diff, all green against a tree nobody has. The failures this produces are
+*semantic* conflicts, which git merges without complaint and CI catches after the merge, if at all.
+
+So `aidlc:run` §7 checks drift **before running the gate**. Run this from the repo's checkout
+(cwd = `workspace.root`/`<repo.path>`); it costs one fetch:
+
+```bash
+git fetch <remote> <base> --quiet
+git rev-list --count HEAD..<remote>/<base>                     # how far the base moved
+git diff --name-only HEAD...<remote>/<base>                    # what moved on the base
+git diff --name-only <remote>/<base>...HEAD                    # what this branch touches
+```
+
+Decide on **path overlap**, not on the commit count — the same *isolation, not similarity* rule D7
+applies everywhere else. A hundred commits in a subsystem this branch never opens are irrelevant; one
+commit in a file it edits is the whole problem.
+
+| Situation | Do |
+|---|---|
+| base has not moved | nothing — the common case, and it must stay silent |
+| moved, **no overlap** with the branch's paths | record one line in the run file (`base moved 12 commits, no path overlap`) and carry on. Do **not** merge — a merge here only adds noise to the diff a reviewer reads |
+| moved, **overlapping paths** | `git merge <remote>/<base>` **into the feature branch**, then re-run the gate from the top. Record the merge and the overlapping paths in `## Findings` as a `[NOTE]` |
+| the merge conflicts | stop. Report the conflicting paths and hand to the implementer to resolve **on the branch** — never resolve blind, and never touch `<base>` |
+
+Three constraints, each of which turns this from a safety step into a hazard if dropped:
+
+- **Only ever merge base → branch.** `<base>` is not written to here under any circumstance. The
+  integration gate is still §8.
+- **`mode: local` skips this entirely** — nothing to fetch, and the base only moves when this pipeline
+  moves it.
+- **Re-run the gate after a merge, don't patch the previous result.** A gate result from before the merge
+  describes a tree that no longer exists, which is the exact failure this section exists to prevent.
+
 ## Push + PR (remote mode)
 
 Push: `git push -u <remote> <branch>` (never `--force`; `--force-with-lease` requires user approval).

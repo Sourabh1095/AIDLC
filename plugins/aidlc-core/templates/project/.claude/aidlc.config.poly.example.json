@@ -10,6 +10,11 @@
     "jira": { "site": "", "project": "", "statusMap": {} },
     "ado": { "org": "", "project": "", "statusMap": {} }
   },
+  "team": {
+    "mode": "shared",
+    "me": "you@example.com",
+    "pickScope": "mine-then-unassigned"
+  },
   "workspace": {
     "layout": "poly",
     "root": "."

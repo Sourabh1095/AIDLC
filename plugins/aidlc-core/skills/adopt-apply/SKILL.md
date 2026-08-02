@@ -291,6 +291,26 @@ non-empty, recommend raising `pipeline.verification.security` (e.g. `per-epic` �
 fact is the higher-risk choice, and a compliance regime silently making every item more expensive is
 exactly the surprise that makes a team distrust the tool. Write the new cadence only on an explicit yes.
 
+### 3.3b · `team.mode` — ask, never infer
+
+The profile's `conventions.activeAuthors` is a **signal, not a verdict**, and it is wrong in both
+directions often enough that writing it silently would be a bug: an inherited repo shows a dozen
+historical contributors with one active maintainer, and a repo a team just created shows one. So put the
+count in front of the user and let them answer:
+
+> *"6 authors committed in the last 90 days. Is this a shared project? (`team.mode: shared` scopes
+> `/aidlc:next` to your assigned items, floors ceremony at `tracked`, and makes grooming propose AC
+> changes rather than apply them.)"*
+
+On `shared`, collect `team.me` — default it from `git config user.email`, confirm it matches what the
+tracker stores (`aidlc:work-items` → *Ownership*), and say plainly that a wrong value yields an empty
+queue that looks like an empty backlog. On `solo`, write `team: { mode: "solo", me: "" }` and stop; every
+team behaviour is dormant behind that flag.
+
+Two consequences to state at the same time, not later: `pipeline.ceremony` floors at `tracked` in shared
+mode unless explicitly set, and `source: markdown` earns a warning (the backlog becomes git files several
+people groom concurrently). Neither is a block.
+
 ### 3.4 · Git conventions and `rules/git-workflow.md`
 
 Write the conventions onto the repo entry (or the mono `git` block): `integrationBranch`, `commitStyle`,

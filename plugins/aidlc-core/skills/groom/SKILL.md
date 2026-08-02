@@ -1,14 +1,49 @@
 ---
 name: groom
 description: Backlog refinement session — sweep todo items, refine weak acceptance criteria, size unsized items, flag blockers and stale items, propose epic decompositions and priority changes. Use when asked to groom, refine or clean up the backlog.
-argument-hint: "[label or item-type filter, optional]"
+argument-hint: "[label or item-type filter · --mine · --unassigned, all optional]"
 ---
 
 # /aidlc:groom — backlog refinement
 
 A grooming sweep makes items *ready* so `/aidlc:next` never picks up junk. Route to the active
 adapter (`aidlc:work-items`), then dispatch **Agent → aidlc-analyst** with this protocol
-(pass any filter from `$ARGUMENTS`).
+(pass any filter from `$ARGUMENTS`). In shared mode, check the control plane is current first
+(`aidlc:work-items` → *Control-plane freshness*).
+
+## Scope and autonomy depend on whether the backlog is yours
+
+Grooming is a **whole-backlog write**: it rewrites acceptance criteria and sets estimates, in place,
+across every ready item. On a solo project that is exactly right — you are the product owner, they are
+your words, and the sweep is a chore you want done. On a team neither premise holds. The AC belong to
+whoever wrote the item; two people grooming concurrently overwrite each other with both writes
+read-back-verifying cleanly; and the analyst's judgment about *your* item is a suggestion, not a
+correction.
+
+The same argument the contract already makes about `priority` — *"a pipeline that rewrites them is
+overwriting the client's own record of what they asked for"* (`aidlc:work-items`) — applies to AC the
+moment the author is not the operator. Priority was only ever special because it was obvious.
+
+**`team.groomAutoApply`** — what the analyst may write without asking. Derived from `team.mode` unless
+set explicitly:
+
+| `team.mode` | default | effect |
+|---|---|---|
+| `solo` | `["ac", "size"]` | today's behaviour, unchanged |
+| `shared` | `[]` | AC refinements and sizes are **proposed in the report**, applied on approval |
+
+Factual comments and flags (step 4) are always applied — they add information and remove none.
+
+**Scope.** `$ARGUMENTS` may carry `--mine` (items assigned to `team.me`) or `--unassigned`. Neither is
+the default: an unscoped sweep is usually what a grooming session is *for*, and narrowing it silently
+would leave the junk `/aidlc:next` exists to avoid. But **say which scope ran** in the report — "groomed
+18 items" reads very differently from "groomed your 4".
+
+**Concurrent-groom guard.** Before refining an item, check whether it was groomed recently: the adapter
+already writes `AIDLC groom: AC refined — <n> criteria` as a comment, so the last one is a cheap read.
+Groomed by someone else within the last few hours → **skip it and list it** (`PROJ-131 — groomed by
+Rahul 40m ago, skipped`). Re-refining AC that a colleague just refined is not merely wasted work; it
+silently reverts their judgment to yours.
 
 ## Sweep protocol (analyst)
 
@@ -20,9 +55,12 @@ of a 120-item backlog and reports "groomed" is exactly the bug this guards again
 completion) plus, for markdown source, epics too. For each item, in priority order:
 
 1. **AC quality** (per `aidlc:requirements`): weak/missing AC on stories and bugs → refine and
-   `updateAC(...)`. Log what changed via `comment` (`AIDLC groom: AC refined — <n> criteria`).
-2. **Size** unsized items (S/M/L/XL, grounded in a quick codebase look). **XL items are a
-   finding**: propose a split into 2–4 children (do not create them yet — see report).
+   `updateAC(...)` **when `groomAutoApply` includes `ac`**; otherwise carry the refined criteria into the
+   report for approval. Log what changed via `comment` (`AIDLC groom: AC refined — <n> criteria`) — the
+   comment is also what the concurrent-groom guard reads.
+2. **Size** unsized items (S/M/L/XL, grounded in a quick codebase look) — applied or proposed per
+   `groomAutoApply`'s `size`. **XL items are a finding**: propose a split into 2–4 children (do not
+   create them yet — see report).
 3. **Epics** with no open children → propose decomposition (list the child stories with
    one-line AC summaries; **in poly, propose the repo for each child** and any `dependsOn`
    ordering; create only on human approval in the report step). For epics that already have
@@ -78,9 +116,12 @@ packing is computed and tested rather than judged.
 
 ## Autonomy boundaries
 
-- **Applied automatically (by the analyst, inline):** AC refinement, sizing, factual comments/flags.
+- **Applied automatically (by the analyst, inline):** whatever `team.groomAutoApply` permits — AC
+  refinement and sizing in solo, **neither in shared** — plus factual comments/flags in both.
 - **Proposed only — require human approval:** epic decomposition into new items, XL/cross-repo splits,
-  priority changes, repo-routing writes, closing/superseding duplicates.
+  priority changes, repo-routing writes, closing/superseding duplicates. **In shared mode, AC
+  refinements and sizes join this list** (see *Scope and autonomy* above) — same report, same gate, and
+  they go back to the item's author when that is not the person grooming.
 
 **Who applies the approved actions (F35).** The human-approval gate lives in the **coordinator turn** —
 the main session that asked the user (e.g. via AskUserQuestion). So the **coordinator applies the gated
@@ -96,10 +137,11 @@ verification*). Re-involve the analyst only for fresh analysis, never as a post-
 End with a compact grooming report to the user:
 
 ```
-Groomed 18 items:
-- AC refined: PROJ-124, PROJ-131 (+2 criteria each)
-- Sized: 5 items (1 XL → split proposal below)
-- Ready now: 9 (was 5)
+Groomed 18 items (whole backlog · shared mode — AC and sizes are proposals, nothing written yet):
+- AC refinements proposed: PROJ-124, PROJ-131 (+2 criteria each)
+- Sizes proposed: 5 items (1 XL → split proposal below)
+- Would be ready: 9 (currently 5)
+- Skipped: PROJ-140 (groomed by Rahul 40m ago)
 Needs your call:
 - PROJ-119 (epic): propose 3 children: …
 - PROJ-127 (XL): split into …

@@ -45,6 +45,11 @@ is `git reset` away, and the guard hook still blocks pushing from a protected br
 for a human decision before it reaches anyone else. Say so in the report when it happens (`[on main —
 not pushed]`) so nobody is surprised.
 
+On a shared repo that reversibility is still real but the *accounting* is worse: local commits on `main`
+have to become a branch eventually, and they are invisible to everyone until they do. In shared mode
+prefer the checked-out feature branch, and if the change really is landing on `main`, say how it will
+get out (`[on main — not pushed; branch it before you push]`).
+
 If the change turns out bigger than it looked once you are in the code, **say so and move up a tier**
 rather than finishing a sprawling edit under a tier that promised a one-liner.
 
@@ -67,6 +72,13 @@ team needs visibility into, and for anything an escalation trigger pulled up.
 1. **Read `pipeline.ceremony`** — the project's **floor**, one of `direct` (default) · `tracked` ·
    `full`. It only ever raises, never lowers: a project that sets `full` gets the pipeline for
    everything, which is a legitimate choice for a regulated team.
+
+   **`direct` is a solo default.** Tier 1's safety argument is *a local commit is `git reset` away* —
+   true, and it quietly assumes one person's tree. With `team.mode: shared` and no explicit
+   `pipeline.ceremony`, **the floor is `tracked`**: a branch and a run file cost almost nothing and they
+   are what make a change visible to, and revertable by, somebody who did not make it. An explicit
+   `pipeline.ceremony: direct` still wins — a team that wants tier 1 has said so, and this is a default,
+   not a trigger.
 2. **Take the lightest tier at or above the floor that fits the work**, per the descriptions above.
 3. **Apply the escalation triggers** below — they override both your judgment and the floor.
 4. **Announce it in one line before acting.** `Direct — no item, no branch.` /
@@ -110,6 +122,20 @@ later, which is the only justification for insisting:
    external consumers, which the report must name.
 4. **Work an in-flight run already owns** (its branch touches this code) → that run's tier, and route it
    there. Two agents on one file is the one collision no tier protects against.
+
+   **In shared mode this trigger has to look past your own disk.** Run files live on feature branches in
+   each developer's clone, so the local scan that implements this trigger structurally cannot see
+   Priya's in-flight branch — and a teammate editing the same file is the *more* likely collision, not
+   the less. Two cheap cross-machine checks, both read-only:
+   - **The board** — `query({status: "in_progress"})`; an item in flight whose scope plainly covers this
+     file is the same collision.
+   - **Open PRs** — `gh pr list --json number,headRefName,files` / `az repos pr list`, matched against
+     the paths you are about to edit. This is the direct evidence and worth the call before a tier-1
+     change to any file that is not obviously yours.
+
+   A hit does not forbid the change — it means **say who else is in this file** and let the user decide.
+   Silently committing a typo fix into a file with an open PR against it is how two people spend an
+   afternoon on a conflict neither caused.
 5. **The user asked for the pipeline** — an explicit `/aidlc:run <ID>`, or a prompt naming an item — is
    itself a Tier 3 request. Honor it; don't optimize it down.
 

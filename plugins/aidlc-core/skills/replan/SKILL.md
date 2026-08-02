@@ -239,7 +239,19 @@ On approval, from `${CLAUDE_PLUGIN_ROOT}/templates/plan-file.md`:
    and the stage/label of each wave in `## Waves`. A plan whose `driver:` reads "re-prioritized"
    explains nothing later; one that reads "complete all BE first and then start with UI" explains why
    there are four waves where two would have done.
-5. Timestamps from the real clock (`date -u` / `Get-Date`), never invented.
+5. Timestamps from the real clock (`date -u` / `Get-Date`), never invented. Record **`cutBy:`** — the
+   identity that ran this replan (`team.me`, else `git config user.email`). A plan is a judgment call
+   about delivery order, and six weeks later "who decided this" is as load-bearing as `driver:`.
+6. **Commit and push it (shared mode).** The plan is a **team decision, not a local file** — `/aidlc:next`
+   and `/aidlc:sprint` obey it, so a plan that stays on one laptop means every developer silently follows
+   a different schedule and the freshness check cannot detect it (it diffs the plan against the *board*,
+   which is exactly the thing that did not change). Commit `.aidlc/plan.md` + the superseded
+   `.aidlc/plan-archive/` entry at the **control plane** — `chore(aidlc): replan — <driver, truncated>` —
+   and push it through the control plane's normal route: direct on its default branch if that repo is
+   unprotected, otherwise a branch + PR like any other control-plane change (`aidlc:work-items` → *Repos
+   & routing*, rule 0). It is a `.aidlc/**`-only commit, so `--no-verify`, and verify it landed before
+   pushing (`aidlc:git-workflow` → bookkeeping commits). In **solo mode** commit it and skip the push
+   question entirely — there is nobody to tell.
 
 Then report in three lines: where the plan is, the schedule summary
 (`w0[PROJ-101]* -> w1[PROJ-102|PROJ-110] -> …`, plus the `stages:` line when the driver grouped), and
@@ -250,6 +262,14 @@ the single next action — `/aidlc:sprint` to launch wave 1, or `/aidlc:next` fo
 A plan nobody reads is decoration, so `/aidlc:next` and `/aidlc:sprint` both check for
 `.aidlc/plan.md` and follow it. Both apply the **same freshness gate**, because obeying a stale plan is
 worse than having none:
+
+**Two different kinds of stale, and only one of them is detectable here.** `checkFreshness` diffs the
+plan against the **board** — it catches items that moved, split or vanished. It cannot catch *someone
+re-cut the plan an hour ago and you have the old file*, because nothing about the board changed. That is
+a git question, so shared mode answers it with the control-plane freshness check
+(`aidlc:work-items` → *Control-plane freshness*) before reading the plan at all: a control plane N
+commits behind origin may be holding a superseded schedule, and `cutBy:` says whose. Report both, then
+proceed — a stale-file warning is information, not a blocker.
 
 ```
 checkFreshness(plan["## Item snapshot"], <items queried now>)   // resolve-waves.mjs

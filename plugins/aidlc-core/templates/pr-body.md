@@ -19,6 +19,10 @@
 
 {{TESTS_RUN — suites executed, pass counts, new tests added}}
 
+{{BASE_STATE — one line saying what the gate ran against: "verified against <base>@<sha> (current)" /
+"<base> moved 12 commits, no overlap with this branch" / "merged <base>@<sha> before verify — overlapped
+on src/api/profile.ts". Delete only when the repo is `mode: local`.}}
+
 ## Review findings resolved
 
 {{FINDINGS — blocker/major findings raised by the pipeline reviewer/QA and how each was resolved; delete section if none}}

@@ -51,6 +51,7 @@ or via artifact links (below).
 | `repo` | a `repo:<name>` tag (default, no schema change) — or System.AreaPath if the project maps repos to area paths; detect the convention from an existing item before writing |
 | `dependsOn` | Successor/Predecessor links (System.LinkTypes.Dependency); `dependsOn` = this item is the **successor** of each referenced id |
 | `labels` | System.Tags (semicolon-separated) |
+| `assignee` | System.AssignedTo (read-only — the pipeline never writes it; see `aidlc:work-items` → *Ownership*). Read as the identity's `uniqueName` (UPN/email) with `displayName` as the fallback |
 | `links.url` | `https://dev.azure.com/{org}/{project}/_workitems/edit/{id}` |
 
 ## Hierarchy — Epic → Feature → Story
@@ -128,7 +129,13 @@ apply the tag fallback and comment what happened.
 - **fetch(id)** — `az boards work-item show --id {n} --expand relations -o json` (or MCP equivalent); map as above.
 - **query(filter)** — WIQL:
   `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ('New','To Do','Approved') AND [System.WorkItemType] NOT IN ('Epic','Feature') ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
-  via `az boards query --wiql "..."`. The WIQL returns the **full** ordered id list — for a full sweep
+  via `az boards query --wiql "..."`. **`assignee` filter** (see `aidlc:work-items` → *Ownership*):
+  `"me"` → **`AND [System.AssignedTo] = @Me`** — prefer the macro over a literal, it resolves to the
+  authenticated identity server-side and sidesteps UPN-vs-display-name entirely; unassigned →
+  `AND [System.AssignedTo] = ''`; both (the `mine-then-unassigned` scope) →
+  `AND ([System.AssignedTo] = @Me OR [System.AssignedTo] = '')`. A named person other than the caller →
+  compare against their **UPN/email**, not the display name (`[System.AssignedTo] = 'priya@acme.com'`);
+  ADO accepts either but display names collide and change. The WIQL returns the **full** ordered id list — for a full sweep
   (no `limit`) batch-fetch and map **all** of them (`wit_get_work_items_batch_by_ids` / `az` in chunks
   of ~200), apply the "ready" rule client-side, and **report the total count**; slice to a page only when
   the caller passed `limit`, and then signal how many more remain. **Never hard-cap at a default page
@@ -208,6 +215,10 @@ deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
   resume), followed by the type-aware parent rollup. Never assume merge closed the item.
 - HTML fields: always convert cleanly (no raw markdown dumped into System.Description).
 - Re-read before every write (humans edit boards mid-run).
+- **`@Me` is whoever `az login` / the MCP is authenticated as, which may not be `team.me`.** Normally the
+  same person. If `team.me` is set and differs from the authenticated identity, filter on `team.me` and
+  say so once — a shared build/service account is the usual cause, and silently adopting its queue is
+  the wrong answer. On the tier-3 PAT path `@Me` resolves to the PAT's owner, same caveat.
 - Area/iteration paths: leave defaults on create unless the config or parent specifies them.
 - **statusMap self-heal — key on `(type → category → real state name)` (F7 + F20).** If `init` left
   `workItems.ado.statusMap` empty or wrong for a **customized** board (states like *Development in

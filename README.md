@@ -102,7 +102,8 @@ squash-only web app, from first scan through a merged PR to a drift report six w
 | Command | Purpose |
 |---------|---------|
 | `/aidlc:run <ID \| text>` | Run one work item end-to-end (resumable); free text = intake + run |
-| `/aidlc:next` | Pick the highest-priority ready item and run it |
+| `/aidlc:next` | Pick the highest-priority ready item and run it. On a shared project, scoped to what's assigned to you — it never silently starts a colleague's item |
+| `/aidlc:review-feedback <ID>` | A reviewer left comments: pull the unresolved PR threads, fix them through the normal cycle, push, and reply on each. A comment you disagree with gets answered on the thread, not argued down in a run file — and nothing you didn't fix gets resolved |
 | `/aidlc:status` | Dashboard: active runs + backlog snapshot |
 | `/aidlc:groom` | Backlog refinement: fix AC, size, flag blockers, propose splits |
 | `/aidlc:replan [how you want it re-planned]` | Priorities changed? Say so in your own words — `checkout before search`, or `complete all BE first and then start with UI`. Re-sequences the not-yet-started work into **waves** of items that can run at once (a grouping directive becomes a hard barrier); `next`/`sprint` follow it. In-flight work is never touched, and nothing is written to the tracker |
@@ -118,6 +119,10 @@ squash-only web app, from first scan through a merged PR to a drift report six w
 - **Orchestrator is a skill, not an agent** — the main session routes; specialist subagents do the work.
 - **Run files** (`.aidlc/runs/<ID>.md`) are durable, resumable pipeline state, committed to the branch.
 - **Adapter contract** — the pipeline speaks one WorkItem schema; Jira/ADO/markdown are pluggable adapters.
+- **Solo by default, team when you say so** — `team.mode: shared` scopes picks to your assigned items,
+  makes grooming propose rather than overwrite, floors ceremony at `tracked`, and checks the shared
+  control plane is current. The pipeline **reads** the assignee and never writes it: who does the work is
+  a staffing decision, like `priority`. Everything is gated on the flag, so a solo project is unchanged.
 - **Skills over agents** — expertise (docker, postgres, standards…) is procedural knowledge loaded on demand.
 - **High autonomy, hard guardrails** — everything on the story→PR path is allowed; destructive or
   production-touching operations are denied or gated (see `docs/permissions-rationale.md`).

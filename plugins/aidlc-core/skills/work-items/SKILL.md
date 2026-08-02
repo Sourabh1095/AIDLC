@@ -38,7 +38,7 @@ Every adapter normalizes to and from this shape:
   "package": "string | null",
   "dependsOn": ["PROJ-101"],
   "labels": ["string"],
-  "assignee": "string | null",
+  "assignee": "string | null",   // read-only to the pipeline — see *Ownership*
   "links": { "url": "source URL or file path", "branch": "string | null", "pr": "string | null" },
   "sourceRaw": { "note": "adapter-private fields (e.g. ADO numeric id, Jira issue key)" }
 }
@@ -62,7 +62,7 @@ Every adapter normalizes to and from this shape:
 | Operation | Semantics |
 |---|---|
 | `fetch(id)` | One item → WorkItem. Error clearly if not found. |
-| `query(filter)` | Ready items by priority. filter = `{status?, type?, label?, limit?}`. "Ready" = status `todo`, has ≥1 AC (except task/spike), parent not blocked. `limit` bounds **one page**, not the whole set — a full sweep pages to completion (see *Full-backlog sweeps* below). |
+| `query(filter)` | Ready items by priority. filter = `{status?, type?, label?, assignee?, limit?}`. "Ready" = status `todo`, has ≥1 AC (except task/spike), parent not blocked. `assignee` narrows to one person (`"me"` resolves via `team.me`) or to `null` for unassigned — see *Ownership* below. `limit` bounds **one page**, not the whole set — a full sweep pages to completion (see *Full-backlog sweeps* below). |
 | `children(id, filter?)` | **Direct** children of `id` → WorkItem[] **in the board's own order**, one tier down only (no recursion). filter = `{type?, status?}`. Returns `[]` when there are none — an empty result is a fact, never an error. Unlike `query` it applies **no "ready" rule and no priority sort**: a child that is done, blocked or AC-less still comes back, because the callers are asking *"what is under this item"*, not *"what can I run"*. |
 | `create(item)` | Create a new item (epic decomposition, spike creation). Returns assigned id. |
 | `transition(id, status)` | Map canonical status → source workflow state. Each adapter documents its state map; project overrides live in config `statusMap`. |
@@ -85,6 +85,71 @@ So when the delivery order changes mid-project, AIDLC re-orders **its own execut
 it; the plan lists the priority edits that *would* make the two agree, for a human to apply. Anything
 that needs the tracker to actually change — a new contract child, a split — goes through `create` and the
 approval gate like any other write.
+
+## Ownership — read the board, never write it
+
+A tracker gives an item **one** assignee. Jira and Azure Boards both enforce that, so "two people
+assigned the same task" is not a state the pipeline has to arbitrate — the board already decided, at
+planning time, by a human. What the pipeline has to do is **consult that decision**, and until 0.42 it
+never did: `query` had no `assignee` filter, so `/aidlc:next` took the top-priority `todo` regardless of
+whose name was on it. On a solo project that is invisible. With three developers it means three people's
+tools independently select the same correctly-assigned item, and the first to reach `run` §3 wins while
+the other two have already branched.
+
+So `assignee` joins `priority`, `dependsOn`, `estimate` and sprint/iteration in the read-only set — for
+the same reason and with the same asymmetry:
+
+- **Read it everywhere a pick is made.** `/aidlc:next`, `/aidlc:sprint` and `/aidlc:groom` scope by it.
+- **There is no `assign` op, deliberately.** Who does the work is the plan of record, set by a person at
+  planning time. A pipeline that reassigns work is overwriting a staffing decision it cannot see the
+  reasons for — the same argument that keeps `priority` out of the contract. If an item is on the wrong
+  person, a human moves it; AIDLC will follow on the next pick.
+- **`create` carrying an assignee is not an exception to that.** `/aidlc:bootstrap` plans capacity
+  against a roster and creates the backlog with owners already on it — but that is a *human's* decision,
+  approved at bootstrap's §4 gate before a single item exists, arriving through the same `create` that
+  carries `priority` and `parent`. The distinction the contract draws is **authoring vs. re-writing**:
+  a person may state ownership when the item is born; nothing may change it afterwards.
+
+**Resolving "me".** `team.me` in `.claude/aidlc.config.json`, else `git config user.email`. The value has
+to match what the tracker stores, and that differs per source (Jira: `accountId`, resolvable from an
+email; ADO: a UPN or display name; markdown: whatever the `assignee:` field holds). Each adapter
+documents its own resolution. **If `me` cannot be resolved, do not silently fall back to "any item"** —
+say so once and treat every assigned item as someone else's, which fails toward asking rather than
+toward two people on one branch.
+
+**`team.mode: "solo"` (the default) disables all of it.** One operator cannot collide with themselves,
+the filter would just hide their own board, and nothing about an existing project changes.
+
+### Control-plane freshness (shared mode)
+
+`.aidlc/plan.md`, the control-plane run files, `.aidlc/extensions.json` and — for `source: markdown` —
+the whole backlog are **tracked git state at the control plane** that several people read and write.
+Nothing in the pipeline pulls or pushes it on a cadence: `aidlc:git-workflow` operates on the resolved
+*product* repo, and control-plane routing (rule 0) branches there only for `control-plane`-routed items.
+So in shared mode every command that **reads** shared control-plane state checks it is current first:
+
+```bash
+git -C <workspace.root> fetch --quiet && git -C <workspace.root> status -sb --porcelain=v2 --branch
+```
+
+Report ahead/behind in one line and continue — never block, never auto-pull (a pull can conflict, and
+conflicting someone's backlog underneath them mid-command is worse than a stale read):
+
+```
+control plane is 4 behind origin/main — `git pull` before trusting the plan
+```
+
+`/aidlc:next`, `/aidlc:sprint`, `/aidlc:status`, `/aidlc:groom` and `/aidlc:replan` all do this — they
+are the commands that **obey** shared state. `/aidlc:run` deliberately does not: it was handed an
+explicit ID, it does not follow the plan (`aidlc:run` §1a), and a fetch before every run buys nothing an
+explicit instruction did not already settle. In solo mode, skip it everywhere — there is no second
+writer.
+
+**`source: markdown` is a solo-project adapter.** In shared mode the backlog *is* the git tree, so two
+people grooming produce merge conflicts in the plan of record, and `query` reads whatever branch the
+caller happens to be on (see *Branch visibility* in `aidlc:wi-markdown`). `/aidlc:init` and
+`/aidlc:adopt` warn when `team.mode: shared` meets `source: markdown`; it is a real configuration, not a
+blocked one, but a team should be on Jira or ADO.
 
 ### Full-backlog sweeps — never silently truncate (F34)
 

@@ -29,7 +29,8 @@ item's NON-goals are.
 ## ADR — when and how
 
 Write one when the decision is hard to reverse or someone will ask "why is it like this?" in a
-year. File: `docs/adr/NNNN-<slug>.md` (NNNN = next number), from
+year. File: `docs/adr/NNNN-<slug>.md` (NNNN = next number — **reserved from the integration branch, not
+from your checkout**, see below), from
 `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md`:
 Status (proposed/accepted/superseded-by-NNNN) · Context (forces, constraints — why now) ·
 Decision (one paragraph, active voice) · **Rationale** (why this over the alternatives — the section
@@ -37,6 +38,33 @@ the code can never supply) · Alternatives considered (one line each + why not) 
 Consequences (good AND bad — an ADR with no downsides wasn't thought through).
 
 Keep it under a page. Link it from the run file's `## Plan` and reference it in the PR body.
+
+### Reserving NNNN — a local `ls` collides, silently
+
+"Next number" read from the working tree means two branches cut from the same base both compute `0012`.
+Both PRs pass review — neither diff shows the other — both merge, and the project has two ADR-0012s with
+no error anywhere. Nothing later catches it: `superseded-by-0012` is now ambiguous, permanently.
+
+So reserve against what has actually landed, plus what is in flight:
+
+```bash
+git fetch <remote> <base> --quiet
+git ls-tree --name-only <remote>/<base> docs/adr/          # merged ADRs — the real high-water mark
+gh pr list --state open --search "docs/adr" --json number,files   # (github) numbers already claimed
+```
+
+Take the highest across **merged + open-PR + this branch's own uncommitted** ADRs, then add one. Where
+the host makes open PRs awkward to query (ADO, or `gh` unauthenticated), fall back to
+merged-plus-this-branch and **say in the PR body which number was assumed** — a reviewer can see the
+collision in seconds; a silent duplicate lives forever.
+
+**In `team.mode: solo` the local read is already correct** (one operator, one branch at a time) — the
+fetch is cheap enough to do anyway, and doing it unconditionally means the rule has no mode to get
+wrong.
+
+**A collision that already merged is not fixable by renaming.** The number is cited in commits, PRs and
+other ADRs' `superseded-by`. Give the newer one the next free number, add a line to both pointing at
+each other, and note it in the ADR index — never renumber history.
 
 **Retroactive ADRs are a different artifact with the same shape.** On a brownfield project,
 `/aidlc:adopt` derives the decisions the code already embodies and `/aidlc:adopt-adr` writes them at

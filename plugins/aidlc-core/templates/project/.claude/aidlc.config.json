@@ -9,6 +9,10 @@
     "jira": { "site": "", "project": "", "statusMap": {} },
     "ado": { "org": "", "project": "", "statusMap": {} }
   },
+  "team": {
+    "mode": "solo",
+    "me": ""
+  },
   "workspace": {
     "layout": "mono"
   },

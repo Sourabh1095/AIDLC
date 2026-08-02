@@ -631,6 +631,20 @@ Phase → `verify`. Checkpoint.
 
 ## 7 · VERIFY (per-agent cadence — the pipeline's biggest cost, tuned)
 
+### Base drift — check before the gate, not after the PR
+
+**First step of this phase, before resolving the gate** (remote mode only; skip in `mode: local`):
+follow `aidlc:git-workflow` → *Base drift*. One fetch, then decide on **path overlap** — base moved but
+nothing this branch touches → note it and continue; base moved **into paths this branch edits** → merge
+`<remote>/<base>` into the branch and run the gate against the merged tree.
+
+The cost of skipping it is invisible rather than loud: every gate step passes, the reviewer approves a
+diff computed against a three-day-old base, and the semantic conflict surfaces after the merge. Record
+the outcome in the run file alongside the gate steps — `base: 12 commits behind, no overlap` or
+`base: merged (src/api/profile.ts, src/dto/profile.ts overlapped) — gate re-run` — because "green" means
+nothing without saying what it was green against. On a **resume**, this runs again: the whole point is
+that time has passed.
+
 ### The gate — the project's, not npm's
 
 **Resolve the gate before anything else in this phase — and do not hand-derive it.** This skill ships the
@@ -875,6 +889,13 @@ how the default stays honest rather than merely quiet.
   post-merge step**, not something to rediscover per run. It runs on merge detection via
   `/aidlc:status` → *Post-merge cleanup* (or a later `/aidlc:run {ID}` resume that finds the PR merged).
   Left unhandled, the item sits open silently.
+
+  **`done` here means the pipeline's work is done, not that the change is accepted.** Say so in the last
+  line of the report, because the next thing that happens is a person reading the PR:
+  `awaiting review — /aidlc:review-feedback {ID} when comments come back`. That command
+  (`aidlc:review-feedback`) works a human reviewer's comments as findings through the normal fix cycle.
+  Without naming it here the loop is invisible: the run says `done`, and a user with six review comments
+  has no reason to think the pipeline handles them.
 - **Local mode:** the default-branch merge only happened because the user confirmed it at §8 —
   **never merge into the default branch without that explicit confirmation.** The local merge
   completes integration, so the item reaches `done` here (no separate post-merge step).

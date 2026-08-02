@@ -25,6 +25,7 @@ priority: P2           # P1 (highest) … P4
 estimate: M            # S | M | L | XL | null
 parent: PROJ-100       # epic ID or null
 labels: [frontend, api]
+assignee: null         # who owns it — a human sets this; the pipeline only reads it
 branch: null           # set by pipeline
 pr: null               # set by pipeline
 ---

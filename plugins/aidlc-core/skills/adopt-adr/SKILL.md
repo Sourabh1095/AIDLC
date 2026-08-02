@@ -76,9 +76,12 @@ structure is not adoption, it is annexation, and it breaks every link they have.
 
 ## 3 · Render each ADR
 
-From `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md`, numbered `NNNN` = next free number in
-`docs/adr/` (four digits, zero-padded, continuing the project's existing sequence — never restarting it).
-File: `docs/adr/NNNN-<slug>.md`, slug from the title.
+From `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md`, numbered `NNNN` = next free number (four digits,
+zero-padded, continuing the project's existing sequence — never restarting it), **reserved against the
+integration branch and open PRs, not just the local `docs/adr/`** — see `aidlc:architecture` →
+*Reserving NNNN*. This command writes a **batch**, so it is the likeliest single source of collisions:
+number the batch consecutively from one reservation taken once, up front, rather than re-reading the
+directory per ADR. File: `docs/adr/NNNN-<slug>.md`, slug from the title.
 
 | Field | Retroactive value |
 |---|---|
