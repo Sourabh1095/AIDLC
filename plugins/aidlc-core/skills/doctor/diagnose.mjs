@@ -28,6 +28,7 @@ import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { lintPermissionRules, lintSettingsText } from "./lint-rules.mjs";
+import { list, stale } from "../facts/facts.mjs";
 
 // `--plugin-root` and `--home` take a value; everything else is a bare flag. `--home`
 // exists so the suite can run against a fixture home instead of the real one — user-scope
@@ -358,6 +359,27 @@ if (cfg?.repos?.length) {
     add("fail", "run-files", "run files", `unreadable or invalid: ${bad.join(", ")}`, "Run state is the pipeline's single source of truth; a run file it cannot parse is a run it cannot resume.");
   else if (blocked.length) add("warn", "run-files", "run files", `${total} found · blocked: ${blocked.join(", ")}`, "A blocked run is waiting on a human. Read its `## Findings`, then /aidlc:run <ID>.");
   else add("ok", "run-files", "run files", `${total} found, all parse`);
+}
+
+// --- 10. Stale project facts ------------------------------------------------------------------
+// A fact that has gone unverified for a quarter is not neutral: the pipeline reads these to decide
+// whether a red gate is a regression or a missing container, so a wrong one sends a fix cycle
+// chasing a database that moved months ago. Reported, never auto-deleted — only a human knows
+// whether it stopped being true or just stopped being checked.
+{
+  const facts = list(ROOT);
+  if (facts.length) {
+    const old = stale(ROOT);
+    if (old.length)
+      add(
+        "warn",
+        "facts-stale",
+        "project facts",
+        `${facts.length} recorded · ${old.length} unverified for 90+ days (oldest: "${old[0].text}", ${old[0].ageDays}d)`,
+        "Re-add a fact that is still true (that refreshes its date) or delete it. A stale fact is worse than a missing one — the pipeline acts on it.",
+      );
+    else add("ok", "facts-stale", "project facts", `${facts.length} recorded, all verified within 90 days`);
+  }
 }
 
 // --- Output --------------------------------------------------------------------------------

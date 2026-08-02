@@ -53,7 +53,7 @@ of them is unrecoverable. A clean tree also makes §5's verification meaningful.
 | Tier | Paths | Default |
 |---|---|---|
 | **A · Framework machinery** — ours, no human content | `.claude/aidlc.config.json`, `.claude/rules/git-workflow.md`, `.claude/rules/safety.md`, AIDLC hook scripts, `.claude/aidlc.config.*.example.json`, `.aidlc/adoption/profile.json` | **Delete** |
-| **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/journal.md` + `.aidlc/journal-archive/`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
+| **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/journal.md` + `.aidlc/journal-archive/`, `.aidlc/facts.md`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
 | **C · Merged into files the project owned** | `CLAUDE.md`, `.gitignore`, and any stack tooling config `init` merged into (`tsconfig.base.json`, `eslint.config.mjs`, …) | **Revert our sections only** |
 | **C′ · Guardrail file — reverted content is *staged*, never written** | `.claude/settings.json` (+ `.local`) | **Produce the reverted file for the user to apply** (§3) |
 
@@ -70,6 +70,10 @@ choice:
   landed, what a consult concluded, when the delivery order changed — and none of that stops being true
   because AIDLC is being removed. It is also plain markdown that reads fine without the framework, which
   is more than can be said for most of what this command deletes.
+- **`.aidlc/facts.md`** — keep, and say why out loud: it is the only file here whose content the team
+  discovered by paying for it. Which container the suite needs, which board rejects which transition,
+  which build is slow enough to plan around — none of that stops being true because AIDLC is leaving,
+  and all of it is plain markdown that reads fine without the framework.
 - **`.aidlc/runs/`** — keep. It is the audit trail of what was built and why, and on a regulated project
   it may be evidence somebody is required to retain.
 - **`.aidlc/adoption/report.md`** — keep. It documents facts about *their* code — the coverage holes, the

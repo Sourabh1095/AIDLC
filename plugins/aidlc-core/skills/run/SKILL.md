@@ -530,6 +530,11 @@ above — the agent neither commits nor runs the full gate.)
 implementer reads the binding off the line it is working. It **never calls the adapter** — the board is
 the orchestrator's to write (below), exactly as git is the orchestrator's in a parallel window.
 
+**Known project facts go in the brief too**, where they touch the plan's paths — `aidlc:facts`,
+areas `codebase` and `environment`. An implementer rediscovering that the auth middleware runs before
+tenancy, or that the suite needs a container up, is paying for something this project already knows.
+Quote the fact with its `verified` date so the agent can weigh it rather than trust it blindly.
+
 **Runtime constraints go in the brief, as constraints — not as background.** Read `saas` from the
 resolved repo entry (or the top-level block in mono). Where a field is **absent, say nothing** — an
 unevidenced constraint asserted as fact is worse than silence. Where it is set, state the consequence:
@@ -691,7 +696,11 @@ requirements gate at §4, not this one.)
 - **`environmentDependent` failures are diagnosed differently.** If a step needing services fails, decide
   whether the services are actually up before blaming the diff, and record it as **environment
   unavailable** in `## Findings`, not as a regression. Getting this wrong sends a fix cycle chasing a
-  missing database.
+  missing database. **Read `aidlc:facts` (`environment` + `gates`) before theorizing** — this project
+  may have already paid for the answer, and the fact turns a judgment call into a lookup. If it had
+  not, and you work it out here, **write it back**:
+  `node "${CLAUDE_PLUGIN_ROOT}/skills/facts/facts.mjs" add <workspace-root> environment "<what must be true>" --ref {ID}`.
+  That is the difference between this run losing twenty minutes and every run losing them.
 - **Scoping a slow suite.** Where a step's `scope` is `affected`, run the affected-graph runner's affected
   targets and **name the affected set** in the run file. Where it is `changed-paths`, derive the subset
   from this item's diff. Either way record **which subset ran** — `gate: test (affected: @acme/web,

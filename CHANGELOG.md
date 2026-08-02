@@ -7,6 +7,65 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.50.0] — 2026-08-02
+
+### Project facts — the truths this pipeline kept relearning (`aidlc` 0.50.0)
+
+The framework had four kinds of memory and none of them could hold *"the integration suite hangs
+unless `docker compose up db` ran first."*
+
+| | holds | answers |
+|---|---|---|
+| `aidlc.config.json` | machine-readable settings | what the project **is** |
+| `docs/adr/` | decisions | **why** the code is like this |
+| `.aidlc/journal.md` | events | **what happened**, when |
+| `.aidlc/runs/` | per-item state | one item, in depth |
+| `CLAUDE.md` | always-loaded facts, capped ~40 lines | the handful worth every token |
+
+That example is not a decision, not an event, not a setting, and nowhere near worth a permanent
+context slot — and it costs twenty minutes every time somebody rediscovers it. `aidlc:run` →
+*Plugin self-feedback* already named the symptom exactly — *"a per-run step you had to save to memory
+because the plugin didn't encode it"* — and routed only the **plugin** half of it anywhere. The
+**project** half had nowhere to go.
+
+`.aidlc/facts.md`: five areas (`environment` · `gates` · `tracker` · `codebase` · `process`), every
+fact carrying the date it was last verified and the item that proved it.
+
+**Loaded on demand, never always-on.** Most facts are irrelevant to most tasks, so D5's cap is
+respected by the *read path* rather than by keeping the file short. Four readers, each at the point
+where the fact changes the decision: `run` §7 before deciding whether a red gate is a regression or a
+missing container (§7 already had to make that call, and getting it wrong sends a fix cycle chasing a
+database); `run` §6 in the implementer brief; `do` §1 grounding; and `debugging`, before theorizing.
+
+**Two mechanics are why this is a script and not a markdown convention.** A facts file dies by
+accumulating near-duplicates, and it misleads by going stale:
+
+- **Re-learning a fact refreshes it** rather than appending a second copy. That matters more than it
+  sounds — re-learning is *evidence the fact is still true*, the most valuable thing that can happen
+  to this file, and appending would turn that evidence into clutter.
+- **A similar fact is added but flagged**, never auto-merged: two facts that merely look alike are not
+  the same fact, and losing one silently is worse than keeping both.
+- **Staleness is computed, not eyeballed.** 90-day default; `/aidlc:doctor` counts them. A fact
+  unverified for a quarter is not neutral, it is confidently wrong.
+
+Unlike the journal it is **not append-only** — it describes the present, and the journal already holds
+the history. It survives `/aidlc:remove` as the one file here whose content the team discovered by
+paying for it.
+
+**Two findings from building it, both from running the thing rather than reading it:**
+
+- The similarity check started on **Jaccard**, which scored a textbook restatement at **0.50** because
+  it divides by the union and so punishes one sentence being wordier than the other — exactly the case
+  the check exists for. **Overlap coefficient** (shared over the *smaller* set) scores the same pair
+  0.83, because the question is "is the shorter fact contained in the longer one", not "are these the
+  same length".
+- Even then, a **synonym-level** restatement is missed: *"the build is ~11 min"* vs *"builds take about
+  eleven minutes"* share no words. Plural stemming closes the easy half; the rest needs a vocabulary,
+  and guessing harder would flag unrelated facts. **Pinned by a test as a known gap**, with the real
+  defence written into the skill: list the area before adding — an area is five lines.
+
+52 tests. Architecture gains D2b.
+
 ## [0.49.0] — 2026-08-02
 
 ### Tracker MCP servers move out of core (`aidlc` 0.49.0)

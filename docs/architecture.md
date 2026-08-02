@@ -52,6 +52,23 @@ the board and the ADR win**. It is also what finally gives a Jira or ADO session
 all — a SessionStart hook has no tools and cannot query a tracker, so `/aidlc:status` records a `board`
 line and the hook reads that instead. See `aidlc:journal`.
 
+**D2b — Facts are the fifth kind of memory, and the one nothing else could hold.** Config says what
+the project *is*, ADRs say *why* the code is like this, the journal says *what happened*, run files
+hold one item in depth, and `CLAUDE.md` carries the handful of facts worth spending always-loaded
+context on. None of them holds *"the integration suite hangs unless `docker compose up db` ran
+first"* — not a decision, not an event, not a setting, and not worth a permanent context slot, yet it
+costs twenty minutes every time somebody rediscovers it. `aidlc:run` → *Plugin self-feedback* already
+named the symptom (*"a per-run step you had to save to memory because the plugin didn't encode it"*)
+and routed only the **plugin** half of it anywhere.
+
+`.aidlc/facts.md` is loaded **on demand, never always-on** — most facts are irrelevant to most tasks,
+so D5's cap is respected by the read path rather than by keeping the file small. Two mechanics make it
+survive contact with a real project: re-learning a fact **refreshes** its verified date instead of
+appending a near-duplicate (a facts file dies by accumulating those), and every fact carries that date
+so **staleness is impossible to miss** — a fact unverified for a quarter is not neutral, it is
+confidently wrong, and `/aidlc:doctor` counts them. Unlike the journal it is **not** append-only: it
+describes the present, and the journal already holds the history.
+
 **D3 — Agents only where isolation pays.** An agent needs its own context window (big
 exploration/diffs), a different tool surface, or independent adversarial judgment (the
 reviewer must not share the implementer's reasoning). Everything else — docker knowledge,
@@ -391,7 +408,7 @@ silently crippled by a guessed tool id.
 Commands: `do`, `run`, `next`, `sprint`, `status`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
 `promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
-`run-state`, `journal`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
+`run-state`, `journal`, `facts`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
 Playbooks: `ceremony`, `requirements`, `planning`, `architecture`, `code-review`, `testing`,
 `debugging`, `security`, `ci-cd`, `docs-writing`, `research`, `maintenance`. Stack pack
 (`aidlc-stack-web` plugin): `coding-standards-ts`, `project-structure`, `nextjs`, `nestjs`,

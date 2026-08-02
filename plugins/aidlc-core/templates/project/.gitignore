@@ -29,6 +29,7 @@ node_modules/
 *.log
 
 # Durable state stays TRACKED on purpose: backlog/, .aidlc/runs/, .aidlc/plan.md,
-# .aidlc/plan-archive/, .aidlc/journal.md, .aidlc/journal-archive/, .aidlc/extensions.json,
+# .aidlc/plan-archive/, .aidlc/journal.md, .aidlc/journal-archive/, .aidlc/facts.md,
+# .aidlc/extensions.json,
 # .claude/aidlc.config.json. The journal in particular: it is the project's memory of what
 # happened, so it is worth more to the next person than to you.

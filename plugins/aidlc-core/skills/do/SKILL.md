@@ -53,7 +53,11 @@ Load in this order and stop as soon as you can answer. This is a floor, not a bu
    the *why* is genuinely unknown. Cite it as the decision it is, but never quote its blank rationale
    as agreement, and never infer one; if the prompt turns on why, say the reasoning was never recorded
    and offer to ask the team.
-6. **The project's runtime constraints** — `saas` in config (or on the resolved repo entry), where the
+6. **Project facts** — `aidlc:facts` (`.aidlc/facts.md`). Small, and the whole point of this door:
+   these are the operational truths the project keeps relearning, and they are what separates an answer
+   grounded in how the project *behaves* from one grounded only in how it is *configured*. Cite the
+   `verified` date whenever you lean on one.
+7. **The project's runtime constraints** — `saas` in config (or on the resolved repo entry), where the
    project has one: tenancy model, whether releases ride feature flags, migration constraints, which
    API files are public contracts. On a live SaaS these decide more about whether an idea fits than the
    stack does, and they are the facts a cold read has no way to know.

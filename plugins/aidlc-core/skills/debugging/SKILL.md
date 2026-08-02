@@ -4,7 +4,12 @@ description: The AIDLC bug protocol — reproduce first, failing test, isolate r
 user-invocable: false
 ---
 
-# Debugging — the bug pipeline protocol
+# Debugging
+
+**Before theorizing, read `aidlc:facts` (`environment`, `gates`).** A known environmental cause beats
+a fresh hypothesis every time, and this project may have already paid to find it. When a root cause
+turns out to be environmental or project-specific rather than a defect in the change, **write it back**
+as a fact — that is precisely the class of thing nobody remembers and everybody rediscovers. — the bug pipeline protocol
 
 Order is the protocol. Skipping step 1 is how "fixes" ship that fix a different bug.
 
