@@ -58,6 +58,7 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Build screens that already exist in Figma | `/aidlc-ux:figma <url>` → `/aidlc-ux:design` |
 | Record why the code is the way it is | ADRs, written by the architect or `/aidlc:adopt-adr` |
 | Cut a release | `/aidlc:release` |
+| Catch an old project up after `/plugin marketplace update` | `/aidlc:upgrade` |
 | Leave cleanly | `/aidlc:remove` |
 
 ---
@@ -186,6 +187,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:scaffold-skill <name>` | Create a project-local skill when a capability is genuinely missing |
 | `/aidlc:scaffold-agent <name>` | Same, for an agent — behind a higher justification bar |
 | `/aidlc:promote <name>` | PR a proven project-local extension into the shared plugin |
+| `/aidlc:upgrade` | Catch a project up with the installed plugin: config shape migrations, permission-rule migrations, rules drift. Every change shown first; `settings.json` is staged, never written |
 | `/aidlc:sync` | Reconcile local extensions after plugin updates |
 | `/aidlc:dogfood` | Log friction with the plugin itself to a local feedback inbox |
 | `/aidlc:remove` | Remove AIDLC from the project: deletes its own files, reverts only what it merged, keeps everything you authored |

@@ -7,6 +7,60 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.47.0] — 2026-08-02
+
+### `/aidlc:upgrade` — catch a project up with the plugin (`aidlc` 0.47.0)
+
+`/plugin marketplace update` updates the **plugin**. It does not touch the **project** — the config,
+the permission rules and the rules files `/aidlc:init` wrote at scaffold time. Until now the only thing
+that reconciled those was `/aidlc:adopt-apply` §2.1, which is a *brownfield* command: **a greenfield
+project scaffolded at 0.20 and running on 0.46 had no upgrade path at all.**
+
+**Why a command rather than a release note.** F49 is the entire argument. A note said *"remove
+`Read(./.env)` and `Read(./.env.*)`"*; the two rules were commented out with `//`; `settings.json`
+stopped parsing; Claude Code skipped the whole file including `enabledPlugins`; **every `/aidlc:*`
+command vanished** while `/plugin` still listed the plugins as installed. That finding's own lesson was
+*prefer pointing users at the programmatic merge over hand-editing*. This is that merge.
+
+Two files, two treatments, for a reason that is not symmetry:
+
+- **`aidlc.config.json` is written in place** (after approval, and re-parsed before it lands).
+- **`settings.json` is staged, never written.** `protect-paths.mjs` blocks the pipeline from editing
+  its own guardrails and that is correct — a pipeline that can rewrite its permissions has none. The
+  plan goes to `.aidlc/staged-claude/settings.json` and a human applies it.
+
+**The migration set is deliberately short, and that is the system working.** `configVersion` is still 1
+because it is bumped only when a key changes meaning or is removed — additive keys never bump it. So
+the config half is the pre-0.31 `pipeline.gates.{steps,repos}` → `.verify.…` relocation plus the
+stamps, and nothing was invented to pad it out. The governing rule is **relocate, never rewrite**: gate
+commands come out verbatim, and `pipeline.gates.ambiguousRequirements` stays exactly where it is, since
+`run` §4 reads that path and moving it would silently disable the requirements gate.
+
+The settings half is where the value is: the stale pre-0.28 env hard denies (which permanently override
+`pipeline.envFileAccess`, making the switch inert), no-op `Write(<path>)` rules, and rule spellings that
+match nothing — each removed **only** when removing it provably changes no enforcement, and otherwise
+kept with a warning. Additions are unioned from the template and summarized rather than listed, because
+118 lines all reading "shipped by the current template" bury the three removals that matter.
+
+`/aidlc:adopt-apply` §2.1 now **calls the same module** instead of restating the rules. Two commands
+that answer "what does this legacy config become" must not be able to drift into two answers.
+
+**Details that only showed up by running it:**
+
+- A **`newer` config** — written by a plugin ahead of the installed one — is a *conflict*, not a
+  migration. Migrating downward would silently drop keys this version cannot see, so it stops.
+- **The plan legitimately repeats until the human applies the staged settings**, because the pipeline
+  cannot apply them. The first build re-reported the identical plan every run and read as broken; it now
+  detects a staged file matching the plan and says so — and stops saying it once the file is applied.
+- Additions **can restore rules a project deliberately removed**. Nothing can distinguish that from a
+  rule that predates the project, so the report says so rather than pretending, and the staged file is
+  the user's to edit.
+
+74 tests across the two new modules, weighted toward what must **not** happen: gate commands survive
+verbatim, the input object is never mutated, `ambiguousRequirements` never moves, an uncovered
+`Write(<path>)` rule is kept rather than dropped, nothing outside `permissions` is touched, and running
+twice is byte-identical.
+
 ## [0.46.0] — 2026-08-02
 
 ### `/aidlc:doctor` — diagnose the workspace before it wastes a run (`aidlc` 0.46.0)

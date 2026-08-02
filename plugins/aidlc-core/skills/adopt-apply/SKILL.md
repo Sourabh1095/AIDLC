@@ -84,32 +84,36 @@ new keys beside stale ones produces a file that is half one contract and half an
 working and fails at the first consumer that trusts the wrong half. So resolve the version **before**
 the merge, and as a **separate, smaller diff** the user can approve on its own.
 
-Classify the file:
+**Do not hand-derive the classification or the moves** — `aidlc:upgrade` ships the migration as a
+tested module, and this command and that one must not drift into two different answers about what a
+legacy config becomes:
 
-- **`configVersion` present and current** ⇒ nothing to do.
-- **`configVersion` present and older** ⇒ upgrade to the current shape.
-- **Absent** ⇒ the file predates the stamp, which is the common case — a version cannot be applied
-  retroactively to files already in the wild. Classify it **by shape** instead: a `pipeline.gates` block
-  holding `steps`/`repos` **directly** rather than under `verify` (the pre-0.31 spelling), no `adoption`
-  block on a project whose config was clearly derived, `repos[]` entries with no `stack`. Say which
-  signal you used.
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/upgrade/plan-upgrade.mjs" . --plugin-root "${CLAUDE_PLUGIN_ROOT}" --json
+```
 
-Then, for an upgrade:
+Read its `config` block: `shape` (`current` · `legacy` · `older` · `newer`), the `signals` that
+classified it, the `changes` (one line per key that moves), and any `conflicts`. Two properties of that
+module are load-bearing here, so know them rather than re-deriving them:
 
-1. **Relocate; never rewrite.** An upgrade moves a key to where the current contract reads it and
-   changes **no value a human authored**. `pipeline.gates.{steps,repos}` → `pipeline.gates.verify.…`
-   keeps every command verbatim. If a genuine value change is unavoidable, that is not an upgrade — it
-   is a conflict for the table below, defaulting to keep.
-2. **Leave `pipeline.gates.ambiguousRequirements` exactly where it is.** It is a requirements-phase
-   policy that has always lived at `pipeline.gates`, and moving it under `verify` would silently disable
-   it (`run` §4 reads the original path).
-3. **Show the moves as a list**, one line per key: `pipeline.gates.steps → pipeline.gates.verify.steps
-   (3 commands, unchanged)`. Then get approval for the upgrade before proposing anything else.
-4. **Record it** in `adoption.upgrades[]` with `from` (`"unstamped"` where the file carried no version),
-   `to`, both `configVersion`s, and the change lines — so somebody six months from now can see which
-   keys moved without diffing releases.
-5. **An upgrade is worth doing alone.** If the user approves the upgrade and declines the rest, write
-   the upgrade, stamp `configVersion` + `aidlcVersion`, and stop. That is a complete, useful outcome.
+- **It relocates; it never rewrites.** Every gate command survives verbatim. A genuine value change
+  comes back as a `conflict` and is applied to nothing — that is a case for the table below, defaulting
+  to keep.
+- **`pipeline.gates.ambiguousRequirements` is deliberately left where it is.** It is a
+  requirements-phase policy that has always lived at `pipeline.gates`, and moving it under `verify`
+  would silently disable it (`run` §4 reads the original path).
+
+A `newer` shape means the config was written by a plugin ahead of the one installed: stop and say so.
+Migrating downward would drop keys this version cannot see.
+
+Then: **show the moves as a list** and get approval for the upgrade *before* proposing anything else.
+Applying it (`--write`) also records it in `adoption.upgrades[]` with `from` (`"unstamped"` where the
+file carried no version), `to`, the plugin version and the change lines — so somebody six months from
+now can see which keys moved without diffing releases.
+
+**An upgrade is worth doing alone.** If the user approves the upgrade and declines the rest, write the
+upgrade, stamp `configVersion` + `aidlcVersion`, and stop. That is a complete, useful outcome — and it
+is exactly what `/aidlc:upgrade` does on its own for a project that never went through adoption.
 
 Stamp `configVersion` and `aidlcVersion` on every write from here on, upgrade or not.
 

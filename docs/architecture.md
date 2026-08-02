@@ -374,7 +374,7 @@ silently crippled by a guessed tool id.
 
 Commands: `do`, `run`, `next`, `sprint`, `status`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
-`promote`, `sync`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
+`promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
 `run-state`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
 Playbooks: `ceremony`, `requirements`, `planning`, `architecture`, `code-review`, `testing`,
 `debugging`, `security`, `ci-cd`, `docs-writing`, `research`, `maintenance`. Stack pack
