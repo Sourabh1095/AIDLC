@@ -5,7 +5,7 @@
 // only worth the failures it detects, and the failure mode of a diagnostic that quietly
 // returns "all ok" is indistinguishable from a healthy workspace — which is the same
 // silent-pass problem the rest of this repo keeps fixing.
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -307,6 +307,35 @@ check(
   "run-files",
   "warn",
 );
+
+// --- Control-plane state committed (found by dogfooding a live workspace) -----------------
+// A real 34-wave `.aidlc/plan.md` had never been committed: not ignored, simply never added,
+// because `replan` §6 commits it only in SHARED mode and nothing commits control-plane state
+// in solo. Run files ride into their feature branch; these files have no committer.
+const PLAN_MD = "---\nwaves: 3\n---\n";
+{
+  // Not a repo of its OWN → skip, never a false warning. (This developer's home directory is
+  // itself a git repo, so "no repo anywhere" is not even reachable here — and a project nested
+  // in an unrelated parent repo is the common shape this guards.)
+  const w = workspace({ config: BASE_CONFIG, settings: GOOD_SETTINGS, files: { ".aidlc/plan.md": PLAN_MD } });
+  check("a workspace that is not its own git repo skips", w, "cp-committed", "skip");
+}
+{
+  // A real repo with an uncommitted plan → warn.
+  const w = workspace({ config: BASE_CONFIG, settings: GOOD_SETTINGS, files: { ".aidlc/plan.md": PLAN_MD } });
+  try {
+    execSync("git init -q && git config user.email t@t.co && git config user.name t && git add .claude && git commit -qm init", { cwd: w, stdio: "ignore" });
+    check("an uncommitted plan.md warns", w, "cp-committed", "warn");
+    execSync("git add -A && git commit -qm plan", { cwd: w, stdio: "ignore" });
+    check("once committed it passes", w, "cp-committed", "ok");
+  } catch {
+    console.log("skip  git fixture unavailable");
+  }
+}
+{
+  const w = workspace({ config: BASE_CONFIG, settings: GOOD_SETTINGS });
+  check("no control-plane state files → check is absent", w, "cp-committed", "<absent>");
+}
 
 // --- Hooks + runtime --------------------------------------------------------------------------
 check("hook scripts resolve against the real plugin", workspace({ config: BASE_CONFIG }), "hooks", "ok");

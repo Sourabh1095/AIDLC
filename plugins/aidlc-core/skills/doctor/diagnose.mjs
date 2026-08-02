@@ -24,6 +24,7 @@
 // needs tools and a session, so it lives in SKILL.md and is reported alongside this
 // output. Never throws: a diagnosis that crashes is worse than one that says "unknown".
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -379,6 +380,54 @@ if (cfg?.repos?.length) {
         "Re-add a fact that is still true (that refreshes its date) or delete it. A stale fact is worse than a missing one — the pipeline acts on it.",
       );
     else add("ok", "facts-stale", "project facts", `${facts.length} recorded, all verified within 90 days`);
+  }
+}
+
+// --- 11. Control-plane state that is not committed -----------------------------------------
+// Found by dogfooding a real workspace: a 34-wave `.aidlc/plan.md` — hours of judgment about
+// delivery order — had never been committed. Not ignored; simply never added, because
+// `replan` §6 commits the plan only in SHARED mode, and in solo NOTHING commits control-plane
+// state. Run files ride into their feature branch, so they are safe; the control plane's own
+// files have no committer. Losing the machine loses the plan, the journal and the facts.
+// Read-only here — this reports, it does not commit, because what belongs in a commit is the
+// user's call.
+{
+  const tracked = ["plan.md", "journal.md", "facts.md", "extensions.json"]
+    .map((f) => join(ROOT, ".aidlc", f))
+    .filter(existsSync);
+  if (tracked.length) {
+    let dirty = null;
+    let note = "could not read git status here";
+    const git = (cmd) =>
+      execSync(cmd, { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], timeout: 5000, encoding: "utf8" });
+    try {
+      // The control plane must BE the repo, not merely sit inside one. Found the hard way:
+      // this developer's entire home directory is a git repo, so `git status` succeeds in any
+      // temp dir under it and would report the HOME repo's state as the workspace's. A
+      // project nested in an unrelated parent repo is the same shape and far from rare.
+      const top = resolve(git("git rev-parse --show-toplevel").trim());
+      if (top !== ROOT) {
+        note = `${ROOT} is not a git repo of its own (the enclosing repo is ${top})`;
+      } else {
+        const rel = tracked.map((f) => `"${relative(ROOT, f).replace(/\\/g, "/")}"`).join(" ");
+        dirty = git(`git status --porcelain -- ${rel}`)
+          .split("\n")
+          .filter((l) => l.trim());
+      }
+    } catch {
+      dirty = null; // git unavailable, or not a repo at all — say nothing rather than guess
+    }
+    if (dirty === null) add("skip", "cp-committed", "control-plane state", note);
+    else if (!dirty.length) add("ok", "cp-committed", "control-plane state", `${tracked.length} file(s), all committed`);
+    else
+      add(
+        "warn",
+        "cp-committed",
+        "control-plane state",
+        `uncommitted: ${dirty.map((l) => l.slice(3)).join(", ")}`,
+        "These are the workspace's durable memory — the wave plan, the journal, the facts, the extension registry. " +
+          "Run files ride into their feature branch; these have no committer in solo mode, so an uncommitted plan lives on one machine only.",
+      );
   }
 }
 

@@ -18,7 +18,43 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F54**._
+_Numbering continues across cycles — the next finding is **F56**._
+
+### F54 🟠 — Nothing commits control-plane state in solo mode, so a 34-wave plan lived on one machine
+**Symptom.** (RTO Tool, aidlc@0.50.0, poly, ADO, solo.) `.aidlc/plan.md` — an authoritative 34-wave
+delivery schedule with a paragraph-long `driver:` recording the client's own words — was **untracked**.
+Not ignored; `git check-ignore` says nothing matches. Simply never added. Same for
+`.aidlc/plan-archive/` and `.aidlc/plugin-feedback.md`.
+**Root cause.** `replan` §6 commits the plan **only in shared mode**, on the argument that a plan is a
+*team* decision. True, and it left solo with no committer at all — and the control plane's files are
+exactly the ones that do not ride into a feature branch the way run files do. So the most expensive
+artifact in the workspace (the one thing a re-cut cannot reproduce, because it encodes a conversation)
+was one `rm -rf` from gone. **0.48/0.50 made it worse**, adding `journal.md` and `facts.md` — two more
+control-plane files with the same non-existent commit path.
+**Resolution.** `/aidlc:doctor` gains a **control-plane state** check: `.aidlc/{plan,journal,facts}.md`
++ `extensions.json`, warned when uncommitted, naming which. Reporting rather than committing is
+deliberate — what belongs in a commit is the user's call, and a doctor that mutates cannot be re-run to
+confirm a fix. A committer for solo mode is the real fix and is **not** done here; it needs to decide
+which command owns the commit, and that is a design question, not a check.
+**Lesson worth keeping:** "durable state stays TRACKED on purpose" was written in the template's
+`.gitignore` and believed. Nothing verified it. **A file being un-ignored is not the same as a file
+being committed**, and the gap between those two is invisible until the machine dies.
+
+### F55 🟡 — The upgrade's config write reformatted 147 lines to change 2
+**Symptom.** (RTO Tool.) `plan-upgrade.mjs --write` stamped `configVersion` + `aidlcVersion` — a
+two-key change — and produced a **147-insertion / 24-deletion** diff, because it re-serializes with
+`JSON.stringify(cfg, null, 2)` and the project's config used compact one-line objects
+(`"stack": { "frontend": null, … }`).
+**Root cause.** Writing JSON by re-serializing discards the author's formatting. Harmless
+semantically, and corrosive to the one property the whole command depends on: **`/aidlc:upgrade` is
+built around "show the diff, then apply"**, and a diff where 145 of 147 lines are whitespace is a diff
+nobody reads — which converts an approval gate into a rubber stamp.
+**Resolution.** Not fixed in code yet; the config keys were applied by hand for that workspace instead.
+The honest options are a format-preserving edit (append the keys textually rather than re-serializing)
+or detecting the file's existing style. Recorded here rather than papered over, because the failure is
+in the *reviewability* of a safety-critical command, not in its output.
+**Lesson worth keeping:** a command whose safety rests on a human reading a diff has to treat diff size
+as a correctness property, not cosmetics.
 
 ### F52 🟠 — The guard's content checks were narrower than the sets sitting next to them
 **Symptom.** Four verified gaps, all found by audit rather than by a run, all silent. (1) The
