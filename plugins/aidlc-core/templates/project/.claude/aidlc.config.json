@@ -63,6 +63,14 @@
       "palette": [],
       "fonts": { "display": "", "body": "", "mono": "" },
       "guidelines": ""
+    },
+    "figma": {
+      "enabled": false,
+      "url": "",
+      "fileKey": "",
+      "screens": {},
+      "jury": "suggest",
+      "maxFidelityRounds": 2
     }
   },
   "marketplace": {

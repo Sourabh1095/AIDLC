@@ -35,9 +35,22 @@ motion template. Fix-round briefs carry the jury's specific `Motion` defects.
    tasks during the hero sequence, and a `prefers-reduced-motion` fallback for every non-essential
    animation. Motion must never delay a critical action.
 
+## Figma-sourced mode (`designSource: figma`)
+
+The file may already specify motion. Read `design/figma-spec.md` → *Prototype / interactions*: where
+the design defines transitions, triggers or Smart Animate between frames, **those are the spec** —
+realize them (match the transition type, direction, duration and easing the file states) rather than
+designing your own. There is no narrative signature moment to serve; the design's own emphasis is.
+
+Where the file is silent on motion — which is most files — apply the restrained defaults of
+`aidlc-ux:motion` (state feedback, entrance choreography, reduced-motion fallback) and **record each
+one in `design/motion-spec.md` as an addition to the design**, so the designer can see what was added
+and object. Never animate a design into something it isn't; when in doubt, ship less.
+
 ## Fix-round mode
 
-Address ONLY the jury's listed motion defects. Tune easing/timing/sequencing over adding new effects.
+Address ONLY the jury's (or the fidelity report's) listed motion defects. Tune easing/timing/
+sequencing over adding new effects.
 
 ## Hard rules
 

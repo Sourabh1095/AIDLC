@@ -105,7 +105,15 @@
         "enabled": true,
         "target": "desktop-web",
         "renderBaseUrl": "http://localhost:3000",
-        "uiPaths": ["app/**", "src/app/**", "components/**", "src/components/**", "**/*.tsx", "**/*.css"]
+        "uiPaths": ["app/**", "src/app/**", "components/**", "src/components/**", "**/*.tsx", "**/*.css"],
+        "figma": {
+          "enabled": true,
+          "url": "https://www.figma.com/design/AbC123dEf456/Acme-Web",
+          "fileKey": "AbC123dEf456",
+          "screens": { "/": "1-2", "/dashboard": "12-408", "/settings": "12-509" },
+          "jury": "suggest",
+          "maxFidelityRounds": 2
+        }
       }
     },
     {

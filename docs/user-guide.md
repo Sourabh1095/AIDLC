@@ -148,6 +148,8 @@ So choosing `direct` isn't choosing to be careless. It's choosing not to file a 
 | Work several items at once | `/aidlc:sprint 3` |
 | **Make a screen or the whole app award-grade** (new or existing) | `/aidlc-ux:design /dashboard` · `/aidlc-ux:design "redesign the landing page"` |
 | Same, anchored to your brand | drop a logo/font/screenshot in `design/brand/` (or set `ux.brand`), then run `/aidlc-ux:design …` |
+| **The screens are already designed in Figma** | `/aidlc-ux:figma <figma-url>` to link them, then `/aidlc-ux:design /dashboard` (or just `/aidlc:run PROJ-123`) builds to the design (§3a) |
+| The designer changed the Figma | `/aidlc-ux:figma sync` — re-extracts and tells you which built screens now disagree |
 | Cut a version | `/aidlc:release` |
 | A local skill proved reusable | `/aidlc:promote <name>` |
 | After `/plugin marketplace update` | `/aidlc:sync` |
@@ -332,6 +334,36 @@ score is **≥ `ux.juryThreshold` (default 9)**, capped at `ux.maxJuryRounds` (d
 findings gate the PR exactly like reviewer/QA findings; at the cap it ships the best round and flags
 the rest for you — it never loops forever or jumps to a bigger model.
 
+**If the screens already exist in Figma, it doesn't design anything.** The pod has two sources, and
+it picks one before it starts. When a Figma design is linked — `ux.figma` in config, a
+`figma.com/design/…` URL on the item, or a spec already extracted — the design decisions are *already
+made and signed off*, so the pod switches tracks: it reads the file through the Figma MCP (screen
+spec, variables, reference screenshots), **maps the Figma variables onto your project's tokens**
+instead of inventing a palette, builds to the spec, and then checks **fidelity** — the built screen
+rendered side by side with the Figma frame, every difference classified blocking / minor / deliberate
+adaptation. Pass is *zero blocking deviations*, not a score.
+
+**And the jury is optional there.** Scoring someone's approved design out of 10 and then "fixing" it
+toward a 9 would overwrite their decision, so on Figma-sourced UI the jury doesn't gate — it's
+**offered** after fidelity passes ("want the jury to look at it as well?"), skipped silently on
+headless/sprint runs, and advisory when you say yes: findings that mean *the build missed the design*
+get fixed, findings that mean *the design could be better* go to you and your designer as suggestions
+and are never built. Set `ux.figma.jury` to `advisory` (always run, never gate), `off`, or `gate` if
+you treat Figma as a starting point and do want the full jury loop. Two things the pod will not do:
+improve the design on its own, and invent a design when the Figma read fails — an unreachable or
+unauthenticated Figma MCP **blocks the run and says so** rather than quietly designing screens the
+client never approved. The one deviation it makes without asking is fixing contrast that fails WCAG
+AA, and it always tells you.
+
+**Linking and re-syncing.** `/aidlc-ux:figma <url>` links a file: it inventories the frames, maps them
+to your actual routes (reading the router, not guessing from names), writes `ux.figma`, and extracts
+the spec. `/aidlc-ux:figma sync` re-reads after the designer moves and reports **drift** — what
+changed in the design and which built routes now disagree. `/aidlc-ux:figma` with no argument reports
+status. Partial coverage is normal: mapped routes run the Figma track, unmapped ones run the design
+track below, under one design system. Figma reads are rate-limited (a Starter plan or View/Collab seat
+gets only a handful of tool calls *per month*), which is why everything is extracted once into
+`design/figma-spec.md` and worked from there.
+
 **When you invoke it directly.** `/aidlc-ux:design <target>` runs the same pod on demand:
 - a **new** project → establishes one design system that every later UI item then follows;
 - an **existing** page/screen → *retrofit*: it audits the current UI, adopts the existing system, and
@@ -346,9 +378,13 @@ honored exactly). Two ways: drop assets in `design/brand/`, or set `ux.brand` in
 
 **Tuning it** (`.claude/aidlc.config.json` → `ux`): `enabled` (default true), `juryThreshold`,
 `maxJuryRounds` (cost cap), `juryPanelSize` (set 3 for a 3-juror panel whose scores are averaged),
-`renderBaseUrl`, `target` (`desktop-web`). All artifacts land in `design/` (narrative, inspiration,
-design-system, motion-spec, audit, brand, and per-round jury reports) and are committed to the
-branch — so the reasoning and every score are auditable in the PR.
+`renderBaseUrl`, `target` (`desktop-web`), and `figma` (`enabled`, `url`, `fileKey`, the `screens`
+route→node map, `jury`, `maxFidelityRounds`). In a polyrepo or a monorepo these are **per repo and
+per package** — different frontends have different design files and different dev ports. All
+artifacts land in `design/` (narrative, inspiration, design-system, motion-spec, audit, brand,
+per-round jury reports, and on the Figma track `figma-spec.md`, `figma/` reference shots and
+`fidelity-report.md`) and are committed to the branch — so the reasoning, every score and every
+deviation from the design are auditable in the PR.
 
 ### 3b. Who verifies, and how often (controlling the review/QA/security cost)
 
@@ -547,4 +583,9 @@ in-flight work.
 | Jury never reaches 9 / loops a lot | It stops at `ux.maxJuryRounds` and ships the best round with the critique attached — read the latest `design/jury-report-r*.md`; lower `juryThreshold` or raise `maxJuryRounds` if the bar/effort is genuinely off |
 | Design pod ran on a non-UI item (or skipped a UI one) | Set the item's `ui`/`backend` intent explicitly with a label; or set `ux.enabled: false` to disable the pod for the whole project |
 | Jury reports "app not rendering" | It needs the dev server reachable at `ux.renderBaseUrl` — make sure the project's run command starts there (check `CLAUDE.md`), then rerun |
+| Run blocked: "figma MCP unavailable" | Deliberate — it won't invent a design in place of one you already had approved. `/mcp` → `figma` to authenticate (OAuth), then rerun. No Figma seat? Drop exported PNGs in `design/figma/` (screenshots only — no variables), or set `ux.figma.enabled: false` to let the pod design it |
+| Figma read hit a rate limit | Starter plans and View/Collab seats get only a few Figma tool calls per month; the spec is extracted once into `design/figma-spec.md` so the build works offline from it — re-`sync` sparingly, or move to a Dev/Full seat |
+| Built screen doesn't match the design | Read `design/fidelity-report.md` — every difference is classified blocking / minor / adaptation with both screenshots. At `ux.figma.maxFidelityRounds` the leftovers become `[MAJOR][open]` findings instead of another round |
+| Designer changed the Figma after you built | `/aidlc-ux:figma sync` — it diffs the design and names the routes that now disagree; feed those to `/aidlc:intake` or `/aidlc-ux:design <route>` |
+| You *do* want the jury on a Figma design | Say yes when it offers, or set `ux.figma.jury: "advisory"` (always runs, never gates) or `"gate"` (full jury loop, Figma treated as a starting point) |
 | Headless run: "Ignoring N permissions.allow entries … workspace has not been trusted" | Open Claude Code interactively in that folder once and accept the trust dialog (or set `projects["<path>"].hasTrustDialogAccepted: true` in `~/.claude.json`), then rerun — the run resumes where it stopped |

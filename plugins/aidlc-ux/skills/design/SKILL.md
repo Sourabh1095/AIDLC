@@ -1,28 +1,34 @@
 ---
 name: design
-description: Run the UI/UX design pod on a new OR existing frontend — a single page/screen or the whole app. Narrative → inspiration → design system → build/redesign + motion → strict jury loop until the rendered UI scores ≥ threshold (default 9/10). Accepts brand references (logo, colors, fonts, reference screenshots). Invoked as /aidlc-ux:design and called by /aidlc:run for UI items.
-argument-hint: <id | page/route | path | "redesign X" | description>  [+ brand refs]
+description: Run the UI/UX design pod on a new OR existing frontend — a single page/screen or the whole app. Screens already in Figma → extract the design, build to it, check fidelity (jury optional). No designs → narrative → inspiration → design system → build/redesign + motion → strict jury loop until the rendered UI scores ≥ threshold (default 9/10). Accepts brand references (logo, colors, fonts, reference screenshots) and Figma URLs. Invoked as /aidlc-ux:design and called by /aidlc:run for UI items.
+argument-hint: <id | page/route | path | "redesign X" | figma-url | description>  [+ brand refs]
 ---
 
 # /aidlc-ux:design $ARGUMENTS — the design pod pipeline
 
-You are driving the **UX pod**: a narrative writer, an inspiration researcher, a design-system
-owner (the uniformity anchor), a motion specialist, and a strict, unbiased jury. You do not design
-or code yourself — you dispatch the specialists and run the jury loop to the quality bar. Runs in
-the main session (subagents can't spawn subagents), same as `/aidlc:run`.
+You are driving the **UX pod**: a Figma handoff specialist, a narrative writer, an inspiration
+researcher, a design-system owner (the uniformity anchor), a motion specialist, a fidelity checker
+and a strict, unbiased jury. You do not design or code yourself — you dispatch the specialists and
+run the pipeline's gate to the quality bar. Runs in the main session (subagents can't spawn
+subagents), same as `/aidlc:run`.
 
 Config: read `.claude/aidlc.config.json` → `ux` block (`juryThreshold` default 9, `maxJuryRounds`
-default 3, `juryPanelSize` default 1, `renderBaseUrl`, `target` `desktop-web`, `uiPaths`, and
-`brand`). Missing block → use defaults and note it.
+default 3, `juryPanelSize` default 1, `renderBaseUrl`, `target` `desktop-web`, `uiPaths`, `brand`,
+and `figma`). Missing block → use defaults and note it.
+
+**Two design sources, one pod.** If the screens already exist in Figma, you *implement a design*; if
+they don't, you *invent one*. That fork (§0.5) changes the pipeline, the tokens and the quality gate —
+resolve it before anything else.
 
 **Mono vs poly — which `ux` block, which working dir.** In **mono** the settings above are the
 top-level `ux` block and the working dir is the repo root. In **poly** the top-level `ux` block is
 empty — each frontend repo carries its own `ux` under its `repos[]` entry (see `aidlc:work-items` →
 *Repos & routing*). When `/aidlc:run` invokes the pod for a UI item it passes the **resolved frontend
 repo** (from `aidlc:run` §2.5): operate with **cwd = `workspace.root`/`<repo.path>`** and read
-`renderBaseUrl` / `uiPaths` / `target` / `brand` (and the jury settings) from **that repo entry's
-`ux`**, not the top-level block — every `renderBaseUrl` reference below means that repo's. All
-`design/*` artifacts and the dev server live in that repo's checkout. Standalone in a poly workspace
+`renderBaseUrl` / `uiPaths` / `target` / `brand` / `figma` (and the jury settings) from **that repo
+entry's `ux`**, not the top-level block — every `renderBaseUrl` reference below means that repo's, and
+different apps legitimately have different Figma files. All `design/*` artifacts and the dev server
+live in that repo's checkout. Standalone in a poly workspace
 with no repo passed → resolve the target repo from `$ARGUMENTS` (a path under a repo) or ask which
 repo, before anything else.
 
@@ -85,15 +91,51 @@ When unsure between retrofit and redesign, default to retrofit (least disruptive
 confirm they exist. Write a short `design/brand.md` cataloguing what was supplied and what it
 constrains. If brand anchors exist, they are **hard constraints**, not inspiration — pass them into
 every downstream brief (writer, researcher, design-system, jury). None supplied → note it; the pod
-derives its own palette/type.
+derives its own palette/type. On `designSource: figma` (next) the **file itself is the brand source** —
+supplied anchors then only cover what Figma doesn't (a favicon, an untouched marketing page); an
+anchor that *contradicts* the design is a question for the human, not a licence to override the
+approved screens.
+
+## 0.5 · Design source — Figma or generated (resolve before the pipeline)
+
+Record `designSource: figma | generated` on the run file. It is **`figma`** when any of these hold:
+- `ux.figma.enabled` is true for the resolved repo/package and it has a `fileKey`/`url`;
+- `$ARGUMENTS`, the item, or its AC carry a **Figma URL** (`figma.com/design/<fileKey>/…`) or
+  attachment;
+- `design/figma-spec.md` already covers this surface;
+- the user says the designs exist / "build the Figma".
+
+Otherwise **`generated`** — today's invent-it pipeline, unchanged.
+
+**Why the fork is hard.** A Figma design has already been decided and usually signed off by someone
+who isn't in this session. On `figma` you implement it: tokens are **extracted**, not invented; there
+is no narrative or inspiration phase to justify choices that were already made; and the gate is
+**fidelity to the design**, not taste — the jury is optional (see F5). On `generated` nothing
+changes. Never blend them: a Figma-sourced surface does not also get a narrative-driven re-invention
+of its palette.
+
+**Verify the connection before you promise a Figma build.** Check the `figma` MCP (`whoami`). If it's
+unreachable or unauthenticated, **stop and report** — options are: authenticate (`/mcp` → `figma`,
+OAuth); work from exported PNGs the user drops in `design/figma/` (say plainly that it's screenshots
+only — no variables, no exact values); or the user explicitly chooses `generated`. Silently falling
+back to inventing a design is the worst failure mode here: it looks like success and ships something
+the client never approved. Discipline: `aidlc-ux:figma-handoff`.
+
+**Partial Figma is normal.** Some surfaces are drawn, some aren't. Resolve the source **per surface
+in scope**, not per project — a mapped route runs the Figma track, an unmapped one runs the generated
+track under the same design system, and the run file records which was which.
 
 ## Run-file continuity
 
 Launched by `/aidlc:run` → reuse the item's `.aidlc/runs/{ID}.md`; don't create a second. Standalone →
-create a lightweight run file (id `UX-<slug>`) so scope, mode, brand, rounds and scores are
-auditable. Checkpoint before and after every agent.
+create a lightweight run file (id `UX-<slug>`) so scope, mode, design source, brand, rounds and
+scores/deviations are auditable. Checkpoint before and after every agent.
 
 ## Pipeline
+
+Route on §0.5. **`designSource: figma`** → *The Figma track* below (F1–F5), then **6 · HANDBACK**.
+**`designSource: generated`** → phases 0–5 here, then **6 · HANDBACK**. Mixed scope → run each surface
+on its own track; one design system still covers both.
 
 **0 · AUDIT** *(existing surfaces only — skip for greenfield)*. Render the current target at the
 **resolved render URL** (derive the real port from the repo's `dev` script per the jury render
@@ -152,9 +194,67 @@ Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from t
    attach the remaining critique to `## Findings` as `[MAJOR][open] jury: …`, flag for human. Do NOT
    loop past the cap; NEVER escalate any agent to a larger model to chase the score.
 
-**6 · HANDBACK.** Tear down any dev server you started. Append a `## Log` summary: mode, scope,
-rounds, final composite, bar met?, artifact paths (`design/*`). Return to the caller: score,
-PASS/CAPPED, mode, and artifact paths. Standalone → also give the ≤6-line user summary.
+## The Figma track (`designSource: figma`)
+
+**F1 · EXTRACT.** Dispatch **Agent → aidlc-figma** with the working dir, the `fileKey`, the in-scope
+node ids and the spec template → `design/figma-spec.md` + reference shots in `design/figma/`. Node
+ids come from `ux.figma.screens`, from a Figma URL in `$ARGUMENTS`, or from an inventory
+(`get_metadata`) when the surface isn't mapped yet — link it as `/aidlc-ux:figma <url>` does, so the
+map survives the run. **There is no narrative and no inspiration phase here**: those exist to justify
+invented choices, and nothing is being invented. (A narrative is an add-on if the user wants one for
+copy or marketing — never a gate.)
+
+**F2 · TOKENS.** Dispatch **Agent → aidlc-design-system** in **figma mode**: the file's variables are
+the token source of truth, mapped into the project's token layer — not a palette derived from
+screenshots, and not an invented scale. One system per project still holds: greenfield → the Figma
+variables *become* the project standard; existing → map onto the established tokens and surface every
+conflict (same role, different value) for a human to settle rather than silently picking a winner.
+Values Figma never defines (focus rings, disabled/loading/empty, breakpoints it didn't draw) are
+derived, labelled `derived:` in the spec, and listed for the designer.
+
+**F3 · BUILD.** The implementer builds to the spec — reusing library-instance components and Code
+Connect mappings rather than re-implementing them, and translating `get_design_context` output into
+this project's framework and component layer instead of pasting it. Then **Agent → aidlc-motion**:
+realize the file's prototype interactions / Smart Animate transitions where they exist; where the
+file says nothing about motion, apply the restrained defaults of `aidlc-ux:motion` and record them as
+additions to the design, so the designer can see what was added.
+
+**F4 · FIDELITY LOOP.** `round = 1`.
+1. Ensure the app renders at the **resolved render URL** (same derive-the-port protocol as §5.1;
+   un-renderable or a non-UI response → phase `blocked`, report, STOP).
+2. Dispatch **Agent → aidlc-fidelity** with the spec, the reference shots and the routes in scope. It
+   renders at the **design's own artboard width** and classifies every difference
+   `[BLOCKING]`/`[MINOR]`/`[ADAPTATION]` → `design/fidelity-report.md`.
+3. Zero `[BLOCKING]` → PASS. Go to **F5**.
+4. Blocking defects AND `round < ux.figma.maxFidelityRounds` (default 2) → route each fix to its owner
+   (implementer / design-system / motion) in one batch scoped to those defects only; re-render,
+   re-check fresh.
+5. At the cap → stop iterating. Attach the remaining defects to `## Findings` as
+   `[MAJOR][open] fidelity: …` and flag for a human.
+**Never close a fidelity defect by editing the spec** to match what was built. The spec records what
+Figma says; if the design genuinely changed, re-sync it (`/aidlc-ux:figma sync`) and say so.
+
+**F5 · JURY — offered, never imposed.** The design was approved by someone else; scoring it out of 10
+and "fixing" it toward a higher score would overwrite their decision. So on `figma` the jury does not
+gate. Read `ux.figma.jury`:
+- **`suggest` (default)** — after fidelity passes, *offer* it in one line ("the build matches the
+  design; want the jury to score it as well? advisory only"). Non-interactive (`/aidlc:sprint`,
+  headless) → skip it and record `jury: not run (figma-sourced; offer stands)`.
+- **`advisory`** — always run it, still non-gating.
+- **`off`** — never run it.
+- **`gate`** — opt-in only, for teams treating Figma as a starting point: run the full §5 jury loop
+  with its threshold and rounds, exactly as `generated`.
+When the jury runs non-gating, split its output: findings that are **also deviations from the design**
+route to owners like any fidelity defect; findings that are **critique of the design itself** go to
+the human and the designer as suggestions and are **never built**. The composite is recorded as
+information — it does not gate the PR and does not trigger a redesign round.
+
+**6 · HANDBACK.** Tear down any dev server you started. Append a `## Log` summary: design source,
+mode, scope, rounds, the gate result — final composite + bar met? on `generated`, blocking-defect
+count + PASS/CAPPED on `figma` — and artifact paths (`design/*`, plus `figma-spec.md` /
+`fidelity-report.md` / `design/figma/` on the Figma track). Return to the caller: that result, the
+source, the mode, and the artifact paths; on `figma` also state whether the jury ran, was declined,
+or is still on offer. Standalone → also give the ≤6-line user summary.
 
 ## Invariants
 
@@ -163,6 +263,12 @@ PASS/CAPPED, mode, and artifact paths. Standalone → also give the ≤6-line us
   system is a jury **Consistency** defect.
 - **Brand anchors are hard constraints.** A supplied logo colour, font, or guideline is honored
   exactly, not "taken as inspiration".
+- **A Figma design is the client's, not a starting point.** On `designSource: figma` you implement it
+  and check fidelity; you never improve it, and you never invent a design because the file couldn't
+  be read — that failure is reported, not papered over. Accessibility corrections are the one
+  deviation made without asking, and they are always reported to the designer.
+- **The jury never gates Figma-sourced UI** unless the project opted in with `ux.figma.jury: "gate"`.
+  Offering it is right; imposing it isn't.
 - The design system is the single source of truth; a raw hex/off-scale px literal in a component is
   a jury defect, not an accepted exception.
 - The jury is never shown who made what or their reasoning — protect its independence.

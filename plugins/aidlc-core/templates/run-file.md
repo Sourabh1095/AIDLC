@@ -12,6 +12,7 @@ fanout: null
 ui: false
 uxScope: null
 uxMode: null
+designSource: null
 pr: null
 started: {{NOW_UTC}}
 updated: {{NOW_UTC}}

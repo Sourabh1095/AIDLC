@@ -1,5 +1,5 @@
 {
-  "$comment": "Optional project-scoped MCP servers. Copy the entries you need into a `.mcp.json` at the repo root, fill the env vars, and remove this comment key. Auth/credentials are per-user — never commit real connection strings. Use READ-ONLY database users: pipeline writes go through migrations, not ad-hoc queries.",
+  "$comment": "Optional project-scoped MCP servers. Copy the entries you need into a `.mcp.json` at the repo root, fill the env vars, and remove this comment key. Auth/credentials are per-user — never commit real connection strings. Use READ-ONLY database users: pipeline writes go through migrations, not ad-hoc queries. Figma is NOT here: the aidlc-ux plugin ships it, so re-declaring it locally would just shadow that server — authenticate via /mcp -> figma instead.",
   "postgres": {
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_URL_RO}"]
@@ -16,8 +16,5 @@
   },
   "notion": {
     "url": "https://mcp.notion.com/mcp"
-  },
-  "figma": {
-    "url": "https://mcp.figma.com/mcp"
   }
 }

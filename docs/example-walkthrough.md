@@ -173,6 +173,23 @@ design/jury-report-r1.md …   # each round's score + evidence
 The design system it establishes here becomes the project standard — every later UI story adopts it,
 so the app stays uniform instead of drifting page to page.
 
+**If this project's screens were already designed in Figma**, the same story takes the other track.
+Link the file once — `/aidlc-ux:figma https://figma.com/design/…` — and the pod stops inventing:
+it extracts the design, maps the file's variables onto the project's tokens, builds to the spec, and
+checks fidelity instead of taste. Different artifacts in the PR:
+
+```
+design/figma-spec.md         # the design, written down (values traced to node ids)
+design/figma/*.png           # the reference frames the build is compared against
+design/fidelity-report.md    # every difference: blocking / minor / deliberate adaptation
+```
+
+The gate is **zero blocking deviations**, not a score — and the jury doesn't run unless you want it
+to. It offers ("the build matches the design; want the jury to score it as well?"), and if you say
+yes it's advisory: it fixes what the build got wrong and sends critique of the design itself to you
+and your designer rather than rebuilding someone's approved work. When the designer later changes the
+file, `/aidlc-ux:figma sync` tells you which built routes now disagree.
+
 ### 6b. Polish or rebrand a specific screen on demand
 
 Beyond the automatic pass, you can point the pod at any screen yourself — new or already built:

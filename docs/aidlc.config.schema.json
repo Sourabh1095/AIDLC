@@ -191,7 +191,8 @@
               "enabled": { "type": "boolean" },
               "target": { "type": "string" },
               "renderBaseUrl": { "type": "string" },
-              "uiPaths": { "type": "array", "items": { "type": "string" } }
+              "uiPaths": { "type": "array", "items": { "type": "string" } },
+              "figma": { "$ref": "#/definitions/uxFigma" }
             }
           },
           "packages": { "$ref": "#/definitions/packages" },
@@ -381,7 +382,10 @@
     },
     "ux": {
       "type": "object",
-      "description": "Mono-mode / default UX config. In poly, each frontend repo may carry its own ux block."
+      "description": "Mono-mode / default UX config. In poly, each frontend repo may carry its own ux block.",
+      "properties": {
+        "figma": { "$ref": "#/definitions/uxFigma" }
+      }
     },
     "marketplace": {
       "type": "object",
@@ -400,6 +404,19 @@
     }
   },
   "definitions": {
+    "uxFigma": {
+      "type": "object",
+      "description": "Figma as the design source for this repo/package. When enabled with a fileKey, the design pod switches from inventing a design (narrative → inspiration → design system → jury) to implementing the existing one: it extracts the spec and variables through the Figma MCP, maps variables to the project's tokens, builds to the spec, and gates on fidelity to the design instead of a jury score. Different frontends legitimately have different design files, which is why this lives per repo/package.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false, "description": "Treat Figma as the design source for this frontend. A Figma URL passed on a run, or an existing design/figma-spec.md, also switches a surface to the Figma track without this flag." },
+        "url": { "type": "string", "description": "The Figma file URL, kept for humans and for re-linking." },
+        "fileKey": { "type": "string", "description": "The file key — the URL segment after /design/. What the MCP tools take." },
+        "screens": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Route → Figma node-id map (e.g. \"/dashboard\": \"12-408\"), grounded in the app's real router. Written by /aidlc-ux:figma; a hand-edited entry is never silently overwritten.", "propertyNames": { "type": "string" } },
+        "jury": { "enum": ["suggest", "advisory", "off", "gate"], "default": "suggest", "description": "Whether the design jury runs on Figma-sourced UI, where the design was already approved outside this session. suggest (default): offered after fidelity passes, skipped silently when non-interactive. advisory: always runs, never gates. off: never runs. gate: opt-in full jury loop, for teams treating Figma as a starting point. On anything but gate, jury findings never trigger an automatic redesign — design critique goes to the human, not into the build." },
+        "maxFidelityRounds": { "type": "integer", "default": 2, "minimum": 1, "description": "Cost cap on the fidelity fix loop. At the cap the remaining blocking deviations become [MAJOR][open] findings for a human instead of another round." },
+        "assetDir": { "type": "string", "default": "design/figma", "description": "Where extracted reference screenshots and exported assets land." }
+      }
+    },
     "packages": {
       "type": "array",
       "description": "Packages inside ONE git repo — the dimension a monorepo needs and repos[] cannot express, because repos[] means a git boundary and a monorepo has exactly one. Each entry routes work exactly as a repo entry does (labels, role, an optional single default), and the runnable leaf is unchanged: one item = one branch = one PR, now scoped to a package. Per-package gates live at pipeline.gates.verify.packages.<name>.steps (mono) or pipeline.gates.verify.repos.<repo>.packages.<name>.steps (poly), and resolve by LAYERING over the repo's — a package that declares its own test still inherits the repo's lint.",
@@ -428,7 +445,8 @@
               "enabled": { "type": "boolean" },
               "target": { "type": "string" },
               "renderBaseUrl": { "type": "string" },
-              "uiPaths": { "type": "array", "items": { "type": "string" } }
+              "uiPaths": { "type": "array", "items": { "type": "string" } },
+              "figma": { "$ref": "#/definitions/uxFigma" }
             }
           },
           "dependsOn": {

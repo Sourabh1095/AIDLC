@@ -116,6 +116,9 @@ claude -p "/aidlc:run {ID}" --permission-mode acceptEdits    # background; captu
   `aidlc:run` §2's **scaffold-scope gate** with no interaction — a scaffold/skeleton item in a UI repo
   resolves to `ui: false` (skeleton-only, jury skipped), so a sprint never burns a full design-pod run
   on an empty shell. A real UI surface still fires the pod (ambiguity errs to `ui: true`).
+  Same reasoning on a **Figma-sourced** surface: fidelity still gates, but the optional jury's default
+  `suggest` has nobody to ask, so it is skipped and the run records that the offer stands — a headless
+  sprint never silently spends a jury round on a design the client already approved.
 - Stagger launches ~30s apart so npm installs/builds don't thundering-herd the machine.
 
 ### 2b · Preflight the launch cwd — before launching anything (F42)

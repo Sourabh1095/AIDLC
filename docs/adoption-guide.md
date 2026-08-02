@@ -285,6 +285,7 @@ The plugin ships MCP servers pre-wired; you provide credentials:
 | `playwright` | None (drives a local browser) |
 | `atlassian` (Jira) | Remote server — OAuth browser prompt on first use |
 | `azure-devops` | Set `ADO_MCP_ORG` env var to your org name; sign-in via `az login` |
+| `figma` (from `aidlc-ux`) | Remote server (`https://mcp.figma.com/mcp`) — OAuth via `/mcp` → `figma`. Only needed when your screens are designed in Figma |
 
 If a server fails to start, `claude --debug` shows why; the pipeline degrades gracefully
 (GitHub operations fall back to the `gh` CLI, Azure Boards falls back to `az boards`).
@@ -301,9 +302,19 @@ If a server fails to start, `claude --debug` shows why; the pipeline degrades gr
 > - `/aidlc:status` runs a tracker doctor that distinguishes "MCP process up" from "ADO reachable +
 >   authenticated" and prints this remediation if the probe fails.
 
+> **Figma: seats decide how much you can read.** The `figma` server ships with the `aidlc-ux` plugin
+> and is only used when a project's designs live in Figma. Authenticate once per machine via `/mcp` →
+> `figma`. Reads are **rate-limited by seat**: Starter plans and View/Collab seats get only a handful
+> of tool calls *per month*, while Dev/Full seats on Professional/Organization/Enterprise get
+> per-minute limits. The pod is built around that — it extracts each design **once** into
+> `design/figma-spec.md` plus reference screenshots and builds from those, so a rate limit doesn't
+> stall a run. No seat at all? Export the frames as PNGs into `design/figma/`: the pod will work from
+> screenshots and say plainly that variables and exact values are unavailable. What it will **never**
+> do is invent a design because it couldn't read yours — that blocks the run instead.
+
 Servers you don't use just sit idle — disable them via `/mcp` if the noise bothers you.
 
-**Optional project-scoped servers** (databases, Sentry, Notion, Figma): the template ships
+**Optional project-scoped servers** (databases, Sentry, Notion): the template ships
 `.mcp.json.example` — copy the entries you need into a `.mcp.json` at the repo root and fill
 the env vars. Database servers must use **read-only** users; pipeline writes go through migrations.
 

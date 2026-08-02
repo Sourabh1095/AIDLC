@@ -5,14 +5,14 @@
     "email": "sourabh@bee-logical.com"
   },
   "description": "Bee-Logical company plugin marketplace — reusable AIDLC (AI Development Life Cycle) framework for all projects.",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "plugins": [
     {
       "name": "aidlc",
       "source": "./plugins/aidlc-core",
       "displayName": "AIDLC Core",
       "description": "AIDLC (AI Development Life Cycle) orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — across one repo or a multi-repo workspace, with or without a git remote, end to end.",
-      "version": "0.39.0",
+      "version": "0.40.0",
       "author": { "name": "Bee-Logical" },
       "category": "development",
       "tags": ["aidlc", "orchestration", "agile", "automation"],
@@ -33,11 +33,11 @@
       "name": "aidlc-ux",
       "source": "./plugins/aidlc-ux",
       "displayName": "AIDLC UX Pod — Design & Motion",
-      "description": "Award-tier UI/UX pod: UX-narrative writer, Awwwards inspiration researcher, design-system owner, motion/interaction specialist, and a strict unbiased jury that renders the UI and gates on a ≥9/10 score. New or existing projects, page or whole-app scope, honors brand references (logo/colors/fonts). Enabled by default; it only activates on UI items, so backend-only projects are unaffected.",
-      "version": "0.4.0",
+      "description": "UI/UX pod on two design sources. Screens already in Figma → it ships the Figma MCP, extracts the spec and variables, builds to the design and gates on fidelity, with the jury offered rather than imposed. No designs → UX-narrative writer, Awwwards inspiration researcher, design-system owner, motion specialist, and a strict unbiased jury that renders the UI and gates on ≥9/10. New or existing projects, page or whole-app scope, honors brand references (logo/colors/fonts). Enabled by default; it only activates on UI items, so backend-only projects are unaffected.",
+      "version": "0.5.0",
       "author": { "name": "Bee-Logical" },
       "category": "development",
-      "tags": ["ui", "ux", "design-system", "motion", "gsap", "awwwards", "frontend"],
+      "tags": ["ui", "ux", "figma", "design-system", "motion", "gsap", "awwwards", "frontend"],
       "defaultEnabled": true
     }
   ]

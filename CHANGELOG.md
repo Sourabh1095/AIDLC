@@ -7,6 +7,76 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.40.0] — 2026-08-02
+
+### `aidlc-ux` — when the design already exists, stop designing
+
+The pod could only do one thing: invent a design. Narrative, then inspiration research, then a system
+built from scratch, then a jury scoring it out of 10 and iterating until it hit 9. That is the right
+pipeline for a project with no designer. It is the wrong one — actively wrong — for the common case
+where a client hands over a signed-off Figma file and asks for it to be built.
+
+Run the old pipeline against an existing design and three things go wrong at once. The pod invents a
+palette the designer already chose. The narrative phase manufactures justification for decisions that
+were made weeks ago by someone else. And the jury, doing exactly its job, scores the client's approved
+design and starts *improving* it — which is the one outcome nobody asked for.
+
+So the pod now resolves a **design source** before it does anything, and forks:
+
+| | `generated` | `figma` |
+|---|---|---|
+| Design from | narrative → inspiration → system | the Figma file |
+| Tokens | invented | **extracted** from Figma variables |
+| Gate | jury composite ≥ threshold | **zero blocking deviations** |
+| Jury | mandatory | **offered** |
+
+- **The plugin ships the Figma MCP** (`plugins/aidlc-ux/.mcp.json`, remote, OAuth via `/mcp` →
+  `figma`). It's inert on projects that never link a file.
+- **`/aidlc-ux:figma`** links a file, inventories its frames, and maps them to the app's **real
+  routes** — read from the router, not guessed from frame names. `sync` re-extracts after the designer
+  moves and reports **drift**: what changed in the design and which built routes now disagree.
+  No-argument `status` says what's linked, authenticated and stale.
+- **`aidlc-figma`** (new agent) extracts once — `get_metadata` → `get_design_context` →
+  `get_screenshot` → `get_variable_defs` — into `design/figma-spec.md` plus reference shots. Once,
+  because Figma reads are seat-rate-limited: a Starter plan or View/Collab seat gets a handful of tool
+  calls *per month*. Everything downstream reads the spec, not the MCP.
+- **`aidlc-design-system` gained a figma mode**: the file's variables *are* the tokens, mapped onto
+  the project's layer. Conflicts with existing tokens are surfaced for a human, never silently
+  resolved; gaps Figma leaves (focus rings, disabled/empty/loading, undrawn breakpoints) are derived,
+  labelled `derived:`, and listed for the designer.
+- **`aidlc-fidelity`** (new agent, opus) replaces the jury as the gate: renders at the design's own
+  artboard width and classifies every difference `[BLOCKING]` / `[MINOR]` / `[ADAPTATION]`, each
+  finding citing both screenshots and the node id. Pass is zero blocking — never a percentage, which
+  would be false precision. Capped at `ux.figma.maxFidelityRounds` (default 2); leftovers become
+  `[MAJOR][open]` findings for a human.
+
+**The jury is offered, not imposed** (`ux.figma.jury`, default `suggest`). After fidelity passes, an
+interactive run asks whether you also want it to look; a headless or `/aidlc:sprint` run skips it and
+records that the offer stands. When it does run it is **advisory**: findings that mean *the build
+missed the design* get routed and fixed; findings that mean *the design could be better* go to you and
+your designer as suggestions and are never built. `advisory` always runs it, `off` never does, and
+`gate` restores the full jury loop for teams who treat Figma as a starting point.
+
+**Two failure modes are closed deliberately.** An unreachable or unauthenticated Figma MCP **blocks
+the run** — falling back to inventing a design is the one failure that looks like success and ships
+something the client never approved; the honest fallbacks are authenticating, or exported PNGs in
+`design/figma/` with the limitation stated. And a fidelity defect is never closed by editing the spec
+to match what was built. The single exception to "implement, don't improve" is contrast that fails
+WCAG AA: corrected, and always reported to the designer.
+
+### `aidlc` — the orchestrator knows which source it's routing to
+
+- `run` §2 records **`designSource: figma|generated`** beside the existing `ui:` flag, from
+  `ux.figma.enabled`, a `figma.com/design/…` URL on the item, or an existing spec — and passes it to
+  the pod. Partial coverage is normal: a mapped route runs the Figma track, an unmapped one the
+  generated track, under one design system.
+- `run` §6 documents the fidelity gate and that jury findings don't gate a Figma-sourced PR.
+- `init` asks frontend repos/packages one question — *designed in Figma, or should the pod design
+  it?* — and seeds `ux.figma` per repo/package, because different frontends have different files.
+- Config: `ux.figma` (`enabled`, `url`, `fileKey`, `screens`, `jury`, `maxFidelityRounds`,
+  `assetDir`), schema'd at the top level and on `repos[]` / `packages[]`. Figma was dropped from
+  `.mcp.json.example` — declaring it locally would only shadow the server the plugin now ships.
+
 ## [0.39.0] — 2026-08-02
 
 ### `aidlc` — the commits land on the tier the effort is counted in

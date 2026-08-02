@@ -157,6 +157,16 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      `rtk-spa` (client SPA: RTK Query is the primary data layer). See `aidlc-stack-web:project-structure`.
      Record it (mono: note it; poly: `structure: "next-app"|"rtk-spa"` on the repo entry). Drives the
      skeleton scaffolded in Step 4.
+   - **Designs in Figma? (any repo/package with a `stack.frontend`, and only if `aidlc-ux` is
+     installed):** ask *"are the screens designed in Figma, or should the pod design them?"* — one
+     question, because it decides how every UI item in that repo is built. A Figma URL → set that
+     entry's `ux.figma`: `enabled: true`, `url`, and the `fileKey` (the URL segment after `/design/`);
+     leave `screens` empty for `/aidlc-ux:figma` to map against the real router later. Nothing in Figma
+     yet, or the answer is "the pod designs it" → leave `ux.figma.enabled: false` and say it can be
+     linked any time with `/aidlc-ux:figma <url>`. Mention the auth step once (`/mcp` → `figma`, OAuth)
+     rather than trying to authenticate during init — it's per-user, per-machine, like the tracker MCPs.
+     Different frontends can point at different files; this is a per-repo/per-package value, never a
+     global one.
 5. **Commands** *(full-path only — deferred path skips; the resolved stack drives these at bootstrap)*:
    install / dev / test / lint commands (detect from package.json scripts first and propose
    them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.
@@ -353,6 +363,9 @@ Print a summary: files created, config chosen, and next steps:
 - "Create your first item in `backlog/items/` (see `backlog/README.md`) or connect your tracker."
 - "Run `/aidlc:next` to pick up the first item, or `/aidlc:run <ID>` for a specific one."
 - "Auth for MCP servers (GitHub token, Jira/ADO) is per-user — see the adoption guide."
+- If any repo/package got `ux.figma.enabled`: "Authenticate Figma once via `/mcp` → `figma` (OAuth),
+  then `/aidlc-ux:figma <url>` maps the file's frames to your routes." Say it as a next step, not a
+  blocker — nothing else in init depends on it.
 - If a tooling baseline / structure was scaffolded: "Installed the strict web-stack tooling baseline
   + enterprise skeleton (`<flavor>`) in `<repo(s)>` — run the printed `npm i -D …` to pull the
   devDeps, then `npm run lint && npm run typecheck && npm run depcruise` to confirm a clean start."

@@ -145,7 +145,15 @@ When true, also resolve and record on the run file:
 - **scope** — a specific page/route/component named by the item, else the whole app;
 - **mode** — `greenfield` if no `design/design-system.md` exists yet, else `retrofit` for a scoped
   surface or `redesign` if the item asks to redo the whole app;
-- **brand** — whether `ux.brand` config or `design/brand/` holds anchors to honor.
+- **brand** — whether `ux.brand` config or `design/brand/` holds anchors to honor;
+- **designSource** — `figma` when the screens already exist in Figma (the resolved repo/package has
+  `ux.figma.enabled` with a `fileKey`, OR the item/AC/attachments carry a `figma.com/design/…` URL,
+  OR `design/figma-spec.md` already covers this surface), else `generated`. This is not a detail: on
+  `figma` the pod **implements an approved design** — tokens are extracted from the file, there's no
+  narrative/inspiration phase, the gate is fidelity to the design, and the **jury is optional**
+  (`ux.figma.jury`, default `suggest`). Record the file key and the node ids for the scoped screens
+  where the map has them. Mixed scope is normal — a mapped route runs the Figma track, an unmapped one
+  the generated track. (`aidlc-ux:design` §0.5.)
 If none of the signals fire, `ui: false` — never force the design pod onto backend/infra work.
 (This is a judgment call; when genuinely unsure whether a frontend item warrants the design pod,
 default `ui: true` — an over-invoked jury is cheap insurance; a missed one ships un-judged UI.)
@@ -574,14 +582,25 @@ both, and the finding note names the Task either way.
 
 **UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
 backend/structure is in place, hand the frontend off by following `aidlc-ux:design` for this item's
-run file, passing the **scope, mode and brand** you recorded at §2 — and, in poly, the **resolved
-frontend repo** (its `path` as the working dir). The jury resolves the **render URL from the repo's
+run file, passing the **scope, mode, brand and designSource** you recorded at §2 — and, in poly, the
+**resolved frontend repo** (its `path` as the working dir). The jury resolves the **render URL from the repo's
 actual dev-server port** (parsed from its `package.json` `dev`/`start` script), using
 `ux.renderBaseUrl` only as a fallback and failing loud on a non-UI response — so a stale config port
 can't make it score the wrong server (F13; see `aidlc-ux:design-jury`). It runs narrative → research →
 design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
 capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
 same as reviewer/QA findings.
+
+**`designSource: figma` changes what the gate is.** The pod extracts the design through the Figma MCP
+(spec + variables + reference shots), maps the variables onto the project's tokens, builds to the
+spec, and then runs the **fidelity check** instead of the jury: pass is **zero blocking deviations**
+from the design, capped at `ux.figma.maxFidelityRounds` (default 2). Its `[open]` fidelity findings
+join `## Findings` and gate the PR exactly as jury findings do. The **jury does not gate here** — the
+design was approved outside this session, so it's offered (`ux.figma.jury: suggest`, the default) and
+skipped without prompting on a headless/sprint run; when it does run it's advisory and never triggers
+a redesign. If the Figma MCP is unreachable or unauthenticated, the pod **blocks and says so** rather
+than inventing a design — treat it like any other blocked run (report, `## Findings`, stop); it is
+never "solved" by letting the pipeline design the screens itself.
 
 **Scaffold owns the port (F13).** When the implement phase **scaffolds a UX repo and assigns its
 dev-server port** (e.g. picks :3100 to avoid colliding with an API on :3000), write that port back to

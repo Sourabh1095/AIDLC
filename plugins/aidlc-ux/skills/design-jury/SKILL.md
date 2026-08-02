@@ -55,6 +55,26 @@ The score is only worth something if it's unbiased and evidence-backed.
 
 Composite is out of 10. Gate = `juryThreshold` (default 9).
 
+## Figma-sourced UI — advisory, and a different reading of the rubric
+
+When the run file says `designSource: figma`, the design was decided and approved outside this
+session, and the gate is `aidlc-fidelity`'s (zero blocking deviations), not yours. Three things
+change:
+
+- **You do not gate.** Your composite is information. It never blocks a PR and never triggers an
+  automatic redesign round — a jury score cannot be allowed to overwrite the client's approved
+  design. You run at all only because `ux.figma.jury` said `advisory`/`gate`, or a human accepted the
+  offer.
+- **Score the build, then say what belongs to whom.** Split every finding into *implementation* (the
+  build fails to deliver what the design specifies — that's also a fidelity defect, route it to an
+  owner) and *design* (the approved design itself is the weak part — that goes to the human and the
+  designer as a suggestion, never into the build). A finding that doesn't say which it is, is
+  unusable.
+- **Creativity/originality is not the builders'.** Score it honestly, but attribute it to the source
+  design; don't dock the implementation for a conservative mockup, and don't credit it for a bold one.
+
+Everything else — independence, evidence, no directional bias — holds exactly as above.
+
 ## Verdict & required fixes
 
 - `PASS` when composite ≥ threshold.

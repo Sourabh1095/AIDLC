@@ -42,6 +42,26 @@ Brand anchors are **hard constraints**, not inspiration:
   to confirm rather than guessing silently.
 - **Supplied hex/guidelines** → honored exactly; build the token system around them.
 
+## Figma mode (the design already exists)
+
+Brief carries `design/figma-spec.md` and its variables table. **The Figma variables are the tokens** —
+you map, you don't invent. No palette derived from screenshots, no scale of your own design.
+
+- Map each Figma variable into the project's token layer, keeping semantic names semantic
+  (`surface/raised` → `--surface-raised`); rename only to fit an existing project convention and
+  record the mapping in `design/design-system.md`.
+- **Greenfield** → the mapped variables become the project standard. **Existing project** → map onto
+  the established tokens and **surface every conflict** (same role, different value) for a human to
+  settle. Never silently pick a winner, and never fork a second system beside the current one.
+- Fill only what Figma leaves undefined — focus-visible rings, disabled/loading/empty states,
+  breakpoints it didn't draw, dark mode. Derive them from the design's own logic, mark each
+  `derived:`, and list them for the designer.
+- Verify WCAG AA as always. A failing pair **inherited from the design** is corrected and reported as
+  a required adaptation with the ratio and the shipped value — you don't ship known-inaccessible
+  contrast to match a mockup, and you don't fix it quietly either.
+
+Follow `aidlc-ux:figma-handoff`. You still never edit the spec to match what's convenient.
+
 ## How you work (build modes)
 
 1. **Adopt before invent.** If a project design system already exists (`design/design-system.md` or

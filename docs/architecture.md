@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude AIDLC
 
-**Status:** All phases (0–5) implemented + polyrepo · core v0.8.x · `aidlc-ux` design pod v0.2.x
+**Status:** All phases (0–5) implemented + polyrepo · core v0.40.x · `aidlc-ux` design pod v0.5.x
 
 ## 1. Core design decisions
 
@@ -334,20 +334,44 @@ forks shadowed by promoted versions, resolves shadowing conflicts); `/aidlc:spri
 independence check → worktree + headless run per item → live board from run-file polling →
 cleanup); governance via `docs/promotion-policy.md` (`plugins/**` platform-owned).
 
-### Design pod ✅ (`aidlc-ux` plugin, v0.1–0.2)
+### Design pod ✅ (`aidlc-ux` plugin, v0.1–0.5)
 
-A separate, default-enabled plugin for award-grade UI. Five roles: `aidlc-ux-writer` (narrative),
-`aidlc-ux-researcher` (cited Awwwards inspiration), `aidlc-design-system` (the tokenized uniformity
-anchor — also audits existing UIs and honors brand anchors), `aidlc-motion` (animation within a
-perf+a11y budget), and `aidlc-ux-jury` (opus; renders via Playwright and scores a weighted rubric
-/10, blind to the makers). `/aidlc-ux:design` runs narrative → research → design system →
-build/redesign + motion → a jury loop that iterates until composite ≥ `ux.juryThreshold` (default 9),
-capped at `ux.maxJuryRounds`. Works greenfield (establish the project standard), retrofit (adopt the
-existing system, redesign a scoped surface) and full redesign; brand references (logo/colors/fonts)
-are hard constraints. **Design decision:** the jury is the only opus tier and is deliberately blind
-to reasoning to keep scoring unbiased; the loop is capped (never model-escalates) to respect cost.
-The core orchestrator detects UI items at classify (`ui:` flag) and routes them here when the plugin
-is present and `ux.enabled` — no hard dependency, so core still runs standalone.
+A separate, default-enabled plugin for UI work, with **two design sources** and a different quality
+gate for each.
+
+**Generated (no Figma).** Five roles: `aidlc-ux-writer` (narrative), `aidlc-ux-researcher` (cited
+Awwwards inspiration), `aidlc-design-system` (the tokenized uniformity anchor — also audits existing
+UIs and honors brand anchors), `aidlc-motion` (animation within a perf+a11y budget), and
+`aidlc-ux-jury` (opus; renders via Playwright and scores a weighted rubric /10, blind to the makers).
+`/aidlc-ux:design` runs narrative → research → design system → build/redesign + motion → a jury loop
+that iterates until composite ≥ `ux.juryThreshold` (default 9), capped at `ux.maxJuryRounds`. Works
+greenfield (establish the project standard), retrofit (adopt the existing system, redesign a scoped
+surface) and full redesign; brand references (logo/colors/fonts) are hard constraints.
+
+**Figma (v0.5).** When the screens already exist, the pod implements rather than invents. The plugin
+ships its own `figma` MCP server (remote, OAuth). `aidlc-figma` extracts the design once —
+`get_metadata` → `get_design_context` → `get_screenshot` → `get_variable_defs` — into
+`design/figma-spec.md` plus reference shots; `aidlc-design-system` runs in *figma mode*, mapping the
+file's **variables** onto the project's tokens instead of inventing a palette; the implementer builds
+to the spec; and `aidlc-fidelity` (opus) renders at the design's own artboard width and classifies
+every difference `[BLOCKING]`/`[MINOR]`/`[ADAPTATION]`. Gate = **zero blocking**, capped at
+`ux.figma.maxFidelityRounds`. `/aidlc-ux:figma` links a file, maps frames to the app's real routes,
+and `sync` re-extracts to report design drift against the built routes.
+
+**Design decisions.** (1) *The jury does not gate a Figma-sourced surface.* The design was approved
+outside the session; scoring it and iterating toward a 9 would overwrite someone else's decision. So
+it is offered (`ux.figma.jury: suggest`), advisory when accepted, and its design-level critique goes
+to the human rather than into the build — `gate` remains available for teams treating Figma as a
+starting point. (2) *An unreadable Figma blocks the run.* Falling back to inventing a design is the
+one failure that looks like success. (3) *Extract once.* Figma reads are seat-rate-limited (a few
+calls per month on Starter/View seats), so the spec — not the MCP — is what the build, the fidelity
+check and the next session read. (4) The jury and the fidelity checker are the only opus tiers, both
+deliberately blind to the makers' reasoning; both loops are capped and never model-escalate.
+
+The core orchestrator detects UI items at classify (`ui:` flag) and the design source alongside it
+(`designSource: figma|generated`), routing here when the plugin is present and `ux.enabled` — no hard
+dependency, so core still runs standalone. `ux.figma` is per repo and per package: different
+frontends have different design files.
 
 ## 3. Post-v1 candidates (not committed)
 

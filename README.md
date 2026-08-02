@@ -169,3 +169,13 @@ AIDLC adopts your Tasks as the plan in your board's order, each commit names bot
 (`Refs: PROJ-123, PROJ-145`), and closing a plan step closes its Task. Still one branch and one PR —
 and it never writes an estimate, because points and hours are your record of what you asked for, not
 a number for the pipeline to invent.
+
+When the screens already exist in Figma (`aidlc-ux` v0.5.0), the pod stops designing. It ships the
+Figma MCP, extracts the file once into a written spec plus variables and reference shots, maps those
+variables onto the project's tokens instead of inventing a palette, builds to the spec, and gates on
+**fidelity** — every difference from the design classified blocking, minor, or a deliberate
+adaptation. The jury is *offered* rather than imposed there: the design was already approved by
+someone who isn't in the session, so scoring it out of 10 and iterating toward a 9 would overwrite
+their decision. Say yes and it runs advisory — build-missed-the-design findings get fixed, critique of
+the design itself goes to you and your designer. `/aidlc-ux:figma sync` re-reads after the designer
+moves and tells you which built routes now disagree.

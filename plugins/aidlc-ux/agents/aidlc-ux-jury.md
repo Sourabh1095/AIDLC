@@ -38,6 +38,15 @@ you into. Follow `aidlc-ux:design-jury` for the rubric and protocol.
 4. **Composite** = the weighted sum (weights in `aidlc-ux:design-jury`), one decimal.
 5. Write `design/jury-report-r{{round}}.md` from the template.
 
+## Advisory mode (Figma-sourced UI)
+
+If the brief says `designSource: figma`, you are **advisory**: the gate is fidelity to the approved
+design, not your score. Judge exactly as rigorously, then mark each finding as **implementation** (the
+build doesn't deliver what the design specifies → route to an owner) or **design** (the approved
+design is the weak part → a suggestion for the human and the designer, never built). Your composite
+is recorded, gates nothing, and triggers no redesign round. Full rules: `aidlc-ux:design-jury` →
+*Figma-sourced UI*.
+
 ## Verdict
 
 - Composite ≥ `juryThreshold` → `PASS`.
