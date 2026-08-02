@@ -1,6 +1,6 @@
 ---
 name: design-jury
-description: The Awwwards-style scoring rubric, anti-bias rules and render/evidence protocol used to judge a rendered UI out of 10 and gate the design pipeline. Load when acting as the jury or reviewing a jury report.
+description: The Awwwards-style scoring rubric and anti-bias rules used to judge a rendered UI out of 10 and gate the design pipeline — plus the shared render & evidence protocol (resolve the dev-server URL from the repo, fail loud on a non-UI response, capture states) that BOTH the jury and the fidelity checker follow. Load when acting as the jury, when rendering a built UI to check it, or when reviewing a jury report.
 user-invocable: false
 ---
 
@@ -19,7 +19,12 @@ The score is only worth something if it's unbiased and evidence-backed.
   score you can't ground in a shot is invalid — recapture and re-judge.
 - Consistency check across rounds: don't reward a fix that regressed a previous strength.
 
-## Render & evidence protocol
+## Render & evidence protocol — shared, not jury-only
+
+**Steps 1–4 are the canonical render protocol for every agent that renders the built UI** — the jury
+here, and `aidlc-fidelity` on a Figma-sourced surface. They are stated once, in this file, so a
+change to how the URL is resolved cannot land in one renderer and not the other. Steps 5–6 are the
+jury's evidence rules; the fidelity checker's equivalent is in `aidlc-ux:figma-handoff` → *Fidelity*.
 
 1. **Resolve the render URL from the repo, not the static config.** Before rendering, derive the real
    dev-server URL/port from the repo itself — parse the `dev` (or `start`) script in the repo's
@@ -35,7 +40,12 @@ The score is only worth something if it's unbiased and evidence-backed.
    app (e.g. the port is shared with an API), do NOT score it — report `BLOCKED: non-UI response at
    <url> (expected HTML UI, got <JSON/404/…>)`. A wrong-server render must fail loud, never pass
    silently with a fabricated score.
-4. Drive it with the Playwright MCP at the configured desktop viewport (`target: desktop-web`).
+4. Drive it with the Playwright MCP (bundled with this plugin — `aidlc-ux/.mcp.json`; it is not a
+   core dependency, so a backend-only workspace never installs it). **Viewport is the renderer's own
+   call:** the jury uses the
+   configured desktop viewport (`target: desktop-web`); the fidelity checker uses the **artboard width
+   the frame was drawn at**, because comparing a 1440px design against a 1280px viewport manufactures
+   defects that aren't real.
 5. Capture the key screens AND states: default, hover, focus-visible, empty, loading, error where
    they exist — plus the narrative's **signature moment** (scroll/interact to trigger it, then shoot).
    On a scoped redesign, also review the supplied sibling-page shots so you can judge whether the

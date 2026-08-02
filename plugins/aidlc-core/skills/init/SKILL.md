@@ -355,10 +355,10 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      `store/{index,hooks,api/base-api}`) into place, and generate ONE example feature/module as a
      copy-me pattern.
    - Drop the matching `templates/structure/dependency-cruiser/.dependency-cruiser.<flavor>.cjs` as
-     `.dependency-cruiser.cjs`; add **`dependency-cruiser@^17`** to devDeps (pin the `^17` floor — a
-     `< 17` install silently no-ops on `.ts` and the gate passes green enforcing nothing, F30; the
-     profiles' `enhancedResolveOptions` also need `>= 17`) and a `depcruise` script
-     (`"depcruise": "depcruise src"`). RTK flavors also need `@reduxjs/toolkit` + `react-redux`.
+     `.dependency-cruiser.cjs`, with the `dependency-cruiser` devDep at the pinned floor and the
+     `depcruise` script — exact version and the reason it is a floor rather than a preference are in
+     that skill's repo-scaffold checklist item 2 (F30). RTK flavors also need `@reduxjs/toolkit` +
+     `react-redux`.
    - **Merge-aware:** never overwrite an existing structure — if the repo already has a layout, adopt
      it, skip the skeleton, and note the difference. Skip non-TS repos entirely.
 7. **CI gate for `mode: remote` repos (F24) — remote mode implies a PR-gated merge, so a gate must

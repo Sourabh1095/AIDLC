@@ -1,6 +1,6 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
 // Bee-Logical AIDLC — Next.js App Router layering gate. `/aidlc:init` drops this
-// as `.dependency-cruiser.cjs`; `aidlc:ci-cd` runs `depcruise src` in the PR gate.
+// as `.dependency-cruiser.cjs`; `aidlc-stack-web:ci-web` runs `depcruise src` in the PR gate.
 // Assumes the `src/` layout; if your app/ is at repo root, drop the `src/` prefix.
 module.exports = {
   forbidden: [

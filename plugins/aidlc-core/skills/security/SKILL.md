@@ -33,23 +33,30 @@ errors returned to clients; overly informative auth failures ("no such user").
 
 A new dependency is a supply-chain, freshness and compatibility decision — vet it *at the moment you
 reach for it*, before any code is built on top of it. Rejecting a bad choice here is cheap;
-discovering it in verify, after code depends on it, is rework. The `dep-vet` PreToolUse hook gates
-`npm i <pkg>` / `pnpm|yarn|bun add …` to force this pause. This is not an allow-list — any package is
-fine if it passes all three tests. Verify real facts via Context7/registry, never memory:
+discovering it in verify, after code depends on it, is rework. The `dep-vet` PreToolUse hook gates the
+install commands to force this pause. This is not an allow-list — any package is fine if it passes all
+three tests. Verify real facts via Context7 / the ecosystem's own registry, never memory:
 
 1. **Safe** — maintained (recent publish + real repo activity), exact name (typosquat check vs the
-   popular package), sane license, no suspicious `pre/postinstall` scripts, clean of open CVEs
-   (`npm audit --omit=dev --json` — evaluate NEW findings vs the default branch). Critical CVE in a
-   newly added direct dep = BLOCKER; new advisory in a transitive dep = MAJOR with the upgrade path named.
+   popular package), sane license, no arbitrary code executed at install time, clean of open
+   advisories. Run **the ecosystem's audit** and evaluate NEW findings against the default branch
+   (`npm audit --omit=dev --json`, `pip-audit`, `cargo audit`, `mvn dependency-check:check`, …).
+   Critical advisory in a newly added direct dep = BLOCKER; new advisory in a transitive dep = MAJOR
+   with the upgrade path named.
 2. **Latest stable** — take the current stable release (not a stale major, not an alpha/beta/rc/next
    tag). If you must hold an older version, record why. A direct dep already >1 major behind is tech debt.
-3. **Compatible** — the chosen version satisfies the `peerDependencies` and `engines` of the project's
-   stack (framework major, Node version) and of the packages it interoperates with. Resolve peer
-   conflicts properly — NEVER `--legacy-peer-deps`/`--force` to silence one; `npm ci` failing on peers
-   is the signal to fix the graph, not override it.
+3. **Compatible** — the chosen version satisfies the declared compatibility constraints of the
+   project's stack (framework major, runtime version — `peerDependencies`/`engines`, `requires-python`,
+   the parent POM, whatever the ecosystem uses) and of the packages it interoperates with. Resolve
+   conflicts properly — **never silence one with an override flag** (`--legacy-peer-deps`, `--force`,
+   `--ignore-conflicts`). A lockfile install failing on a conflict is the signal to fix the graph, not
+   to override it.
+
+Where a stack pack is installed it may add ecosystem specifics on top of these three tests; the tests
+themselves do not change.
 
 Same three tests apply when *bumping* a dependency — ongoing freshness/compat over time is
-`aidlc:maintenance` (`npm outdated`, risk-tiered).
+`aidlc:maintenance` (the ecosystem's outdated report, risk-tiered).
 
 ## 5 · Config regressions
 

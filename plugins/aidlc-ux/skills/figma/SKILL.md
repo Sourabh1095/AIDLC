@@ -119,22 +119,16 @@ product code.
 ## Extract (shared by every mode, and by the design pod)
 
 Dispatch **Agent → aidlc-figma** with the resolved repo/package and its working dir, the `fileKey`,
-the run file (if any), and the template. It performs the read order in `aidlc-ux:figma-handoff` and
-never edits product code.
+the run file (if any), and the template. It performs the read order, the call budget and the two-wave
+library extraction defined in `aidlc-ux:figma-handoff` — those rules live there, not here, so the
+command and the agent cannot drift apart. Brief it with:
 
-- **Screens mode** — the in-scope node ids + `templates/figma-spec.md`. `get_design_context` per node,
-  `get_screenshot` per frame, `get_variable_defs` once → `design/figma-spec.md` + shots in
-  `design/figma/`.
-- **Library mode** — the canonical pages + `templates/figma-system.md`. Wave 1 up front:
-  `get_variable_defs` (the whole token set, one call) plus `get_metadata` over those pages for the
-  **component inventory** (names, node ids, variant axes). Wave 2 on demand: a component's
-  `get_design_context` + `get_screenshot` the first time a screen needs it, cached into
-  `design/figma-system.md` + `design/figma/system/`. A sixty-component system is not extracted whole
-  on day one — the monthly call budget won't survive it, and most of it would go unread.
+- **Screens mode** — the in-scope node ids + `templates/figma-spec.md`. Output: `design/figma-spec.md`
+  + reference shots in `design/figma/`.
+- **Library mode** — the canonical page list + the workspace scope + `templates/figma-system.md`.
+  Output: `design/figma-system.md` + component shots in `design/figma/system/`.
 
-Where the file consumes or *is* a published library, and where the project has Code Connect wired, the
-extraction records which components have **code counterparts** — those get reused, never rebuilt.
-After a system extraction, hand off to **Agent → aidlc-design-system** in *figma-library mode* to
+After a **system** extraction, hand off to **Agent → aidlc-design-system** in *figma-library mode* to
 write `design/design-system.md` and emit the project's tokens from it. One system per project.
 
 ## Handoff

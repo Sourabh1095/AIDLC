@@ -6,8 +6,13 @@ argument-hint: "<the requirement, in plain language>"
 
 # /aidlc:intake $ARGUMENTS — requirement in, backlog items out
 
-The front door of the pipeline: the user describes WHAT they want; this produces well-formed,
-tracked work items — not code. (Implementation starts afterwards via `/aidlc:run`.)
+**The tracking door.** The user describes WHAT they want; this produces well-formed, tracked work
+items — not code. (Implementation starts afterwards via `/aidlc:run`.)
+
+There is one general front door — **`/aidlc:do`** — and it routes here when a request turns out to
+warrant a ticket. This skill is the door for *one* requirement; `/aidlc:bootstrap` is the same job at
+project scale, from a requirements document. Arriving here directly is fine and common; arriving here
+for a typo is not (see below).
 
 **This door is for work that warrants tracking.** Small, obvious, low-consequence changes are handled at
 tier 1 without an item — see `aidlc:ceremony`. Arriving here means the tier decision already concluded

@@ -61,7 +61,7 @@ steps:
   # `npm ci` is EXACT-lock — no resolution. A package-lock.json generated on Windows/macOS can be
   # unsatisfiable here (Linux resolves platform-specific optional deps like @emnapi/* / esbuild /
   # swc / rollup natives differently). If this step fails with a lock/optional-dep mismatch,
-  # regenerate the lockfile in a Linux context (see `aidlc:ci-cd` → cross-platform lockfile) — do NOT
+  # regenerate the lockfile in a Linux context (see `aidlc-stack-web:ci-web` → cross-platform lockfile) — do NOT
   # loosen it to `npm install`.
   - script: |
       cd "${{ parameters.workingDirectory }}"
@@ -102,7 +102,7 @@ steps:
 # POLY + a cross-repo package dependency (e.g. a shared `@beelogical/dev-config`)?
 # CI checks out ONE repo, so an unpublished `file:../sibling` link is ABSENT here and every config
 # it sources fails ("Cannot find package '@beelogical/dev-config'"). Two supported fixes (see
-# `aidlc-stack-web:project-structure` → cross-repo dependencies and `aidlc:ci-cd`):
+# `aidlc-stack-web:project-structure` → cross-repo dependencies and `aidlc-stack-web:ci-web`):
 #
 #   (A) PUBLISH the shared package (Azure Artifacts / private registry) and consume it by version.
 #       REQUIRED for transitive/built deps (a repo needing a *built* sibling SDK, not just configs).

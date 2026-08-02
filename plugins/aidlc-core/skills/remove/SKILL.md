@@ -53,7 +53,7 @@ of them is unrecoverable. A clean tree also makes §5's verification meaningful.
 | Tier | Paths | Default |
 |---|---|---|
 | **A · Framework machinery** — ours, no human content | `.claude/aidlc.config.json`, `.claude/rules/git-workflow.md`, `.claude/rules/safety.md`, AIDLC hook scripts, `.claude/aidlc.config.*.example.json`, `.aidlc/adoption/profile.json` | **Delete** |
-| **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md` | **Keep**, and ask per directory |
+| **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
 | **C · Merged into files the project owned** | `CLAUDE.md`, `.claude/settings.json`, `.gitignore`, and any stack tooling config `init` merged into (`tsconfig.base.json`, `eslint.config.mjs`, …) | **Revert our sections only** |
 
 Tier B is where judgement is required, so make the consequence explicit rather than offering a bare
@@ -71,6 +71,14 @@ choice:
   runtime constraints, the redacted secret findings — and every one of those outlives the framework. If
   it records a `committed-secret` finding, **say so out loud here**: deleting the report does not rotate
   the credential, and it is the only place the location is written down.
+- **`design/`** (present only where `aidlc-ux` ran) — keep, and say what is in it. `narrative.md`,
+  `inspiration.md`, `design-system.md`, `brand.md`, the jury and fidelity reports, `figma-spec.md` /
+  `figma-system.md` and the reference shots in `design/figma/` are a **record of design decisions and
+  of what the client approved**, not framework machinery. `design-system.md` in particular is the
+  contract the shipped components were built against, and the Figma artifacts are the only written
+  form of a file the team may not be able to re-read (the MCP call budget is real). The token files
+  themselves are **in the source tree** and are tier C at most — deleting them breaks the build.
+  Offer deletion only if asked, and name what is lost.
 - **`.claude/skills/` and `.claude/agents/`** — split them. A skill the pipeline scaffolded is ours; a
   skill the team wrote is theirs; a skill that was **promoted** upstream now also lives in the plugin, so
   deleting the local copy is what `/aidlc:sync` would have done anyway. Read `.aidlc/extensions.json`,
@@ -142,9 +150,12 @@ Verification is the point of the manifest, so do it rather than asserting it:
 
    Where `adoption.commit` is unreachable (a shallow history, or no manifest at all), say that
    verification was not possible rather than implying it passed.
-3. **Confirm the plugin is still installed.** This command removed AIDLC from the *project*; the plugin
-   remains at user scope. `/plugin uninstall aidlc@bee-logical` is the separate step, and `/aidlc:` will
-   keep answering until it runs — which is a feature if the user is removing in order to re-adopt.
+3. **Confirm the plugins are still installed.** This command removed AIDLC from the *project*; the
+   plugins remain at user scope. Uninstalling is a separate step **per plugin** — `/plugin uninstall
+   aidlc@bee-logical`, and likewise `aidlc-stack-web@bee-logical` / `aidlc-ux@bee-logical` where they
+   were installed — and `/aidlc:` (or `/aidlc-ux:`) will keep answering until each runs, which is a
+   feature if the user is removing in order to re-adopt. Name the ones you can see enabled rather than
+   assuming only core.
 
 Then report, in this order: what was deleted · what was reverted, by section · **what was kept and why**
 (the most useful line, because it is what the team keeps) · what could not be verified · and, if the

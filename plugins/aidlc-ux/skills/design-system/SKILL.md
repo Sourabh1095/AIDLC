@@ -18,6 +18,37 @@ pixel in a component is a defect, not a shortcut.
   below), then **conform** (retrofit a page/screen to it), **elevate-in-place** (extend it), or
   **replace** it (redesign). Never create a second, divergent system beside the current one.
 
+## When the system is given, not invented (sourced from Figma)
+
+Two different things can hand you the values, and both mean **you map, you don't invent** — no palette
+derived from screenshots, no scale of your own design. `aidlc-ux:figma-handoff` covers reading the file;
+this is what landing it in code requires:
+
+- **Emit the full token layer from the variable table**, not just the values the first screen needs.
+  A half-mapped system means the next screen invents the rest.
+- **Keep semantic names semantic** (`surface/raised` → `--surface-raised`). Rename only to fit an
+  existing project convention, and record the mapping **both ways** in `design/design-system.md`.
+- **Multi-mode variables** (light/dark, density, brand) map to the project's theming mechanism — never
+  to duplicated token sets.
+- **Conflicts with tokens already in code are listed for a human.** Never silently pick a winner, and
+  never let both survive: two spellings of the brand blue is exactly the drift a system prevents.
+- **The component inventory is the contract.** Where a code counterpart exists (a published package, a
+  Code Connect mapping), wire the project to *use* it. Where one doesn't, say what must be built as a
+  system component — implemented once, in the component layer, never inline in a screen.
+- **Gaps stay gaps.** What the file doesn't define — focus rings, some states, breakpoints, dark mode,
+  a missing component — you derive from the system's own logic, label `derived:`, and list for the
+  designer. A derived value is provisional; it is never promoted to canon quietly.
+- **Workspace scope.** When the system is workspace-wide, every frontend derives from the same
+  extraction, each emitting tokens in its own idiom. Say which repos you emitted for and which are
+  still on their old values.
+- **Accessibility is still yours.** Verify AA across the system's own pairs. A failing pair *inherited*
+  from the design or system is corrected, recorded with both ratios, and reported upstream — it is a
+  system bug, and reporting it is worth more than the local fix. You never ship known-inaccessible
+  contrast to match a mockup, and you never fix it quietly either.
+
+Greenfield → the mapped variables become the project standard. Existing project → map onto the
+established tokens and surface every conflict rather than forking a second system beside the current one.
+
 ## Auditing an existing UI
 
 Given rendered screenshots + the code: catalog the colors, type families/scale, spacing, radius and

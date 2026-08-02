@@ -1,6 +1,6 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
 // Bee-Logical AIDLC — NestJS layering gate. `/aidlc:init` drops this as
-// `.dependency-cruiser.cjs`; `aidlc:ci-cd` runs `depcruise src` in the PR gate.
+// `.dependency-cruiser.cjs`; `aidlc-stack-web:ci-web` runs `depcruise src` in the PR gate.
 // Layering: controller -> service -> repository. Features are encapsulated.
 // Adjust the `^src/` paths if your repo roots elsewhere.
 module.exports = {

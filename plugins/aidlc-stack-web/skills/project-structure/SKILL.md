@@ -110,7 +110,7 @@ src/
 ## Boundary rules (the CI gate enforces these)
 
 `templates/structure/dependency-cruiser/` ships a config per flavor; `/aidlc:init` drops the matching
-one and `aidlc:ci-cd` runs `depcruise` in the gate. The rules:
+one and `aidlc-stack-web:ci-web` runs `depcruise` in the gate. The rules:
 
 - **No feature→feature internals** — `modules/a` ↛ `modules/b/*` (backend); `features/a` ↛
   `features/b/*` (frontend). Cross-feature goes through the public/exported surface.
@@ -133,8 +133,10 @@ one, up front:
   type-checks against), not just flat config files. Multi-checkout degrades badly there (multiple
   sibling checkouts + building the sibling).
 - **Multi-repo checkout** in CI — check the sibling out alongside and `npm ci` it too. Workable for a
-  **leaf** config dependency only. See `aidlc:ci-cd` → *Poly cross-repo package dependencies* and the
-  multi-checkout block in `aidlc-stack-web/templates/ci/`.
+  **leaf** config dependency only. The CI mechanics for whichever you pick — multi-checkout wiring,
+  sibling install order, registry auth — are `aidlc-stack-web:ci-web` → *Poly cross-repo package
+  dependencies*, plus the multi-checkout block in `aidlc-stack-web/templates/ci/`. **The decision is
+  made here, at design time; only the wiring lives there.**
 
 Never ship an unpublished `file:` sibling link into a `mode: remote` repo expecting CI to pass — it
 won't. Decide publish-vs-checkout before fanning the pattern out to consumers.
@@ -157,14 +159,16 @@ For a TS repo, after the tooling baseline (`templates/tooling/`), create the tre
    `templates/structure/dependency-cruiser/.dependency-cruiser.<flavor>.cjs` (`<flavor>` =
    `nestjs` / `next-app` / `rtk-spa`) into the repo root as **`.dependency-cruiser.cjs`**, add
    **`dependency-cruiser@^17`** to devDependencies (**pin the `^17` floor, not a bare name — F30**),
-   and add a **`depcruise`** script (`"depcruise": "depcruise src"`). Without this file the boundary
-   check has nothing to run and is **silently inert** — the layout looks enforced but isn't. Worse,
-   **`dependency-cruiser < 17` silently no-ops on `.ts`** — it runs, reports zero violations, and the
-   gate passes green while enforcing nothing; that's why the floor is mandatory, not cosmetic. The
-   shipped profiles also set `enhancedResolveOptions` (exports-map subpath resolution, F26), which
-   likewise needs `>= 17`. Belt-and-suspenders: the CI gate asserts a **non-empty module graph** (fail
-   if depcruise analyzed 0 `.ts` files) — see `aidlc:ci-cd`. `aidlc:ci-cd` runs `depcruise` in the PR
-   gate; it only bites when the config is present.
+   and add a **`depcruise`** script (`"depcruise": "depcruise src"`).
+
+   **This paragraph is the canonical statement of the floor; other skills point here rather than
+   restate it.** Two ways the gate can look enforced and not be: without the config file the boundary
+   check has nothing to run and is **silently inert**; and **`dependency-cruiser < 17` silently no-ops
+   on `.ts`** — it runs, reports zero violations, and the gate passes green while enforcing nothing.
+   That is why the floor is mandatory rather than cosmetic. The shipped profiles also set
+   `enhancedResolveOptions` (exports-map subpath resolution, F26), which likewise needs `>= 17`.
+   Belt-and-suspenders in CI: `aidlc-stack-web:ci-web` asserts a **non-empty module graph** and runs
+   `depcruise` in the PR gate — which only bites when this config is present.
 3. **Hardened `.gitignore` (F14).** Copy `templates/tooling/.gitignore` — it ignores `.env*` with a
    `!.env.example` allow-exception (plus `node_modules`/`dist`/`build`/`coverage`/`.next`). Secret-
    bearing env files must be ignored by default; a framework's stock `.gitignore` often only covers

@@ -33,8 +33,15 @@ Show the user a before/after diff of the generalization before packaging.
 
 1. Clone the marketplace repo (config `marketplace.repo`) into the scratchpad; branch
    `{promotionBranchPrefix}{name}` (default `promote/<name>`).
-2. Destination: stack-specific expertise → the matching stack pack (`plugins/aidlc-stack-web/skills/`);
-   everything else → `plugins/aidlc-core/skills/` (agents → `agents/`). Keep the `x-aidlc` block,
+2. Destination — pick by what the extension *knows about*, not by who wrote it:
+   - stack/framework expertise (a language, a database, a build tool) → the matching stack pack,
+     `plugins/aidlc-stack-web/skills/`;
+   - design, UI, motion, Figma or anything that judges a rendered surface → `plugins/aidlc-ux/skills/`
+     (agents → `plugins/aidlc-ux/agents/`);
+   - everything else — pipeline mechanics, trackers, process → `plugins/aidlc-core/skills/`
+     (agents → `agents/`).
+   A skill that would pull a stack or a design dependency into core belongs in a pack, not in core —
+   that is the layering `/aidlc:promote` is the last chance to get right. Keep the `x-aidlc` block,
    set `origin: core` and drop `reuseCount`.
 3. Bump the target plugin's `plugin.json` version (minor) and the marketplace.json entry;
    add a CHANGELOG entry crediting the source project + originating item.

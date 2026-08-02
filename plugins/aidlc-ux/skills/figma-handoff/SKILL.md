@@ -203,7 +203,9 @@ what the eye would have to. Prefer that over visual inspection when both are ava
 ## Fidelity — what counts as a defect
 
 The check compares the **rendered build** against the **Figma reference**, at the design's own
-viewport. Classify every difference:
+viewport. Getting the build on screen is the shared render protocol — `aidlc-ux:design-jury` →
+*Render & evidence protocol*, steps 1–4 — with one difference that matters: render at the **artboard
+width the frame was drawn at**, not a generic desktop default. Then classify every difference:
 
 - **`[BLOCKING]`** — the build does not implement the design: missing or extra elements, wrong copy,
   wrong component, off-token color or type, spacing off the design by more than the tolerance,

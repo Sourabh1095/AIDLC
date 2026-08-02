@@ -15,18 +15,24 @@ An agent is justified ONLY if the role needs at least one of:
   (reviewer-shaped roles).
 
 Knowledge alone is a SKILL (`scaffold-skill`) loaded by an existing agent. When in doubt: skill.
-Check the 9 core agents first — most "new agent" needs are really "existing agent + new skill".
+**Check the agents already installed first** — every AIDLC plugin ships some (core the pipeline roles,
+`aidlc-ux` the design pod), and most "new agent" needs are really "existing agent + new skill". List
+what is actually installed rather than working from a remembered count.
 
 ## 1 · Scaffold
 
 1. Name: kebab-case role (`load-tester`, `contract-checker`); don't prefix with `aidlc-`
-   (that namespace marks core agents).
+   (that namespace is reserved for plugin-shipped agents in any AIDLC plugin, not just core).
 2. Instantiate `${CLAUDE_PLUGIN_ROOT}/templates/agent-template.md` → `.claude/agents/<name>.md`.
    Fill everything, including `x-aidlc.agentJustification` — state WHICH of (a)/(b)/(c) applies
    and why. An agent whose justification you can't write crisply should be a skill.
-3. Restrict `tools:` to the minimum the role needs (reviewer-shaped roles get no Edit/Write).
-   Choose `model:` by judgment depth: haiku mechanical · sonnet default · opus deep/adversarial.
-4. Follow the template's report-back contract: run-file log line + short verdict, ≤10 lines.
+3. Restrict `tools:` per `aidlc:agent-contract` → *Tool restriction policy*. Two rules from there that
+   are easy to get wrong: an agent that appends to the run file **needs `Edit`** (a `Read/Grep/Glob/
+   Bash` "read-only" list cannot write its own findings), and you never guess an MCP tool id to
+   tighten a list. Choose `model:` by judgment depth: haiku mechanical · sonnet default · opus
+   deep/adversarial.
+4. Follow `aidlc:agent-contract` for the finish contract and the report-back shape — the template
+   carries the four-line inline version; keep it verbatim.
 
 ## 2 · Register & commit
 

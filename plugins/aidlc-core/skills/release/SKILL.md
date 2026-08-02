@@ -51,8 +51,11 @@ Pre-1.0: breaking → minor, everything else → patch. State the decision and t
 
 Group commits under Added (`feat`) / Fixed (`fix`) / Changed (`refactor`, `perf`) — user
 language, not commit-speak; fold multiple commits per work item into one line with the item ID.
-Skip `chore/test/docs` unless user-visible. Update `CHANGELOG.md` under the new version +
-date; bump `package.json` version (and lockfile via `npm install --package-lock-only`).
+Skip `chore/test/docs` unless user-visible. Update `CHANGELOG.md` under the new version + date, and
+bump the version **where this ecosystem keeps it** — `package.json` (+ the lockfile, via the
+manifest-only refresh: `npm install --package-lock-only`), `pyproject.toml`, `Cargo.toml` (+
+`Cargo.lock`), the POM, `*.csproj`. Match the file the project already versions in; never introduce a
+second place a version is written.
 
 ## 3 · Release commit + tag (needs a normal run/PR unless on a release branch flow)
 
@@ -72,7 +75,8 @@ to govern.
   annotated tag locally (`git tag -a v{X.Y.Z} -m "<changelog section>"`) and STOP there — report the
   tag and note that a hosted release/`gh release create` will run once a remote is configured. Never
   push or invent a remote.
-- Never `npm publish` / `docker push` without explicit instruction — they're separate approvals.
+- Never publish a package or push an image (`npm publish`, `twine upload`, `cargo publish`,
+  `docker push`, …) without explicit instruction — each is its own approval, separate from the release.
 
 ## Release notes style
 

@@ -7,6 +7,9 @@ tools:
   - Grep
   - Glob
   - Bash
+  # Write/Edit are for the run file and the ADR only — never product code (see Hard rules).
+  - Write
+  - Edit
   - WebSearch
   - WebFetch
   - mcp__plugin_aidlc_context7__resolve-library-id
@@ -45,8 +48,10 @@ wrong plan is expensive. Explore before deciding; decide before writing. Follow
    dependency, schema/contract change, cross-service pattern, security posture — write
    `docs/adr/NNNN-<slug>.md` from the ADR template and reference it in the plan.
 5. Load stack skills when present (`aidlc-stack-web:nextjs`, `aidlc-stack-web:nestjs`, `aidlc-stack-web:postgres`,
-   `aidlc-stack-web:mongodb`, `aidlc-stack-web:db-migrations`, `aidlc-stack-web:api-design`) — plans must match project + stack
-   conventions, and schema changes must follow expand-contract.
+   `aidlc-stack-web:mongodb`, `aidlc-stack-web:db-migrations`, `aidlc-stack-web:api-design`,
+   `aidlc-stack-web:project-structure`, and `aidlc-stack-web:docker` whenever the plan touches how the
+   thing is built or run) — plans must match project + stack conventions, and schema changes must
+   follow expand-contract.
 6. Use the bundled **Context7** MCP (`resolve-library-id` → `query-docs`, now granted to this agent)
    for current library capabilities/versions instead of assuming; `WebSearch`/`WebFetch` only for
    genuine unknowns (then keep it brief — deep investigation is the researcher's job). If the
@@ -63,14 +68,11 @@ wrong plan is expensive. Explore before deciding; decide before writing. Follow
 
 ## Finish contract
 
-**Never return on a pending background task.** If you launched anything long-running in the
-background (a build, a test suite, `npm ci`, a Docker start, a CI/pipeline run), then before
-returning you MUST either (a) block until it reaches a terminal state and act on the result, or
-(b) return an explicit `BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and
-every uncommitted path you are leaving behind. "Still running — I'll wait for the notification" is
-**not** a verdict: the orchestrator cannot trust it and is forced to re-derive your work. The order
-is always **verify → commit → report**, synchronously; never leave the working tree dirty behind an
-optimistic return.
+Follow `aidlc:agent-contract`. The binding rule: **never return on a pending background task** —
+block it to a terminal state and act on the result, or return an explicit `BLOCKED` / `INCOMPLETE`
+verdict naming every still-pending task and every uncommitted path you leave behind. "Still running —
+I'll wait for the notification" is not a verdict. Order: **verify → commit → report**, synchronously
+(the ADR file is your only commit).
 
 ## Report back
 

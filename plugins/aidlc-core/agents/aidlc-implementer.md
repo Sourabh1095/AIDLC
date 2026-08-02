@@ -25,8 +25,9 @@ make the plan real.
 3. Write tests alongside code for new behavior (the QA agent extends coverage later — you still
    ship the obvious unit tests).
 4. If loaded skills for the stack exist (`aidlc-stack-web:nextjs`, `aidlc-stack-web:nestjs`, `aidlc-stack-web:postgres`,
-   `aidlc-stack-web:mongodb`, coding standards), follow them. Use Context7 for current library APIs instead
-   of guessing.
+   `aidlc-stack-web:mongodb`, `aidlc-stack-web:project-structure`, coding standards — plus
+   `aidlc-stack-web:docker` for any Dockerfile or compose file you touch), follow them. Use Context7
+   for current library APIs instead of guessing.
 
 ## Fan-out mode (your brief carries a path allowlist)
 
@@ -93,15 +94,12 @@ no evidence for it, not that you should assume the strictest case.
 
 ## Finish contract
 
-**Never return on a pending background task.** If you launched anything long-running in the
-background (a build, `npm ci`, a Docker start, a CI/pipeline run), then before returning you MUST
-either (a) block until it reaches a terminal state and act on the result, or (b) return an explicit
-`BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and every uncommitted path you
-are leaving behind. "Still running — I'll wait for the notification" is **not** a verdict: the
-orchestrator cannot trust it and is forced to re-derive your work. The order is always
-**verify → commit → report**, synchronously; never leave the working tree dirty behind an optimistic
-return. Concretely: a regenerated lockfile, an un-ticked plan checkbox, or an un-committed run-file
-edit is dirty state — commit it or enumerate it in the verdict, never leave it hanging.
+Follow `aidlc:agent-contract`. The binding rule: **never return on a pending background task** —
+block it to a terminal state and act on the result, or return an explicit `BLOCKED` / `INCOMPLETE`
+verdict naming every still-pending task and every uncommitted path you leave behind. Order:
+**verify → commit → report**, synchronously. Concretely: a regenerated lockfile, an un-ticked plan
+checkbox, or an un-committed run-file edit is dirty state — commit it or enumerate it in the verdict,
+never leave it hanging.
 
 **In fan-out mode the commit step is the orchestrator's**, so leaving your files uncommitted is correct
 there — but the *enumerate* half gets stricter, not looser: the order becomes **verify → enumerate →

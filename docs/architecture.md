@@ -342,19 +342,28 @@ verify = reviewer ∥ qa (parallel) → fix cycles (max pipeline.maxFixCycles) �
 | `aidlc-reviewer` | adversarial diff review vs AC/standards (read-only tools) | must not share implementer context | sonnet |
 | `aidlc-qa` | run suite, author missing tests, failing-repro-first for bugs | independent evidence gathering | sonnet |
 | `aidlc-security` | input→sink tracing, authz, dependency audit (conditional trigger) | adversarial depth, read-only surface | opus |
-| `aidlc-devops` | docker/CI/release items, red-check diagnosis | different tool domain | sonnet |
+| `aidlc-devops` | container/CI/release items, red-check diagnosis | different tool domain | sonnet |
 | `aidlc-docwriter` | README/CHANGELOG/API docs on the PR branch | mechanical, cheap | haiku |
 | `aidlc-researcher` | spikes → cited decision reports | web-heavy exploration + high-stakes tech-selection judgment | opus |
 
 ### Skills
 
-Commands: `run`, `next`, `status`, `init`, `adopt`, `adopt-apply`, `adopt-adr`, `groom`, `replan`,
-`review-feedback`, `release`. Infrastructure: `run-state`,
-`work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`. Playbooks: `requirements`,
-`planning`, `architecture`, `code-review`, `testing`, `debugging`, `security`, `ci-cd`,
-`docs-writing`, `research`, `maintenance`. Stack pack (`aidlc-stack-web` plugin):
-`coding-standards-ts`, `nextjs`, `nestjs`, `postgres`, `mongodb`, `db-migrations`, `docker`,
-`api-design`. (`x-aidlc`-templated scaffolds ship in `templates/`.)
+Commands: `do`, `run`, `next`, `sprint`, `status`, `init`, `bootstrap`, `intake`, `adopt`,
+`adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
+`promote`, `sync`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
+`run-state`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
+Playbooks: `ceremony`, `requirements`, `planning`, `architecture`, `code-review`, `testing`,
+`debugging`, `security`, `ci-cd`, `docs-writing`, `research`, `maintenance`. Stack pack
+(`aidlc-stack-web` plugin): `coding-standards-ts`, `project-structure`, `nextjs`, `nestjs`,
+`postgres`, `mongodb`, `db-migrations`, `docker`, `api-design`, `ci-web`. UX pod (`aidlc-ux`
+plugin): `design`, `figma`, `ux-narrative`, `design-research`, `design-system`, `design-jury`,
+`figma-handoff`, `motion`. (`x-aidlc`-templated scaffolds ship in `templates/`.)
+
+**Layering rule:** core is stack-agnostic. Anything that assumes a package manager, a language
+toolchain or a browser belongs in a pack — `ci-cd` holds host mechanics and the diagnosis protocol
+while `aidlc-stack-web:ci-web` holds the npm gate; the Playwright MCP ships with `aidlc-ux`, the only
+plugin that renders. `/aidlc:promote` enforces the same split at the moment a local skill goes
+upstream.
 
 ### Hooks (Node, cross-platform)
 

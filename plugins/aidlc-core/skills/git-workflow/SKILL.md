@@ -80,10 +80,10 @@ in poly — always `cd` into the target repo first.
 - **Bookkeeping commits (`.aidlc/**` only) — `--no-verify` + verify-before-push (F39).** A docs-only
   `.aidlc/` commit (a `chore(aidlc): archive run <id>` run-file move, a run-file checkpoint) carries no
   code to lint or test, so commit it with `git commit --no-verify`. That stops a repo-local quality hook
-  (husky/lint-staged) that assumes `node_modules` is installed from blocking the framework's own
-  bookkeeping — the exact trap where `lint-staged: not recognized` aborted every archive commit on a
-  machine that hadn't run `npm ci`. The exemption is **only** for `.aidlc/**`-only commits; product-code
-  commits always run the hooks.
+  manager (husky/lint-staged, pre-commit, lefthook) that assumes its own dependencies are installed from
+  blocking the framework's own bookkeeping — the exact trap where `lint-staged: not recognized` aborted
+  every archive commit on a machine whose dependencies had never been installed. The exemption is
+  **only** for `.aidlc/**`-only commits; product-code commits always run the hooks.
 - **Verify a commit landed before you push (F39).** A pre-commit hook that fails *aborts the commit*,
   but a following `git push` still runs — pushing an **empty branch** and masking the failure. After
   every commit, confirm it actually landed (`git rev-parse HEAD` advanced / `git status` clean /

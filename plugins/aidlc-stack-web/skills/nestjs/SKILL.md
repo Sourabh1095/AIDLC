@@ -14,11 +14,9 @@ messages}` module live in **`aidlc-stack-web:project-structure`** (`backend-nest
 *where*.
 
 When scaffolding a Nest repo (via `/aidlc:init` **or** a `/aidlc:run` scaffold task), follow that
-skill's repo-scaffold checklist — in particular drop `.dependency-cruiser.nestjs.cjs` into the root as
-`.dependency-cruiser.cjs` (with the `depcruise` script + a **`dependency-cruiser@^17`** devDep — pin
-the floor; `< 17` silently no-ops on `.ts` and the gate passes green enforcing nothing, F30) plus the
-hardened `.gitignore` and `.gitattributes`; without the boundary config the layering gate is silently
-inert.
+skill's **repo-scaffold checklist in full** — it owns the boundary-gate config and its
+`dependency-cruiser@^17` floor, the hardened `.gitignore` and `.gitattributes`, and the reasons each
+one fails silently when skipped. Don't restate or re-derive it here.
 
 - Feature modules own their domain: `users/` = `users.module.ts`, controller, service, repository,
   DTOs (`dto/`), entities/schemas. Cross-feature access ONLY through an exported service —

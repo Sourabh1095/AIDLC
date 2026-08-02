@@ -43,7 +43,7 @@ plugin gets you ~90% there and never leaves it silent.
 `npm ci` is exact-lock, no resolution. A `package-lock.json` generated on **Windows/macOS** can be
 unsatisfiable on **Linux CI** (npm resolves platform-specific optional deps — `@emnapi/*`, esbuild /
 swc / rollup natives — per OS/arch). Generate or refresh the committed lockfile in the **Linux context
-CI uses** (e.g. a `node:22` container) — don't loosen the CI to `npm install`. See `aidlc:ci-cd`.
+CI uses** (e.g. a `node:22` container) — don't loosen the CI to `npm install`. See `aidlc-stack-web:ci-web`.
 
 ## Boundary gate can't silently no-op
 
@@ -66,4 +66,4 @@ fails (`Cannot find package '@beelogical/dev-config'`). Two supported resolution
    config dependency only. Both templates carry a commented block showing how.
 
 An unpublished `file:` sibling link is **local-only** and fails isolated CI — decide publish-vs-checkout
-before fanning a shared-config pattern out to consumers (see `aidlc:ci-cd` and `aidlc:run` poly pilot).
+before fanning a shared-config pattern out to consumers (see `aidlc-stack-web:ci-web` and `aidlc:run` poly pilot).

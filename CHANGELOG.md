@@ -7,6 +7,81 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.43.0] — 2026-08-02
+
+### One home per rule — an audit of what the three plugins were saying twice
+
+Nothing here changes what the pipeline does. It changes **where each rule lives**, because the same
+sentence written in four files is four things to keep in sync and, in two cases below, they had already
+drifted apart. The audit swept every skill, agent, hook and manifest in the three plugins.
+
+**Three things were outright wrong, not merely duplicated.**
+
+- **The UX agents never had a finish contract, and `run` asserted they did.** All nine core agents
+  carried an identical *"never return on a pending background task"* block; none of the seven `aidlc-ux`
+  agents did — yet `aidlc:run`'s orchestrator invariants read *"every agent's finish contract forbids…"*
+  and its F37/F40 recovery is built on that promise. The pod is exactly where it matters: the motion
+  agent runs the project's lint/build and the design pod starts dev servers. The rule is now a skill —
+  **`aidlc:agent-contract`** — carrying the contract, its three role variants (CI waits, fan-out,
+  read-only), the report-back shape and the tool-restriction policy. All sixteen agents reference it and
+  keep a four-line binding version inline, so it still binds if the skill never loads.
+- **Four "read-only" agents were told to append to the run file with no tool that can write.**
+  `aidlc-reviewer`, `aidlc-security` and `aidlc-architect` allowlisted `Read/Grep/Glob/Bash` and were then
+  instructed to append `## Findings`, write `## Plan`, and author an ADR file. The only way through that
+  is a `cat >>` through Bash, which is strictly worse than granting the tool. They now get `Edit` (and
+  `Write` where the role creates a file) with the boundary stated in *Hard rules* where it belongs.
+- **`/aidlc:status` declared itself read-only and then wrote.** Line one said *"never mutate state
+  here"*; *Post-merge cleanup* transitions items, rolls parents up and archives run files. The claim is
+  now scoped to the reporting steps, with the two approval-gated write sections named.
+
+**Core was carrying web-stack knowledge.** `aidlc:ci-cd` lived in core and assumed npm throughout —
+`npm ci`, `npm audit`, `package-lock.json`, `dependency-cruiser@^17`, `node:22`, eslint and prettier by
+name — while core's own gate resolver warns *"do not assume npm scripts exist"*. Split:
+**`aidlc-stack-web:ci-web`** (new) takes the shipped workflow templates, the typecheck/lint/format/
+boundaries gate and its non-empty-graph assertion, cross-repo package resolution under isolated
+single-repo checkout (F28), cross-platform lockfiles (F29) and the local CI-parity recipe (F38); core's
+`ci-cd` keeps what is true of any pipeline — host resolution, pinning, caching, secrets, artifacts, the
+red-check diagnosis protocol, and the Azure org-level traps (F25). `security` → *Dependency policy*,
+`maintenance` and `debugging` are ecosystem-neutral for the same reason: the three dependency tests
+(safe · latest-stable · compatible) are unchanged, the commands are now named per ecosystem.
+
+**The `docker` skill had one inbound reference in the whole marketplace** — the devops agent — while its
+subject matter, reproducing a red run in the CI image, had been copied inline into both `ci-cd` and
+`debugging`. It is now referenced from `ci-web`, the architect and implementer stack lists, and carries
+the CI-image debugging section itself; the two copies became pointers.
+
+**Playwright moved to the plugin that uses it.** The MCP was declared in `aidlc-core/.mcp.json` and
+driven exclusively by the UX jury and fidelity checker, so a backend-only workspace installed a browser
+automation server for nothing and `aidlc-ux` alone couldn't render at all. It now ships in
+`aidlc-ux/.mcp.json` beside Figma.
+
+**Deduped, with the canonical home named in each case** — a rule that says where it lives is what keeps
+the copies from coming back:
+
+- the **render protocol** (derive the port from the repo's `dev` script, fail loud on a non-UI
+  response) was stated five times across the jury skill, the jury agent, the fidelity agent, the design
+  pod and `run`; it is now one shared section in `aidlc-ux:design-jury`, explicitly not jury-only;
+- **run-file archival** (F23/F36/F39) was stated four times → `aidlc:run-state` → *Archive*;
+- the **`dependency-cruiser@^17` floor** was stated in four skills → `aidlc-stack-web:project-structure`
+  → *Repo-scaffold checklist* item 2;
+- the **Figma read order, call budget and page-scope contract** was stated three times → 
+  `aidlc-ux:figma-handoff`;
+- **`aidlc-ux-writer`, `aidlc-ux-researcher`, `aidlc-design-system` and `aidlc-fidelity`** were each
+  restating their own discipline skill nearly line for line; they now carry brief, modes, boundaries and
+  verdict, and the discipline stays in the skill. `design-system` gained the *sourced from Figma*
+  section the agent had been holding privately.
+
+**Cross-plugin staleness.** `/aidlc:promote` routed only to core or the web stack pack (UX had no
+destination), `/aidlc:sync` inventoried "core + stack packs", `scaffold-agent` said *"check the 9 core
+agents"* and claimed `aidlc-` marks core agents, and `/aidlc:remove` never classified `design/` — so a
+removal either stranded the narrative, design system, jury reports and Figma extractions or tripped its
+own verification on them. All four now enumerate what is installed rather than working from a
+remembered set, and `design/` is tier B (**keep** — it is the record of what the client approved).
+
+**Also:** `/aidlc:do` is now the only skill calling itself the front door (`intake` is the tracking door,
+`bootstrap` the bulk door), and `aidlc-researcher` / `aidlc-ux-researcher` each say in their description
+what the other one is for.
+
 ## [0.42.0] — 2026-08-02
 
 ### Team mode — the pipeline stops assuming there is one of you

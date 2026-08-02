@@ -1,6 +1,6 @@
 ---
 name: docker
-description: Docker conventions — multi-stage builds for Node/Next.js/NestJS, compose-based dev environments, image hygiene and container security basics. Load when writing or reviewing Dockerfiles, compose files or containerization work.
+description: Docker conventions — multi-stage builds for Node/Next.js/NestJS, compose-based dev environments, image hygiene, container security basics, and running the CI image locally to reproduce a red pipeline. Load when writing or reviewing Dockerfiles or compose files, when a change touches how the app is built or run, or when reproducing a CI failure that won't reproduce in your workspace.
 user-invocable: false
 ---
 
@@ -51,6 +51,22 @@ CMD ["node", "dist/main.js"]
   ports bound to localhost.
 - App code bind-mounted for hot reload in dev variants (`docker-compose.override.yml`),
   node_modules in an anonymous volume to avoid host clobbering.
+
+## The CI image as a debugging tool
+
+Containers here are not only a delivery artifact — they are how you reproduce a CI failure that won't
+reproduce in your workspace (`aidlc:ci-cd` → *Diagnosis protocol* step 4, F31). Run the **same image
+CI runs**, and replicate the CI *layout* rather than mounting your whole workspace: an **isolated
+single-repo checkout** plus a lockfile install, then the failing step.
+
+```bash
+docker run --rm -v "$PWD":/w -w /w node:22 sh -c 'npm ci && npm run lint'
+```
+
+Two uses that pay for themselves: regenerating a `package-lock.json` in the Linux context CI uses
+(F29), and proving a cross-repo dependency resolves under isolated checkout (F28). Pin the image to
+the tag CI pins — reproducing against `node:latest` reproduces a different environment. The full
+recipes are `aidlc-stack-web:ci-web`.
 
 ## Review checklist
 

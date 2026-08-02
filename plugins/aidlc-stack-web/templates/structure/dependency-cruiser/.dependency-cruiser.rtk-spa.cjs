@@ -1,6 +1,6 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
 // Bee-Logical AIDLC — RTK-Query SPA layering gate. `/aidlc:init` drops this as
-// `.dependency-cruiser.cjs`; `aidlc:ci-cd` runs `depcruise src` in the PR gate.
+// `.dependency-cruiser.cjs`; `aidlc-stack-web:ci-web` runs `depcruise src` in the PR gate.
 module.exports = {
   forbidden: [
     {

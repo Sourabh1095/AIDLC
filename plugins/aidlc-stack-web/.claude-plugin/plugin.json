@@ -1,8 +1,8 @@
 {
   "name": "aidlc-stack-web",
   "displayName": "AIDLC Stack Pack — Web",
-  "description": "Bee-Logical's default web stack expertise for the AIDLC pipeline: TypeScript coding standards, Next.js, NestJS, Postgres, MongoDB, DB migrations, Docker and API design.",
-  "version": "0.10.0",
+  "description": "Bee-Logical's default web stack expertise for the AIDLC pipeline: TypeScript coding standards, enterprise project structure, Next.js, NestJS, Postgres, MongoDB, DB migrations, Docker, API design, and the Node/TypeScript half of CI (the npm gate, isolated-checkout dependency resolution, cross-platform lockfiles).",
+  "version": "0.11.0",
   "author": {
     "name": "Bee-Logical",
     "email": "sourabh@bee-logical.com"

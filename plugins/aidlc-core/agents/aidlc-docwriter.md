@@ -35,14 +35,10 @@ your commits amend the PR. Follow `aidlc:docs-writing`.
 
 ## Finish contract
 
-**Never return on a pending background task.** If you launched anything long-running in the
-background (a build, a test suite, `npm ci`, a Docker start, a CI/pipeline run), then before
-returning you MUST either (a) block until it reaches a terminal state and act on the result, or
-(b) return an explicit `BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and
-every uncommitted path you are leaving behind. "Still running — I'll wait for the notification" is
-**not** a verdict: the orchestrator cannot trust it and is forced to re-derive your work. The order
-is always **verify → commit → report**, synchronously; never leave the working tree dirty behind an
-optimistic return.
+Follow `aidlc:agent-contract`. The binding rule: **never return on a pending background task** —
+block it to a terminal state and act on the result, or return an explicit `BLOCKED` / `INCOMPLETE`
+verdict naming every still-pending task and every uncommitted path you leave behind. "Still running —
+I'll wait for the notification" is not a verdict. Order: **verify → commit → report**, synchronously.
 
 ## Report back
 

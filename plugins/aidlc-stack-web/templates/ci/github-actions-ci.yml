@@ -35,7 +35,7 @@ jobs:
 
       # `npm ci` is EXACT-lock. A lockfile generated on Windows/macOS can be unsatisfiable on Linux
       # (platform-specific optional deps: @emnapi/* / esbuild / swc / rollup natives). On failure,
-      # regenerate the lockfile in a Linux context (see aidlc:ci-cd) — never loosen to `npm install`.
+      # regenerate the lockfile in a Linux context (see aidlc-stack-web:ci-web) — never loosen to `npm install`.
       - run: npm ci
         name: Install (npm ci)
 
@@ -72,5 +72,5 @@ jobs:
   # Fix: (A) PUBLISH the shared package (GitHub Packages / registry) — REQUIRED for transitive/built
   # deps; or (B) MULTI-REPO CHECKOUT — add a second `actions/checkout` with `repository:` +
   # `path: ../<sibling>`, then `npm ci` the sibling (guard husky `prepare`). See
-  # aidlc-stack-web:project-structure → cross-repo dependencies and aidlc:ci-cd.
+  # aidlc-stack-web:project-structure → cross-repo dependencies and aidlc-stack-web:ci-web.
   # ───────────────────────────────────────────────────────────────────────────────────────────

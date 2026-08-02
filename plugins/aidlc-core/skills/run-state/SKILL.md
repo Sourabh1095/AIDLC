@@ -95,8 +95,10 @@ change are marked `[needs-rework]` or struck through `~~…~~ (descoped)` — hi
 readable; completed work that still stands is never redone. (Reconciliation itself is the
 orchestrator's job — see `aidlc:run` §1.)
 
-**Archive** — move the completed run file to `…/runs/archive/{ID}.md`. **Where + when depends on
-mode/layout (F23):**
+**Archive** — move the completed run file to `…/runs/archive/{ID}.md`. **This section is the canonical
+rule for where and when.** `aidlc:run` §10, `/aidlc:status` post-merge cleanup and
+`aidlc:git-workflow` each *perform* an archive at their own moment; none of them restates the rule.
+**Where + when depends on mode/layout (F23):**
 - **Poly + remote** — the per-repo run file merges into `main` via the PR, so archive it **on the
   feature branch as the run's final commit** (`git mv` → `runs/archive/`, `chore(aidlc): archive run
   {ID}`, pushed to the open PR) so it rides into `main` **already archived**. Archiving after merge

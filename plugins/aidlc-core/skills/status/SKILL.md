@@ -5,7 +5,13 @@ description: Show the AIDLC dashboard — all active pipeline runs with their ph
 
 # /aidlc:status — AIDLC dashboard
 
-Render a compact status board for this project. Read-only — never mutate state here.
+Render a compact status board for this project.
+
+**Steps 0–4 are read-only** — they query, glob and report, and must never mutate anything. The two
+sections *after* them are not: *Ground-truth reconciliation* detects drift read-only but offers fixes,
+and *Post-merge cleanup* transitions items, rolls parents up and archives run files. **Both write only
+on the user's explicit pick**, and neither runs unattended. Keep the halves separate when you report:
+the board is a fact, a proposed fix is a question.
 
 ## Step 0 — Control-plane freshness (shared mode only)
 
@@ -71,7 +77,8 @@ the default branch — `az repos policy list` / `gh api .../branches/<b>/protect
 If a remote repo has neither, warn — "⚠ `<repo>` is `mode: remote` but has no detectable CI /
 required-check policy: its PRs merge **ungated**." This is the proactive complement to the ground-truth
 reconciliation below; remote mode's promise (CI enforces the gate before merge) is otherwise silently
-unmet. Point at `aidlc:ci-cd` + the `aidlc-stack-web/templates/ci/` templates and `/aidlc:init`'s CI offer.
+unmet. Point at `aidlc:ci-cd` (and `aidlc-stack-web:ci-web` + the `aidlc-stack-web/templates/ci/`
+templates on a Node/TS repo) and `/aidlc:init`'s CI offer.
 
 ## Step 1.7 — Execution plan (when `.aidlc/plan.md` exists)
 
@@ -202,13 +209,12 @@ trap (`aidlc:git-workflow` → bookkeeping commits).
    **Never force-close a parent with open siblings** (correctly leave an Epic In Progress while other
    Features remain).
 3. Move the run file to `archive/` **in its own location** — `<repo.path>/.aidlc/runs/archive/<ID>.md`
-   for a poly per-repo run, else `.aidlc/runs/archive/<ID>.md`. (Poly+remote: the per-repo run file was
-   ideally archived **on the branch pre-merge** so it rode into `main` already archived — F23; this
-   step is the control-plane / local-mode fallback.) **Remote:** the move commit reaches the default
-   branch via a `chore(aidlc): archive` branch → PR — never a direct push to the protected branch (the
-   guard blocks it, correctly). It's a `.aidlc/**`-only commit, so `--no-verify`, and verify it landed
-   before pushing (F36/F39; `aidlc:run-state` → *Remote post-merge fallback*). **Local:** a local commit
-   on the default branch (no push) is fine — the user confirmed the merge at §8.
+   for a poly per-repo run, else `.aidlc/runs/archive/<ID>.md` — following `aidlc:run-state` →
+   *Archive*, which owns where and how. This step is the **fallback path**: a poly+remote run should
+   already have archived on its branch pre-merge (F23), so reaching here means it didn't, and remote
+   mode then costs a `chore(aidlc): archive` branch → PR rather than a direct push to the protected
+   branch. Local mode is the normal path here and a local commit is fine — the user confirmed the
+   merge at §8.
 4. Delete the local feature branch if fully merged (in that repo). In local mode §8 usually deleted
    it already — skip if gone.
 

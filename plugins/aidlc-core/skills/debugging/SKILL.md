@@ -15,17 +15,17 @@ Order is the protocol. Skipping step 1 is how "fixes" ship that fix a different 
 - Confirm the failure MESSAGE matches the report. Wrong failure = wrong bug — go back to the item.
 - Can't reproduce? Do not guess-fix. Report what you tried, ask for environment details via the
   work item; verdict BLOCKED.
-- **Environment-specific failure (CI red but local green)? Reproduce in the CI _image_ before
-  iterating (F31).** Don't loop push→wait→read-log against remote CI — brutal when a single
-  self-hosted agent serializes runs. `docker run` the CI runtime (e.g. `node:22`) and replicate the CI
-  layout — an **isolated single-repo checkout** + `npm ci` + the failing step — and get it green in the
-  container first. This is the only way to reproduce poly isolated-checkout + `file:` sibling failures
-  (F28) and cross-platform lockfile failures (F29). See `aidlc:ci-cd` → *Diagnosis protocol*.
+- **Environment-specific failure (CI red but local green)? Reproduce in the CI _image_, not through
+  remote CI (F31).** Push→wait→read-log→repeat is punishingly slow and it is the wrong instrument.
+  Follow `aidlc:ci-cd` → *Diagnosis protocol* step 4 for the general method and the stack's own CI
+  skill for the recipe (`aidlc-stack-web:ci-web` on Node/TS). Some failure classes — isolated
+  single-repo dependency resolution, platform-specific lockfiles — **only** reproduce there.
 - **Suspected line-ending bug? Confirm before you claim it (F17).** CRLF-vs-LF is easy to
-  misdiagnose (a wrong "the files are CRLF" finding costs a correction cycle). Check the truth with
-  `git ls-files --eol <path>` (`i/`=index, `w/`=working tree, `attr/`=applied `.gitattributes` rule)
-  before logging any line-ending finding. A repo with `* text=auto eol=lf` and `i/lf` is LF — a CRLF
-  working tree is just an un-normalized local checkout, not a real diff.
+  misdiagnose, and a wrong "the files are CRLF" finding costs a correction cycle. One command settles
+  it: `git ls-files --eol <path>` (`i/`=index, `w/`=working tree, `attr/`=applied `.gitattributes`
+  rule). A repo whose rule is LF and whose index reads `i/lf` **is** LF — a CRLF working tree is an
+  un-normalized local checkout, not a real diff. Run this before logging any line-ending finding; the
+  repo-side fix is `aidlc-stack-web:project-structure` → *Repo-scaffold checklist* item 3a.
 
 ## 2 · Isolate root cause (implementer)
 

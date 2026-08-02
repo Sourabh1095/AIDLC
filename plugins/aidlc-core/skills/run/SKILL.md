@@ -590,10 +590,10 @@ both, and the finding note names the Task either way.
 **UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
 backend/structure is in place, hand the frontend off by following `aidlc-ux:design` for this item's
 run file, passing the **scope, mode, brand, designSource and systemSource** you recorded at §2 — and,
-in poly, the **resolved frontend repo** (its `path` as the working dir). The jury resolves the **render URL from the repo's
-actual dev-server port** (parsed from its `package.json` `dev`/`start` script), using
-`ux.renderBaseUrl` only as a fallback and failing loud on a non-UI response — so a stale config port
-can't make it score the wrong server (F13; see `aidlc-ux:design-jury`). It runs narrative → research →
+in poly, the **resolved frontend repo** (its `path` as the working dir). The pod resolves the render
+URL from the repo itself and fails loud rather than judging the wrong server (F13 — the protocol is
+`aidlc-ux:design-jury` → *Render & evidence protocol*; core does not restate it). It runs
+narrative → research →
 design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
 capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
 same as reviewer/QA findings.
@@ -737,9 +737,10 @@ re-runs it as a hard gate, so per-item quality has that floor **to the extent th
 it** (an absent step is a hole in the floor, reported per run, never papered over). Each agent carries its
 own **cadence** so tokens are spent only where they earn it. **When you must reproduce that gate
 yourself** — a subagent returned a non-verdict (see the orchestrator invariants), or you can't take a
-`file:`-sibling consumer's CI parity on trust — follow `aidlc:ci-cd` → *Local CI-parity for a
-`file:`-sibling consumer* (F38): two-step sibling install, each gate step's exit code standing on its
-own (no `&& echo` masking that fakes a green).
+`file:`-sibling consumer's CI parity on trust — reproduce it in the CI image per `aidlc:ci-cd` →
+*Diagnosis protocol*, using the stack's own recipe (Node: `aidlc-stack-web:ci-web` → *Local CI-parity
+for a `file:`-sibling consumer*, F38 — two-step sibling install, each gate step's exit code standing
+on its own, no `&& echo` masking that fakes a green).
 
 **Cadence values** (per agent): `per-item` (every item) · `per-epic` (defer to the epic's
 consolidated pass, §2) · `on-demand` (run ONLY when this run was explicitly asked — the user's prompt
@@ -855,28 +856,15 @@ A Story going Done over an open Task is either honest (the Task moved out of sco
 retire it) or a dropped requirement, and only the human can tell which. Closing it here would erase the
 one signal that distinguishes them.
 
-**Archive the run file ON THE BRANCH before it merges (F23) — poly per-repo runs.** A poly per-repo run
-file lives at `<repo.path>/.aidlc/runs/{ID}.md` and rides into `main` via the PR. If it rides in still
-under the **active** `runs/` dir, it can only be archived afterwards by a **direct-to-`main` commit**,
-which `aidlc:git-workflow` forbids — so it lingers forever and shows as a completed run in
-`/aidlc:status`. Instead, as the **final commit on the feature branch**, `git mv` it to
-`<repo.path>/.aidlc/runs/archive/{ID}.md` and commit `chore(aidlc): archive run {ID}` — **remote:** push
-it to the open PR (a benign trailing commit, like the §9 docs commit) so it merges in **already
-archived**; **local:** this must precede the §8 confirmed merge, so for local mode the post-merge
-cleanup in `/aidlc:status` archives it in-session instead. The **control-plane** epic coordination file
-(`.aidlc/runs/{EPIC-ID}.md`) is NOT committed to any product branch and archives normally at the control
-plane. See `aidlc:run-state` → *Archive*.
-
-**Blocked→resolved runs archive the same way — on the resolving branch (F36).** A run that completes
-through a `blocked` → resolved cycle (fixed via a **follow-up PR**, not the original branch) hits the
-same trap: if its run file already rode into `main` still stamped `phase: blocked`, it can only be
-"archived" by a forbidden direct-to-`main` commit, so it lingers as a blocked *active* run in
-`/aidlc:status` indefinitely. Handle it identically — **fold the archive into the resolving PR**: on that
-PR's branch flip the run file to `phase: done`, `git mv` it into `runs/archive/`, and commit
-`chore(aidlc): archive run {ID}` (`--no-verify` — a `.aidlc/**`-only bookkeeping commit, see
-`aidlc:git-workflow`) so it merges in already archived. If the run file already merged un-archived, do
-**not** direct-push to `main` (the guard blocks it, correctly) — open a small `chore(aidlc): archive`
-branch → PR, or let `/aidlc:status` post-merge cleanup batch it.
+**Archive the run file per `aidlc:run-state` → *Archive*, which owns the rule.** This step is where a
+poly per-repo run pays it: the archive is the **final commit on the feature branch**
+(`git mv` → `runs/archive/{ID}.md`, `chore(aidlc): archive run {ID}`, `--no-verify`), pushed to the
+open PR so the file merges in **already archived**. Doing it after the merge would need a
+direct-to-`main` commit, which `aidlc:git-workflow` forbids — that is the trap (F23), and the same one
+a blocked→resolved run hits on its resolving PR (F36). Local mode archives via `/aidlc:status`
+post-merge cleanup instead, because the merge happens in-session at §8; the control-plane epic
+coordination file archives at the control plane. If a run file already merged un-archived, do **not**
+direct-push — `run-state` names the branch-and-PR fallback.
 
 Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
 resolved, anything needing human eyes. **Where the run bound Tasks (§5), say so in the item line** —

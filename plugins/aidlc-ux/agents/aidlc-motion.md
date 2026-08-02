@@ -59,6 +59,14 @@ sequencing over adding new effects.
 - Consume design tokens for anything visual (color, spacing) — don't introduce off-system values.
 - Run the project's lint/build before finishing; never leave the build broken.
 
+## Finish contract
+
+Follow `aidlc:agent-contract`. The binding rule: **never return on a pending background task** —
+block it to a terminal state and act on the result, or return an explicit `BLOCKED` / `INCOMPLETE`
+verdict naming every still-pending task and every uncommitted path you leave behind. The lint/build
+above is exactly that case: block on it and read the result before you report. Order:
+**verify → commit → report**, synchronously.
+
 ## Report back
 
 Append a `## Log` line. Final message: motion spec path, the signature moment as built, libraries

@@ -8,11 +8,12 @@ user-invocable: false
 
 ## Dependency updates (batched, risk-tiered)
 
-1. `npm outdated` → tier the list: **patch** (batch freely) · **minor** (batch per area:
-   build tooling / runtime deps / test tooling) · **major** (ONE per commit, each with its
-   migration notes read first — Context7/release notes, never blind).
-2. Per batch: update → `npm ci`-clean install → full suite + build → commit
-   `chore(deps): <scope> <from>→<to>` with notable changes in the body.
+1. Run the ecosystem's **outdated report** (`npm outdated`, `pip list --outdated`, `cargo outdated`,
+   `mvn versions:display-dependency-updates`, …) → tier the list: **patch** (batch freely) ·
+   **minor** (batch per area: build tooling / runtime deps / test tooling) · **major** (ONE per
+   commit, each with its migration notes read first — Context7/release notes, never blind).
+2. Per batch: update → **clean lockfile install** (the exact-install command, not the resolving one)
+   → full suite + build → commit `chore(deps): <scope> <from>→<to>` with notable changes in the body.
 3. A major with breaking API usage in the repo = its own plan tasks (grep usage sites first;
    count them before promising the update in one run).
 4. Every bump still meets the safe · latest-stable · compatible bar — `aidlc:security` →
@@ -36,5 +37,6 @@ run; more → file a work item per subsystem. Mechanical replacements get one co
 
 ## Hygiene targets worth a maintenance item
 
-Flaky tests quarantined >2 weeks · TODOs without item refs · unused dependencies
-(`depcheck`) · node/tooling version drift from `.nvmrc`/engines · lockfile-manifest divergence.
+Flaky tests quarantined >2 weeks · TODOs without item refs · unused dependencies (the ecosystem's
+unused-dependency checker, e.g. `depcheck`) · runtime/tooling version drift from the project's own
+version file · lockfile-manifest divergence.

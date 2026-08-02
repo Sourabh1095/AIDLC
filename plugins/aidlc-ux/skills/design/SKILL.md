@@ -176,10 +176,13 @@ Route on §0.5. **`designSource: figma`** → *The Figma track* below (F1–F5),
 **`designSource: generated`** → phases 0–5 here, then **6 · HANDBACK**. Mixed scope → run each surface
 on its own track; one design system still covers both.
 
+Every phase that renders the built UI uses the **shared render protocol** in `aidlc-ux:design-jury` →
+*Render & evidence protocol* (steps 1–4): derive the port from the repo's `dev` script, treat
+`renderBaseUrl` as a fallback, and stop rather than render the wrong server. It is stated once there;
+the phases below just say when to render.
+
 **0 · AUDIT** *(existing surfaces only — skip for greenfield)*. Render the current target at the
-**resolved render URL** (derive the real port from the repo's `dev` script per the jury render
-protocol in `aidlc-ux:design-jury`; `renderBaseUrl` is only the fallback) via the Playwright MCP
-(start the dev server if needed) and screenshot it to
+**resolved render URL** via the Playwright MCP (start the dev server if needed) and screenshot it to
 `design/audit/`; also screenshot 1–2 sibling pages so you know what "consistent with the rest"
 means. Dispatch **Agent → aidlc-design-system** in **audit mode** with those shots + the code: it
 extracts the *current* design language (colors/type/spacing actually in use + where they live),
@@ -227,12 +230,10 @@ corrected, recorded with both ratios, and reported to the designer as a system b
 Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from the established system.
 
 **5 · JURY LOOP.** `round = 1`.
-1. Ensure the app renders at the **resolved render URL** — derive the real port from the repo's
-   `dev` script (`ux.renderBaseUrl` is only a fallback; if they disagree, prefer the derived port and
-   note the mismatch so config gets corrected — see `aidlc-ux:design-jury`). Start dev server if down;
-   wait until it responds; record the resolved URL. Un-renderable, or a non-UI response (JSON/404
-   where an HTML UI was expected) → phase `blocked`, report, STOP — the jury can't judge what won't
-   render, and must never silently score the wrong server.
+1. Ensure the app renders at the **resolved render URL** (shared protocol, above). Start the dev
+   server if down; wait until it responds; record the resolved URL. Un-renderable, or a non-UI
+   response → phase `blocked`, report, STOP — the jury can't judge what won't render, and must never
+   silently score the wrong server.
 2. Dispatch **Agent → aidlc-ux-jury** (fresh context, blind to the makers' notes). Brief gives it the
    target scope, the brand anchors, and — for retrofit/redesign — the sibling-page shots so it can
    score **cross-page consistency + brand adherence**, not just the target in isolation. On
@@ -274,8 +275,8 @@ file says nothing about motion, apply the restrained defaults of `aidlc-ux:motio
 additions to the design, so the designer can see what was added.
 
 **F4 · FIDELITY LOOP.** `round = 1`.
-1. Ensure the app renders at the **resolved render URL** (same derive-the-port protocol as §5.1;
-   un-renderable or a non-UI response → phase `blocked`, report, STOP).
+1. Ensure the app renders at the **resolved render URL** (shared protocol, above; un-renderable or a
+   non-UI response → phase `blocked`, report, STOP).
 2. Dispatch **Agent → aidlc-fidelity** with the spec, the reference shots and the routes in scope. It
    renders at the **design's own artboard width** and classifies every difference
    `[BLOCKING]`/`[MINOR]`/`[ADAPTATION]` → `design/fidelity-report.md`.

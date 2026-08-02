@@ -29,16 +29,15 @@ merge). Inherit the AIDLC safety rules by default.}}
 
 ## Finish contract
 
-**Never return on a pending background task.** If you launched anything long-running in the
-background (a build, a test suite, `npm ci`, a Docker start, a CI/pipeline run), then before
-returning you MUST either (a) block until it reaches a terminal state and act on the result, or
-(b) return an explicit `BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and
-every uncommitted path you are leaving behind. "Still running — I'll wait for the notification" is
-**not** a verdict: the orchestrator cannot trust it and is forced to re-derive your work. The order
-is always **verify → commit → report**, synchronously; never leave the working tree dirty behind an
-optimistic return. (This is a shared AIDLC subagent rule — keep it verbatim.)
+Follow `aidlc:agent-contract`. The binding rule: **never return on a pending background task** —
+block it to a terminal state and act on the result, or return an explicit `BLOCKED` / `INCOMPLETE`
+verdict naming every still-pending task and every uncommitted path you leave behind. "Still running —
+I'll wait for the notification" is not a verdict. Order: **verify → commit → report**, synchronously
+(**verify → report** for a read-only role). Keep these four lines verbatim — they must bind even if
+the skill never loads.
 
 ## Report back
 
 Append your `## Log` line to the run file. Final message to the orchestrator: verdict + the
 few facts the orchestrator needs to route next. ≤10 lines — the run file holds the detail.
+Full shape: `aidlc:agent-contract` → *Report back*.

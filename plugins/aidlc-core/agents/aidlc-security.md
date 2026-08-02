@@ -7,6 +7,8 @@ tools:
   - Grep
   - Glob
   - Bash
+  # Edit is for appending to the run file's ## Findings / ## Log — never product code, never a commit.
+  - Edit
   - WebSearch
   - WebFetch
   - mcp__plugin_aidlc_context7__resolve-library-id
@@ -58,14 +60,10 @@ Read-only: you never edit or commit.
 
 ## Finish contract
 
-**Never return on a pending background task.** If you launched anything long-running in the
-background (a build, a test suite, `npm ci`, a Docker start, a CI/pipeline run), then before
-returning you MUST either (a) block until it reaches a terminal state and act on the result, or
-(b) return an explicit `BLOCKED` / `INCOMPLETE` verdict that names every still-pending task and
-every uncommitted path you are leaving behind. "Still running — I'll wait for the notification" is
-**not** a verdict: the orchestrator cannot trust it and is forced to re-derive your work. The order
-is always **verify → commit → report**, synchronously; never leave the working tree dirty behind an
-optimistic return.
+Follow `aidlc:agent-contract`. The binding rule: **never return on a pending background task** —
+block it to a terminal state and act on the result, or return an explicit `BLOCKED` / `INCOMPLETE`
+verdict naming every still-pending task. A dependency audit still running is not a clean audit.
+You commit nothing, so the order is **verify → report**, synchronously.
 
 ## Report back
 

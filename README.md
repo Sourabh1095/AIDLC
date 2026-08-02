@@ -24,8 +24,9 @@ remote yet (`git.mode: local`), **approving the local merge** the pipeline propo
 | Path | What it is |
 |------|-----------|
 | `.claude-plugin/marketplace.json` | The company plugin marketplace manifest |
-| `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator, 9 agents, skills, hooks, MCP config |
-| `plugins/aidlc-stack-web/` | Stack pack: TS standards, Next.js, NestJS, Postgres, MongoDB, migrations, Docker, API design |
+| `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator, 9 agents, skills, hooks, MCP config — stack-agnostic |
+| `plugins/aidlc-stack-web/` | Stack pack: TS standards, project structure, Next.js, NestJS, Postgres, MongoDB, migrations, Docker, API design, the Node/TS CI half |
+| `plugins/aidlc-ux/` | UX pod: 7 design agents, Figma + Playwright MCP, the design/jury/fidelity pipeline |
 | `plugins/aidlc-core/templates/project/` | The project template scaffolded by `/aidlc:init` |
 | `docs/` | Adoption guide, architecture, permissions rationale |
 
@@ -124,6 +125,11 @@ squash-only web app, from first scan through a merged PR to a drift report six w
   control plane is current. The pipeline **reads** the assignee and never writes it: who does the work is
   a staffing decision, like `priority`. Everything is gated on the flag, so a solo project is unchanged.
 - **Skills over agents** — expertise (docker, postgres, standards…) is procedural knowledge loaded on demand.
+- **One home per rule** — a rule lives in exactly one skill and everything else points at it. An agent
+  carries its brief and its verdict; the discipline stays in the skill it follows.
+- **Core is stack-agnostic** — anything assuming a package manager, a toolchain or a browser lives in a
+  pack. Core `ci-cd` holds host mechanics and diagnosis; `aidlc-stack-web:ci-web` holds the npm gate; the
+  Playwright MCP ships with `aidlc-ux`, the only plugin that renders.
 - **High autonomy, hard guardrails** — everything on the story→PR path is allowed; destructive or
   production-touching operations are denied or gated (see `docs/permissions-rationale.md`).
 

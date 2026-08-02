@@ -1,6 +1,6 @@
 ---
 name: ci-cd
-description: Authoring and fixing CI pipelines — GitHub Actions and Azure Pipelines conventions, caching, matrices, artifact handling and failure diagnosis. Load when creating or modifying workflow YAML or diagnosing failing checks.
+description: Authoring and fixing CI pipelines, independent of stack — GitHub Actions and Azure Pipelines conventions, pinning, caching, secrets, artifacts, and the red-check diagnosis protocol. Load when creating or modifying workflow YAML or diagnosing failing checks. For a Node/TypeScript repo, load `aidlc-stack-web:ci-web` alongside it — the npm-specific gate and its traps live there.
 user-invocable: false
 ---
 
@@ -10,86 +10,29 @@ Host from the **resolved repo entry** for this run (`host`; in mono, `aidlc.conf
 github → `.github/workflows/*.yml`, azure-repos → `azure-pipelines.yml`, written inside that repo
 (cwd = its path). Editing these prompts a confirmation hook — expected.
 
+**This skill is stack-agnostic on purpose.** A workspace's real gate might be `pytest`, `mvn -B
+verify`, `cargo test`, `go test ./...` or npm scripts, and core must not assume one. Where a stack
+pack is installed, it owns its own CI half: **`aidlc-stack-web:ci-web`** for Node/TypeScript — the
+shipped workflow templates, the typecheck/lint/format/boundaries gate, cross-repo package resolution
+under isolated checkout, cross-platform lockfiles, and the local CI-parity recipe. Load it too when
+the repo is TS; don't re-derive any of it here.
+
 ## Baseline PR pipeline (create if the project has none)
 
-**Don't hand-write it from scratch — start from the shipped template.** `aidlc-stack-web/templates/ci/`
-ships `azure-pipelines.yml` and `github-actions-ci.yml` (+ a README) that already encode this gate and
-every gotcha below (self-hosted pool, cross-platform lockfile, non-empty-graph assertion, multi-repo
-checkout). `/aidlc:init` offers to scaffold the matching one per remote repo. Adapt the template; only
-build from zero when no stack pack is installed.
+Trigger on PRs to the default branch. **The steps are the project's resolved gate, not a guess** —
+take them from `pipeline.gates.verify` (the same source `resolve-gate.mjs` reads for a local run, see
+`aidlc:run` §7), so the pipeline and the pipeline-run verify the same thing. Typical shape: checkout →
+set up the runtime pinned to the project's version file → install from the lockfile with dependency
+caching → static checks (typecheck / lint / format) → boundary or architecture checks → build → test.
+Fail fast; total target <10 min. Poly: run the gate per repo, in that repo's checkout.
 
-Trigger on PRs to the default branch: checkout → setup runtime pinned to the project's version
-file (`.nvmrc`/`engines`) → install with lockfile (`npm ci`) + dependency caching →
-**typecheck (`tsc --noEmit`) → lint (`eslint`) → format check (`prettier --check .`, repo-wide — not
-just `src/`) → boundaries (`depcruise src` + a non-empty-graph assertion, below)** → build → test.
-Fail fast; total target <10 min.
+Two rules regardless of stack:
 
-Those steps are the **hard quality gate** for the web-stack baselines scaffolded by `/aidlc:init`:
-the tooling baseline (`aidlc-stack-web` → `templates/tooling`) covers typecheck/lint/format; the
-**boundary check** (`depcruise`, config from `templates/structure/dependency-cruiser`) enforces the
-`aidlc-stack-web:project-structure` layering (no feature→feature internals, no controller→repository,
-`ui`↛`store`, …). They run on every PR regardless of `pipeline.verification.mode`, so standards and
-structure hold even when the LLM reviewer is toggled off. Skip a step only if the repo genuinely
-lacks that script — don't invent one silently; note its absence. Poly: run the gate per repo, in
-that repo's checkout.
-
-**Boundary gate must not silently no-op (F30).** `dependency-cruiser < 17` runs but **silently
-analyzes zero `.ts` files** — it reports no violations and the gate passes **green while enforcing
-nothing** (the exact "looks enforced but isn't" trap `project-structure` warns about). So: (a) the
-repo must pin **`dependency-cruiser@^17`** (the devDep floor — see `aidlc-stack-web:project-structure`);
-and (b) the gate should **assert a non-empty module graph** — fail if `depcruise` analyzed 0 `.ts`
-modules — so a future silent no-op can't slip through. Both shipped CI templates carry this assertion.
-
-## Poly — cross-repo package dependencies in CI (F28)
-
-CI checks out **one repo**. So a cross-repo package dependency — the poly **shared-package** pattern
-this framework promotes (one repo's package, e.g. `@beelogical/dev-config`, consumed by the others) —
-must be resolvable **under isolated single-repo checkout**, or the whole gate fails at install
-(`Cannot find package '@beelogical/dev-config'`). The natural local-dev choice, an unpublished
-**`file:../sibling`** link, resolves in the multi-repo workspace but is **absent in CI** — it is
-**local-only and fails isolated CI**. Two supported resolutions:
-
-- **(A) Publish** the shared package (Azure Artifacts / a private registry) and consume it by version.
-  **Required, not optional, for transitive/built cross-repo deps** — a repo that consumes a *built*
-  sibling (e.g. a compiled SDK it type-checks against), not just flat config files: multi-checkout
-  degrades badly there (you'd need multiple sibling checkouts + building the sibling).
-- **(B) Multi-repo checkout** — check the sibling out alongside (`resources.repositories` +
-  a second `checkout:` on Azure; a second `actions/checkout` with `repository:`+`path:` on GitHub) and
-  **`npm ci` the checked-out sibling too** (its exported configs need their own deps), guarding husky's
-  `prepare` so it doesn't exit 127 (F21). Workable for a **leaf** config dependency only. Both shipped
-  CI templates carry a commented multi-checkout block.
-
-Decide publish-vs-checkout **before** fanning a shared-config pattern out to consumers — and see
-`aidlc:run` (poly pilot): piloting the *dependency* repo's own green does NOT prove the *consumers'*
-resolution path. `aidlc-stack-web:project-structure` documents the consumption rule at design time.
-
-### Local CI-parity for a `file:`-sibling consumer (F38)
-
-When you must **ground-truth** a consumer's CI gate locally — e.g. an implementer's/devops' verdict
-can't be trusted (F37/F40) and you're reproducing the gate yourself — a `file:../sibling` consumer
-needs a **two-step install in the right order**, or the result is a false one:
-
-```bash
-set -euo pipefail          # and NO '&& echo OK' / '|| true' tails anywhere — they mask a non-zero
-                           # exit under set -e (the FALSE GREEN this recipe exists to prevent)
-# 1. Install the SIBLING FIRST — its exported eslint/tsconfig/depcruise configs must resolve THEIR
-#    own deps, or the consumer's lint dies with "Cannot find package '@eslint/js'".
-( cd ../dev-config && npm ci )
-# 2. THEN install the consumer.
-npm ci
-# 3. Run the exact gate steps CI runs — each on its OWN line, exit code standing on its own:
-npm run typecheck
-npm run lint
-npm run format:check
-npx depcruise src          # + assert a non-empty module graph (F30)
-npm test
-```
-
-Run it in the **CI image** (`docker run node:22 …`, F31) for true parity. The two failure modes this
-kills: (a) skipping the sibling install (→ `Cannot find package …` — the wrong order gives a false
-red); (b) an `&& echo OK` tail that swallows a real non-zero exit (→ a false green). This is the
-"trust-but-verify a phase result" recipe the orchestrator uses when a subagent returns a non-verdict —
-see `aidlc:run` §7 and the orchestrator invariants.
+- **A step recorded `absent` at adoption is a coverage hole, not something to invent.** Don't
+  substitute a default command for a gate the project doesn't have; surface it (`aidlc:run` §7).
+- **A gate that can pass while enforcing nothing is worse than no gate.** Where a checker can no-op
+  silently (an analyzer that matched zero files, a test runner that collected zero tests), assert the
+  non-empty result explicitly. The Node instance of this trap is F30 in `aidlc-stack-web:ci-web`.
 
 ## Conventions (both hosts)
 
@@ -97,7 +40,7 @@ see `aidlc:run` §7 and the orchestrator invariants.
 - **Cache** dependencies keyed on the lockfile hash (`actions/setup-node` `cache: npm` / `Cache@2`).
 - **Secrets**: `${{ secrets.X }}` / pipeline variables marked secret. Never echo them; beware `set -x`.
 - **Least privilege** (Actions): top-level `permissions: contents: read`, widen per-job only as needed.
-- Matrices only for real support commitments (Node versions actually supported), not decoration.
+- Matrices only for real support commitments (runtime versions actually supported), not decoration.
 - Artifacts: upload test reports/coverage on failure too (`if: always()`).
 - Services (Postgres/Mongo for integration tests): service containers with health checks, not sleeps.
 
@@ -109,16 +52,16 @@ see `aidlc:run` §7 and the orchestrator invariants.
 4. **When it doesn't reproduce in your normal workspace, reproduce it in the CI _image_ (F31) — do
    this BEFORE iterating through remote CI.** Push→wait→read-log→repeat is punishingly slow when a
    single self-hosted agent serializes runs (four cascading fixes = four full remote cycles). Instead
-   `docker run` the CI runtime (e.g. `node:22`) and replicate the CI layout: an **isolated single-repo
-   checkout** + `npm ci`, then run the failing gate step. Validate the fix **green in the container**,
-   then push once. Essential for poly isolated-checkout + `file:` sibling issues (F28) and
-   cross-platform lock failures (F29) — the two classes that never reproduce in the local workspace.
+   `docker run` the CI runtime and replicate the CI layout — an **isolated single-repo checkout**, a
+   lockfile install, then the failing step. Validate the fix green in the container, then push once.
+   This is the only way to reproduce the two classes that never show up in a local workspace:
+   poly isolated-checkout dependency resolution, and platform-specific lockfile failures. The
+   per-stack recipe is in that stack's CI skill (`aidlc-stack-web:ci-web` for Node); container
+   conventions are `aidlc-stack-web:docker`.
 5. Environment-only failures (works locally): diff the versions — runtime, OS, missing env var,
-   timezone/locale, and especially: **lockfile respected (`npm ci` not `install`)** and
-   **cross-platform lockfile (F29)** — a `package-lock.json` generated on Windows/macOS can be
-   unsatisfiable on Linux CI because npm resolves platform-specific optional deps (`@emnapi/*`,
-   esbuild/swc/rollup natives) per OS/arch. Fix: regenerate the lockfile in the **Linux context CI
-   uses** (a `node:22` container) and commit that — never loosen CI to `npm install`.
+   timezone/locale — and above all check the **lockfile was respected** (the exact-install command,
+   not the resolving one) and that the lockfile is **valid for the CI platform**, since some package
+   managers resolve platform-specific optional dependencies per OS/arch.
 
 ## Azure Pipelines specifics
 
@@ -130,7 +73,7 @@ target branch (build validation), not a YAML trigger — check policies when "th
 (`resourceLimit: null`) until it's requested — so *every* `vmImage` pipeline silently can't run at
 all. Before recommending hosted agents on a new org, **check/warn** on hosted parallelism and surface
 the request link <https://aka.ms/azpipelines-parallelism-request> (~2–3 business days). Meanwhile,
-support a **self-hosted `pool:`** (the shipped template's `poolName` parameter) as the fallback — a
+support a **self-hosted `pool:`** (the shipped templates' `poolName` parameter) as the fallback — a
 single self-hosted agent runs one job at a time org-wide, so serialize accordingly.
 
 **`Checkpoint.Authorization` — don't just "wait it out" (F25).** A first run can stall on

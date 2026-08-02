@@ -15,7 +15,10 @@ drift.
 - Local: `.aidlc/extensions.json` entries + actual files in `.claude/skills/` and
   `.claude/agents/` (report registry/filesystem mismatches — unregistered locals get
   registered now with `promotion: local-only` pending review).
-- Plugin: skill/agent names available from installed AIDLC plugins (core + stack packs).
+- Plugin: skill/agent names available from **every** installed AIDLC plugin — core, the stack packs
+  **and `aidlc-ux`**. Enumerate what is actually installed rather than assuming a fixed set; a local
+  skill shadowed by a plugin the inventory forgot to look at is exactly the drift this command exists
+  to catch.
 
 ## 2 · Reconcile, per local extension
 

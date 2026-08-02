@@ -7,11 +7,11 @@ disable-model-invocation: true
 
 # /aidlc:bootstrap $ARGUMENTS — a requirements document in, a whole backlog out
 
-The **bulk front door**: take a client's requirements (an uploaded Word/PDF, a brief pasted into
+**The bulk door**: take a client's requirements (an uploaded Word/PDF, a brief pasted into
 chat, or both), decompose it into a full work-breakdown, plan sprints against a team's real
 capacity, and create every item in the active tracker — in one reviewed pass.
 
-Relationship to the other front doors:
+Where this sits (there is one general front door, `/aidlc:do`; these are the specific ones):
 - **`/aidlc:init`** scaffolds the framework (config, backlog, run-state). **Run it first** — bootstrap
   needs `.claude/aidlc.config.json` to know the tracker and project. Its **deferred path** stops there
   and leaves topology/stack/architecture **pending**; bootstrap then infers them from the requirements

@@ -14,8 +14,9 @@ config disagrees with this file, the project config wins — these are the defau
 Most of the rules below are **machine-enforced**, not left to the reviewer's eye. The stack pack
 ships a strict baseline in `${CLAUDE_PLUGIN_ROOT}/templates/tooling/` (`tsconfig.base.json`,
 `eslint.config.mjs` = `typescript-eslint` strict-type-checked + stylistic + Prettier, `.prettierrc`,
-`.editorconfig`, `.npmrc`) that `/aidlc:init` scaffolds into a TS repo and the `aidlc:ci-cd` baseline
-runs as a **hard PR gate** (`typecheck` + `lint` + `format` + `test`). The division of labour:
+`.editorconfig`, `.npmrc`) that `/aidlc:init` scaffolds into a TS repo and the
+`aidlc-stack-web:ci-web` baseline runs as a **hard PR gate** (`typecheck` + `lint` + `format` +
+`test`). The division of labour:
 
 - **Tools own the mechanical rules** — `no-any`, no floating promises, no non-null assertions,
   unused code, formatting, import hygiene, `eqeqeq`, `strict`/`noUncheckedIndexedAccess`. If it can
