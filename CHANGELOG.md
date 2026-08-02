@@ -7,6 +7,73 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.45.3] — 2026-08-02
+
+### Fix: the rest of the guard's blast-radius gaps (`aidlc` 0.45.2)
+
+0.45.2 fixed how commands are *segmented*. This fixes what the checks then *look at* — four verified
+gaps left open by that release, plus one bypass found while closing them.
+
+**Credential reads named three tools while the env check named thirteen.** §5 matched
+`cat|type|Get-Content`, one line below an `ENV_READERS` set already listing `head`, `tail`, `less`,
+`xxd`, `od` and more. So `head ~/.ssh/id_rsa` and `base64 ~/.aws/credentials` walked through a check
+that blocked `cat` on the same file. The check is now argv-based against a shared reader set, extended
+with `strings`/`openssl`/`certutil` and with `cp`/`mv`/`scp`/`rsync` — the pipeline never needs to copy
+a private key, and doing so is a read with extra steps. The path set grew from `.ssh/`/`id_rsa`/
+`.aws/credentials` to include the other private-key types, `.kube/config`, `.netrc`, `.pgpass`,
+`.gnupg/`, `.docker/config.json`, gcloud ADC and `.p12`/`.pfx`/`.jks` keystores.
+
+`.pem` and `.key` are **deliberately excluded**: both are overwhelmingly public certificates and test
+fixtures inside real repos, so blocking them would fire on the correct case constantly — and F46
+already recorded what that costs (*"it fires on the correct case, which trains users to bypass a safety
+hook"*). A guard that cries wolf is worse than the gap.
+
+**Recursive delete only understood combined flags and absolute paths.** The check required `-rf`/`-fr`
+as one token and tested `^/` or `^~`, so `rm -r -f /etc/passwd`, `rm --recursive --force …`, `rm -R -f …`
+and every relative escape (`rm -rf ../../..`, `rm -rf ../sibling-repo`) went through. Flags are now read
+from argv, and the target is resolved against cwd — which covers absolute and relative with one rule and
+additionally catches `rm -rf .`, deleting the project root itself. PowerShell `Remove-Item -Recurse` gets
+the same treatment.
+
+**Exfiltration covered `.env` and nothing else**, so `cat ~/.ssh/id_rsa | curl -d @- …` was not
+exfiltration as far as the check was concerned. It now spans the full secret set, and `--data-binary`/
+`--data-raw`/`-T` join the upload flags.
+
+### Nested shells bypassed every argv-based check
+
+Found while fixing the above, and it is the more interesting half. `bash -c "rm -rf /etc"` is one
+segment whose `argv[0]` is `bash`, so **every argv-based check read it as a benign call to bash** while
+the raw-segment regex checks caught it incidentally. Probed:
+
+| | before | after |
+|---|---|---|
+| `bash -c "git push --force"` | allowed | blocked |
+| `sh -c "cat .env"` | allowed | blocked |
+| `bash -c "npm install evil-pkg"` | ungated | gated |
+| `env FOO=1 rm -rf /etc/passwd` | allowed | blocked |
+
+`expandSegments` now expands a wrapper's `-c` payload into segments of its own (depth-limited, wrapper
+segment retained so the regex checks still see what they always saw). One fix, and it closes the hole
+for the delete check, the env backstop, the git push guard and dep-vet's supply-chain gate together —
+which is the argument for fixing it in the shared parser rather than per-check.
+
+**Known limitation, pinned by a test rather than left to be rediscovered:** the tokenizer does not model
+backslash escaping, so `bash -c "bash -c \"…\""` hides its payload. Mixed-quote nesting — the realistic
+spelling — is covered. Adding escape handling is not free: F46's Windows path work depends on the
+current behaviour, and `D:\RTO Tool` must not become `D:RTO Tool`.
+
+### On not narrowing a guard while widening it
+
+Rewriting §5 and §6 from raw-segment regexes to argv parsing made them precise, and precision is a
+*narrowing*: the old §6 regex incidentally caught `bash -c "rm -rf /etc/passwd"` because it matched
+anywhere in the segment, and the argv version did not. That regression was caught by diffing the new
+hook against the committed one across every case rather than by the suite, which is why the practice is
+worth naming: **a security check being rewritten gets a before/after behavioural diff, not just a green
+suite.** The §5 raw-segment form is retained alongside the argv one for the same reason. Final diff over
+20 representative commands: 11 widened, 9 unchanged, **0 narrowed**.
+
+Guard tests 94 → 151, dep-vet 49 → 55. Logged as F52/F53.
+
 ## [0.45.2] — 2026-08-02
 
 ### Fix: a newline disabled every Bash guard check (`aidlc` 0.45.1)

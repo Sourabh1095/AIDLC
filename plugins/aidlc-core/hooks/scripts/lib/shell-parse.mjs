@@ -67,6 +67,48 @@ export function splitSegments(command) {
   return segments;
 }
 
+// Shell wrappers whose `-c` payload is *another command line*, and the flags that
+// introduce it. `env` is here for the same reason with a different shape: everything
+// after its assignments is the real command.
+const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "ash", "busybox", "powershell", "pwsh", "cmd"]);
+const PAYLOAD_FLAGS = new Set(["-c", "-Command", "-command", "-EncodedCommand", "/c", "/C", "/k", "/K"]);
+
+// Every segment a command line will actually execute, INCLUDING the ones hidden inside
+// a shell wrapper. `bash -c "rm -rf /etc"` is one segment whose argv[0] is `bash`, so
+// every argv-based check reads it as a benign call to bash and the real command is
+// never inspected. Probed against the hooks: `bash -c "npm install evil-pkg"` slipped
+// dep-vet's gate, `sh -c "cat .env"` slipped the env backstop, and
+// `bash -c "git push --force"` slipped the push guard entirely — the argv-based checks
+// all had this hole, while the raw-segment regex checks (production targets, DB
+// operations) caught it incidentally.
+//
+// The wrapper segment is kept as well as its payload, so the regex checks still see the
+// text they always saw and nothing narrows. Depth-limited because a payload can wrap
+// again, and a hostile or merely convoluted command should not be able to spin this.
+export function expandSegments(command, depth = 0) {
+  const out = [];
+  for (const seg of splitSegments(command)) {
+    out.push(seg);
+    if (depth >= 3) continue;
+    const argv = commandArgv(seg);
+    const name = commandName(argv);
+    if (SHELL_WRAPPERS.has(name)) {
+      const i = argv.findIndex((a) => PAYLOAD_FLAGS.has(a));
+      // tokenize already stripped the payload's outer quotes, so it is a command line.
+      if (i >= 0 && i + 1 < argv.length) out.push(...expandSegments(argv[i + 1], depth + 1));
+    } else if (name === "env") {
+      // Skip env's own assignments and flags, then take the REST verbatim — filtering
+      // flags out here would reconstruct `env FOO=1 rm -rf /x` as `rm /x`, losing the
+      // very flag the delete check keys on.
+      const rest = argv.slice(1);
+      let k = 0;
+      while (k < rest.length && (/^\w+=/.test(rest[k]) || rest[k].startsWith("-"))) k++;
+      if (k < rest.length) out.push(rest.slice(k).join(" "));
+    }
+  }
+  return out;
+}
+
 // Split a shell segment into argv, honouring quotes. A quoted argument stays ONE
 // token, so its contents can never be mistaken for a flag or a subcommand. Parsing
 // (rather than regex-matching quote-blanked text) is what makes the callers'

@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execSync } from "node:child_process";
 import { isEnvFile, envAccessFor as _envAccessFor } from "./lib/env-access.mjs";
-import { splitSegments, commandArgv, commandName } from "./lib/shell-parse.mjs";
+import { expandSegments, commandArgv, commandName } from "./lib/shell-parse.mjs";
 
 let data;
 try {
@@ -94,9 +94,10 @@ function stagedGitlinks(repoCwd) {
   return links.filter((p) => !registered.has(p));
 }
 
-// `splitSegments` / `commandArgv` / `commandName` live in ./lib/shell-parse.mjs,
+// `expandSegments` / `commandArgv` / `commandName` live in ./lib/shell-parse.mjs,
 // shared with dep-vet.mjs — see that file for the quote-aware parsing rationale
-// and for why an unquoted NEWLINE has to be a segment separator.
+// for why an unquoted NEWLINE has to be a segment separator, and for why a nested
+// shell's `-c` payload is expanded into segments of its own.
 
 // git global options that consume a SEPARATE following value.
 const GIT_VALUE_OPTS = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix"]);
@@ -210,11 +211,97 @@ function envReadTarget(argv) {
   return t ? t.replace(/^['"]|['"]$/g, "") : "";
 }
 
+// --- Private keys and credential stores ---------------------------------------------
+// Matched on the path TOKEN, so the reader check below can be argv-based like the env
+// one. It previously matched a regex over the raw segment and named only three readers
+// (`cat`/`type`/`Get-Content`) — while ENV_READERS one line above already listed
+// thirteen, so `head ~/.ssh/id_rsa` and `base64 ~/.aws/credentials` walked straight
+// through a check that blocked `cat` on the same file.
+//
+// What is deliberately NOT here: `.pem` and `.key`. Both are overwhelmingly public
+// certificates and test fixtures inside real repos, so blocking them would fire on the
+// correct case constantly — and a guard that cries wolf trains people to route around
+// it, which is how F46's false block was described and is a worse outcome than the gap.
+// Keystore formats (`.p12`/`.pfx`/`.jks`) carry a private key essentially by definition,
+// so those stay.
+const SECRET_PATH_SRC = String.raw`(?:\.ssh[\\/]|\bid_(?:rsa|dsa|ecdsa|ed25519)\b|\.aws[\\/]credentials\b|\.kube[\\/]config\b|\.gnupg[\\/]|\.docker[\\/]config\.json\b|(?:^|[\\/])[._]netrc\b|\.pgpass\b|\.my\.cnf\b|\bapplication_default_credentials\.json\b|\.(?:p12|pfx|jks|keystore)\b)`;
+const SECRET_PATH_RE = new RegExp(SECRET_PATH_SRC, "i");
+
+// Readers, plus the tools that relocate a file wholesale — the pipeline never needs to
+// copy a private key, and `cp ~/.ssh/id_rsa /tmp/k` is a read with extra steps.
+const SECRET_READERS = new Set([
+  ...ENV_READERS,
+  "base64",
+  "strings",
+  "openssl",
+  "certutil",
+  "Format-Hex",
+  "cp",
+  "mv",
+  "scp",
+  "rsync",
+]);
+function secretReadTarget(argv) {
+  if (!SECRET_READERS.has(commandName(argv))) return "";
+  const t = argv.slice(1).find((a) => !a.startsWith("-") && SECRET_PATH_RE.test(a));
+  return t ? t.replace(/^['"]|['"]$/g, "") : "";
+}
+// Any reader name appearing anywhere in a segment — the nested-shell backstop at §5.
+const SECRET_READER_RE = new RegExp(`\\b(?:${[...SECRET_READERS].join("|")})\\b`);
+
+// --- Delete blast radius --------------------------------------------------------------
+// Does this operand land outside the project (or ON the project root)? The old check
+// tested `^[/\\]` or `^~`, so it only ever saw ABSOLUTE targets: `rm -rf ../../..`
+// escaped the repo entirely and was allowed. Resolving against cwd covers both spellings
+// with one rule.
+const CASE_INSENSITIVE_FS = process.platform === "win32";
+const normPath = (p) => {
+  const s = p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return CASE_INSENSITIVE_FS ? s.toLowerCase() : s;
+};
+function deleteEscapes(target) {
+  const t = target.replace(/^['"]|['"]$/g, "");
+  if (!t) return null;
+  // The shell expands `~` before the command runs; node's resolve would not, so a
+  // home-relative path is treated as outside on sight.
+  if (/^~/.test(t)) return "outside";
+  const a = normPath(resolve(cwd, t));
+  const c = normPath(cwd);
+  if (a === c) return "root"; // `rm -rf .` — inside the project, and it IS the project
+  return a.startsWith(c + "/") ? null : "outside";
+}
+
+// Recursive-delete operands for `rm` and PowerShell `Remove-Item`, or [] when the
+// command is neither or is not recursive. Flags are read from argv rather than matched
+// as a combined blob, so `-r -f` and `--recursive` count exactly like `-rf` did.
+function recursiveDeleteTargets(argv) {
+  const name = commandName(argv);
+  const isRm = name === "rm";
+  const isPs = ["Remove-Item", "ri", "rd", "rmdir", "del", "erase"].includes(name);
+  if (!isRm && !isPs) return [];
+  let recursive = false;
+  const operands = [];
+  let literal = false;
+  for (const a of argv.slice(1)) {
+    if (a === "--") {
+      literal = true;
+      continue;
+    }
+    if (!literal && a.startsWith("-")) {
+      if (isRm && (a === "--recursive" || (!a.startsWith("--") && /r/i.test(a.slice(1))))) recursive = true;
+      if (isPs && /^-recurse$/i.test(a)) recursive = true;
+      continue;
+    }
+    operands.push(a);
+  }
+  return recursive ? operands : [];
+}
+
 // Segment per shell separator so flags/tokens from OTHER commands in a compound line
 // (`rm -f x && git push`) don't leak across the checks. The separator set includes an
 // unquoted NEWLINE: without it a multi-line command is one segment, and a leading
 // `git …` line makes every check below skip (see ./lib/shell-parse.mjs).
-for (const rawSeg of splitSegments(cmd)) {
+for (const rawSeg of expandSegments(cmd)) {
   const argv = commandArgv(rawSeg);
   const isGit = commandName(argv) === "git";
 
@@ -313,30 +400,37 @@ for (const rawSeg of splitSegments(cmd)) {
   if (/\b(kubectl|helm)\b[^|;&]*\b(prod|production)\b/i.test(rawSeg))
     block("cluster command targeting a production context.");
 
-  // --- 5. Reading private keys / cloud credentials ---
-  if (/\b(cat|type|Get-Content)\b[^|;&]*(\.ssh[\\\/]|id_rsa|\.aws[\\\/]credentials)/.test(rawSeg))
+  // --- 5. Reading (or copying out) private keys and cloud credentials ---
+  const st = secretReadTarget(argv);
+  if (st) block(`reading or copying a private key / credential store ('${st}').`);
+
+  // Backstop for the same check. The argv form above is precise and is what catches
+  // `head`/`base64`/`cp` — but a reader invoked through a NESTED shell
+  // (`bash -c "cat ~/.ssh/id_rsa"`) is not argv[0] of this segment, and the raw-segment
+  // regex this replaced did catch that shape. Keeping both is deliberate: widening a
+  // guard must never quietly narrow it somewhere else, and the cost is a false positive
+  // on a segment that merely mentions both a reader and a key path — loud, not silent.
+  // (Git segments never reach here, so commit messages are already exempt.)
+  if (SECRET_PATH_RE.test(rawSeg) && SECRET_READER_RE.test(rawSeg))
     block("reading private keys or cloud credentials.");
 
-  // --- 6. Recursive delete outside the repo ---
-  const rmMatch = rawSeg.match(/\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\s+(\S+)/);
-  if (rmMatch) {
-    const target = rmMatch[2].replace(/["']/g, "");
-    const cwdFwd = cwd.replace(/\\/g, "/");
-    if (/^([A-Za-z]:)?[\\\/]+\S*$|^~/.test(target) && !target.startsWith(cwd) && !target.startsWith(cwdFwd))
-      block(`recursive delete of an absolute path outside the project (${target}).`);
-  }
-  if (/Remove-Item\b[^|;&]*-Recurse/.test(rawSeg)) {
-    const abs = rawSeg.match(/Remove-Item\b[^|;&]*?(([A-Za-z]:[\\\/]|~)[^\s|;&]*)/);
-    if (abs && !abs[1].startsWith(cwd) && !abs[1].startsWith(cwd.replace(/\\/g, "/")))
-      block(`recursive Remove-Item on an absolute path outside the project (${abs[1]}).`);
+  // --- 6. Recursive delete escaping the project (or deleting the project itself) ---
+  for (const t of recursiveDeleteTargets(argv)) {
+    const verdict = deleteEscapes(t);
+    if (verdict === "outside")
+      block(`recursive delete of a path outside the project (${t} → ${resolve(cwd, t.replace(/^['"]|['"]$/g, ""))}).`);
+    if (verdict === "root") block(`recursive delete of the project root itself (${t}).`);
   }
 }
 
 // --- 7. Secret exfiltration (spans a pipe, so evaluate on the whole command) ---
+// Env files were the only source covered here, so `cat ~/.ssh/id_rsa | curl -d @- …`
+// was not exfiltration as far as this check was concerned.
+const EXFIL_SRC = String.raw`(?:\.env\b|${SECRET_PATH_SRC})`;
 if (
-  /\.env[^|;&]*\|\s*(curl|wget|nc|ncat)\b/.test(cmd) ||
-  /\b(curl|wget)\b[^|;&]*(-d|--data|--upload-file|-F)[^|;&]*\.env/.test(cmd)
+  new RegExp(`${EXFIL_SRC}[^|;&]*\\|\\s*(?:curl|wget|nc|ncat)\\b`, "i").test(cmd) ||
+  new RegExp(`\\b(?:curl|wget)\\b[^|;&]*(?:-d|--data|--data-binary|--data-raw|--upload-file|-F|-T)[^|;&]*${EXFIL_SRC}`, "i").test(cmd)
 )
-  block("piping or uploading .env content over the network.");
+  block("piping or uploading secret material (env file, private key or credential store) over the network.");
 
 process.exit(0);

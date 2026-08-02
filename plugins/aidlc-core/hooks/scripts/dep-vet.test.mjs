@@ -100,5 +100,15 @@ check('git commit -m "release notes\n- ran npm i lodash locally"', "allow", "new
 check("git status\nnpm ci", "allow", "newline: lockfile install stays ungated");
 check("git status\nnpm run build", "allow", "newline: unrelated script stays ungated");
 
+// --- Nested shells: the payload is the real command (lib/shell-parse.mjs) ---
+// `bash -c "npm install evil-pkg"` has argv[0] = bash, so no package manager was found
+// and the supply-chain gate never fired.
+check('bash -c "npm install evil-pkg"', "gate", "nested: npm install via bash -c");
+check("sh -c 'pnpm add axios'", "gate", "nested: pnpm add via sh -c");
+check('bash -c "cd apps/web && yarn add react"', "gate", "nested: add inside a compound payload");
+check("env CI=1 npm i lodash", "gate", "env wrapper before an add");
+check('bash -c "npm ci"', "allow", "nested: lockfile install stays ungated");
+check('bash -c "npm run build"', "allow", "nested: unrelated script stays ungated");
+
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

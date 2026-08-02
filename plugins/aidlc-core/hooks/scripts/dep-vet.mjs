@@ -18,7 +18,7 @@
 // which is also where an unquoted NEWLINE became a separator: without that,
 // `git status\nnpm install left-pad` is one `git` segment and this gate never fires.
 import { readFileSync } from "node:fs";
-import { splitSegments, commandArgv, commandName } from "./lib/shell-parse.mjs";
+import { expandSegments, commandArgv, commandName } from "./lib/shell-parse.mjs";
 
 let data;
 try {
@@ -101,7 +101,7 @@ function addedPackages(segment) {
 }
 
 const pkgs = [];
-for (const seg of splitSegments(cmd)) {
+for (const seg of expandSegments(cmd)) {
   for (const p of addedPackages(seg)) if (!pkgs.includes(p)) pkgs.push(p);
 }
 

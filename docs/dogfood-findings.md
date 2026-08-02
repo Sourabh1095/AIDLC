@@ -18,7 +18,52 @@ and reset this file fresh for the next cycle.
 
 ## Open findings (to implement at the end)
 
-_Numbering continues across cycles — the next finding is **F52**._
+_Numbering continues across cycles — the next finding is **F54**._
+
+### F52 🟠 — The guard's content checks were narrower than the sets sitting next to them
+**Symptom.** Four verified gaps, all found by audit rather than by a run, all silent. (1) The
+credential check named `cat|type|Get-Content` while `ENV_READERS` **one line above it** already listed
+thirteen readers — so `head ~/.ssh/id_rsa` and `base64 ~/.aws/credentials` were allowed by a check that
+blocked `cat` on the same file. (2) The recursive-delete check required **combined** flags (`-rf`/`-fr`)
+and only tested absolute or `~` paths, so `rm -r -f /etc/passwd`, `rm --recursive --force …` and every
+relative escape (`rm -rf ../../..`) went through. (3) Exfiltration covered `.env` only, so
+`cat ~/.ssh/id_rsa | curl -d @- …` was not exfiltration. (4) The sensitive-path set was three patterns;
+`.kube/config`, `.netrc`, `.pgpass`, `.gnupg/`, `.docker/config.json` and keystores were not secrets.
+**Root cause.** Each check was written for the example that prompted it and never generalized to its own
+neighbours. The credential one is the clearest: the correct reader set was already in the file, and the
+check simply did not use it.
+**Resolution.** Both checks are argv-based against shared sets; delete targets resolve against cwd
+(covering absolute and relative with one rule, and catching `rm -rf .`); exfil spans the full secret set.
+`.pem`/`.key` are **deliberately excluded** — overwhelmingly public certs and fixtures in real repos, and
+F46 already recorded what a guard firing on the correct case costs.
+**Lesson worth keeping:** when a check enumerates tools or paths, **look for the set already in the file**.
+Two lists of the same kind of thing, in one file, with different members is a bug the reader will not see.
+
+### F53 🔴 — A nested shell bypassed every argv-based check in both hooks
+**Symptom.** `bash -c "rm -rf /etc"` is one segment whose `argv[0]` is `bash`. Every argv-based check
+therefore read it as a benign call to bash: `bash -c "git push --force"` slipped the push guard,
+`sh -c "cat .env"` slipped the env backstop, `bash -c "npm install evil-pkg"` slipped dep-vet's
+supply-chain gate, and `env FOO=1 rm -rf /x` slipped the delete check. The raw-segment *regex* checks
+(production targets, DB operations) caught the same shape incidentally — which is why this survived: the
+hook looked like it handled nested shells, because half of it did.
+**Root cause.** The same root as F50, one level further in. F50 fixed *where segments end*; this is
+*what a segment contains*. A wrapper's `-c` argument is another command line, and nothing treated it as
+one. The pre-existing raw-regex checks masked it, so no single test would have caught it — only asking
+"which checks are argv-based, and what is argv[0] here?" does.
+**Resolution.** `expandSegments` in `lib/shell-parse.mjs` expands a wrapper's payload into segments of
+its own (depth-limited; the wrapper segment is retained so the regex checks still see what they always
+saw), and both hooks use it. One fix for all four holes, which is the argument for putting it in the
+shared parser rather than per-check.
+**Also recorded, because it was nearly a silent regression:** rewriting the delete check from a raw-segment
+regex to argv parsing **narrowed** it — the old regex incidentally caught `bash -c "rm -rf …"` and the
+argv version did not. The suite was green either way; it was caught by running the new hook and the
+committed one against the same 20 commands and diffing. **A security check being rewritten gets a
+before/after behavioural diff, not just a passing suite** — precision and coverage are different axes,
+and making a check more precise can quietly cost coverage somewhere nobody is looking.
+**Known limitation, pinned by a test:** the tokenizer does not model backslash escaping, so
+`bash -c "bash -c \"…\""` still hides its payload. Mixed-quote nesting is covered. Adding escape handling
+would put F46's Windows path handling at risk (`D:\RTO Tool`), so it is a recorded decision, not an
+oversight.
 
 ### F50 🔴 — A newline in a Bash command disabled every guard check (fail-open, silent)
 **Symptom.** Found by audit, not by a run — which is itself the finding: nothing would have surfaced
