@@ -7,6 +7,72 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.41.0] — 2026-08-02
+
+### `aidlc-ux` — a design system is not mockups, and it needed its own axis
+
+0.40.0 read Figma as one question: *are the screens drawn?* That misses the more common enterprise
+handover, where a brand gives you a **design system** — a UI kit of variables and components — and no
+mockups at all. Under a single axis that file had nowhere to go: too structured to be "inspiration",
+not screens, so the pod would have invented a palette beside a palette the brand had already shipped.
+
+So the sources split into two independent axes, resolved before the pipeline:
+
+| | `designSource` — the screens | `systemSource` — the values |
+|---|---|---|
+| `figma` | build to them, gate on **fidelity** | tokens + components from a Figma UI kit |
+| `generated` / `project` | the pod designs them, gate on the **jury** | the pod invents or audits the system |
+
+All four combinations occur. The new one — **system given, screens not** — keeps everything that made
+the pod useful: narrative, inspiration, motion, and **the jury still gates**, because taste is still
+open. What changes is that the vocabulary is fixed. Every value resolves to a system token, every
+component the system defines is used rather than re-invented, and off-system stops being a preference:
+the jury scores it as a Consistency **defect**, naming the token that should have been used. That is
+what a design system is for — the creative work becomes composition.
+
+- **`aidlc-figma` gains library mode**, in two waves, because a sixty-component system pulled whole
+  would eat a month's call budget and most of it would go unread. Wave 1 up front: `get_variable_defs`
+  once (the entire token set) plus `get_metadata` over the canonical pages for the component
+  **inventory** — names, node ids, variant axes. Wave 2 on demand: a component's full detail the first
+  time a screen needs it, cached into `design/figma-system.md` and never fetched again. The inventory
+  is recorded even for components not yet detailed, because a component that exists in the system and
+  gets re-invented in code is the failure this whole role exists to prevent.
+- **`aidlc-design-system` gains figma-library mode**: emit the **full** token layer from the variable
+  table (a half-mapped system means the next screen invents the rest), write `design/design-system.md`
+  from the extraction, wire up components that have code counterparts instead of rebuilding them, and
+  list conflicts with existing tokens for a human rather than silently picking a winner.
+
+**Pages are the unit of scope, and the list is a declared contract.** A real UI-kit file is not
+uniformly canonical — there is a cover page, explorations, WIP, deprecated sets, an archive. Building
+against a deprecated component is *worse* than ignoring the system: it looks compliant and isn't. So
+linking asks which pages count, one human confirmation, stored in
+`ux.figma.designSystem.pages`; anything outside it does not exist, and the pipeline never widens the
+list on its own. Linking asks about the **exclusions** too — "is `Components v2` the live set or the
+draft?" is the question that stops an app being built on a draft.
+
+**One brand has one system, so it is declared once.** `designSystem` with `scope: "workspace"` lives in
+the **top-level** `ux.figma` even in poly — the single deliberate exception to "in poly, every ux
+setting is per repo". Each frontend emits tokens in its own idiom from the same extraction, and a
+change to the system is therefore a workspace event: `/aidlc-ux:figma sync` names **every** stale
+frontend, the tokens each changed variable maps to, and the call sites of every changed component —
+not just the repo you happen to be standing in.
+
+`/aidlc-ux:figma <url>` now resolves what a file *is* before extracting anything (file name, page
+names, component sets vs page-sized artboards, published-library status), states its read, and takes
+`--system` / `--screens` to settle it. A URL pointing at one component inside a UI kit means "here is
+the system", not "build this component". Share tokens (`t=`) are stripped before anything is written
+to config.
+
+### `aidlc` — both sources on the run file
+
+- `run` §2 records **`systemSource: figma|project`** beside `designSource`, resolving the design
+  system repo-entry-first then top-level, and passes both to the pod. §6 spells out that a given
+  system changes what the system *is*, not what the gate is.
+- `init` asks frontend repos **two** questions instead of one — screens in Figma? a design system in
+  Figma? — and writes a workspace-scoped system to the top-level block.
+- Config: `ux.figma.designSystem` (`url`, `fileKey`, `pages`, `components`, `scope`), schema'd
+  everywhere `ux` appears; the poly example now shows a workspace-wide system.
+
 ## [0.40.0] — 2026-08-02
 
 ### `aidlc-ux` — when the design already exists, stop designing

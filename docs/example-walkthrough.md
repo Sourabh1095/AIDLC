@@ -190,6 +190,21 @@ yes it's advisory: it fixes what the build got wrong and sends critique of the d
 and your designer rather than rebuilding someone's approved work. When the designer later changes the
 file, `/aidlc-ux:figma sync` tells you which built routes now disagree.
 
+**And if there are no mockups but there *is* a brand design system in Figma** — the usual enterprise
+handover — link it as a system instead:
+
+```
+/aidlc-ux:figma https://figma.com/design/… --system
+```
+
+It asks which pages are canonical (a UI-kit file also holds a cover, explorations and deprecated
+sets — say `Thumbnail` and `Design System` out of three) and stores the answer. From then on the pod
+still designs the screens and the **jury still gates**, but every value comes from the system's
+variables and every component it defines gets used instead of re-invented — off-system colours and
+hand-rolled buttons become Consistency defects the jury names. In a polyrepo the system is declared
+once at the workspace root and every frontend derives from it, so a change to it makes all of them
+stale at once and `sync` lists them.
+
 ### 6b. Polish or rebrand a specific screen on demand
 
 Beyond the automatic pass, you can point the pod at any screen yourself — new or already built:

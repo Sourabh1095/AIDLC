@@ -1,8 +1,8 @@
 {
   "name": "aidlc-ux",
   "displayName": "AIDLC UX Pod — Design & Motion",
-  "description": "UI/UX pod for the AIDLC pipeline, on two design sources. When the screens already exist in Figma it implements them to the design via the Figma MCP and checks fidelity, jury optional. When they don't, it invents them: UX-narrative writer, Awwwards inspiration researcher, design-system owner (the uniformity anchor), motion/interaction specialist, and a strict unbiased jury that renders the UI and gates on a ≥9/10 score. New or existing projects, page or whole-app scope, honors supplied brand references (logo, colors, fonts).",
-  "version": "0.5.0",
+  "description": "UI/UX pod for the AIDLC pipeline that starts from whatever already exists. Screens in Figma → implements them via the Figma MCP and gates on fidelity, jury optional. A brand design system in Figma → extracts its variables and components as the project's tokens and vocabulary, and still designs the screens within them. Neither → invents both: UX-narrative writer, Awwwards inspiration researcher, design-system owner (the uniformity anchor), motion/interaction specialist, and a strict unbiased jury that renders the UI and gates on a ≥9/10 score. New or existing projects, page or whole-app scope, honors supplied brand references (logo, colors, fonts).",
+  "version": "0.6.0",
   "author": {
     "name": "Bee-Logical",
     "email": "sourabh@bee-logical.com"

@@ -1,6 +1,6 @@
 # Architecture — Bee-Logical Claude AIDLC
 
-**Status:** All phases (0–5) implemented + polyrepo · core v0.40.x · `aidlc-ux` design pod v0.5.x
+**Status:** All phases (0–5) implemented + polyrepo · core v0.41.x · `aidlc-ux` design pod v0.6.x
 
 ## 1. Core design decisions
 
@@ -334,7 +334,7 @@ forks shadowed by promoted versions, resolves shadowing conflicts); `/aidlc:spri
 independence check → worktree + headless run per item → live board from run-file polling →
 cleanup); governance via `docs/promotion-policy.md` (`plugins/**` platform-owned).
 
-### Design pod ✅ (`aidlc-ux` plugin, v0.1–0.5)
+### Design pod ✅ (`aidlc-ux` plugin, v0.1–0.6)
 
 A separate, default-enabled plugin for UI work, with **two design sources** and a different quality
 gate for each.
@@ -348,7 +348,10 @@ that iterates until composite ≥ `ux.juryThreshold` (default 9), capped at `ux.
 greenfield (establish the project standard), retrofit (adopt the existing system, redesign a scoped
 surface) and full redesign; brand references (logo/colors/fonts) are hard constraints.
 
-**Figma (v0.5).** When the screens already exist, the pod implements rather than invents. The plugin
+**Figma (v0.5–0.6).** Two independent axes, both resolved before the pipeline runs: `designSource`
+(are the screens drawn?) and `systemSource` (are the values given?). All four combinations occur.
+
+*Screens in Figma (`designSource: figma`).* The pod implements rather than invents. The plugin
 ships its own `figma` MCP server (remote, OAuth). `aidlc-figma` extracts the design once —
 `get_metadata` → `get_design_context` → `get_screenshot` → `get_variable_defs` — into
 `design/figma-spec.md` plus reference shots; `aidlc-design-system` runs in *figma mode*, mapping the
@@ -357,6 +360,21 @@ to the spec; and `aidlc-fidelity` (opus) renders at the design's own artboard wi
 every difference `[BLOCKING]`/`[MINOR]`/`[ADAPTATION]`. Gate = **zero blocking**, capped at
 `ux.figma.maxFidelityRounds`. `/aidlc-ux:figma` links a file, maps frames to the app's real routes,
 and `sync` re-extracts to report design drift against the built routes.
+
+*A design system in Figma (`systemSource: figma`, v0.6).* The common enterprise case: a brand hands
+over a UI kit, not mockups. `aidlc-figma` runs in **library mode** — wave 1 pulls the whole variable
+set plus the component *inventory* over the canonical pages; wave 2 pulls a component's detail the
+first time a screen needs it (a sixty-component system would not survive the monthly call budget
+otherwise). `aidlc-design-system` in **figma-library mode** emits the full token layer from the
+variables and writes `design/design-system.md` from the extraction. **The screens are still the pod's
+to design and the jury still gates** — what changes is that Consistency is judged against the given
+system, so an off-token value or a re-invented component is a defect rather than a preference. Page
+scope is a declared contract (`ux.figma.designSystem.pages`), confirmed once by a human and never
+widened by the pipeline: a design-system file also holds covers, WIP and deprecated sets, and building
+against a deprecated component looks compliant while being worse than ignoring the system. A
+workspace-scoped system is the one thing declared at the **top level** even in poly — one brand, one
+system, every frontend deriving tokens in its own idiom from the same extraction, and a system change
+makes all of them stale at once.
 
 **Design decisions.** (1) *The jury does not gate a Figma-sourced surface.* The design was approved
 outside the session; scoring it and iterating toward a 9 would overwrite someone else's decision. So
@@ -368,10 +386,11 @@ calls per month on Starter/View seats), so the spec — not the MCP — is what 
 check and the next session read. (4) The jury and the fidelity checker are the only opus tiers, both
 deliberately blind to the makers' reasoning; both loops are capped and never model-escalate.
 
-The core orchestrator detects UI items at classify (`ui:` flag) and the design source alongside it
-(`designSource: figma|generated`), routing here when the plugin is present and `ux.enabled` — no hard
-dependency, so core still runs standalone. `ux.figma` is per repo and per package: different
-frontends have different design files.
+The core orchestrator detects UI items at classify (`ui:` flag) and both sources alongside it
+(`designSource: figma|generated`, `systemSource: figma|project`), routing here when the plugin is
+present and `ux.enabled` — no hard dependency, so core still runs standalone. `ux.figma` is per repo
+and per package (different frontends, different mockups and dev ports); `ux.figma.designSystem` with
+`scope: workspace` is the deliberate exception.
 
 ## 3. Post-v1 candidates (not committed)
 

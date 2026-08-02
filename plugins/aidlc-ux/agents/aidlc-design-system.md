@@ -42,7 +42,44 @@ Brand anchors are **hard constraints**, not inspiration:
   to confirm rather than guessing silently.
 - **Supplied hex/guidelines** → honored exactly; build the token system around them.
 
-## Figma mode (the design already exists)
+## Figma-library mode (the design system itself lives in Figma)
+
+Brief carries `design/figma-system.md` — the extracted system: variable table, component inventory,
+usage rules, canonical pages. **This is the project's design system.** You are not designing one; you
+are landing an existing one in code and writing it down as the project's canonical
+`design/design-system.md`.
+
+- **Emit the full token layer from the variable table**, not just the values the first screen needs.
+  A half-mapped system means the next screen invents the rest. Match the project's idiom — CSS custom
+  properties, the Tailwind theme, a `tokens.ts` — and keep Figma's semantic names semantic
+  (`surface/raised` → `--surface-raised`), renaming only to fit an existing convention and recording
+  the mapping both ways.
+- **Multi-mode variables** (light/dark, density, brand) map to the project's theming mechanism, not to
+  duplicated token sets.
+- **Write `design/design-system.md` from the extraction**, citing the system as the source of every
+  value — with a pointer to `design/figma-system.md` for provenance. Traceability here is to the
+  system, not to a narrative.
+- **Components:** the inventory is the contract. Where a code counterpart exists (a published package,
+  a Code Connect mapping), wire the project to *use* it and record it. Where one doesn't, note what
+  must be built as a system component — implemented once, in the project's component layer, not
+  inline in a screen.
+- **Conflicts with what's already in code** (an existing token disagreeing with the system) are
+  listed for a human. Never silently pick a winner, and never let both survive — two spellings of the
+  brand blue is exactly the drift the system exists to prevent.
+- **Gaps stay gaps.** What the system doesn't define — focus rings, some states, breakpoints, dark
+  mode, a missing component — you derive from the system's own logic, label `derived:`, and list for
+  the designer. A derived value is provisional; it never gets promoted to canon quietly.
+- **Workspace scope.** When the system is workspace-wide, every frontend derives from the same
+  extraction, each emitting tokens in its own idiom. Say which repos you emitted for and which are
+  still on their old values.
+- **Accessibility.** Verify AA across the system's own pairs. A failing pair inherited from the system
+  is corrected, recorded with both ratios, and reported to the designer — it is a system bug, and
+  reporting it upstream is worth more than the local fix.
+
+The screens are still designed by the pod. Your output is the fixed vocabulary they compose within,
+and after you run, an off-system value in a component is a **defect**, not a preference.
+
+## Figma mode (the screens already exist)
 
 Brief carries `design/figma-spec.md` and its variables table. **The Figma variables are the tokens** —
 you map, you don't invent. No palette derived from screenshots, no scale of your own design.

@@ -1,30 +1,39 @@
 ---
 name: figma-handoff
-description: Discipline for building from an existing Figma design — reading the file through the Figma MCP, extracting a screen spec and variables, what fidelity means, what is allowed to deviate, and how the fidelity check is scored. Load when extracting a Figma design, implementing from one, or reviewing design/figma-spec.md or a fidelity report.
+description: Discipline for working from an existing Figma file — screens to build to, or a design system to build within. Covers reading the file through the Figma MCP, page scoping, extracting a screen spec, variables and components, what fidelity means, what is allowed to deviate, and how the fidelity check is scored. Load when extracting from Figma, implementing from it, or reviewing design/figma-spec.md, design/figma-system.md or a fidelity report.
 user-invocable: false
 ---
 
 # Figma handoff — the design already exists
 
-When screens exist in Figma, the design decisions have already been made and — usually — signed off
-by someone who is not in this session. The pod's job flips: **not to invent a design, but to land
-the one that exists**. Taste questions are closed. The open question is fidelity.
+When something already exists in Figma, part of the design has been decided — and usually signed off
+by someone who is not in this session. The pod's job flips from inventing to landing what exists.
 
-That single flip is what this discipline governs. Get it wrong in the obvious way — treating Figma
-as "inspiration" and improving on it — and you ship something the client did not approve.
+Two different things can exist, and they answer different questions:
 
-## The design source is a hard fork in the pipeline
+- **Screens** → *"is this the design?"* Taste is closed; the open question is **fidelity**.
+- **A design system** → *"is this within the system?"* The screens are still yours to design; the
+  **values are not**.
 
-| | `generated` (no Figma) | `figma` |
+Get either wrong in the obvious way — treating Figma as "inspiration" and improving on it — and you
+ship something the client did not approve.
+
+## Two sources, resolved separately
+
+They are orthogonal, and a project can have one, both, or neither:
+
+| | `designSource` (the screens) | `systemSource` (the values) |
 |---|---|---|
-| Where the design comes from | narrative → inspiration → design system | the Figma file |
-| Tokens | invented, traced to the narrative | **extracted** from Figma variables/styles |
-| Quality bar | jury composite ≥ threshold | **fidelity**: zero blocking deviations |
-| Jury | mandatory gate | **optional**, advisory by default |
-| Creative licence | wide | none, except where Figma is silent |
+| `figma` | screens drawn in Figma → build to them, gate on **fidelity** | tokens + components extracted from a Figma design-system file |
+| `generated` / `project` | the pod designs the screens → gate on the **jury** | the pod invents or audits the system |
 
-Never mix them: a surface whose design came from Figma does not also get a narrative-driven
-re-invention of its palette.
+The four combinations all occur. Screens in Figma consuming an in-code system; a design system in
+Figma with screens still to be designed (**the common enterprise case** — a brand hands you a UI kit,
+not mockups); both in Figma, often as two separate files; neither.
+
+Never blend a source with its opposite: a surface whose screens came from Figma does not also get a
+narrative-driven re-invention of its palette, and a project with a Figma design system does not get a
+second, invented palette beside it.
 
 ## Connection is a precondition, not a best effort
 
@@ -63,15 +72,96 @@ new ones). `get_code_connect_map` when the project has Code Connect wired — a 
 A Figma URL is `figma.com/design/<fileKey>/<name>?node-id=<node-id>`. The `fileKey` is the segment
 after `/design/`; the `node-id` query param is the selected frame (URLs use `1-2`, the API wants the
 same form — don't "correct" the hyphen to a colon unless a tool rejects it). A URL with no
-`node-id` is the whole file: inventory it, don't extract it wholesale.
+`node-id` is the whole file: inventory it, don't extract it wholesale. Other query params (`p`, `t`,
+`m`, view state) are the sender's editor position and a share token — ignore them, and never store a
+URL containing a `t=` share token in config.
+
+**The file name and the node the sender was looking at are evidence, not instructions.** A URL
+pointing at one component inside a design-system file usually means "here is the system", not "build
+this component" — resolve what the file *is* (below) before deciding what to do with the node.
+
+## Design-system files — the values are given, the screens aren't
+
+A file whose content is foundations and components, not screens, is a **design system**: the brand's
+UI kit. It answers `systemSource`, not `designSource`. Recognise one by any of — the file is named
+like a system (*design system*, *UI kit*, *styleguide*, *foundations*); its pages are named
+`Foundations` / `Tokens` / `Components` / `Patterns` / `Design System`; its frames are component sets
+and swatch/type specimen grids rather than page-sized artboards; or `get_libraries` shows it
+published as a shared library. **Propose the read and have it confirmed** — never decide silently
+that someone's mockups are a system, or the reverse.
+
+### Pages are the unit of scope, and the list is declared once
+
+A real design-system file is not uniformly canonical. Alongside the system there is a cover or
+thumbnail page, explorations, WIP, deprecated components, handoff notes, an archive. **Building
+against a deprecated component is worse than not using the system at all** — it looks compliant and
+isn't. So the canonical pages are **named in config** (`ux.figma.designSystem.pages`), not re-inferred
+on every run:
+
+1. `get_metadata` on the file → the page list (cheap, structural).
+2. Propose which pages are canonical, with your reasoning per page.
+3. A human confirms once; store the list. Everything outside it is invisible from then on.
+
+> *Example.* A file with three pages — `Thumbnail`, `Design System`, `Explorations` — is scoped to
+> the first two. The cover page is in scope because it carries the brand mark and the system's own
+> visual register; the explorations page is out, because nothing on it is a decision yet.
+
+Ask about the pages you are *excluding*, not just the ones you keep — "is `Components v2` the live one
+or the draft?" is the question that prevents building the whole app on a draft.
+
+### Extract foundations eagerly, components on demand
+
+A system with sixty components is a hundred-plus tool calls if you pull it whole, against a monthly
+call budget. Two waves:
+
+- **Wave 1, once:** `get_variable_defs` (the whole token set — one call, and it is the single most
+  valuable call in this discipline) plus `get_metadata` over the canonical pages for the **component
+  inventory**: names, node ids, variant axes. Cheap, structural, and enough to know what the system
+  offers.
+- **Wave 2, on demand:** the first time a screen needs `Button`, pull that component's
+  `get_design_context` + `get_screenshot`, write it into the system spec, and never fetch it again.
+
+Record the inventory even for components you haven't detailed — a component that exists in the system
+and gets re-invented in code is the failure this whole discipline exists to prevent.
+
+### Prefer the code over the pixels
+
+If the system is published as a library and the codebase already implements it — an installed
+component package, or Code Connect mappings (`get_code_connect_map`) — **the code component is the
+truth**. Use it; do not re-derive it from the frame and do not build a parallel one. Figma is then
+the reference for *what exists and how it is meant to be used*, and the package is what ships.
+
+### One system, many frontends
+
+A design system is usually a **workspace-wide** fact: one brand, several apps. Declare it once at the
+control plane and let every frontend derive from the same extraction — each repo emitting tokens in
+its own idiom (a Tailwind theme here, CSS custom properties there) from one source. A change to the
+system is therefore a workspace event, not a repo event: a re-sync must report **every** frontend now
+out of date, not just the one you happen to be standing in.
+
+### What a Figma system does *not* decide
+
+The screens. With `systemSource: figma` and no screens in the file, the pod still designs them —
+narrative, inspiration and the jury all stay, because taste is still open. What changes is that every
+value comes from the system, and "off-system" stops being a matter of preference: it is a defect. The
+creative work is composition within a fixed vocabulary, which is exactly what a design system is for.
 
 ## The spec is the artifact — not the tool output
 
-Write `design/figma-spec.md` (template: `${CLAUDE_PLUGIN_ROOT}/templates/figma-spec.md`) and keep
-reference shots in `design/figma/`. Everything downstream — the implementer, the token work, the
-fidelity check, the next session — reads the spec, not the MCP. Record for each screen: node id,
-route it maps to, layout structure, the variables it uses, its states, its assets, and the
-screenshot path. A spec that sends the reader back to Figma for basics has failed.
+Write it down once; everything downstream — the implementer, the token work, the jury, the fidelity
+check, the next session — reads the written artifact, not the MCP.
+
+- **Screens** → `design/figma-spec.md` (template: `${CLAUDE_PLUGIN_ROOT}/templates/figma-spec.md`),
+  reference shots in `design/figma/`. Per screen: node id, mapped route, layout structure, the
+  variables it uses, its states, its assets, and the screenshot path.
+- **A design system** → `design/figma-system.md` (template:
+  `${CLAUDE_PLUGIN_ROOT}/templates/figma-system.md`), component shots in `design/figma/system/`. The
+  full variable table, the component inventory (including the ones not detailed yet), the canonical
+  page list with the pages deliberately excluded and why, and usage rules the file states. This is
+  the *extraction record*; `design/design-system.md` remains the project's canonical system doc and
+  is written **from** it — one system per project, now sourced rather than invented.
+
+A spec that sends the reader back to Figma for basics has failed.
 
 `get_design_context` usually returns React + Tailwind. That is a *representation*, not the
 deliverable: translate it into the project's actual framework, component library, and conventions.
@@ -90,6 +180,25 @@ rings, disabled states, loading and empty states, responsive behavior between th
 and dark mode. Fill those gaps from the design's own logic, mark each one `derived:` in the spec,
 and list them for the designer. A derived value that later contradicts an updated Figma file is the
 designer's call to settle, not a bug you hide.
+
+## Compliance — the bar when the system is given but the screens aren't
+
+There is no reference screenshot to diff against here, so fidelity doesn't apply. The bar instead is
+**compliance**, and it is checked as part of the jury's Consistency dimension rather than as a
+separate loop:
+
+- Every visual value resolves to a system token. A raw hex, an off-scale space, a font size outside
+  the type scale is a **defect**, not a judgement call — the system already decided.
+- A component the system defines is **used**, not re-invented. A hand-rolled button beside the
+  system's Button is a defect even when it looks fine.
+- Variant and state coverage matches what the system provides — if the system defines a `danger`
+  variant and a `loading` state, the build doesn't invent its own spelling of them.
+- What the system does *not* cover is designed freely and recorded: composition, page-level layout,
+  motion, and any component the system genuinely lacks. Flag a missing component to the designer
+  rather than quietly adding a permanent one-off.
+
+Where the system is *published as code*, compliance is mostly mechanical: the lint/type gate catches
+what the eye would have to. Prefer that over visual inspection when both are available.
 
 ## Fidelity — what counts as a defect
 
@@ -116,6 +225,8 @@ Percentages are false precision — do not score fidelity as a number.
 - The design is the client's. You implement it; you do not improve it. A better idea goes to the
   human as a suggestion, never into the build.
 - Never invent a design when the Figma read fails. Fail loud.
+- **Never widen the page scope on your own.** A component found on an out-of-scope page does not
+  exist. If the system seems to be missing something, ask — don't go looking in `Explorations`.
 - Every extracted value traces to a node id or a variable name. "About 24px" is not a spec.
 - Accessibility corrections are the one deviation you make without asking — and you always report
   them.

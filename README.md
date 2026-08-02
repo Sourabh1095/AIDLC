@@ -179,3 +179,13 @@ someone who isn't in the session, so scoring it out of 10 and iterating toward a
 their decision. Say yes and it runs advisory — build-missed-the-design findings get fixed, critique of
 the design itself goes to you and your designer. `/aidlc-ux:figma sync` re-reads after the designer
 moves and tells you which built routes now disagree.
+
+Screens and the design *system* are separate questions (`aidlc-ux` v0.6.0), and the enterprise
+handover is usually the second one: a brand's UI kit in Figma and no mockups. Link it as a system and
+the pod keeps designing the screens — jury and all, because taste is still open — but its variables
+become your whole token layer and its components get used instead of re-invented, so an off-system
+colour is a defect the jury names rather than a matter of opinion. Which pages of the kit are
+canonical is a decision you make once (a real file also holds a cover, explorations and deprecated
+sets, and building against a deprecated component is worse than ignoring the system), and a
+workspace-wide system is declared once for every frontend, so changing it makes all of them stale at
+once and `sync` lists them.

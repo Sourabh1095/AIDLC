@@ -50,10 +50,31 @@ The score is only worth something if it's unbiased and evidence-backed.
 | **Usability / UX** | 20% | Obvious primary action; legible; predictable; graceful empty/loading/error; nothing sacrificed to style. |
 | **Creativity / originality** | 15% | A memorable idea executed with restraint; not a template; the signature moment lands. |
 | **Motion & interaction craft** | 20% | Purposeful, smooth (60fps, no jank); coherent easing; tasteful sequencing; `prefers-reduced-motion` respected; no over-animation. |
-| **Consistency / uniformity** | 12% | One-system feel; tokens honored across all screens; no off-system color/spacing; repeated components identical. **When brand anchors were supplied, they're honored exactly. On a scoped redesign, the target is consistent with the sibling screens — not a lone island in a different style.** |
+| **Consistency / uniformity** | 12% | One-system feel; tokens honored across all screens; no off-system color/spacing; repeated components identical. **When brand anchors were supplied, they're honored exactly. On a scoped redesign, the target is consistent with the sibling screens — not a lone island in a different style. When a design system was *given* (`systemSource: figma`), this dimension is judged against it — see below.** |
 | **Polish & states** | 8% | Pixel precision; every interactive state designed; AA contrast; no visual bugs at the edges. |
 
 Composite is out of 10. Gate = `juryThreshold` (default 9).
+
+## A given design system — Consistency stops being a matter of taste
+
+When the brief says `systemSource: figma`, the brand's design system was handed over and the pod
+designed the screens *within* it. You still gate, and you still score everything — the screens are the
+pod's work, so composition, hierarchy, usability, motion and polish are all fair game. What changes is
+**Consistency**: you are given `design/figma-system.md` and the component reference shots, and you
+judge against them, not against your sense of what's tidy.
+
+- A raw hex, an off-scale space, a font size outside the system's type scale → a **defect**, named
+  with the token it should have used. The system already decided; the build didn't get a vote.
+- A hand-rolled component beside one the system defines → a defect, even when it looks fine, and
+  especially when it looks fine.
+- Variant and state spellings that diverge from the system's → a defect.
+- What the system genuinely doesn't cover — page composition, layout, motion, a component it lacks —
+  is the pod's to design, and you judge it on the usual merits. Don't invent system rules that aren't
+  in the file.
+
+Do not dock the design for the *system's* limitations: a restrained corporate kit will never win
+Creativity, and the builders can't fix that. Note it once, score the composition honestly, and move
+on.
 
 ## Figma-sourced UI — advisory, and a different reading of the rubric
 

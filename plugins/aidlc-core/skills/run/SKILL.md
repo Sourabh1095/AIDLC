@@ -154,6 +154,13 @@ When true, also resolve and record on the run file:
   (`ux.figma.jury`, default `suggest`). Record the file key and the node ids for the scoped screens
   where the map has them. Mixed scope is normal — a mapped route runs the Figma track, an unmapped one
   the generated track. (`aidlc-ux:design` §0.5.)
+- **systemSource** — `figma` when the **design system** lives in Figma (`ux.figma.designSystem` on the
+  resolved repo/package, else the **top-level** block — one brand, many apps, so a workspace-scoped
+  system is declared once even in poly — or an existing `design/figma-system.md`), else `project`.
+  Independent of `designSource`: the common enterprise case is a brand handing over a UI kit and no
+  mockups (`systemSource: figma` + `designSource: generated`). The pod then still designs the screens
+  and **the jury still gates** — but the values are given, so an off-system colour, space or
+  re-invented component is a Consistency defect rather than a preference.
 If none of the signals fire, `ui: false` — never force the design pod onto backend/infra work.
 (This is a judgment call; when genuinely unsure whether a frontend item warrants the design pod,
 default `ui: true` — an over-invoked jury is cheap insurance; a missed one ships un-judged UI.)
@@ -582,14 +589,23 @@ both, and the finding note names the Task either way.
 
 **UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
 backend/structure is in place, hand the frontend off by following `aidlc-ux:design` for this item's
-run file, passing the **scope, mode, brand and designSource** you recorded at §2 — and, in poly, the
-**resolved frontend repo** (its `path` as the working dir). The jury resolves the **render URL from the repo's
+run file, passing the **scope, mode, brand, designSource and systemSource** you recorded at §2 — and,
+in poly, the **resolved frontend repo** (its `path` as the working dir). The jury resolves the **render URL from the repo's
 actual dev-server port** (parsed from its `package.json` `dev`/`start` script), using
 `ux.renderBaseUrl` only as a fallback and failing loud on a non-UI response — so a stale config port
 can't make it score the wrong server (F13; see `aidlc-ux:design-jury`). It runs narrative → research →
 design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
 capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
 same as reviewer/QA findings.
+
+**`systemSource: figma` changes what the design system is, not what the gate is.** The pod extracts
+the brand's design-system file once (canonical pages only) into `design/figma-system.md`, emits the
+project's whole token layer from its variables, and wires up the components it defines — then designs
+the screens within that vocabulary and runs the **normal jury loop**. The system being given doesn't
+lower the bar; it fixes the palette, type, spacing and components the bar is met with. Off-system
+values and re-invented components are Consistency defects. In a workspace-scoped system every
+frontend derives from the same extraction, so a system change makes every frontend stale at once —
+`/aidlc-ux:figma sync` names them.
 
 **`designSource: figma` changes what the gate is.** The pod extracts the design through the Figma MCP
 (spec + variables + reference shots), maps the variables onto the project's tokens, builds to the

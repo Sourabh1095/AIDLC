@@ -157,16 +157,24 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      `rtk-spa` (client SPA: RTK Query is the primary data layer). See `aidlc-stack-web:project-structure`.
      Record it (mono: note it; poly: `structure: "next-app"|"rtk-spa"` on the repo entry). Drives the
      skeleton scaffolded in Step 4.
-   - **Designs in Figma? (any repo/package with a `stack.frontend`, and only if `aidlc-ux` is
-     installed):** ask *"are the screens designed in Figma, or should the pod design them?"* — one
-     question, because it decides how every UI item in that repo is built. A Figma URL → set that
-     entry's `ux.figma`: `enabled: true`, `url`, and the `fileKey` (the URL segment after `/design/`);
-     leave `screens` empty for `/aidlc-ux:figma` to map against the real router later. Nothing in Figma
-     yet, or the answer is "the pod designs it" → leave `ux.figma.enabled: false` and say it can be
-     linked any time with `/aidlc-ux:figma <url>`. Mention the auth step once (`/mcp` → `figma`, OAuth)
-     rather than trying to authenticate during init — it's per-user, per-machine, like the tracker MCPs.
-     Different frontends can point at different files; this is a per-repo/per-package value, never a
-     global one.
+   - **Anything in Figma? (any repo/package with a `stack.frontend`, and only if `aidlc-ux` is
+     installed):** ask **two** things, because they're independent and each decides how every UI item
+     gets built — *"are the screens designed in Figma?"* and *"is there a design system / UI kit in
+     Figma the whole product must follow?"* A brand handing over a system but no mockups is the common
+     enterprise case; so is the reverse.
+     - **Screens** → that entry's `ux.figma`: `enabled: true`, `url`, `fileKey` (the URL segment after
+       `/design/`); leave `screens` empty for `/aidlc-ux:figma` to map against the real router later.
+       Per repo/package — different apps have different mockups.
+     - **A design system** → `ux.figma.designSystem` (`url`, `fileKey`, `scope`). Ask whether it
+       applies to the **whole workspace** (usually yes — one brand, several frontends): if so write it
+       to the **top-level** `ux.figma.designSystem` even in poly, and say which repos will derive from
+       it. Leave `pages` empty here — the canonical page list needs the file's actual page names and a
+       human's confirmation, which `/aidlc-ux:figma <url> --system` collects.
+     - Neither → leave `ux.figma.enabled: false`; say either can be linked any time with
+       `/aidlc-ux:figma <url>`.
+     Mention the auth step once (`/mcp` → `figma`, OAuth) rather than trying to authenticate during
+     init — it's per-user, per-machine, like the tracker MCPs. Strip any `t=` share token from a
+     pasted URL before writing it to config.
 5. **Commands** *(full-path only — deferred path skips; the resolved stack drives these at bootstrap)*:
    install / dev / test / lint commands (detect from package.json scripts first and propose
    them). In poly these are per-repo — record them in each repo's `CLAUDE.md`, or note them per repo.

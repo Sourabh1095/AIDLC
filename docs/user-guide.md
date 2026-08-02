@@ -149,7 +149,8 @@ So choosing `direct` isn't choosing to be careless. It's choosing not to file a 
 | **Make a screen or the whole app award-grade** (new or existing) | `/aidlc-ux:design /dashboard` · `/aidlc-ux:design "redesign the landing page"` |
 | Same, anchored to your brand | drop a logo/font/screenshot in `design/brand/` (or set `ux.brand`), then run `/aidlc-ux:design …` |
 | **The screens are already designed in Figma** | `/aidlc-ux:figma <figma-url>` to link them, then `/aidlc-ux:design /dashboard` (or just `/aidlc:run PROJ-123`) builds to the design (§3a) |
-| The designer changed the Figma | `/aidlc-ux:figma sync` — re-extracts and tells you which built screens now disagree |
+| **There's a brand design system in Figma everything must follow** (no mockups) | `/aidlc-ux:figma <figma-url> --system` — scope its pages once; every UI item then designs *within* it (§3a) |
+| The designer changed the Figma | `/aidlc-ux:figma sync` — re-extracts and tells you which built screens (or which frontends) now disagree |
 | Cut a version | `/aidlc:release` |
 | A local skill proved reusable | `/aidlc:promote <name>` |
 | After `/plugin marketplace update` | `/aidlc:sync` |
@@ -355,14 +356,35 @@ unauthenticated Figma MCP **blocks the run and says so** rather than quietly des
 client never approved. The one deviation it makes without asking is fixing contrast that fails WCAG
 AA, and it always tells you.
 
-**Linking and re-syncing.** `/aidlc-ux:figma <url>` links a file: it inventories the frames, maps them
-to your actual routes (reading the router, not guessing from names), writes `ux.figma`, and extracts
-the spec. `/aidlc-ux:figma sync` re-reads after the designer moves and reports **drift** — what
-changed in the design and which built routes now disagree. `/aidlc-ux:figma` with no argument reports
-status. Partial coverage is normal: mapped routes run the Figma track, unmapped ones run the design
-track below, under one design system. Figma reads are rate-limited (a Starter plan or View/Collab seat
-gets only a handful of tool calls *per month*), which is why everything is extracted once into
-`design/figma-spec.md` and worked from there.
+**No mockups, but a design system in Figma? That's the other half.** Screens and the *system* are
+independent questions, and the common enterprise case is a brand handing over a UI kit and no
+mockups. Link it with `/aidlc-ux:figma <url> --system` and the pod keeps designing the screens —
+narrative, inspiration, and **the jury still gates**, because taste is still open — but the vocabulary
+is fixed: its variables become your whole token layer, its components get used rather than
+re-invented, and an off-system colour or a hand-rolled button is a Consistency *defect* the jury names
+with the token it should have used, not a stylistic opinion. That's what a design system is for; the
+creative work becomes composition.
+
+Two details that matter more than they look. **Pages are scoped once, by you.** A real UI-kit file
+also holds a cover, explorations, WIP and deprecated sets, and building against a deprecated component
+is worse than ignoring the system — so linking asks which pages are canonical (say, `Thumbnail` and
+`Design System` out of three) and stores the list; anything outside it stops existing, and the
+pipeline never widens it on its own. **And the system is usually workspace-wide** — one brand, several
+frontends — so it's declared once at the workspace root even in a polyrepo, each app emitting tokens
+in its own idiom from the same extraction. A change to it makes *every* frontend stale at once, and
+`sync` names them all.
+
+**Linking and re-syncing.** `/aidlc-ux:figma <url>` links a file — it works out whether it's screens or
+a system (say `--system` / `--screens` to settle it), inventories the frames or scopes the pages, maps
+screens to your actual routes by reading the router rather than guessing from names, writes `ux.figma`,
+and extracts. `/aidlc-ux:figma sync` re-reads after the designer moves and reports **drift**: what
+changed, and which built routes — or which frontends — now disagree. `/aidlc-ux:figma` with no
+argument reports status. Partial coverage is normal: mapped routes run the Figma track, unmapped ones
+run the design track below, under one design system. Figma reads are rate-limited (a Starter plan or
+View/Collab seat gets only a handful of tool calls *per month*), so everything is extracted once into
+`design/figma-spec.md` / `design/figma-system.md` and worked from there — a big system pulls its
+variables and component *inventory* up front and each component's detail only when a screen first
+needs it.
 
 **When you invoke it directly.** `/aidlc-ux:design <target>` runs the same pod on demand:
 - a **new** project → establishes one design system that every later UI item then follows;
@@ -379,11 +401,13 @@ honored exactly). Two ways: drop assets in `design/brand/`, or set `ux.brand` in
 **Tuning it** (`.claude/aidlc.config.json` → `ux`): `enabled` (default true), `juryThreshold`,
 `maxJuryRounds` (cost cap), `juryPanelSize` (set 3 for a 3-juror panel whose scores are averaged),
 `renderBaseUrl`, `target` (`desktop-web`), and `figma` (`enabled`, `url`, `fileKey`, the `screens`
-route→node map, `jury`, `maxFidelityRounds`). In a polyrepo or a monorepo these are **per repo and
-per package** — different frontends have different design files and different dev ports. All
+route→node map, `designSystem` with its canonical `pages` and `scope`, `jury`, `maxFidelityRounds`).
+In a polyrepo or a monorepo these are **per repo and per package** — different frontends have
+different design files and different dev ports — with one deliberate exception: a `designSystem` with
+`scope: "workspace"` lives once at the workspace root, because one brand has one system. All
 artifacts land in `design/` (narrative, inspiration, design-system, motion-spec, audit, brand,
-per-round jury reports, and on the Figma track `figma-spec.md`, `figma/` reference shots and
-`fidelity-report.md`) and are committed to the branch — so the reasoning, every score and every
+per-round jury reports, and from Figma `figma-spec.md`, `figma-system.md`, `figma/` reference shots
+and `fidelity-report.md`) and are committed to the branch — so the reasoning, every score and every
 deviation from the design are auditable in the PR.
 
 ### 3b. Who verifies, and how often (controlling the review/QA/security cost)
@@ -588,4 +612,7 @@ in-flight work.
 | Built screen doesn't match the design | Read `design/fidelity-report.md` — every difference is classified blocking / minor / adaptation with both screenshots. At `ux.figma.maxFidelityRounds` the leftovers become `[MAJOR][open]` findings instead of another round |
 | Designer changed the Figma after you built | `/aidlc-ux:figma sync` — it diffs the design and names the routes that now disagree; feed those to `/aidlc:intake` or `/aidlc-ux:design <route>` |
 | You *do* want the jury on a Figma design | Say yes when it offers, or set `ux.figma.jury: "advisory"` (always runs, never gates) or `"gate"` (full jury loop, Figma treated as a starting point) |
+| Pod used a component the design system already has | It only sees the pages you scoped. Check `ux.figma.designSystem.pages` — the component is probably on an out-of-scope page; add it and `/aidlc-ux:figma sync` |
+| Built UI drifts from the brand design system | Off-system values are jury Consistency defects — read the latest `design/jury-report-r*.md`. If the tokens themselves are wrong, the mapping is in `design/figma-system.md`; re-`sync` and regenerate |
+| One frontend is on the new system, another isn't | Expected right after a system change — `/aidlc-ux:figma sync` lists every stale frontend; run the pod (or a token regeneration) in each |
 | Headless run: "Ignoring N permissions.allow entries … workspace has not been trusted" | Open Claude Code interactively in that folder once and accept the trust dialog (or set `projects["<path>"].hasTrustDialogAccepted: true` in `~/.claude.json`), then rerun — the run resumes where it stopped |

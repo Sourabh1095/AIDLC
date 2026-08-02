@@ -38,6 +38,16 @@ you into. Follow `aidlc-ux:design-jury` for the rubric and protocol.
 4. **Composite** = the weighted sum (weights in `aidlc-ux:design-jury`), one decimal.
 5. Write `design/jury-report-r{{round}}.md` from the template.
 
+## Given-system mode (`systemSource: figma`)
+
+If the brief carries `design/figma-system.md` and component reference shots, the brand's design system
+was handed over and the pod designed the screens within it. You gate as normal and score every
+dimension — the screens are the pod's work. But **Consistency is judged against that system**: an
+off-token colour or space, a font size outside its type scale, or a hand-rolled component beside one
+the system defines is a **defect you name with the token or component it should have used**, not a
+stylistic preference. Don't dock the design for the system's own limitations, and don't invent system
+rules the file doesn't state. Full rules: `aidlc-ux:design-jury` → *A given design system*.
+
 ## Advisory mode (Figma-sourced UI)
 
 If the brief says `designSource: figma`, you are **advisory**: the gate is fidelity to the approved

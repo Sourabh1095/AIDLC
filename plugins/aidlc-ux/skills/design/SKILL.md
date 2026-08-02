@@ -16,9 +16,10 @@ Config: read `.claude/aidlc.config.json` → `ux` block (`juryThreshold` default
 default 3, `juryPanelSize` default 1, `renderBaseUrl`, `target` `desktop-web`, `uiPaths`, `brand`,
 and `figma`). Missing block → use defaults and note it.
 
-**Two design sources, one pod.** If the screens already exist in Figma, you *implement a design*; if
-they don't, you *invent one*. That fork (§0.5) changes the pipeline, the tokens and the quality gate —
-resolve it before anything else.
+**What already exists decides what you do.** Two independent questions, both answered in §0.5 before
+anything else: do the **screens** exist (in Figma) — then you implement rather than invent, and the
+gate is fidelity; and does the **design system** exist (in Figma, or in code) — then the values are
+given and your creative work is composition within them. A project can have both, either, or neither.
 
 **Mono vs poly — which `ux` block, which working dir.** In **mono** the settings above are the
 top-level `ux` block and the working dir is the repo root. In **poly** the top-level `ux` block is
@@ -96,9 +97,21 @@ supplied anchors then only cover what Figma doesn't (a favicon, an untouched mar
 anchor that *contradicts* the design is a question for the human, not a licence to override the
 approved screens.
 
-## 0.5 · Design source — Figma or generated (resolve before the pipeline)
+## 0.5 · Sources — what already exists (resolve before the pipeline)
 
-Record `designSource: figma | generated` on the run file. It is **`figma`** when any of these hold:
+Two independent axes. Record both on the run file; they select different phases and different gates.
+
+| | `designSource` — the screens | `systemSource` — the values |
+|---|---|---|
+| `figma` | drawn in Figma → build to them, gate on **fidelity** | tokens + components from a Figma design-system file |
+| `generated` / `project` | the pod designs them → gate on the **jury** | the pod invents or audits the system |
+
+All four combinations occur, and the middle one is the common enterprise case: **a brand hands you a
+design system, not mockups.**
+
+### `designSource` — are the screens drawn?
+
+Record `designSource: figma | generated`. It is **`figma`** when any of these hold:
 - `ux.figma.enabled` is true for the resolved repo/package and it has a `fileKey`/`url`;
 - `$ARGUMENTS`, the item, or its AC carry a **Figma URL** (`figma.com/design/<fileKey>/…`) or
   attachment;
@@ -124,6 +137,32 @@ the client never approved. Discipline: `aidlc-ux:figma-handoff`.
 **Partial Figma is normal.** Some surfaces are drawn, some aren't. Resolve the source **per surface
 in scope**, not per project — a mapped route runs the Figma track, an unmapped one runs the generated
 track under the same design system, and the run file records which was which.
+
+### `systemSource` — is the design system given?
+
+Record `systemSource: figma | project`. It is **`figma`** when a design-system file is linked for this
+repo/package (`ux.figma.designSystem`, resolved **repo entry first, then the top-level block** — one
+brand, many apps, so a workspace-scoped system is declared once), when `$ARGUMENTS` or the item carry
+a URL to a file that reads as a UI kit, or when `design/figma-system.md` already exists. Otherwise
+`project`: the pod invents the system (greenfield) or audits and adopts the one in code (retrofit).
+
+**This is orthogonal to `designSource`, and the combination that surprises people is
+`systemSource: figma` + `designSource: generated`** — the brand's UI kit exists, the screens don't.
+Then the pod still designs: narrative, inspiration and the **jury all stay**, because taste is still
+open. What changes is that the vocabulary is fixed. Every value resolves to a system token, every
+component the system defines is used rather than re-invented, and "off-system" stops being a
+preference — it's a defect the jury scores as such. That is what a design system is for: the creative
+work is composition, not colour-picking.
+
+**Scope the pages before reading a system file.** A UI kit also contains covers, WIP, explorations and
+deprecated sets, and building against a deprecated component is worse than ignoring the system —
+it looks compliant and isn't. The canonical pages come from config (`ux.figma.designSystem.pages`);
+if none are recorded, link the file properly first (`/aidlc-ux:figma <url> --system`) rather than
+guessing. Anything outside that list **does not exist**.
+
+**A workspace system is a workspace fact.** When the linked system has `scope: "workspace"`, it is the
+standard for *every* frontend, and each repo emits tokens in its own idiom from the same extraction.
+Adopting it in one repo while another still runs its old palette is drift; say so when you see it.
 
 ## Run-file continuity
 
@@ -156,14 +195,27 @@ for everything below.
 **2 · RESEARCH.** Dispatch **Agent → aidlc-ux-researcher** (serving the narrative + brand) →
 `design/inspiration.md`. Skip only if the item forbids external research; note the skip.
 
-**3 · DESIGN SYSTEM.** Dispatch **Agent → aidlc-design-system**:
-- `greenfield` → establish the canonical system at the project root (`design/design-system.md` +
-  token files) — this is now the standard every future UI item adopts.
-- `retrofit` → **adopt & extend** the established/audited system; apply brand anchors; add only
-  what the target needs. Never fork a second system.
-- `redesign` → evolve or replace the system, then it becomes the new standard.
+**3 · DESIGN SYSTEM.** Dispatch **Agent → aidlc-design-system**. Which mode depends on
+`systemSource`:
+
+- **`systemSource: figma`** → **figma-library mode**. Extract first if `design/figma-system.md` is
+  missing or stale: dispatch **Agent → aidlc-figma** in *library mode* with the canonical pages
+  (wave 1 — the whole variable set plus the component inventory; component detail comes on demand).
+  Then the design-system agent emits the **full token layer** from that variable table and writes
+  `design/design-system.md` citing the system as the source. Conflicts with tokens already in code are
+  listed for a human, never silently resolved. Components with a code counterpart (a published
+  package, a Code Connect mapping) are wired up to be **used**, not rebuilt. This is not a
+  greenfield/retrofit/redesign decision — the system is given; those modes only describe the screens.
+- **`systemSource: project`** → as before:
+  - `greenfield` → establish the canonical system at the project root (`design/design-system.md` +
+    token files) — this is now the standard every future UI item adopts.
+  - `retrofit` → **adopt & extend** the established/audited system; apply brand anchors; add only
+    what the target needs. Never fork a second system.
+  - `redesign` → evolve or replace the system, then it becomes the new standard.
+
 Brand anchors (logo palette, fonts) are built in as hard constraints; WCAG-AA verified. Output is
-the uniformity contract for the build.
+the uniformity contract for the build. A contrast failure **inherited from a given system** is
+corrected, recorded with both ratios, and reported to the designer as a system bug.
 
 **4 · BUILD + MOTION.** Apply the system to the target and layer motion:
 - Invoked by `/aidlc:run`: core implementer builds/edits structure; here dispatch
@@ -183,9 +235,11 @@ Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from t
    render, and must never silently score the wrong server.
 2. Dispatch **Agent → aidlc-ux-jury** (fresh context, blind to the makers' notes). Brief gives it the
    target scope, the brand anchors, and — for retrofit/redesign — the sibling-page shots so it can
-   score **cross-page consistency + brand adherence**, not just the target in isolation. For
-   `juryPanelSize > 1`, dispatch that many jurors in one parallel batch and average composites; keep
-   every report.
+   score **cross-page consistency + brand adherence**, not just the target in isolation. On
+   `systemSource: figma`, also pass `design/figma-system.md` and the component reference shots: the
+   **Consistency dimension is then judged against the given system**, so an off-system value or a
+   re-invented component is a defect to name, not a stylistic call. For `juryPanelSize > 1`, dispatch
+   that many jurors in one parallel batch and average composites; keep every report.
 3. Composite **≥ juryThreshold** → PASS. Go to **6**.
 4. Below AND `round < maxJuryRounds` → increment `round`; route each required fix to its owner
    (**aidlc-design-system** / **aidlc-motion** / implementer) in one batch scoped to ONLY those
@@ -249,18 +303,26 @@ route to owners like any fidelity defect; findings that are **critique of the de
 the human and the designer as suggestions and are **never built**. The composite is recorded as
 information — it does not gate the PR and does not trigger a redesign round.
 
-**6 · HANDBACK.** Tear down any dev server you started. Append a `## Log` summary: design source,
-mode, scope, rounds, the gate result — final composite + bar met? on `generated`, blocking-defect
-count + PASS/CAPPED on `figma` — and artifact paths (`design/*`, plus `figma-spec.md` /
-`fidelity-report.md` / `design/figma/` on the Figma track). Return to the caller: that result, the
-source, the mode, and the artifact paths; on `figma` also state whether the jury ran, was declined,
-or is still on offer. Standalone → also give the ≤6-line user summary.
+**6 · HANDBACK.** Tear down any dev server you started. Append a `## Log` summary: both sources
+(`designSource` / `systemSource`), mode, scope, rounds, the gate result — final composite + bar met?
+on `generated`, blocking-defect count + PASS/CAPPED on `figma` — and artifact paths (`design/*`, plus
+`figma-spec.md` / `fidelity-report.md` / `design/figma/` on the Figma track, `figma-system.md` /
+`design/figma/system/` where a system was adopted). Return to the caller: that result, both sources,
+the mode, and the artifact paths; on `designSource: figma` also state whether the jury ran, was
+declined, or is still on offer; on `systemSource: figma` name any **system gap or conflict** the
+designer must settle, and any other frontend still to be brought onto the system. Standalone → also
+give the ≤6-line user summary.
 
 ## Invariants
 
-- **One system per project.** Greenfield establishes it; retrofit/redesign adopt or evolve it —
-  never silently create a second, divergent system. A surface that drifts from the established
-  system is a jury **Consistency** defect.
+- **One system per project — and one per workspace when the brand says so.** Greenfield establishes
+  it; retrofit/redesign adopt or evolve it; a Figma design system replaces that whole question — it
+  *is* the system, for every frontend that derives from it. Never silently create a second, divergent
+  one. A surface that drifts from the established system is a jury **Consistency** defect.
+- **A given system is not a suggestion.** With `systemSource: figma` the pod still designs the
+  screens, but every value resolves to a system token and every component the system defines is used
+  rather than re-invented. What the system doesn't cover is designed freely, labelled `derived:`, and
+  raised with the designer — never quietly promoted to canon.
 - **Brand anchors are hard constraints.** A supplied logo colour, font, or guideline is honored
   exactly, not "taken as inspiration".
 - **A Figma design is the client's, not a starting point.** On `designSource: figma` you implement it
