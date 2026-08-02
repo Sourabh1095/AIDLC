@@ -179,6 +179,15 @@ check(
   "fail",
 );
 check(
+  "installed-but-disabled is reported as such, not as 'not installed'",
+  workspace({
+    config: src("ado"),
+    settings: { ...withPlugins("aidlc"), enabledPlugins: { "aidlc@bee-logical": true, "aidlc-tracker-ado@bee-logical": false } },
+  }),
+  "tracker-plugin",
+  "warn",
+);
+check(
   "an explicitly disabled tracker plugin does not count",
   workspace({
     config: src("jira"),

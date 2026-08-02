@@ -219,13 +219,27 @@ for (const f of settingsFiles) {
   const source = cfg?.workItems?.source;
   const need = source === "jira" ? "aidlc-tracker-jira" : source === "ado" ? "aidlc-tracker-ado" : null;
   if (need && allSettings.length) {
-    const enabled = allSettings.flatMap((s) =>
-      Object.entries(s.parsed.enabledPlugins ?? {})
-        .filter(([, v]) => v !== false)
-        .map(([k]) => k.split("@")[0]),
-    );
+    const entries = allSettings.flatMap((s) => Object.entries(s.parsed.enabledPlugins ?? {}));
+    const enabled = entries.filter(([, v]) => v !== false).map(([k]) => k.split("@")[0]);
+    // INSTALLED-BUT-DISABLED is its own state and needs its own remedy. The tracker
+    // plugins ship `defaultEnabled: false` so that merely adding the marketplace does not
+    // start an MCP server nobody asked for — but that value also seeds the state on an
+    // EXPLICIT `/plugin install`, so the plugin lands registered and switched off. Telling
+    // someone to install a plugin they just installed is the least useful thing this
+    // command could say.
+    const installedOff = entries.some(([k, v]) => k.split("@")[0] === need && v === false);
     const have = enabled.includes(need);
-    if (have) add("ok", "tracker-plugin", `tracker plugin (${source})`, `${need} is enabled`);
+    if (installedOff)
+      add(
+        source === "jira" ? "fail" : "warn",
+        "tracker-plugin",
+        `tracker plugin (${source})`,
+        `${need} is INSTALLED but disabled (\`"${need}@…": false\` in enabledPlugins)`,
+        "Installing it was not enough: these plugins ship defaultEnabled:false so adding the marketplace " +
+          "does not start an MCP server for projects that cannot use it, and that also applies to an explicit " +
+          "install. Toggle it on in /plugin, or set that value to true.",
+      );
+    else if (have) add("ok", "tracker-plugin", `tracker plugin (${source})`, `${need} is enabled`);
     else if (source === "jira")
       add(
         "fail",
