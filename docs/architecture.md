@@ -367,9 +367,15 @@ upstream.
 
 ### Hooks (Node, cross-platform)
 
-`guard.mjs` (PreToolUse Bash) · `dep-vet.mjs` (PreToolUse Bash — gates package-add commands to vet
-the dependency before install) · `protect-paths.mjs` (PreToolUse Edit/Write) · `format.mjs`
-(PostToolUse) · `session-context.mjs` (SessionStart) · `checkpoint.mjs` (PreCompact + Stop).
+**Core** (`aidlc`): `guard.mjs` (PreToolUse Bash) · `dep-vet.mjs` (PreToolUse Bash — gates
+package-add commands, across every supported ecosystem, to vet the dependency before install) ·
+`protect-paths.mjs` (PreToolUse Edit/Write) · `env-guard.mjs` (PreToolUse Read/Edit/Write) ·
+`session-context.mjs` (SessionStart) · `checkpoint.mjs` (PreCompact + Stop). Shared helpers live in
+`hooks/scripts/lib/`.
+
+**Stack pack** (`aidlc-stack-web`): `format.mjs` (PostToolUse Edit/Write) — Prettier is a JavaScript
+tool, so the hook that runs it ships with the JavaScript pack. Core installs no formatting hook; a
+project's own formatter still runs as part of its resolved gate.
 
 ### Phase 3 — Real trackers + Azure ✅ (v0.3.0)
 

@@ -25,7 +25,7 @@ remote yet (`git.mode: local`), **approving the local merge** the pipeline propo
 |------|-----------|
 | `.claude-plugin/marketplace.json` | The company plugin marketplace manifest |
 | `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator, 9 agents, skills, hooks, MCP config — stack-agnostic |
-| `plugins/aidlc-stack-web/` | Stack pack: TS standards, project structure, Next.js, NestJS, Postgres, MongoDB, migrations, Docker, API design, the Node/TS CI half |
+| `plugins/aidlc-stack-web/` | Stack pack: TS standards, project structure, Next.js, NestJS, Postgres, MongoDB, migrations, Docker, API design, the Node/TS CI half, the Prettier format hook |
 | `plugins/aidlc-ux/` | UX pod: 7 design agents, Figma + Playwright MCP, the design/jury/fidelity pipeline |
 | `plugins/aidlc-core/templates/project/` | The project template scaffolded by `/aidlc:init` |
 | `docs/` | Adoption guide, architecture, permissions rationale |

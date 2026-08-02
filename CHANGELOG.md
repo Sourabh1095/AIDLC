@@ -7,6 +7,31 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.45.0] — 2026-08-02
+
+### `format.mjs` moves to the web pack — and starts working in poly
+
+Prettier is a JavaScript tool, so the hook that runs it now ships with **`aidlc-stack-web`**
+(`hooks/hooks.json` + `hooks/scripts/format.mjs`) rather than core. It was the last thing in core
+assuming a JavaScript toolchain. A workspace with only `aidlc` installed now has **no formatting
+hook**, which is the correct posture: whatever formatter the project actually declares still runs as
+part of its resolved gate (`pipeline.gates.verify`), and core stops implying every repo is a Node repo.
+
+**Moving it surfaced that it had been silently inert in every poly workspace.** The hook looked for a
+Prettier config in the **session cwd** — which in poly is the control plane, while the config lives in
+the product repo. It found nothing, exited 0, and formatted precisely never. This is the same
+cwd-anchoring mistake F50 fixed in `env-guard`, in a hook nobody had re-checked: the fix landed once
+and was not carried across. Config resolution now walks **up from the edited file's directory**, so
+mono, poly and monorepo-package layouts all resolve, and the nearest config wins over a root one.
+Prettier is invoked from the directory that owns the config, so its ignore files and relative settings
+mean what the repo intends. The config-name list also picked up the forms it was missing
+(`.prettierrc.cjs/.mjs/.json5/.toml`, `prettier.config.cjs`).
+
+The hook had **no tests**; it has 7 now, covering poly, mono, monorepo precedence, the `package.json`
+`prettier` key, a `package.json` without it, a malformed one, and no-Prettier-anywhere. They assert
+the resolver's decision rather than shelling out to a real Prettier install, and they import the
+resolver out of the shipped file so the test cannot drift from the implementation.
+
 ## [0.44.0] — 2026-08-02
 
 ### The same audit, on the hooks and templates

@@ -13,13 +13,14 @@ reasonable time to ship a fix before public disclosure.
 AIDLC is not a library you call — it is a plugin Claude Code loads into a developer's session and
 runs against their codebase. Several hooks execute **automatically**, with no user action:
 
-| Hook | Trigger | When it runs |
-|------|---------|--------------|
-| `session-context.mjs` | `SessionStart` | Every session start — no command, no approval |
-| `guard.mjs`, `dep-vet.mjs` | `PreToolUse` (Bash) | Before every Bash command |
-| `protect-paths.mjs` | `PreToolUse` (Edit/Write) | Before every file write |
-| `format.mjs` | `PostToolUse` (Edit/Write) | After every file write |
-| `checkpoint.mjs` | `Stop`, `PreCompact` | Automatically |
+| Hook | Plugin | Trigger | When it runs |
+|------|--------|---------|--------------|
+| `session-context.mjs` | core | `SessionStart` | Every session start — no command, no approval |
+| `guard.mjs`, `dep-vet.mjs` | core | `PreToolUse` (Bash) | Before every Bash command |
+| `protect-paths.mjs` | core | `PreToolUse` (Edit/Write) | Before every file write |
+| `env-guard.mjs` | core | `PreToolUse` (Read/Edit/Write) | Before every file read or write |
+| `checkpoint.mjs` | core | `Stop`, `PreCompact` | Automatically |
+| `format.mjs` | `aidlc-stack-web` | `PostToolUse` (Edit/Write) | After every file write |
 
 Anything merged here reaches every consumer on their next `/plugin marketplace update`. There is no
 per-user review step between a merge and execution on someone else's machine.
