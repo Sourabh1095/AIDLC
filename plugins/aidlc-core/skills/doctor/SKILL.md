@@ -33,8 +33,9 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/doctor/diagnose.mjs" . --plugin-root "${CLAUD
 
 It reads files only — no network, no subprocesses, never throws — and covers: Node version · config
 presence/parse/required keys · config provenance vs the installed plugin · whether a verify gate is
-declared · the `envFileAccess` value · `team.mode: shared` on the markdown adapter · every settings
-file parsing as **strict JSON** (F49) · **plugin enablement** at project and user scope with the
+declared · the `envFileAccess` value · `team.mode: shared` on the markdown adapter · the tracker
+`statusMap`/`fieldMap` shapes (an entry the adapter cannot match is silently ignored, so a typo reads as
+a config that was honoured) · every settings file parsing as **strict JSON** (F49) · **plugin enablement** at project and user scope with the
 marketplace known (F42) · **permission-rule shapes** (F44/F45/F48, via the same `lint-rules.mjs` the
 marketplace's own CI uses) · **`git -C` coverage in poly** (F43) · each declared repo path resolving to
 a real git repo · the control-plane `.gitignore` ignoring every product repo by path (the gitlink trap)

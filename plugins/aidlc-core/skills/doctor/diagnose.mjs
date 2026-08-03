@@ -224,14 +224,32 @@ if (cfg) {
         );
       else if (shape === "empty")
         add("ok", id, title, "empty — the adapter probes the board and self-heals on first use");
-      else if (key === "statusMap" && shape === "flat" && trackerSource === "ado")
-        add(
-          "warn",
-          id,
-          title,
-          "flat (canonical→state), the legacy shape — ADO state names are scoped per work-item-type",
-          "Valid on a stock Agile board, wrong on a customized one: an Epic's working state ('In Progress') commonly differs from a Story's ('Development in Progress'), so one name per canonical status cannot fit both (F20). The adapter treats a flat map as a hint and re-probes per type; a per-type map `{ \"<Type>\": { \"<canonical>\": \"<state>\" } }` is what it will trust.",
-        );
+      else if (key === "statusMap" && shape === "flat" && trackerSource === "ado") {
+        // A flat map is the legacy SHAPE, and on a stock board it is also a CORRECT one:
+        // `Active` means Active on every Agile type, so warning about the shape alone
+        // fires on every ADO project scaffolded before per-type maps existed — noise that
+        // teaches people to ignore this command, against doctor's own signal-to-noise
+        // rule. What actually predicts F20 is a CUSTOMIZED process: names invented for
+        // one board ("Development in Progress", "Ready for QA") are scoped per
+        // work-item-type, so one name per canonical status cannot fit every type. Stock
+        // names are the four out-of-box processes' states — Basic, Agile, Scrum, CMMI.
+        const STOCK_STATES = new Set([
+          "to do", "doing", "done", // Basic
+          "new", "active", "resolved", "closed", "removed", // Agile
+          "approved", "committed", "in progress", // Scrum
+          "proposed", // CMMI
+        ]);
+        const invented = Object.values(map).filter((v) => typeof v === "string" && !STOCK_STATES.has(v.trim().toLowerCase()));
+        if (invented.length)
+          add(
+            "warn",
+            id,
+            title,
+            `flat (canonical→state), and its states are not from any out-of-box process: ${invented.map((v) => JSON.stringify(v)).join(", ")}`,
+            "A customized process names its states per work-item-type, so one name per canonical status cannot fit every type — an Epic's working state commonly differs from a Story's, which is the transition F20 sent to a state the Epic does not have. The adapter treats a flat map as a hint and re-probes per type; a per-type map `{ \"<Type>\": { \"<canonical>\": \"<state>\" } }` is what it will trust. Nothing is broken meanwhile: the probe corrects it on the next run.",
+          );
+        else add("ok", id, title, `flat · ${Object.keys(map).length} entries · out-of-box state names, which are uniform enough for a flat map`);
+      }
       else {
         const entries = leaves.reduce((n, [, o]) => n + Object.keys(o).length, 0);
         add("ok", id, title, `${shape} · ${entries} entr${entries === 1 ? "y" : "ies"}`);

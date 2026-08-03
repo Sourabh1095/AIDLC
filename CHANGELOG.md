@@ -68,9 +68,14 @@ means order by the board's own **backlog rank** and report P3 rather than invent
 takes a legal value or asks.
 
 **`/aidlc:doctor` covers both halves.** The script lints map *shape* — a typo'd canonical key, a display
-name where an id belongs, a flat ADO `statusMap` (the legacy shape), a mixed map. Every one of those is
-**silent by construction**: the adapter cannot match the entry, re-probes, and the board still moves, so
-the config reads as honoured while something else drives the run. The live half probes whether the
+name where an id belongs, a map mixing both shapes. Every one of those is **silent by construction**: the
+adapter cannot match the entry, re-probes, and the board still moves, so the config reads as honoured
+while something else drives the run. A **flat** ADO `statusMap` is only flagged when its state names come
+from **no out-of-box process** — a stock flat map (`Active`, `Closed`) is reported ok, because every ADO
+project scaffolded before per-type maps has one and `Active` does mean Active on every Agile type.
+Warning on the shape alone would fire on all of them, which is the noise that teaches people to ignore
+this command. An invented name (*Development in Progress*, *Ready for QA*) is different: it is evidence
+of a customized process, where names diverge per type and F20 bites. The live half probes whether the
 entries still exist on the board and **reports without fixing** — doctor writes nothing; the adapter
 reconciles on its next run.
 

@@ -139,11 +139,26 @@ check(
   "tracker-status-map",
   "ok",
 );
+// A flat map is the legacy shape but not automatically a wrong one, and every ADO project
+// scaffolded before per-type maps has one — warning on the shape alone is the noise that
+// teaches people to ignore doctor. Only a CUSTOMIZED process predicts F20.
 check(
-  "a flat ADO statusMap warns as the legacy shape (F20)",
+  "a flat ADO statusMap of out-of-box states is fine — Active means Active on every type",
   workspace({ config: tracker("ado", { statusMap: { in_progress: "Active", done: "Closed" } }) }),
   "tracker-status-map",
+  "ok",
+);
+check(
+  "a flat ADO statusMap of invented state names warns (F20's board)",
+  workspace({ config: tracker("ado", { statusMap: { in_progress: "Development in Progress", in_review: "Ready for QA", done: "Closed" } }) }),
+  "tracker-status-map",
   "warn",
+);
+check(
+  "a per-type map of invented state names is the fix, and passes",
+  workspace({ config: tracker("ado", { statusMap: { Epic: { in_progress: "In Progress" }, "User Story": { in_progress: "Development in Progress" } } }) }),
+  "tracker-status-map",
+  "ok",
 );
 check(
   "a flat Jira statusMap is fine — one workflow can cover every type",
