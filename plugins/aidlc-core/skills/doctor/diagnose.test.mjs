@@ -98,6 +98,102 @@ check(
   "warn",
 );
 
+// --- Tracker schema maps ---------------------------------------------------------------
+// Every case here is silent on a real board: the adapter cannot match the entry, re-probes,
+// and the board still moves — so a typo'd override reads as a config that was honoured.
+const tracker = (source, block) => ({ ...BASE_CONFIG, workItems: { source, [source]: block } });
+
+check(
+  "a markdown workspace is not asked about tracker maps",
+  workspace({ config: BASE_CONFIG }),
+  "tracker-status-map",
+  "<absent>",
+);
+check(
+  "an absent statusMap is reported ok, not as a gap",
+  workspace({ config: tracker("ado", { org: "o", project: "p" }) }),
+  "tracker-status-map",
+  "ok",
+);
+check(
+  "an empty statusMap is reported ok",
+  workspace({ config: tracker("jira", { statusMap: {}, fieldMap: {} }) }),
+  "tracker-status-map",
+  "ok",
+);
+check(
+  "a typo'd canonical status key warns",
+  workspace({ config: tracker("jira", { statusMap: { "in-progress": "In Progress" } }) }),
+  "tracker-status-map",
+  "warn",
+);
+check(
+  "a typo'd key inside a per-type statusMap warns",
+  workspace({ config: tracker("ado", { statusMap: { Epic: { in_progres: "In Progress" } } }) }),
+  "tracker-status-map",
+  "warn",
+);
+check(
+  "a valid per-type statusMap passes",
+  workspace({ config: tracker("ado", { statusMap: { Epic: { in_progress: "In Progress" }, "User Story": { in_progress: "Development in Progress" } } }) }),
+  "tracker-status-map",
+  "ok",
+);
+check(
+  "a flat ADO statusMap warns as the legacy shape (F20)",
+  workspace({ config: tracker("ado", { statusMap: { in_progress: "Active", done: "Closed" } }) }),
+  "tracker-status-map",
+  "warn",
+);
+check(
+  "a flat Jira statusMap is fine — one workflow can cover every type",
+  workspace({ config: tracker("jira", { statusMap: { in_progress: "In Progress", done: "Done" } }) }),
+  "tracker-status-map",
+  "ok",
+);
+check(
+  "a map mixing flat and per-type keys warns",
+  workspace({ config: tracker("ado", { statusMap: { done: "Closed", Epic: { in_progress: "In Progress" } } }) }),
+  "tracker-status-map",
+  "warn",
+);
+check(
+  "a display name where a field id belongs warns",
+  workspace({ config: tracker("jira", { fieldMap: { Story: { estimate: "Story Points" } } }) }),
+  "tracker-field-map",
+  "warn",
+);
+check(
+  "a probed-and-absent field (null) is a resolution, not an error",
+  workspace({ config: tracker("ado", { fieldMap: { Task: { acceptanceCriteria: null } } }) }),
+  "tracker-field-map",
+  "ok",
+);
+check(
+  "a resolved fieldMap passes",
+  workspace({ config: tracker("jira", { fieldMap: { Story: { acceptanceCriteria: "customfield_10101", estimate: "customfield_10016" } } }) }),
+  "tracker-field-map",
+  "ok",
+);
+check(
+  "an unrecognized canonical field key warns",
+  workspace({ config: tracker("jira", { fieldMap: { Story: { storyPoints: "customfield_10016" } } }) }),
+  "tracker-field-map",
+  "warn",
+);
+check(
+  "a non-string map value warns",
+  workspace({ config: tracker("ado", { statusMap: { Epic: { in_progress: 3 } } }) }),
+  "tracker-status-map",
+  "warn",
+);
+check(
+  "a statusMap that is not an object warns instead of throwing",
+  workspace({ config: tracker("ado", { statusMap: ["In Progress"] }) }),
+  "tracker-status-map",
+  "warn",
+);
+
 // --- Settings (F49) --------------------------------------------------------------------
 check(
   "a // comment in settings fails",

@@ -7,6 +7,77 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.51.0] — 2026-08-04
+
+### Tracker schema discovery — the board's fields and states are the board's (`aidlc` 0.51.0)
+
+The adapters treated their field tables as constants. `Microsoft.VSTS.Common.AcceptanceCriteria` was
+*the* AC field; story points were "story points if present"; Jira's status map was five hard-coded
+names. That is a description of a **fresh trial board**, and it has already cost this framework twice on
+a real one — **F7** (a customized ADO board whose states were nothing like Agile's defaults) and **F20**
+(the same board scoping those states *per work-item-type*). Both were about **states**. Custom
+**fields** are the identical class of divergence and had no rule at all: only a scattering of *"detect
+the convention from an existing item"* asides, which is the weakest probe available, because **a field
+that exists but is empty is indistinguishable from a field that does not exist.** Infer AC from an
+unfilled sample and the pipeline writes acceptance criteria into descriptions on a board with a
+perfectly good field — and nothing errors.
+
+So schema discovery becomes a **contract obligation, stated once** in `aidlc:work-items` and inherited
+by every adapter, including a fourth one nobody has written yet. The first tracker operation of a
+session **probes, reconciles, self-heals, and adapts**:
+
+- **Probe** the types this session touches — the field list keyed by **stable id** (ADO reference name,
+  Jira `customfield_*`), and the states with their categories. Ask the tracker for the *type's field
+  list* (ADO) or *createmeta* (Jira), which enumerate fields whether or not they hold a value. Sampling
+  an item is the last tier, not the method.
+- **Reconcile** against config. A configured value the probe **confirms** wins — a human's override
+  outranks any heuristic. One naming something the board does not have is **wrong, not authoritative**.
+- **Self-heal** into `workItems.<source>.fieldMap` (new) and `.statusMap`, reporting the diff. `null`
+  means *probed and absent* → use the documented fallback; a missing key means *not yet probed*. The
+  distinction is the whole point of writing `null` explicitly.
+- **Adapt, don't extend.** A canonical field with no home falls back to a label or a description
+  section. **The pipeline never creates a field, a state, an issue type or a workflow** — the board is
+  the client's system of record and the pipeline is a guest in it. Same argument that keeps `priority`
+  out of the contract.
+
+**Required-on-create is now discovered before the create, not after it fails.** A mandatory `Team`,
+`Severity` or custom picklist used to surface as a rejected `create` on item 7 of 40, leaving a
+half-built backlog — so `/aidlc:bootstrap` gained it as a precondition, and unfillable fields are named
+**in the approval gate**, where a human can answer them. Fill from canonical data, else the process's own
+default, else **ask** — a guessed `Severity` is worse than a blocked create: it is silently wrong data in
+the client's system of record, and nobody reviews it.
+
+**Jira got the larger half**, because it had no discovery at all:
+
+- **Custom field ids are per-site.** `customfield_10016` is Story Points on one site and Team on the
+  next, so a hard-coded id reads the wrong field rather than nothing. Resolve by name, always.
+- **Statuses are scoped per issue type** by the workflow scheme — a Story running *In Review* beside a
+  Bug running *Triaged → Verified*. Now resolved by `statusCategory` per type, with `statusMap` accepting
+  the same per-type shape ADO's already does. `in_review` and `blocked` have no category of their own
+  (Jira has three), so they resolve by name inside `indeterminate` and degrade as documented.
+- **Transitions can be screen-gated.** A required *Resolution* or *Fix Version* on the transition screen
+  is not an illegal transition, and treating it as one sent the fallback down the wrong path. The fields
+  come back in the available-transitions response; supply them in the same call.
+- **Team-managed and company-managed projects have different schemas**, and one site holds both.
+
+**ADO gained field discovery** on the same footing as its states: one probe per type answers both
+halves. Fields key on **reference names**, because renaming a field in ADO changes only its display name
+— a map built on display names breaks at the first rename, a reference name is immutable. `estimate`
+resolves to whichever of StoryPoints / Effort / Size the type actually has; a missing `priority` field
+means order by the board's own **backlog rank** and report P3 rather than invent one; a picklist field
+takes a legal value or asks.
+
+**`/aidlc:doctor` covers both halves.** The script lints map *shape* — a typo'd canonical key, a display
+name where an id belongs, a flat ADO `statusMap` (the legacy shape), a mixed map. Every one of those is
+**silent by construction**: the adapter cannot match the entry, re-probes, and the board still moves, so
+the config reads as honoured while something else drives the run. The live half probes whether the
+entries still exist on the board and **reports without fixing** — doctor writes nothing; the adapter
+reconciles on its next run.
+
+`/aidlc:init` pre-populates both maps per type when the tracker is reachable at setup, and says so when
+it wasn't. 15 new doctor tests (64 total in that suite). `brownfield-adoption.md` gains **D2a**;
+`aidlc.config.schema.json` documents `fieldMap` and both maps' shapes.
+
 ## [0.50.0] — 2026-08-02
 
 ### Project facts — the truths this pipeline kept relearning (`aidlc` 0.50.0)

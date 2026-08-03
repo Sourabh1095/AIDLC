@@ -125,21 +125,32 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
        `az boards`/`az rest` tier covers every operation and is what headless runs use anyway, so ADO
        works without it. Mention it once; do not insist.
      - **`markdown`** → nothing to install, no server, no auth.
-   - **ADO — populate `statusMap` from the board's REAL states, PER TYPE, don't assume defaults
-     (F7 + F20).** Many boards are customized (e.g. *Development in Progress / Ready for QA / Closed*,
-     not Agile's Active/Resolved), and **state names are scoped per work-item-type** — an Epic's
-     working state ("In Progress") commonly differs from a Story/Feature's ("Development in Progress"),
-     so a single flat name per canonical status is wrong. If the ADO MCP / `az` is reachable now (see
-     the doctor note in `wi-ado` → *Connectivity*), for **each** work-item type in play (Epic, Feature,
-     User Story/PBI, Task, Bug) query the type's states + categories
-     (`_apis/wit/workitemtypes/{type}/states` — each carries a `stateCategory` of
-     Proposed/InProgress/Resolved/Completed/Removed) and build a **per-type**
-     `workItems.ado.statusMap` (`{ "<Type>": { "<canonical>": "<state name>" } }`) by mapping canonical
-     → the state whose category matches (todo=Proposed, in_progress=InProgress, in_review=Resolved,
-     done=Completed). This captures the Epic/Story divergence up front. If it's not reachable at init
-     time, leave `statusMap` empty and note that `wi-ado` self-heals per-type on first run — but prefer
-     getting it right up front. Never write the assumed flat `in_progress→Active`/`in_review→Resolved`
-     defaults blindly.
+   - **jira/ado — probe the board's REAL schema now and record it; never write the vendor defaults
+     blindly (F7 + F20).** Both trackers let a project rename or remove built-in fields, add custom
+     ones, make them required, and define its own workflow states — **all scoped per work-item/issue
+     type.** So if the tracker is reachable at init time (see the doctor note in `wi-ado` →
+     *Connectivity*), probe it for **each type in play** (Epic, Feature, User Story/PBI, Task, Bug —
+     or Jira's equivalents) and write **both** maps, per type. The full contract is
+     `aidlc:work-items` → *Schema discovery*; the calls are in `wi-ado` → *Field discovery* and
+     `wi-jira` → *Schema discovery*.
+     - **`statusMap`** — `{ "<Type>": { "<canonical>": "<state name>" } }`. **ADO:** query the type's
+       states + categories (`_apis/wit/workitemtypes/{type}/states`, each carrying a `stateCategory` of
+       Proposed/InProgress/Resolved/Completed/Removed) and map canonical → the matching category
+       (todo=Proposed, in_progress=InProgress, in_review=Resolved, done=Completed). This captures the
+       Epic-vs-Story divergence up front — an Epic's "In Progress" against a Story's "Development in
+       Progress". **Jira:** the project's statuses per issue type, mapped by `statusCategory`
+       (new/indeterminate/done), with `in_review`/`blocked` resolved by name inside `indeterminate`.
+     - **`fieldMap`** — `{ "<Type>": { "<canonical field>": "<field id>" } }`, using **stable ids**
+       (ADO reference names like `Custom.AC`; Jira `customfield_*`), never display names. At minimum
+       resolve `acceptanceCriteria`, `estimate`, `priority` and the `repo` convention, and write `null`
+       where the type genuinely has none — the pipeline then uses the documented fallback instead of
+       writing to a field that isn't there. **Jira makes this non-optional:** custom field ids are
+       allocated per site, so there is no default to fall back on.
+     - **Also note the required-on-create fields** you find, and tell the user — a mandatory
+       `Custom.Team` or *Severity* is what stops `/aidlc:bootstrap` halfway through creating a backlog.
+     If the tracker is **not** reachable at init time, leave both maps empty (`{}`) and say that the
+     adapter probes and self-heals on first use — that path works, but getting it right here saves the
+     first run from discovering it.
 3a. **Who works on this project?** `solo` (default) | `shared` — several developers on one backlog.
    This is one question with a wide blast radius, so ask it plainly ("just you, or a team?") rather than
    inferring it from repo contributors, which is wrong on both sides (a solo dev inherits a repo with

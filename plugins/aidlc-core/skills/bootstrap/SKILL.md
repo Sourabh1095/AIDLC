@@ -36,6 +36,12 @@ for sandboxes with no network and no CLI; here the adapter writes directly and r
    overwritten.
 2. **Reachable tracker** — the adapter can read/write (for ADO, see `aidlc:wi-ado` → *Connectivity*;
    a quick `adapter.query({limit:1})` confirms it before you propose creating dozens of items).
+3. **Resolved tracker schema** — bootstrap is the framework's largest single burst of `create` calls, so
+   it is where an unprobed schema costs the most: a mandatory custom field or a renamed AC field is
+   discovered on item 7 of 40, leaving a half-built backlog. Resolve the schema **before** the §4 gate
+   (`aidlc:work-items` → *Schema discovery*) and name any required field you cannot fill from the
+   requirements **in the approval gate itself** — that is the moment the user can answer it, and asking
+   forty times mid-creation is not.
 
 ---
 

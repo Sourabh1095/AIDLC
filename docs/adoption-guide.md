@@ -356,9 +356,18 @@ the env vars. Database servers must use **read-only** users; pipeline writes go 
 
 1. `.claude/aidlc.config.json → workItems.source`: `"jira"` or `"ado"`.
 2. Fill `workItems.jira` (`site`, `project`) or `workItems.ado` (`org`, `project`).
-3. If your workflow's status names differ from the defaults documented in the adapter skills,
-   add a `statusMap` (canonical → your status), e.g.
-   `"statusMap": { "in_review": "Code Review", "blocked": "On Hold" }`.
+3. **You do not have to map your board by hand.** The adapter probes it on first use and records what it
+   found in `statusMap` (your workflow's real states) and `fieldMap` (your site's real field ids),
+   correcting either when the board and the config disagree. Custom fields, renamed fields, a workflow
+   that differs per issue type, a mandatory field on create — all discovered, none assumed. `/aidlc:init`
+   pre-populates both when your tracker is reachable at setup time.
+   Write an entry yourself only to **override** a choice you disagree with — a confirmed override wins:
+   - `"statusMap": { "Story": { "in_review": "Code Review" }, "Bug": { "in_review": "Verifying" } }`
+     — keyed by issue/work-item type, because both trackers scope states that way. A flat
+     `{ "in_review": "Code Review" }` also works where one workflow covers every type.
+   - `"fieldMap": { "Story": { "acceptanceCriteria": "customfield_10101" } }` — **field ids, not display
+     names** (ADO: reference names like `Custom.AC`). A display name changes; the id does not.
+     `null` means "this type has no such field" and sends the pipeline to its documented fallback.
 4. For Azure Repos as the git host too: `git.host = "azure-repos"`.
 
 ### Polyrepo: many repos in one workspace

@@ -30,10 +30,39 @@
     "workItems": {
       "type": "object",
       "required": ["source"],
+      "description": "Which tracker holds the backlog, and what the adapter has resolved about it. The two maps below (statusMap, fieldMap) are the SAME idea applied to states and to fields: a tracker's schema belongs to the client, not to this framework, so the adapter probes the real board and records what it found rather than assuming the vendor defaults. Both are self-healing — a configured value the probe confirms wins as a deliberate override; one that names something the board does not have is corrected and the change reported. See skills/work-items → Schema discovery.",
       "properties": {
         "source": { "enum": ["markdown", "jira", "ado"] },
-        "jira": { "type": "object" },
-        "ado": { "type": "object" }
+        "jira": {
+          "type": "object",
+          "properties": {
+            "site": { "type": "string", "description": "The Jira site host, e.g. acme.atlassian.net." },
+            "project": { "type": "string", "description": "Project key the backlog lives in." },
+            "statusMap": {
+              "type": "object",
+              "description": "Canonical status (todo|in_progress|in_review|done|blocked) → this project's real status NAME. Two shapes: flat (canonical → name), valid only where every issue type shares one workflow; or per-issue-type ({ \"Story\": { \"in_review\": \"Code Review\" } }), which is preferred and is what a workflow scheme actually requires — a Story and a Bug on one board routinely run different workflows. Resolved from each status's statusCategory (new/indeterminate/done); in_review and blocked have no category of their own, so they resolve by name inside indeterminate and fall back to a label + comment when the type has no such status. Empty means not yet probed, and the adapter probes on first use."
+            },
+            "fieldMap": {
+              "type": "object",
+              "description": "Canonical field → this site's field ID, e.g. { \"Story\": { \"acceptanceCriteria\": \"customfield_10101\", \"estimate\": \"customfield_10016\" } }. Same two shapes as statusMap. Jira allocates custom field ids PER SITE, so customfield_10016 is Story Points on one site and Team on the next — an id is the only stable handle and a hard-coded one silently reads the wrong field. A value of null means 'probed, and this type has no such field': the adapter then uses its documented fallback (acceptance criteria in the description, repo as a label). A MISSING key means not yet probed — the distinction matters, which is why null is written explicitly."
+            }
+          }
+        },
+        "ado": {
+          "type": "object",
+          "properties": {
+            "org": { "type": "string", "description": "Azure DevOps organization name (not the full URL)." },
+            "project": { "type": "string", "description": "Team project the board lives in." },
+            "statusMap": {
+              "type": "object",
+              "description": "Canonical status → this process's real System.State NAME. Flat (legacy) or per-work-item-type ({ \"Epic\": { \"in_progress\": \"In Progress\" }, \"User Story\": { \"in_progress\": \"Development in Progress\" } }), which is preferred: ADO scopes state names PER TYPE, so one flat name per canonical status cannot be correct for every type (F20 — rolling an Epic to in_progress via the Story's state name targets a state the Epic does not have). Resolved from each state's stateCategory (Proposed/InProgress/Resolved/Completed/Removed). Terminal states differ per type too — Removed exists for a User Story but may not for a Task (F15)."
+            },
+            "fieldMap": {
+              "type": "object",
+              "description": "Canonical field → the field's ADO REFERENCE name, per work-item type, e.g. { \"User Story\": { \"acceptanceCriteria\": \"Microsoft.VSTS.Common.AcceptanceCriteria\", \"estimate\": \"Microsoft.VSTS.Scheduling.StoryPoints\" }, \"Task\": { \"acceptanceCriteria\": null } }. Reference names, never display names: renaming a field in ADO changes only its display name, so a map built on display names breaks at the first rename while a reference name is immutable. An inherited process adds Custom.* fields, drops built-ins from a type and can make one required — all per type, which is why this is keyed the same way statusMap is. null means probed-and-absent (use the documented fallback); a missing key means not yet probed."
+            }
+          }
+        }
       }
     },
     "team": {

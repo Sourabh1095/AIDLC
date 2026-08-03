@@ -86,6 +86,11 @@ fields carry human intent — what was asked for, and what it was judged to cost
 re-orders *its own execution* (`.aidlc/plan.md`) and moves items through their *states*, leaving the
 board's judgment to the humans who authored it.
 
+The same boundary applies one level down, to the board's **schema**: an adapter discovers the project's
+real fields and states and adapts to them, and it never creates a field, a state, an issue type or a
+workflow. A canonical field the board has no home for rides a label or the run file instead. The tracker
+is the client's system of record; a pipeline that extends its schema has made a decision no one reviewed.
+
 **D5 — Flat token cost.** Always-loaded context is capped (~120 lines: project CLAUDE.md +
 two rules files). The framework's bulk (playbooks, stack expertise, adapters) costs zero
 tokens until a task triggers it.
@@ -456,8 +461,9 @@ project's own formatter still runs as part of its resolved gate.
 **Trackers are adapters, not integrations.** `wi-jira`, `wi-ado` and `wi-markdown` each implement the
 same eight-operation contract over a single canonical `WorkItem`, so the pipeline runs *identically*
 over all three and adding a fourth means writing one skill, not touching the orchestrator. Everything
-tracker-specific — JQL vs WIQL, per-type state categories, Agile/Scrum process detection, transition
-stepping — lives inside its adapter.
+tracker-specific — JQL vs WIQL, per-type state categories, custom-field ids, Agile/Scrum process
+detection, transition stepping — lives inside its adapter, and each one **probes the real board before
+it maps anything** rather than trusting the vendor defaults (`work-items` → *Schema discovery*).
 
 **Stack knowledge is a separate plugin.** `aidlc-stack-web` is a pack rather than part of core so a
 future `aidlc-stack-python` can slot in without touching the pipeline, and so core never assumes a

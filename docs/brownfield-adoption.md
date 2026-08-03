@@ -1283,7 +1283,8 @@ for this epic, with the reason.
 | # | Scenario | Required behaviour | Story |
 |---|---|---|---|
 | D1 | Populated Jira/ADO board (thousands of items) | Bounded dedup sweep with stated scope | ADOPT-11 |
-| D2 | Custom workflow states, per type | Existing per-type `statusMap` discipline (F7/F20) | existing |
+| D2 | Custom workflow states, per type | Probed per type and recorded in `statusMap` — by state **category** on ADO (F7/F20), by `statusCategory` per issue type on Jira | existing |
+| D2a | **Custom fields** (renamed, added, removed, required, picklist-restricted) | Probed per type and recorded in `fieldMap` by **stable id** (ADO reference name / Jira `customfield_*`), `null` where the type has none → documented fallback. Required-on-create resolved *before* the first create; unfillable ones asked, never invented. **The pipeline never creates a field, state or issue type** | existing |
 | D3 | Multiple boards/projects/teams on one repo | Record which board governs; do not merge boards | ADOPT-3 |
 | D4 | Unsupported tracker (GitHub Issues, Linear, Shortcut, Trello) | Report unsupported; offer markdown; record capability gap | ADOPT-6 |
 | D5 | No tracker at all | Markdown backlog proposed as the adapter | ADOPT-6 |

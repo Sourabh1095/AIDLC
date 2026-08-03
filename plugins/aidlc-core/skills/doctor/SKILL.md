@@ -73,6 +73,15 @@ Skip this whole section on `--quick`. Each item names its home rather than resta
 6. **The gate commands exist** — for each resolved gate step, check the runner is installed (the
    binary/script resolves), **without running the suite**. Do not execute the gate here: doctor is fast
    and read-only, and a 12-minute test run is neither.
+7. **The tracker schema maps still match the board** (jira/ado only) — the script already lints the
+   *shape* of `statusMap`/`fieldMap`; only a live probe can tell whether they name states and fields the
+   board actually has. Probe the types in the config's maps (`aidlc:work-items` → *Schema discovery*) and
+   report any entry the board does not have, plus any canonical field the maps have never resolved.
+   **Report it, do not fix it** — a self-heal is a config write and this command writes nothing; the
+   adapter reconciles on its next run. Both faults are silent at runtime: a stale entry is ignored and
+   re-probed, so the config looks honoured while the board is being driven by something else. Skip
+   entirely when the tracker is unreachable (item 1 already said so) — a probe that cannot run is not a
+   finding about the maps.
 
 ## 3 · Report
 

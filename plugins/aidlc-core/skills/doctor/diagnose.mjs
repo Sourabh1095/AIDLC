@@ -144,6 +144,100 @@ if (cfg) {
       "`team.mode: shared` with `workItems.source: markdown`",
       "The backlog is then git-tracked files several people groom concurrently, and query() returns whatever branch the caller stands on. Workable for a small co-located team on one branch; Jira or ADO is the real answer.",
     );
+
+  // --- Tracker schema maps (F7/F20 for states, the same class of bug for FIELDS) ----------
+  // statusMap/fieldMap are how a probed board schema survives into the next session, which
+  // makes a typo'd key silent BY CONSTRUCTION: the adapter looks up `in_progress`, the map
+  // says `in-progress`, the lookup misses, the adapter falls back to its own probe — and the
+  // override a human deliberately wrote is never applied. Nothing errors and the board still
+  // moves, so the config reads as honoured. Same for a display name where a field id belongs:
+  // "Story Points" is not a handle either tracker accepts.
+  const trackerSource = cfg.workItems?.source;
+  if (trackerSource === "jira" || trackerSource === "ado") {
+    const CANONICAL_STATUS = ["todo", "in_progress", "in_review", "done", "blocked", "superseded"];
+    // The canonical WorkItem keys a map may legitimately name (work-items → schema).
+    const CANONICAL_FIELD = [
+      "type", "title", "description", "acceptanceCriteria", "status", "priority", "estimate",
+      "parent", "repo", "package", "dependsOn", "labels", "assignee",
+    ];
+    const idWord = trackerSource === "ado" ? "an ADO reference name (`Microsoft.VSTS.*`, `Custom.*`)" : "a Jira field id (`customfield_10101`, `parent`)";
+
+    for (const [key, canonical] of [["statusMap", CANONICAL_STATUS], ["fieldMap", CANONICAL_FIELD]]) {
+      const map = cfg.workItems?.[trackerSource]?.[key];
+      const id = `tracker-${key === "statusMap" ? "status" : "field"}-map`;
+      const title = `tracker ${trackerSource} ${key}`;
+      if (map === undefined || map === null) {
+        // Absent is not a fault: /aidlc:init leaves it out when the board was unreachable,
+        // and the adapter probes on first use. Saying so beats warning about a non-problem.
+        add("ok", id, title, "absent — the adapter probes the board and self-heals on first use");
+        continue;
+      }
+      if (typeof map !== "object" || Array.isArray(map)) {
+        add("warn", id, title, `is ${Array.isArray(map) ? "an array" : typeof map}, not an object`, `Expected canonical→name pairs, or per-type objects of them. See docs/aidlc.config.schema.json → workItems.${trackerSource}.${key}.`);
+        continue;
+      }
+
+      const topKeys = Object.keys(map);
+      const canonicalTop = topKeys.filter((k) => canonical.includes(k));
+      const shape = !topKeys.length ? "empty" : canonicalTop.length === topKeys.length ? "flat" : canonicalTop.length ? "mixed" : "per-type";
+      const unknown = [];
+      const badValue = [];
+      const displayName = [];
+      // Leaves to lint: the flat map itself, or each per-type object inside it. A top-level
+      // key that is neither canonical nor an object is the case that hides best — a flat map
+      // with a misspelled canonical key (`in-progress`) has no canonical keys at all, so it
+      // classifies as per-type and would otherwise be walked as if it held type objects.
+      const leaves = [];
+      if (shape === "per-type")
+        for (const [type, v] of Object.entries(map)) {
+          if (v && typeof v === "object" && !Array.isArray(v)) leaves.push([type, v]);
+          else unknown.push(type);
+        }
+      else leaves.push(["", map]);
+      for (const [type, obj] of leaves) {
+        for (const [k, v] of Object.entries(obj)) {
+          const where = type ? `${type}.${k}` : k;
+          if (!canonical.includes(k)) unknown.push(where);
+          else if (v !== null && (typeof v !== "string" || !v.trim())) badValue.push(where);
+          else if (key === "fieldMap" && typeof v === "string" && /\s/.test(v)) displayName.push(`${where} = ${JSON.stringify(v)}`);
+        }
+      }
+
+      const problems = [];
+      if (shape === "mixed")
+        problems.push(`mixes both shapes — ${canonicalTop.join(", ")} sit beside type names. Pick one: canonical keys at the top level is the flat form, type names is the per-type form`);
+      if (unknown.length)
+        problems.push(`unrecognized key(s): ${unknown.join(", ")} — legal keys are ${canonical.join(" · ")}`);
+      if (badValue.length) problems.push(`value(s) that are neither a string nor null: ${badValue.join(", ")}`);
+      if (displayName.length)
+        problems.push(`display name(s) where an id belongs: ${displayName.join(", ")}`);
+
+      if (problems.length)
+        add(
+          "warn",
+          id,
+          title,
+          problems.join("; "),
+          `An entry the adapter cannot match is silently ignored — it re-probes and uses the board's own value, so a typo here looks like a config that was honoured. ` +
+            (displayName.length ? `Values must be ${idWord}: display names are renameable, localized and non-unique. ` : "") +
+            `Fix the keys, or empty the map and let the adapter re-probe.`,
+        );
+      else if (shape === "empty")
+        add("ok", id, title, "empty — the adapter probes the board and self-heals on first use");
+      else if (key === "statusMap" && shape === "flat" && trackerSource === "ado")
+        add(
+          "warn",
+          id,
+          title,
+          "flat (canonical→state), the legacy shape — ADO state names are scoped per work-item-type",
+          "Valid on a stock Agile board, wrong on a customized one: an Epic's working state ('In Progress') commonly differs from a Story's ('Development in Progress'), so one name per canonical status cannot fit both (F20). The adapter treats a flat map as a hint and re-probes per type; a per-type map `{ \"<Type>\": { \"<canonical>\": \"<state>\" } }` is what it will trust.",
+        );
+      else {
+        const entries = leaves.reduce((n, [, o]) => n + Object.keys(o).length, 0);
+        add("ok", id, title, `${shape} · ${entries} entr${entries === 1 ? "y" : "ies"}`);
+      }
+    }
+  }
 }
 
 // --- 3. Settings files (F49) --------------------------------------------------------------

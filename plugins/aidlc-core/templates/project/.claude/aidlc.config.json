@@ -6,8 +6,8 @@
   },
   "workItems": {
     "source": "markdown",
-    "jira": { "site": "", "project": "", "statusMap": {} },
-    "ado": { "org": "", "project": "", "statusMap": {} }
+    "jira": { "site": "", "project": "", "statusMap": {}, "fieldMap": {} },
+    "ado": { "org": "", "project": "", "statusMap": {}, "fieldMap": {} }
   },
   "team": {
     "mode": "solo",

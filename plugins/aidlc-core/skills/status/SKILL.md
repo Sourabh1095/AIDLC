@@ -74,6 +74,12 @@ relaunch if `az` was installed mid-session (see `wi-ado` → *Connectivity*) —
 For Jira, a failing probe means re-auth the Atlassian MCP. Report `tracker: reachable` / the
 remediation line, then continue (backlog snapshot is skipped if unreachable).
 
+**Reachable is not the same as understood.** The first adapter call of the session also resolves the
+board's real fields and states (`aidlc:work-items` → *Schema discovery*) — so if the probe corrects
+anything in `workItems.<source>.statusMap`/`.fieldMap`, say so in one line here rather than leaving the
+dashboard to imply the config was authoritative. A status board built on a stale field id is exactly the
+kind of confident wrongness the ground-truth reconciliation below exists to catch.
+
 ## Step 1.6 — Remote-repo gate check (F24 — never leave a remote repo silently ungated)
 
 For each repo entry whose `mode` is `remote`, cheaply check whether an enforced PR gate exists:

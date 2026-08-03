@@ -1,6 +1,6 @@
 ---
 name: wi-ado
-description: Work-item adapter for Azure DevOps Boards via the ADO MCP server, with an az boards CLI fallback and a PAT+REST last-resort. Implements fetch, query, children, create, transition, comment, link and updateAC using WIQL and the project's status map. Load when workItems.source is "ado".
+description: Work-item adapter for Azure DevOps Boards via the ADO MCP server, with an az boards CLI fallback and a PAT+REST last-resort. Implements fetch, query, children, create, transition, comment, link and updateAC using WIQL, discovering the process's custom fields and per-work-item-type states before it maps anything. Load when workItems.source is "ado".
 user-invocable: false
 ---
 
@@ -43,16 +43,21 @@ or via artifact links (below).
 
 ## Field mapping (work item ↔ WorkItem)
 
+**These reference names are the process defaults — verify them against the board before you map**
+(`aidlc:work-items` → *Schema discovery*, and *Field discovery* below). An inherited process can add
+`Custom.*` fields, drop a built-in from a type, or make one required; every row below marked
+*conventional* in that section is a probe, not a constant.
+
 | WorkItem | ADO field |
 |---|---|
 | `type` | **Epic and Feature → `epic`** (both are decomposable parents; the actual ADO type is preserved in `sourceRaw.adoType`, so writes never convert one into the other) · User Story (Agile) / Product Backlog Item (Scrum)→story · Task→task · Bug→bug · spike = Task/Story tagged `spike`. Detect the process (Agile vs Scrum) from an existing item's type before creating. |
 | `title` / `description` | System.Title / System.Description (HTML → markdown on read, markdown → HTML on write) |
-| `acceptanceCriteria` | Microsoft.VSTS.Common.AcceptanceCriteria (HTML checklist) — the field exists on stories/PBIs and bugs |
+| `acceptanceCriteria` | Microsoft.VSTS.Common.AcceptanceCriteria (HTML checklist) — the field exists on stories/PBIs and bugs *by default*; resolve it per type via *Field discovery* |
 | `status` | System.State via statusMap (below) |
 | `priority` | Microsoft.VSTS.Common.Priority: 1→P1 … 4→P4 |
 | `estimate` | StoryPoints/Effort: ≤2→S, 3–5→M, 8→L, ≥13→XL |
 | `parent` | parent link (System.LinkTypes.Hierarchy-Reverse) |
-| `repo` | a `repo:<name>` tag (default, no schema change) — or System.AreaPath if the project maps repos to area paths; detect the convention from an existing item before writing |
+| `repo` | a `repo:<name>` tag (default, no schema change) — or System.AreaPath if the project maps repos to area paths; resolve the convention via *Field discovery*, don't guess it from one item |
 | `dependsOn` | Successor/Predecessor links (System.LinkTypes.Dependency); `dependsOn` = this item is the **successor** of each referenced id |
 | `labels` | System.Tags (semicolon-separated) |
 | `assignee` | System.AssignedTo (read-only — the pipeline never writes it; see `aidlc:work-items` → *Ownership*). Read as the identity's `uniqueName` (UPN/email) with `displayName` as the fallback |
@@ -91,6 +96,49 @@ constraints shape it:
 - **AC field is Story-tier.** `Microsoft.VSTS.Common.AcceptanceCriteria` lives on Stories/PBIs/Bugs,
   not Tasks. `updateAC` must write ACs to the **Story**; a Task only carries them in its
   `System.Description`. When re-decomposing, ensure carried ACs land on a Story-tier item.
+
+## Field discovery — by **reference name, per work-item-type**
+
+Implements `aidlc:work-items` → *Schema discovery* on Azure Boards. **One probe per type answers both
+halves** (its fields and its states), so do them together the first time a type is touched:
+
+```bash
+az rest --method get --url "https://dev.azure.com/{org}/{project}/_apis/wit/workitemtypes/{type}/fields?api-version=7.1"
+az rest --method get --url "https://dev.azure.com/{org}/{project}/_apis/wit/workitemtypes/{type}/states?api-version=7.1"
+```
+
+(or the MCP equivalents — ToolSearch for `work item type`). The fields response is the authoritative
+list for that type: each entry carries `referenceName`, the display `name`, `alwaysRequired`,
+`allowedValues` and `defaultValue`. `_apis/wit/fields` lists the *organization's* fields, which is a
+superset of any one type's — useful to find a custom field's reference name from its display name, never
+sufficient on its own to conclude a type has it.
+
+**Key everything on `referenceName`.** Renaming a field in ADO changes only its display name; the
+reference name is immutable, so a map built on reference names survives the rename that would otherwise
+break every read and write. Custom fields added by an inherited process are `Custom.<Name>`.
+
+Resolution per canonical field (record the result in `workItems.ado.fieldMap`, `null` where absent):
+
+| Canonical | Resolve as |
+|---|---|
+| `acceptanceCriteria` | `Microsoft.VSTS.Common.AcceptanceCriteria` when the type has it; else a `Custom.*` field whose display name reads as acceptance criteria; else **`null` → the `## Acceptance Criteria` section of `System.Description`**. Story-tier either way (see *Re-decomposition*) |
+| `estimate` | whichever of `Microsoft.VSTS.Scheduling.StoryPoints` (Agile) / `.Effort` (Scrum) / `.Size` (CMMI) the type actually has — read-only, the pipeline never writes it |
+| `priority` | `Microsoft.VSTS.Common.Priority` when present. **Absent → order by `Microsoft.VSTS.Common.BacklogPriority` (the board's own rank) and report every item as P3**, rather than inventing a priority the board does not hold. A Bug-only `Microsoft.VSTS.Common.Severity` is *not* a priority field — do not substitute it |
+| `repo` | a `repo:<name>` tag by default; `System.AreaPath` where the project maps repos to area paths; a `Custom.*` repository field where one exists. Record which — `null` means the tag convention |
+| `labels` / `assignee` / `parent` | `System.Tags` / `System.AssignedTo` / the Hierarchy-Reverse link — universal, no probe needed |
+
+**Required-on-create, before the first create.** Filter the type's field list for `alwaysRequired` and
+resolve every one *before* decomposing an epic — a rejected create halfway through creating children
+leaves a half-built hierarchy. Common culprits on customized processes:
+`Microsoft.VSTS.Common.ValueArea`, a mandatory `Custom.Team`, a restricted `System.AreaPath`. Fill from
+canonical data, else the field's own `defaultValue` / its single `allowedValues` entry, else **ask** —
+never invent (`aidlc:work-items` → *Required-on-create*).
+
+**Respect each field's type when writing.** `allowedValues` means a picklist: write a legal value or ask,
+because free text is rejected. An `HTML` field takes HTML (as `System.Description` and the AC field
+already do), a `treePath` field takes a real classification node, and an identity field takes a resolvable
+identity — a plain string in any of them fails in a way the `az.cmd` tier can report as success, which is
+exactly what *Write verification* below exists to catch.
 
 ## Status map — resolve by **state category, per work-item-type** (F20)
 
@@ -157,11 +205,16 @@ apply the tag fallback and comment what happened.
   comes back). No children ⇒ `[]`, not an error. A WIQL `WorkItemLinks` query over
   `System.LinkTypes.Hierarchy-Forward` with recursion **off** is the equivalent when a query path is
   already open.
-- **create(item)** — `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "Microsoft.VSTS.Common.AcceptanceCriteria=..."`; add parent with `az boards work-item relation add --relation-type parent`. A canonical `epic` creates an ADO **Epic** by default; when decomposing a fetched **Feature**, create its children as **User Story** parented under it (see *Hierarchy*) — don't recreate the parent. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
+- **create(item)** — **resolve the type's fields first** (*Field discovery*: the AC field's real reference
+  name, and every `alwaysRequired` field), then
+  `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "<resolved AC field>=..."`; add parent with `az boards work-item relation add --relation-type parent`. A canonical `epic` creates an ADO **Epic** by default; when decomposing a fetched **Feature**, create its children as **User Story** parented under it (see *Hierarchy*) — don't recreate the parent. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
 - **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above). **Then read back and assert** the state landed (see *Write verification*) — the `az.cmd` fallback can return cleanly without persisting.
 - **comment(id, markdown)** — `az boards work-item update --id {n} --discussion "AIDLC: ..."` (HTML allowed; keep it simple).
 - **link(id, {branch, pr})** — best effort artifact link (`az repos` / MCP); reliable fallback that ALWAYS runs: a discussion comment with the branch name and PR URL. Commits referencing `#<id>` also auto-link.
-- **updateAC(id, criteria[])** — write the AcceptanceCriteria field as an HTML list (checked items as ✅ text — ADO has no native checkbox in that field); comment that AC were refined.
+- **updateAC(id, criteria[])** — write the **resolved** AC field (per *Field discovery*; the default
+  `Microsoft.VSTS.Common.AcceptanceCriteria`, a `Custom.*` equivalent, or the description section when the
+  type has none) as an HTML list (checked items as ✅ text — ADO has no native checkbox in that field);
+  comment that AC were refined.
 
 ## Write verification (reported success ≠ persisted)
 
@@ -234,6 +287,11 @@ deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
   **that type**. (F15 already made *terminal* states per-type; F20 extends it to the non-terminal
   working states.) `init` should pre-populate a **per-type** map by querying the board — but never
   trust that it did.
+- **`fieldMap` self-heals on exactly the same terms.** A configured reference name the type's field list
+  does not contain is stale, not authoritative — re-probe, use the real one, write the correction back,
+  and say what changed in one line. The failure this prevents is quieter than a rejected transition: a
+  write to a reference name that exists org-wide but not on *this* type can come back exit 0 from the
+  `az.cmd` tier with the value nowhere on the item.
 - **Parent rollup transitions are type-aware too (F19).** The proactive parent rollup (`aidlc:run` §3;
   `aidlc:work-items` → *Parent rollup*) transitions an Epic/Feature via this same category resolution —
   which is exactly why it must be type-aware: rolling an Epic to in_progress lands on the Epic type's
