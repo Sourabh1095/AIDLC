@@ -7,9 +7,15 @@ disable-model-invocation: true
 
 # /aidlc:adopt — read the code, derive the facts, prove each one
 
-`/aidlc:bootstrap` derives a project's shape from a **requirements document**. This door derives it
-from **the code that is already there** — so a brownfield team stops answering mono-vs-poly, stack and
-commands from memory, on a codebase the framework has never read.
+On a **greenfield** project `/aidlc:bootstrap` derives the shape from a **requirements document**. This
+door derives it from **the code that is already there** — so a brownfield team stops answering
+mono-vs-poly, stack and commands from memory, on a codebase the framework has never read.
+
+**The profile this writes is also what makes bootstrap safe to run on a live project.** In brownfield
+mode bootstrap reads `.aidlc/adoption/profile.json` to ground a batch of new requirements in the system
+that already exists — the stack it must honor, the packages and seams new work fits into, the gates
+that are already there — instead of planning as though the document described a fresh project. Running
+this door first is what turns a features document into a plan the team recognizes.
 
 **This command writes exactly two files and nothing else:** `.aidlc/adoption/profile.json` (the
 machine-readable contract) and `.aidlc/adoption/report.md`. No config, no `CLAUDE.md`, no rules, no work

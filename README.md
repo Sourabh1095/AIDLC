@@ -49,6 +49,7 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Fix something small right now | `/aidlc:do "fix the typo in the header"` — edited, gated, committed, no ticket |
 | Adopt AIDLC on a codebase that already exists | `/aidlc:init` → `/aidlc:adopt` → `/aidlc:adopt-apply` |
 | Turn a client's requirements document into a populated board | `/aidlc:bootstrap ./requirements.docx` |
+| Plan a document of **new features for a product you already ship** | `/aidlc:bootstrap ./phase-2-features.docx` — same command; it detects the existing code, grounds in it, and attaches to the epics already on the board |
 | Work out why `/aidlc:*` commands vanished, or why a run blocks on permissions | `/aidlc:doctor` — read-only; reports the fault and the fix |
 | Work the top of your backlog | `/aidlc:next` |
 | Work several items at once | `/aidlc:sprint 3` |
@@ -150,7 +151,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 
 | Command | In | Out |
 |---|---|---|
-| `/aidlc:bootstrap <doc \| brief>` | a requirements document | a whole populated backlog + inferred architecture |
+| `/aidlc:bootstrap <doc \| brief>` | a requirements document, or a batch of new features | **greenfield:** a whole populated backlog + inferred architecture · **brownfield:** the batch grounded in your code and attached under the epics you already have |
 | `/aidlc:intake <text>` | one requirement, in plain language | well-formed items, deduped against the board |
 | `/aidlc:adopt` | the existing code | an evidence-backed profile, **read-only**; a drift report on a re-scan |
 | `/aidlc:adopt-apply` | an approved profile | config, `CLAUDE.md`, your real gate + git conventions + runtime constraints — behind a shown diff |

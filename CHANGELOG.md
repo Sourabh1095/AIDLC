@@ -7,6 +7,56 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.53.0] — 2026-08-13
+
+### `/aidlc:bootstrap` had read the requirements but never the codebase (`aidlc` 0.53.0)
+
+The bulk door was built for a greenfield project and quietly assumed one everywhere. It took a
+requirements document, inferred the architecture *from that document*, and produced a whole
+Epic→Feature→Story→Task tree with sprints. On an empty folder that is exactly right. On a product
+that has been shipping for a year — a client sends a phase-2 features document, which is the ordinary
+way work arrives — every one of those steps is wrong in a different direction, and the output looks
+plausible enough to be pasted onto a live board before anyone notices.
+
+**The architecture was inferred from a features document.** Phase 2.0 read the requirements and wrote
+`workspace.layout`, `repos[]` and `stack` into `aidlc.config.json`. It ran whenever
+`architecture.status` was `pending` — and `pending` is what `/aidlc:init`'s deferred path writes, which
+a brownfield user can reach by picking the wrong option once. A document describing four new screens
+would then decide whether the deployed system is mono or poly, and whether it is a modular monolith or
+microservices. Topology and stack are facts about code that already exists; a document has no standing
+to restate them. Phase 2.0 is now **greenfield-only**, `pending` + existing code is treated as a
+mis-route to `/aidlc:adopt` rather than an instruction to infer, and if the user proceeds anyway the
+shape is derived from what was actually read in the repo — never stamped `resolvedBy: "codebase-scan"`,
+because a bounded read is not a scan.
+
+**Nothing read the code.** The analyst was briefed with the requirements, the work streams and the
+config, and that was all — `/aidlc:intake` has grounded in the codebase since it was written, but its
+batch-scale sibling never did. Three consequences, all of them visible to the client on the board: it
+proposed the stack the document's phrasing implied rather than the one the project uses; it re-emitted
+scaffolding — *set up CI, create the database schema, implement authentication* — for things finished
+long ago, which the work-stream filter cannot catch because "set up the CI pipeline" is legitimately
+DevOps; and it minted a second Epic tree beside the one the team was already working, because dedup
+compared *items* and nothing compared *placement*. New Phase 2.1 reads the adoption profile when one
+exists (and offers `/aidlc:adopt` when it doesn't), then the code, the ADRs and `facts.md`. New Phase
+2.2 splits the backlog sweep into dedup **and** placement, defaulting to attaching new work under the
+epic that already covers the capability. Setup work now ships only where grounding evidenced its
+absence.
+
+**It planned as though the team were idle and the calendar empty.** Capacity was `contribution% ×
+sprint_days` against a fresh Sprint 1 — for a team already mid-iteration with committed work. Sprints
+now resolve against the tracker's existing iterations and reuse them (creating a duplicate iteration
+beside a live one splits a board in half), and in-flight load is subtracted before anything is
+assigned.
+
+Two smaller things fall out of the same change. Every brownfield requirement is now classified before
+it is shaped — *already built* (no item, name what covers it), *extension*, *change to existing
+behavior* (which must carry an AC for what keeps working — changing a live system without one is how a
+small feature takes a release down), or *genuinely new* — and brownfield items carry an `increment`
+label beside `bootstrap`, so a batch planned in month nine stays distinguishable from the project's
+original scope. `/aidlc:do` gains a **PLAN** route, because none of this was reachable from the general
+front door: a multi-feature document routed to intake one requirement at a time, which is precisely
+where the dependencies between them are lost.
+
 ## [0.52.0] — 2026-08-13
 
 ### macOS was never a supported platform, it was an untested one (`aidlc` 0.52.0, `aidlc-stack-web` 0.13.0)

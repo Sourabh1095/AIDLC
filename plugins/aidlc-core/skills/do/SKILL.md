@@ -78,6 +78,7 @@ cleanup.
 | a defect understood | **DIAGNOSE** (§4) | a cause, and an offer to file it |
 | something small and obvious changed | **DIRECT** (§5) | the change, gated and committed on the current branch. No item, no PR. |
 | something built or changed that warrants a trail | **BUILD** (§5) | `aidlc:ceremony` tier 2 or 3 — tracked, or the full pipeline |
+| a **batch** of requirements planned — a requirements/features document, or a brief describing several features at once | **PLAN** | `/aidlc:bootstrap <doc \| brief>` — a reviewed work-breakdown, capacity-planned sprints, items created on approval. Works on an existing project too: it detects brownfield, grounds in the code, and attaches to the epics already there |
 | an existing item progressed (`{KEY}-{n}` appears) | **RESUME** | `aidlc:run <ID>`, followed verbatim |
 | the **order** of the work changed — a client moved priorities, an area came forward | **REPLAN** | `aidlc:replan`, which re-sequences the not-yet-started work into waves. Writes nothing to the tracker and never touches work in flight |
 | pipeline state, or what to work on next | **META** | `aidlc:status` / `aidlc:next` |
@@ -85,6 +86,14 @@ cleanup.
 **REPLAN is about *when*, not *what*.** "We should also build X" is intake; "build X **before** Y" is a
 replan. A prompt that changes the order of existing work has no home in BUILD — routing it there mints a
 duplicate item for work already on the board.
+
+**PLAN is BUILD's batch sibling — the split is *how many*, not *how new*.** One requirement → BUILD
+(intake shapes it). A document or brief carrying several → PLAN, because the value is in decomposing
+them *together*: shared epics, cross-item dependencies, and one capacity-planned sprint sequence. Do
+not route a features document through intake one requirement at a time — dependencies between them are
+exactly what that loses. And do not assume PLAN means a new project: a batch of new features for a
+live product is bootstrap's brownfield mode, which reads the code and the board first. **PLAN needs the
+user's go-ahead before it runs**, like BUILD — it ends in created items.
 
 **Mixed prompt** ("is this a good idea, and if so build it") → run the CONSULT first, present the
 recommendation, and continue to BUILD only on the user's go-ahead. A consult never silently becomes

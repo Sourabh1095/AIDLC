@@ -10,9 +10,13 @@ argument-hint: "<the requirement, in plain language>"
 items — not code. (Implementation starts afterwards via `/aidlc:run`.)
 
 There is one general front door — **`/aidlc:do`** — and it routes here when a request turns out to
-warrant a ticket. This skill is the door for *one* requirement; `/aidlc:bootstrap` is the same job at
-project scale, from a requirements document. Arriving here directly is fine and common; arriving here
-for a typo is not (see below).
+warrant a ticket. This skill is the door for *one* requirement; **`/aidlc:bootstrap` is the same job at
+batch scale** — a requirements/features document or a brief carrying several requirements, decomposed
+together with shared epics, cross-item dependencies and a capacity-planned sprint sequence. That holds
+on an existing project as well as a new one: bootstrap detects brownfield and grounds in the code the
+same way step 2 below does. **Hand a multi-feature document to bootstrap, not to this door one
+requirement at a time** — the dependencies between them are exactly what that loses. Arriving here
+directly is fine and common; arriving here for a typo is not (see below).
 
 **This door is for work that warrants tracking.** Small, obvious, low-consequence changes are handled at
 tier 1 without an item — see `aidlc:ceremony`. Arriving here means the tier decision already concluded
