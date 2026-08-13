@@ -64,15 +64,18 @@ So a hard `Read(.env*)` **deny** and an opt-in switch are mutually exclusive: th
 switch inert. The resolution:
 
 1. Settings carries env paths in **`ask`**, not `deny` — the fail-safe floor above.
-2. `env-guard.mjs` (PreToolUse `Read|Edit|Write`) enforces the real default: `envFileAccess: "deny"`
+2. `env-guard.mjs` (PreToolUse `Read|Edit|Write`) enforces the switch: `envFileAccess: "deny"`
    → **exit 2 hard block** (which bypasses the settings `ask`); `"ask"` → a `permissionDecision: "ask"`
    prompt that shows the exact diff/content. Fails closed (missing/malformed config ⇒ `deny`).
 3. `guard.mjs` (PreToolUse `Bash`) mirrors the switch on the **shell path** — a `> .env` redirect,
    `tee`/`cp`/`sed -i` write, or `cat .env` read is blocked under `deny` and stepped past under `ask`.
    Without this, a shell command would bypass the tool-level hook.
 
-Net: the default is a hard deny (via the hook), opting in is a single edit to `aidlc.config.json`, and
-the two layers agree. **Migration:** projects scaffolded before 0.28 still have the old
+Net: a scaffolded workspace ships at `"ask"` — the pipeline may read and change env files, and every
+one of those touches is surfaced for approval with its content shown. `"deny"` is a single edit to
+`aidlc.config.json`, and it is also what the hooks fall back to whenever they cannot read the switch,
+so the failure mode stays closed even though the shipped posture is open-with-a-prompt. Both layers
+agree either way. **Migration:** projects scaffolded before 0.28 still have the old
 `Read(./.env)` / `Read(./.env.*)` **deny** in their `settings.json`; that hard deny overrides the
 switch, so it must be removed and the `ask` rules added.
 

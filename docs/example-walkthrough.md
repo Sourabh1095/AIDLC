@@ -31,12 +31,13 @@ username/password. The pipeline never reads your real credentials — you'll put
 
 ## 1. Create the project folder and repo
 
-```powershell
-mkdir D:\todo-app
-cd D:\todo-app
+```sh
+mkdir todo-app && cd todo-app     # anywhere you keep projects
 git init -b main
 claude
 ```
+
+<sub>Windows PowerShell users: `mkdir todo-app; cd todo-app` — `&&` is not a PowerShell operator.</sub>
 
 When Claude Code opens in the new folder, **accept the workspace-trust dialog**. (Skipping it
 silently disables the project's permission allowlist later — every git/npm command would ask.)
@@ -118,17 +119,18 @@ What happens (this is the thinking-before-doing you asked for):
 ## 5. Give the app its database credentials
 
 The pipeline will scaffold the code to read `DATABASE_URL` from the environment. Create the
-local `.env` yourself (by default the pipeline can't read or write it — that's a guardrail):
+local `.env` yourself — the pipeline *can* read and change env files, but it has to ask you
+first, every single time, and the prompt shows the exact content or diff before you approve:
 
-```powershell
-# D:\todo-app\.env  (gitignored)
+```sh
+# todo-app/.env  (gitignored)
 DATABASE_URL=postgresql://postgres:YOURPASSWORD@localhost:5432/todo_app
 ```
 
-By default the pipeline also leaves `.env.example` alone. If you want it to maintain the file
-(the required variable *names* only, never values), opt in per workspace by setting
-`"pipeline.envFileAccess": "ask"` in `.claude/aidlc.config.json` — it will then ask you to
-approve every env-file read or change before it happens.
+That same approval covers `.env.example`, which the pipeline can keep up to date for you (the
+required variable *names* only, never values) — again, only with your say-so on each change.
+The switch is `"pipeline.envFileAccess"` in `.claude/aidlc.config.json`; new workspaces ship at
+`"ask"`. Set it to `"deny"` if you would rather the pipeline never touch an env file at all.
 
 ## 6. Build — one item at a time, hands-off
 

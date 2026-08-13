@@ -137,7 +137,7 @@ never invent (`aidlc:work-items` → *Required-on-create*).
 **Respect each field's type when writing.** `allowedValues` means a picklist: write a legal value or ask,
 because free text is rejected. An `HTML` field takes HTML (as `System.Description` and the AC field
 already do), a `treePath` field takes a real classification node, and an identity field takes a resolvable
-identity — a plain string in any of them fails in a way the `az.cmd` tier can report as success, which is
+identity — a plain string in any of them fails in a way the `az` CLI tier can report as success, which is
 exactly what *Write verification* below exists to catch.
 
 ## Status map — resolve by **state category, per work-item-type** (F20)
@@ -208,7 +208,7 @@ apply the tag fallback and comment what happened.
 - **create(item)** — **resolve the type's fields first** (*Field discovery*: the AC field's real reference
   name, and every `alwaysRequired` field), then
   `az boards work-item create --type "{mapped type}" --title "..." --fields "System.Description=..." "<resolved AC field>=..."`; add parent with `az boards work-item relation add --relation-type parent`. A canonical `epic` creates an ADO **Epic** by default; when decomposing a fetched **Feature**, create its children as **User Story** parented under it (see *Hierarchy*) — don't recreate the parent. When `repo` is set, add the `repo:<name>` tag (or set System.AreaPath per convention); for each `dependsOn` id add a `--relation-type predecessor` link (add these once all sibling children exist).
-- **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above). **Then read back and assert** the state landed (see *Write verification*) — the `az.cmd` fallback can return cleanly without persisting.
+- **transition(id, status)** — `az boards work-item update --id {n} --state "{mapped}"` (with the stepping/fallback rules above). **Then read back and assert** the state landed (see *Write verification*) — the `az` CLI fallback can return cleanly without persisting.
 - **comment(id, markdown)** — `az boards work-item update --id {n} --discussion "AIDLC: ..."` (HTML allowed; keep it simple).
 - **link(id, {branch, pr})** — best effort artifact link (`az repos` / MCP); reliable fallback that ALWAYS runs: a discussion comment with the branch name and PR URL. Commits referencing `#<id>` also auto-link.
 - **updateAC(id, criteria[])** — write the **resolved** AC field (per *Field discovery*; the default
@@ -220,7 +220,7 @@ apply the tag fallback and comment what happened.
 
 Per `aidlc:work-items` → *Write verification*: **every** mutation here (`transition`/`create`/`comment`/
 `link`/`updateAC`) must **fetch the item back and assert the change landed** before recording success.
-ADO makes this acute — a `az.cmd` write can return exit 0 without persisting (the concrete cause of a
+ADO makes this acute — an `az` CLI write can return exit 0 without persisting (the concrete cause of a
 live board sitting at "Development in Progress" while the run file said Closed). Assert; **tolerate
 eventual consistency** (an immediate read-after-write may show stale/`None` — a just-set `parent` read
 back as `None`, then an authoritative `wit_get_work_items_batch_by_ids` re-fetch showed it correct);
@@ -291,7 +291,7 @@ deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
   does not contain is stale, not authoritative — re-probe, use the real one, write the correction back,
   and say what changed in one line. The failure this prevents is quieter than a rejected transition: a
   write to a reference name that exists org-wide but not on *this* type can come back exit 0 from the
-  `az.cmd` tier with the value nowhere on the item.
+  `az` CLI tier with the value nowhere on the item.
 - **Parent rollup transitions are type-aware too (F19).** The proactive parent rollup (`aidlc:run` §3;
   `aidlc:work-items` → *Parent rollup*) transitions an Epic/Feature via this same category resolution —
   which is exactly why it must be type-aware: rolling an Epic to in_progress lands on the Epic type's

@@ -35,7 +35,7 @@
     "maxFixCycles": 3,
     "architectThreshold": "M",
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
-    "envFileAccess": "deny",
+    "envFileAccess": "ask",
     "gates": {
       "ambiguousRequirements": "assume-and-log"
     },

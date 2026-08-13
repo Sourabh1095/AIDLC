@@ -189,6 +189,36 @@ check("Remove-Item -Recurse -Force ../../other", "block", "Remove-Item relative 
 check("Remove-Item -Recurse -Force node_modules", "allow", "Remove-Item inside the project");
 // A segment that merely MENTIONS a delete is not one (argv[0] decides).
 check('echo "run rm -rf /etc to reset"', "allow", "echo mentioning rm -rf");
+// A target the SHELL expands is a target this hook cannot evaluate — and it used to fail
+// OPEN, not merely fail to check: `resolve(cwd, "$HOME/x")` is `<project>/$HOME/x`, which
+// starts with the project root, so the guard answered "inside, allowed" and the shell then
+// expanded it into a path the guard never saw. Same hole for every other spelling.
+check("rm -rf $HOME/Documents", "block", "$HOME is expanded by the shell, not by resolve");
+check("rm -rf ${HOME}/Documents", "block", "${HOME} braced form");
+check("rm -rf $HOME", "block", "bare $HOME");
+check("rm -rf $env:USERPROFILE/Documents", "block", "PowerShell $env: form");
+check("rm -rf %USERPROFILE%\\Documents", "block", "cmd %VAR% form");
+check("rm -rf $(pwd)/../..", "block", "command substitution");
+check("rm -rf $UNSET_VAR/build", "block", "an unset variable is still unprovable");
+// Literal paths are unaffected — the common, legitimate case keeps working.
+check("rm -rf dist", "allow", "a literal in-project path is untouched by the expansion rule");
+check("rm -rf build/cache", "allow", "a literal nested path is untouched");
+
+// Casing must not decide what "inside the project" means. Windows and macOS (APFS, by
+// default) both treat `…/Repo` and `…/repo` as ONE directory, so an in-project delete
+// spelled with different casing has to read as inside — blocking it would be the guard
+// firing on the correct case. Gating this on win32 alone made it a Windows-only
+// courtesy. On Linux the two paths genuinely are different directories, so the very same
+// command must still be blocked there — which is why the expectation is per-platform
+// rather than a single answer.
+{
+  const insensitive = process.platform === "win32" || process.platform === "darwin";
+  check(
+    `rm -rf "${repo.toUpperCase()}/node_modules"`,
+    insensitive ? "allow" : "block",
+    `in-project delete via a differently-cased path (${process.platform})`,
+  );
+}
 
 // ================= NESTED SHELLS =================
 // `bash -c "rm -rf /etc"` is one segment whose argv[0] is `bash`, so every ARGV-based
@@ -329,15 +359,27 @@ function envWorkspace(access) {
   writeFileSync(join(dir, ".claude", "aidlc.config.json"), JSON.stringify({ pipeline: { envFileAccess: access } }));
   return dir;
 }
+// "allow" and "ask" are told apart, not lumped together as exit 0. They used to be the
+// same observable outcome here, which is exactly why the shell path could sit at a silent
+// allow under `ask` without a single test noticing.
 function checkEnv(command, cwd, expected, label) {
   n++;
   let got = 0;
+  let stdout = "";
   try {
-    execFileSync("node", [GUARD], { input: JSON.stringify({ tool_input: { command }, cwd }), stdio: ["pipe", "pipe", "pipe"] });
+    stdout = String(
+      execFileSync("node", [GUARD], { input: JSON.stringify({ tool_input: { command }, cwd }), stdio: ["pipe", "pipe", "pipe"] }),
+    );
   } catch (e) {
     got = typeof e.status === "number" ? e.status : -1;
   }
-  const res = got === 2 ? "block" : got === 0 ? "allow" : `exit${got}`;
+  let decision = "";
+  try {
+    decision = JSON.parse(stdout).hookSpecificOutput.permissionDecision;
+  } catch {
+    /* no JSON on stdout — a plain allow */
+  }
+  const res = got === 2 ? "block" : got !== 0 ? `exit${got}` : decision === "ask" ? "ask" : "allow";
   if (res !== expected) {
     fails++;
     console.log(`FAIL [${label}] expected=${expected} got=${res}\n       cmd: ${command}`);
@@ -382,17 +424,27 @@ checkEnv('git commit -m "note: echo X > .env"', envDeny, "allow", "bash deny: gi
 checkEnv("git status\ncat .env", envDeny, "block", "bash deny: newline env read after git");
 checkEnv("git add -A\necho X > .env", envDeny, "block", "bash deny: newline env write after git");
 checkEnv("git status\r\ncat backend/.env.local", envDeny, "block", "bash deny: CRLF newline env read");
-// ask → step aside (normal permission flow handles it)
-checkEnv("echo X > .env", envAsk, "allow", "bash ask: redirect write .env");
-checkEnv("cat .env", envAsk, "allow", "bash ask: read .env");
-checkEnv("tee .env.example", envAsk, "allow", "bash ask: tee .env.example");
+// ask → PROMPT. Not "step aside": Bash matches none of env-guard's Read|Edit|Write
+// matchers, so stepping aside here was a silent allow — `cat .env` printed secrets with
+// nothing asked. The switch has to mean the same thing on both paths.
+checkEnv("echo X > .env", envAsk, "ask", "bash ask: redirect write .env prompts");
+checkEnv("cat .env", envAsk, "ask", "bash ask: read .env prompts");
+checkEnv("tee .env.example", envAsk, "ask", "bash ask: tee .env.example prompts");
+checkEnv("cat .ENV", envAsk, "ask", "bash ask: upper-case .ENV prompts too");
+// A block still beats a prompt when one command does both — order of segments must not
+// decide it, so assert both orderings.
+checkEnv("cat .env\nrm -rf /etc/passwd", envAsk, "block", "bash ask: a later block outranks the prompt");
+checkEnv("rm -rf /etc/passwd\ncat .env", envAsk, "block", "bash ask: an earlier block outranks the prompt");
+// Non-env commands are untouched by the prompt — no blanket asking.
+checkEnv("npm run build", envAsk, "allow", "bash ask: unrelated command still plain-allows");
+checkEnv("cat README.md", envAsk, "allow", "bash ask: non-env read still plain-allows");
 // fail-closed: no config at all in the original git repo fixture (cwd=repo) → deny
 checkEnv("echo X > .env", repo, "block", "bash no-config: write .env → deny (fail closed)");
 // poly: resolve the switch from the env path's OWN location, walking up to the
 // control-plane config — cwd (subrepo OR control plane) is irrelevant (F50).
-checkEnv("cat .env", envPolyAsk.sub, "allow", "bash poly ask: read subrepo env, cwd=subrepo");
-checkEnv("echo X > .env.example", envPolyAsk.sub, "allow", "bash poly ask: write subrepo env, cwd=subrepo");
-checkEnv("cat core-api/.env", envPolyAsk.root, "allow", "bash poly ask: read subrepo env, cwd=control plane");
+checkEnv("cat .env", envPolyAsk.sub, "ask", "bash poly ask: read subrepo env, cwd=subrepo");
+checkEnv("echo X > .env.example", envPolyAsk.sub, "ask", "bash poly ask: write subrepo env, cwd=subrepo");
+checkEnv("cat core-api/.env", envPolyAsk.root, "ask", "bash poly ask: read subrepo env, cwd=control plane");
 checkEnv("cat .env", envPolyDeny.sub, "block", "bash poly deny: control-plane deny blocks subrepo env");
 
 rmSync(envDeny, { recursive: true, force: true });

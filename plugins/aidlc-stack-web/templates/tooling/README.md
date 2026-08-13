@@ -85,6 +85,21 @@ npx husky init          # creates .husky/ and a "prepare" script
 
 Then copy `husky/pre-commit` → `.husky/pre-commit` and `lint-staged.config.mjs` → repo root.
 
+**On macOS/Linux, make the hook executable — and commit that bit.**
+
+```sh
+chmod +x .husky/pre-commit
+git update-index --chmod=+x .husky/pre-commit   # so teammates' clones get it too
+```
+
+Git **silently skips** a hook file it cannot execute: no error, no warning, exit 0, commit
+succeeds. So a pre-commit layer that was installed but left at mode `644` looks exactly like one
+that is working, and the first sign of trouble is unformatted code arriving at the CI gate this
+layer exists to pre-empt. Windows has no execute bit and runs the hook regardless, which is why
+this is invisible on a Windows machine and why a mixed-OS team hits it on one half of the team
+only. Writing the file with an editor or a tool (rather than `cp`-ing over husky's own executable
+stub) is the usual way it ends up non-executable.
+
 **Make `prepare` CI-safe.** `npx husky init` writes `"prepare": "husky"`, which runs on **every**
 `npm ci` — and husky exits **127** in any context that didn't install it (a CI container, or a
 `file:../` sibling checkout pulled without its devDeps). Guard it so a missing husky never breaks

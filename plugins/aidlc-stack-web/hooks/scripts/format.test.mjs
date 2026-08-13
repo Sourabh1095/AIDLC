@@ -5,9 +5,10 @@
 // inert in every poly workspace.
 //
 // Run: `node format.test.mjs` (sibling hook) or `node format.test.mjs <path>`.
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, chmodSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HOOK = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), "format.mjs");
@@ -101,6 +102,58 @@ function scratch() {
   const ws = scratch();
   mkdirSync(join(ws, "src"), { recursive: true });
   check("no Prettier anywhere → no-op", prettierRoot(join(ws, "src")), "");
+}
+
+// --- the edited path must reach Prettier as a PATH, not as shell syntax. ---------
+// This one IS end-to-end, unlike the resolver tests above, because the defect lived in
+// the gap between the two: /bin/sh expands `$` and backticks INSIDE double quotes, so
+// interpolating the path into a command string turned `app/routes/$postId.tsx` — an
+// ordinary Remix route — into `app/routes/.tsx`. Prettier failed on a path that does not
+// exist, the hook's catch swallowed it by design, and the file was silently never
+// formatted. cmd.exe leaves `$` alone, so it looked fine on Windows and only ever bit on
+// macOS and Linux. Stubbing `npx` on PATH is what lets the assertion be "the bytes
+// arrived" rather than "the source looks right".
+{
+  const ws = scratch();
+  const bin = join(ws, "bin");
+  mkdirSync(join(ws, "app", "routes"), { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(ws, ".prettierrc"), "{}");
+
+  const target = join(ws, "app", "routes", "$postId.tsx");
+  writeFileSync(target, "x");
+  const out = join(ws, "argv.json");
+
+  // A fake `npx` that records the argv it was handed and exits 0.
+  writeFileSync(
+    join(bin, "npx-impl.cjs"),
+    `require("fs").writeFileSync(${JSON.stringify(out)}, JSON.stringify(process.argv.slice(2)));`,
+  );
+  if (process.platform === "win32") {
+    writeFileSync(join(bin, "npx.cmd"), `@echo off\r\nnode "%~dp0npx-impl.cjs" %*\r\n`);
+  } else {
+    writeFileSync(join(bin, "npx"), `#!/bin/sh\nexec node "$(dirname "$0")/npx-impl.cjs" "$@"\n`);
+    chmodSync(join(bin, "npx"), 0o755);
+  }
+
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.toLowerCase() === "path") delete env[k];
+  env.PATH = bin + delimiter + (process.env.PATH || "");
+
+  execFileSync(process.execPath, [HOOK], {
+    input: JSON.stringify({ tool_input: { file_path: target }, cwd: ws }),
+    env,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
+
+  let argv = [];
+  try {
+    argv = JSON.parse(readFileSync(out, "utf8"));
+  } catch {
+    /* the stub never ran — argv stays [] and the checks below fail loudly */
+  }
+  check("prettier is actually invoked", argv.includes("--write"), true);
+  check("the edited path arrives unexpanded, `$` and all", argv[argv.length - 1], target);
 }
 
 for (const d of roots) rmSync(d, { recursive: true, force: true });

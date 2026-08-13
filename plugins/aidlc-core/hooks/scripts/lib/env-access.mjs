@@ -16,13 +16,21 @@ import { join, dirname, resolve } from "node:path";
 // The env-file family, by BASENAME, anywhere in the tree (mono root, poly product
 // subfolders, monorepo apps/*). Matches `.env`, `.env.example`, `.env.local`,
 // `.env.production.local`, … but NOT `.envrc` (direnv) or `.env-sample`.
+//
+// Matched case-INSENSITIVELY, because the filesystems this runs on are. Windows (NTFS)
+// and macOS (APFS, by default) both open `.ENV` and `.Env.local` as the very same file
+// as `.env` — so a case-sensitive test here meant the switch simply did not see them:
+// no prompt, no block, the file read or written as if it were an ordinary source file.
+// The gate is meant to be the one thing every env-file path goes through, and a gate
+// with a spelling that walks around it is not one. Linux is the only place where `.ENV`
+// is genuinely a different file, and treating it as an env file there is correct anyway.
 export function isEnvFile(pathOrToken) {
   const base = String(pathOrToken)
     .replace(/^['"]|['"]$/g, "")
     .replace(/\\/g, "/")
     .split("/")
     .pop();
-  return /^\.env(\.|$)/.test(base);
+  return /^\.env(\.|$)/i.test(base);
 }
 
 const _cache = new Map();

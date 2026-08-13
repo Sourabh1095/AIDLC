@@ -19,6 +19,13 @@
 # --- local / machine-specific ---
 .claude/settings.local.json
 
+# OS metadata. The control plane is staged with `git add -A` (see the gitlink note above),
+# so on a mixed-OS team these ride into the shared history from whichever machine committed
+# last — and .DS_Store in particular is written by Finder merely for LOOKING at a folder.
+.DS_Store
+Thumbs.db
+desktop.ini
+
 # --- ephemeral control-plane state (pids, absolute paths, logs) ---
 .aidlc/sprint-*.json
 .aidlc/staged-claude/

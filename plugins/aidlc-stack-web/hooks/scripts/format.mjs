@@ -15,7 +15,7 @@
 // Prettier is then invoked from the directory that owns the config, so its ignore files
 // and relative settings resolve the way the repo means them to.
 import { readFileSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { join, dirname, resolve, extname } from "node:path";
 
 let data;
@@ -74,12 +74,32 @@ const abs = resolve(cwd, file);
 const root = prettierRoot(dirname(abs));
 if (!root) process.exit(0);
 
+// The operand is a PATH, and a path must never be re-parsed as shell syntax. Off Windows
+// it no longer is: `execFileSync` with an argv array reaches the binary with no shell in
+// between. /bin/sh expands `$` and backticks INSIDE double quotes, so the old
+// `"${abs}"` string turned a Remix route — `app/routes/$postId.tsx`, an ordinary file in
+// a stack this pack targets — into `app/routes/.tsx`. Prettier then failed on a path that
+// does not exist and the catch below swallowed it, so the file was **silently never
+// formatted**. cmd.exe leaves `$` alone, which is the only reason this read as working.
+//
+// Windows keeps the string form deliberately: `npx` there is `npx.cmd`, which Node
+// refuses to spawn without a shell, and `shell: true` joins argv with spaces rather than
+// quoting it — that would break the first path containing one (`D:\RTO Tool\…`, F46).
+// Quoting for cmd.exe is correct as written, so it stays as written.
 try {
-  execSync(`npx --no-install prettier --write "${abs}"`, {
-    cwd: root,
-    stdio: "ignore",
-    timeout: 20000,
-  });
+  if (process.platform === "win32") {
+    execSync(`npx --no-install prettier --write "${abs}"`, {
+      cwd: root,
+      stdio: "ignore",
+      timeout: 20000,
+    });
+  } else {
+    execFileSync("npx", ["--no-install", "prettier", "--write", abs], {
+      cwd: root,
+      stdio: "ignore",
+      timeout: 20000,
+    });
+  }
 } catch {
   // prettier not installed locally, parse error, etc. — never block the pipeline over formatting
 }

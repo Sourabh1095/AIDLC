@@ -23,7 +23,7 @@
 // auth, MCP tool names, required-check policy, whether the gate commands actually run —
 // needs tools and a session, so it lives in SKILL.md and is reported alongside this
 // output. Never throws: a diagnosis that crashes is worse than one that says "unknown".
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
@@ -49,6 +49,28 @@ const asJson = flags["--json"] === true;
 const pluginRoot = flags["--plugin-root"] ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const HOME = flags["--home"] ?? homedir();
 const ROOT = resolve(positional[0] || process.cwd());
+
+// Two paths naming the same directory must compare equal, which `resolve` alone cannot
+// promise: it is purely lexical, so it never resolves a symlink, and it preserves whatever
+// casing it was handed.
+//
+// Both halves bite on macOS. `/var` is a symlink to `/private/var` and `os.tmpdir()`
+// answers `/var/folders/…`, while `git rev-parse --show-toplevel` always answers a
+// realpath — so a lexical comparison of the two disagrees about a directory that is one
+// directory. And APFS is case-insensitive by default, so a workspace opened by a
+// differently-cased path is still the same workspace. Windows has the same casing story
+// with `C:\Users` vs `c:\users`.
+const CASE_INSENSITIVE_FS = process.platform === "win32" || process.platform === "darwin";
+const canonicalPath = (p) => {
+  let s;
+  try {
+    s = realpathSync(p); // resolves symlinks; throws if the path does not exist
+  } catch {
+    s = resolve(p); // not on disk — lexical is the best answer available
+  }
+  s = s.replace(/\\/g, "/").replace(/\/+$/, "");
+  return CASE_INSENSITIVE_FS ? s.toLowerCase() : s;
+};
 
 const checks = [];
 /** status: ok | warn | fail | skip */
@@ -531,9 +553,14 @@ if (cfg?.repos?.length) {
       // this developer's entire home directory is a git repo, so `git status` succeeds in any
       // temp dir under it and would report the HOME repo's state as the workspace's. A
       // project nested in an unrelated parent repo is the same shape and far from rare.
-      const top = resolve(git("git rev-parse --show-toplevel").trim());
-      if (top !== ROOT) {
-        note = `${ROOT} is not a git repo of its own (the enclosing repo is ${top})`;
+      // Compared as canonical paths, not lexical ones: git answers a realpath, and on
+      // macOS the workspace handed in here routinely is not one (`/var/folders/…` →
+      // `/private/var/folders/…`). Lexically those differ, so every macOS run of this
+      // check reported a workspace as "not a git repo of its own" and skipped — silently,
+      // since skip is also the honest answer when git is absent.
+      const top = git("git rev-parse --show-toplevel").trim();
+      if (canonicalPath(top) !== canonicalPath(ROOT)) {
+        note = `${ROOT} is not a git repo of its own (the enclosing repo is ${resolve(top)})`;
       } else {
         const rel = tracked.map((f) => `"${relative(ROOT, f).replace(/\\/g, "/")}"`).join(" ");
         dirty = git(`git status --porcelain -- ${rel}`)

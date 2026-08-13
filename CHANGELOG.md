@@ -7,6 +7,112 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.52.0] — 2026-08-13
+
+### macOS was never a supported platform, it was an untested one (`aidlc` 0.52.0, `aidlc-stack-web` 0.13.0)
+
+Nothing here was a design flaw. Every hook is `node "${CLAUDE_PLUGIN_ROOT}/…/*.mjs"`, the plugins are
+dependency-free Node, `.gitattributes` normalises to `eol=lf`, and every MCP server is `npx` or HTTP.
+The architecture was portable the whole time. What was missing is the only thing that makes that claim
+checkable: **`.github/workflows/ci.yml` ran `ubuntu-latest` and `windows-latest` and nothing else.** So
+the defects below are all of one kind — a Windows behaviour that happens to be the safe one, sitting
+where a POSIX shell behaves differently, with no runner in the matrix to say so. `macos-latest` is in
+the matrix now, and it is the actual fix; the rest is what it immediately found.
+
+**`/bin/sh` expands `$` inside double quotes. `cmd.exe` does not.** The Prettier hook built its command
+as a string — `npx --no-install prettier --write "${abs}"`. On Windows the quotes are enough. On macOS
+and Linux the shell reached into the quoted path first, so `app/routes/$postId.tsx` — an ordinary
+Remix route, in a stack this pack exists to serve — arrived as `app/routes/.tsx`. Prettier failed on a
+path that does not exist, and the hook's `catch` swallowed it *by design*, because formatting must
+never fail a tool call. The file was simply never formatted, forever, silently. The POSIX path now
+passes argv through `execFileSync` with no shell at all. Windows deliberately keeps the string form:
+`npx` there is `npx.cmd`, which Node refuses to spawn without a shell, and `shell: true` joins argv
+with spaces instead of quoting — that would break the first path containing one (`D:\RTO Tool\…`,
+**F46**). The regression test stubs `npx` on `PATH` and asserts the bytes that arrive.
+
+**`CASE_INSENSITIVE_FS` was `process.platform === "win32"`.** APFS is case-insensitive by default too,
+so `…/Dev/app` and `…/dev/app` are one directory on a Mac — but the delete guard compared them as
+strings and called an absolute in-project target "outside", and **blocked it**. A guard firing on the
+correct case is the failure **F46** argues is worse than the gap it closes. The trade-off is recorded
+in the source: a case-sensitive APFS volume (opt-in, rare, and Apple discourages it) now gets the more
+permissive comparison — the same exposure Windows has always carried here, and the right side to err on
+when the false positives are constant and the false negatives need an adversarial path spelling.
+
+**`git rev-parse --show-toplevel` answers a realpath; `resolve()` is lexical.** On macOS `/var` is a
+symlink to `/private/var` and `os.tmpdir()` is under it, so doctor's control-plane check compared two
+spellings of one directory, disagreed, and reported *"not a git repo of its own"* — as a `skip`, which
+is also the honest answer when git is absent, so it read as normal. Two assertions in the shipped suite
+failed on macOS for this reason; `npm test` was red on a Mac. Comparison now goes through a
+`canonicalPath()` that resolves symlinks and folds case on the filesystems that fold it.
+
+**The guard's reader allow-lists enumerated one platform's tools.** `type`, `Get-Content`, `gc`,
+`certutil`, `Format-Hex` — five Windows/PowerShell spellings, and not one macOS-native one. `open .env`
+and `open ~/.ssh/id_rsa` are the ordinary way to read a file on a Mac and both walked straight through;
+`hexdump` is the BSD sibling of the `xxd`/`od` already listed. Added, along with `pbcopy` and its
+Windows twin `clip` — a redirect (`pbcopy < ~/.ssh/id_rsa`) never puts the path in argv, but the
+raw-segment backstop at §5 sees both names in the segment. A guard that means different things on two
+machines running the same pipeline is not a guard.
+
+**Git silently skips a hook it cannot execute.** The shipped `husky/pre-commit` was mode `644` and no
+instruction anywhere said `chmod +x`. On Windows the hook runs regardless; on macOS and Linux it does
+not run, with no error and no warning, so an installed pre-commit layer is indistinguishable from a
+working one until unformatted code reaches the CI gate the layer exists to pre-empt. The template now
+carries the executable bit, and the README says why it has to survive the copy.
+
+Smaller, same family: the control-plane `.gitignore` template gained `.DS_Store`/`Thumbs.db`/
+`desktop.ini` (the control plane is staged with `git add -A`, and Finder writes `.DS_Store` for merely
+*looking* at a folder); `wi-ado` named its CLI tier `az.cmd`, a binary that does not exist on macOS,
+in five places; and `docs/example-walkthrough.md` — the README's primary getting-started door — was a
+PowerShell session that told every reader to `mkdir D:\todo-app`.
+
+### Env files: the pipeline may read and change them, and it asks every time (`aidlc` 0.52.0)
+
+`pipeline.envFileAccess` shipped at `"deny"`, so the intended posture — *the pipeline can do this, the
+human approves each one* — was something every workspace had to discover and opt into. Both shipped
+templates now scaffold at `"ask"`. The schema `default` stays `"deny"` on purpose: that is what an
+**absent or malformed** config resolves to, and the switch must fail closed when it cannot read itself.
+What a new workspace ships with and what the fallback is are different questions.
+
+Flipping the default is the small half. It exposed two ways the switch did not mean what it said.
+
+**`.ENV` walked around the gate.** `isEnvFile` matched case-sensitively. NTFS and APFS both open `.ENV`
+and `.Env.local` as *the same file* as `.env` — so those spellings hit no gate at all: no prompt, no
+block, read or written like ordinary source. This was never a macOS-only bug; Windows had it equally.
+Matched case-insensitively now, with `.envrc` and `.env-sample` still correctly excluded.
+
+**On the Bash path, `"ask"` was a silent allow.** `env-guard.mjs` sits on `Read|Edit|Write`; `Bash`
+matches none of them. The old comment said `ask` would *"step aside and let the normal permission flow
+prompt"* — but on that path there is no such flow, so `cat .env` printed secrets with nothing asked.
+Survivable while `ask` was a deliberate opt-in by an informed user; making it the shipped default would
+have made the silent path the normal one. `guard.mjs` now returns `permissionDecision: "ask"` itself.
+It is **collected and flushed after every check has run**, so a block always outranks a prompt —
+`cat .env` followed by `rm -rf /etc/passwd` blocks, in either segment order, and both orders are
+asserted.
+
+### Fix: `rm -rf $HOME/…` read as *inside the project* and was allowed (`aidlc` 0.52.0)
+
+Found while auditing the above; it is not a macOS issue and never was. `deleteEscapes` handled `~`,
+because the shell expands it and `resolve()` would not. It handled nothing else in that family — and
+the gap failed **open**, not merely unchecked. `resolve(cwd, "$HOME/stuff")` yields
+`<project>/$HOME/stuff`, which *starts with the project root*, so the blast-radius check actively
+answered "inside, allowed" and the shell then expanded it into a path the guard never evaluated. Same
+for `${HOME}`, `$(pwd)`, backticks, cmd's `%TEMP%` and PowerShell's `$env:USERPROFILE`. Unexpandable
+means unprovable, and an unprovable delete target now gets the same verdict as an outside one, with its
+own message telling you to spell it relative to the project root.
+
+Two calls recorded rather than left to be rediscovered. It is **not** narrowed by quoting: `tokenize()`
+strips quotes without recording which kind, so `'$HOME'` (literal, safe) is indistinguishable here from
+`$HOME` (expanded, not safe), and threading quote-kind through a shared parser with 166 tests is not
+worth a false positive on a directory literally named `$HOME`. And `rm -rf "$PWD/dist"` now blocks
+despite being inside the project — the loud false positive is the better trade against a silent
+fail-open, and the block message names the remedy (`rm -rf dist`).
+
+**Suite:** 17/17 suites green on Windows. `guard.test.mjs` 152 → 166 (shell-expansion targets, the
+per-platform case-skew assertion, `ask`-vs-`allow` now told apart on the Bash path instead of both
+reading as exit 0 — which is exactly why the silent allow survived this long); `env-guard.test.mjs`
+26 → 33 (case variants under both `ask` and `deny`); `format.test.mjs` 7 → 9 (the `$`-in-path
+end-to-end).
+
 ## [0.51.0] — 2026-08-04
 
 ### Tracker schema discovery — the board's fields and states are the board's (`aidlc` 0.51.0)

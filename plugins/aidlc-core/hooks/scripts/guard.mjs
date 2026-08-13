@@ -36,6 +36,29 @@ function block(reason) {
   process.exit(2);
 }
 
+// A prompt rather than a refusal, for the one case that is permitted-but-confirmed.
+//
+// COLLECTED, not emitted on the spot: a later segment of the same command may still
+// block, and a block has to win over a prompt — `cat .env; rm -rf /etc` must never be
+// downgraded to a question. `block()` exits immediately, so anything still standing when
+// the run reaches the end has already survived every check in the file.
+let pendingAsk = "";
+const askFirst = (reason) => {
+  if (!pendingAsk) pendingAsk = reason;
+};
+function flushAsk() {
+  if (!pendingAsk) return;
+  process.stdout.write(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "ask",
+        permissionDecisionReason: pendingAsk,
+      },
+    }),
+  );
+}
+
 const PROTECTED_RE = /^(?:main|master|develop|release\/.+)$/;
 
 // Current branch of a specific repo, computed lazily and cached per path — only push
@@ -204,7 +227,29 @@ function envCmdWriteTarget(argv) {
 
 // A file-dumping reader (cat/type/Get-Content/head/…) pointed at an env file. Returns
 // the env path, or "".
-const ENV_READERS = new Set(["cat", "type", "Get-Content", "gc", "bat", "less", "more", "head", "tail", "nl", "xxd", "od"]);
+//
+// The list named `type`, `Get-Content`, `gc` — three Windows/PowerShell spellings — and
+// not one macOS-native one, so the guard was measurably weaker on a Mac than on the box
+// it was written on. `open .env` and `open ~/.ssh/id_rsa` are the ordinary way to read a
+// file on macOS and both walked straight through; `hexdump` is the BSD `xxd`/`od` that
+// ships in the base system. Enumerating one platform's tools and not another's is how a
+// guard ends up meaning different things on two machines running the same pipeline.
+const ENV_READERS = new Set([
+  "cat",
+  "type",
+  "Get-Content",
+  "gc",
+  "bat",
+  "less",
+  "more",
+  "head",
+  "tail",
+  "nl",
+  "xxd",
+  "od",
+  "hexdump",
+  "open",
+]);
 function envReadTarget(argv) {
   if (!ENV_READERS.has(commandName(argv))) return "";
   const t = argv.slice(1).find(isEnvBase);
@@ -229,6 +274,10 @@ const SECRET_PATH_RE = new RegExp(SECRET_PATH_SRC, "i");
 
 // Readers, plus the tools that relocate a file wholesale — the pipeline never needs to
 // copy a private key, and `cp ~/.ssh/id_rsa /tmp/k` is a read with extra steps.
+// Clipboard tools earn their place through the raw-segment backstop at §5 rather than the
+// argv check: `pbcopy < ~/.ssh/id_rsa` puts the path after a redirect, so it is never
+// argv[1] — but the segment still names both a reader and a key path, which is what that
+// backstop matches. `clip` is the Windows spelling of the same read and was missing too.
 const SECRET_READERS = new Set([
   ...ENV_READERS,
   "base64",
@@ -236,6 +285,8 @@ const SECRET_READERS = new Set([
   "openssl",
   "certutil",
   "Format-Hex",
+  "pbcopy",
+  "clip",
   "cp",
   "mv",
   "scp",
@@ -254,17 +305,47 @@ const SECRET_READER_RE = new RegExp(`\\b(?:${[...SECRET_READERS].join("|")})\\b`
 // tested `^[/\\]` or `^~`, so it only ever saw ABSOLUTE targets: `rm -rf ../../..`
 // escaped the repo entirely and was allowed. Resolving against cwd covers both spellings
 // with one rule.
-const CASE_INSENSITIVE_FS = process.platform === "win32";
+// macOS belongs here too: APFS (and HFS+ before it) is case-INSENSITIVE by default, so
+// `/Users/x/Dev/app` and `/Users/x/dev/app` are one directory. Gating this on Windows
+// alone made an absolute delete target whose casing merely differed from cwd resolve as
+// "outside" and get BLOCKED — a guard firing on the correct case, which is the failure
+// F46 argues is worse than the gap it closes.
+//
+// The trade-off, recorded rather than discovered later: a macOS volume formatted
+// case-SENSITIVE (opt-in, and rare enough that Apple discourages it — much Mac software
+// breaks on it) now gets the more permissive comparison, where two genuinely distinct
+// paths can read as one. That is the same exposure Windows has always carried here, and
+// it is the right side to err on for a check whose false positives are loud and constant
+// and whose false negatives need a deliberately adversarial path spelling.
+const CASE_INSENSITIVE_FS = process.platform === "win32" || process.platform === "darwin";
 const normPath = (p) => {
   const s = p.replace(/\\/g, "/").replace(/\/+$/, "");
   return CASE_INSENSITIVE_FS ? s.toLowerCase() : s;
 };
+// Everything the shell expands BEFORE the command runs, which `resolve` would take
+// literally: `$HOME`, `${HOME}`, `$(pwd)`, a backtick substitution, cmd's `%TEMP%`,
+// PowerShell's `$env:USERPROFILE`. `~` was handled; the rest of the family was not.
+const SHELL_EXPANSION_RE = /\$[({]?\w|`|%\w+%/;
+
 function deleteEscapes(target) {
   const t = target.replace(/^['"]|['"]$/g, "");
   if (!t) return null;
   // The shell expands `~` before the command runs; node's resolve would not, so a
   // home-relative path is treated as outside on sight.
   if (/^~/.test(t)) return "outside";
+  // The same reasoning, for the rest of the expansion syntax — and this half failed
+  // OPEN rather than merely being missing. `resolve(cwd, "$HOME/stuff")` yields
+  // `<project>/$HOME/stuff`, which starts with the project root, so the check returned
+  // "inside, allowed" for `rm -rf $HOME/stuff` and every other variable spelling; the
+  // shell then expanded it into a path the guard never evaluated. Unexpandable means
+  // unprovable, and an unprovable delete target gets the same answer as an outside one.
+  //
+  // Deliberately not narrowed by quoting: tokenize() strips quotes without recording
+  // which kind, so `'$HOME'` (a literal directory, safe) is indistinguishable here from
+  // `$HOME` (expanded, not safe). Blocking both costs a false positive on a directory
+  // literally named `$HOME` — loud, and rarer than the failure it prevents. The remedy
+  // for a legitimate `rm -rf "$PWD/dist"` is to spell it `rm -rf dist`.
+  if (SHELL_EXPANSION_RE.test(t)) return "unexpandable";
   const a = normPath(resolve(cwd, t));
   const c = normPath(cwd);
   if (a === c) return "root"; // `rm -rf .` — inside the project, and it IS the project
@@ -366,26 +447,46 @@ for (const rawSeg of expandSegments(cmd)) {
   }
 
   // --- 2c. Env-file access on the Bash path (backstop for the env-guard hook) ---
-  // Unless the workspace opted in with pipeline.envFileAccess: "ask", block reading or
-  // writing an env file from a shell command. Under "ask" we step aside and let the
-  // normal permission flow prompt (the Read/Edit/Write tools are the governed path).
-  // The switch is resolved from each env path's OWN location, so a poly product-repo
-  // env file sees the control-plane opt-in regardless of the session cwd.
+  // At `deny` this blocks; at `ask` it PROMPTS. It used to step aside at `ask` and let
+  // "the normal permission flow" handle it — but there is no such flow here: env-guard
+  // sits on Read|Edit|Write, and Bash matches none of them. So `ask` meant a silent
+  // allow, and `cat .env` printed secrets with nothing asked. That was survivable while
+  // `ask` was a deliberate opt-in; it is the shipped default now, which would have made
+  // the silent path the normal one. A PreToolUse hook may return `permissionDecision:
+  // "ask"` for any tool, so the shell path raises the same prompt the tool path does and
+  // the switch finally means one thing on both.
+  //
+  // The switch is resolved from each env path's OWN location, so a poly product-repo env
+  // file sees the control-plane setting regardless of the session cwd.
   const wt = envRedirectTarget(rawSeg) || envCmdWriteTarget(argv);
-  if (wt && envAccessFor(wt) !== "ask")
-    block(
-      `writing env file '${wt}' from a shell command is blocked by default — env files can ` +
-        `hold secrets. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to allow ` +
-        `it with your per-change approval (default "deny"); prefer the Write/Edit tools, which ` +
-        `prompt per change. Do not edit that config yourself — ask the user to.`,
+  if (wt) {
+    if (envAccessFor(wt) !== "ask")
+      block(
+        `writing env file '${wt}' from a shell command is blocked — env files can hold secrets. ` +
+          `Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to allow it with your ` +
+          `per-change approval; prefer the Write/Edit tools, which show the diff. Do not edit that ` +
+          `config yourself — ask the user to.`,
+      );
+    askFirst(
+      `AIDLC: this shell command writes the env file '${wt}'. Env files can hold secrets, and a ` +
+        `shell write does not show you a diff the way the Edit/Write tools do — approve it only if ` +
+        `you know what it puts there.`,
     );
+  }
   const rt = envReadTarget(argv);
-  if (rt && envAccessFor(rt) !== "ask")
-    block(
-      `reading env file '${rt}' from a shell command is blocked by default — the pipeline never ` +
-        `needs secret values. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to ` +
-        `allow it (default "deny"). Ask the user to flip it — do not edit that config yourself.`,
+  if (rt) {
+    if (envAccessFor(rt) !== "ask")
+      block(
+        `reading env file '${rt}' from a shell command is blocked — the pipeline never needs secret ` +
+          `values. Set "pipeline.envFileAccess": "ask" in .claude/aidlc.config.json to allow it. ` +
+          `Ask the user to flip it — do not edit that config yourself.`,
+      );
+    askFirst(
+      `AIDLC: this shell command reads the env file '${rt}', which puts its VALUES — secrets ` +
+        `included — into the transcript. Approve only if the pipeline genuinely needs them; the ` +
+        `variable names alone live in .env.example.`,
     );
+  }
 
   // --- 3. Destructive DB operations outside localhost ---
   if (/\b(DROP\s+(DATABASE|SCHEMA)|TRUNCATE\s+TABLE|db\.dropDatabase)\b/i.test(rawSeg)) {
@@ -419,6 +520,11 @@ for (const rawSeg of expandSegments(cmd)) {
     const verdict = deleteEscapes(t);
     if (verdict === "outside")
       block(`recursive delete of a path outside the project (${t} → ${resolve(cwd, t.replace(/^['"]|['"]$/g, ""))}).`);
+    if (verdict === "unexpandable")
+      block(
+        `recursive delete of a path the shell expands before it runs (${t}), so its real target ` +
+          `cannot be checked here. If it is inside the project, spell it relative to the project root.`,
+      );
     if (verdict === "root") block(`recursive delete of the project root itself (${t}).`);
   }
 }
@@ -433,4 +539,7 @@ if (
 )
   block("piping or uploading secret material (env file, private key or credential store) over the network.");
 
+// Nothing blocked. If some segment wanted confirmation, ask for it now — after every
+// check in the file has had its say.
+flushAsk();
 process.exit(0);

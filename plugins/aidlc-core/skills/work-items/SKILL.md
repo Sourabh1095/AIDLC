@@ -193,7 +193,7 @@ back and assert the change landed** before recording success:
    op, the target, and what the board actually shows.
 
 This binds ALL adapters, not just one — any tracker write can fail; some fallbacks (e.g. ADO's
-`az.cmd`) just make it more likely. It is the *prevention* half; `/aidlc:status` ground-truth
+`az` CLI) just make it more likely. It is the *prevention* half; `/aidlc:status` ground-truth
 reconciliation (below) is the *detection* safety net.
 
 ## Schema discovery — probe the board, never assume its fields and states

@@ -106,6 +106,20 @@ try {
   check("Read", "src/index.ts", ask, "allow", "ask: read source file untouched");
   check("Read", ".envrc", ask, "allow", "ask: .envrc untouched");
 
+  // ===== casing must not be a way around the gate =====
+  // NTFS and APFS (default) both open `.ENV` as the same file as `.env`, so a
+  // case-sensitive match here meant the guard never saw those spellings: no prompt, no
+  // block, read straight through. Asserted on every platform — on Linux `.ENV` is a
+  // genuinely different file, and treating it as an env file there is correct too.
+  check("Read", ".ENV", ask, "ask", "ask: .ENV is the same file on a case-insensitive FS");
+  check("Edit", ".Env.local", ask, "ask", "ask: mixed-case .Env.local");
+  check("Read", ".ENV", deny, "block", "deny: .ENV cannot spell its way past the block");
+  check("Write", ".ENV.PRODUCTION", deny, "block", "deny: upper-case nested suffix");
+  check("Edit", "backend/.Env", deny, "block", "deny: mixed-case in a poly subfolder");
+  // The exclusions stay excluded, whatever their casing.
+  check("Read", ".ENVRC", deny, "allow", "deny: .ENVRC is still direnv, not an env file");
+  check("Write", ".ENV-SAMPLE", deny, "allow", "deny: .ENV-SAMPLE is still not an env file");
+
   // ===== fail-closed: config absent / missing / malformed → deny =====
   check("Read", ".env", absent, "block", "no envFileAccess key → deny");
   check("Edit", ".env.example", noConfig, "block", "no config file → deny");

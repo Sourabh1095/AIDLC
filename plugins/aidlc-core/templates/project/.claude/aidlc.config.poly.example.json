@@ -161,7 +161,7 @@
     "maxFixCycles": 3,
     "architectThreshold": "M",
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
-    "envFileAccess": "deny",
+    "envFileAccess": "ask",
     "gates": {
       "ambiguousRequirements": "assume-and-log",
       "$comment": "verify = the project's REAL gate, executed IN ORDER by the run skill. Populated by /aidlc:adopt-apply from a scan, or written by hand. Resolution LAYERS narrowest -> broadest (repos.<repo>.packages.<pkg>.steps, then packages.<pkg>.steps, then repos.<repo>.steps, then the top-level steps); each layer contributes its own order but only for gate names no narrower layer claimed — so a package declaring its own `test` still INHERITS the repo's `lint`. Do not read it as replace: a gate that vanished is indistinguishable from one that passed. Use `node <plugin>/skills/run/resolve-gate.mjs` rather than re-deriving it. Note the `absent` entries — a gate the project does NOT have is kept on purpose so every run reports it as a coverage hole instead of counting it green; that is also how a package deliberately opts OUT of a repo-level gate.",

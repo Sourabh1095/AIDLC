@@ -84,9 +84,12 @@ no evidence for it, not that you should assume the strictest case.
 ## Hard rules
 
 - Never touch `.claude/settings*.json`, hook scripts, or CI secrets.
-- Do not read or change env files (`.env`, `.env.example`, …). They are blocked by default; a
-  workspace can opt in with `pipeline.envFileAccess: "ask"`, in which case the guard will surface
-  each read/change for the user to approve — never try to widen that access yourself.
+- Env files (`.env`, `.env.example`, …) are governed by `pipeline.envFileAccess`, and the guard
+  decides — not you. At the shipped `"ask"` the read or change is surfaced to the user with its
+  content shown and they approve it; at `"deny"` it is blocked outright. So do not go out of your
+  way to avoid them, and never try to widen that access yourself: no editing the switch, no routing
+  a read through a shell command or a differently-cased path to get around the prompt. Ask for what
+  you actually need and let the user answer.
 - Never commit failing tests or a broken build. If you cannot make it green, say so.
 - Stay on the run's branch. Never commit to the default branch. Never push (the orchestrator does).
 - No assumptions beyond the run file's `## Assumptions` — hit something genuinely ambiguous or
