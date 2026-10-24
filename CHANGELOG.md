@@ -43,8 +43,9 @@ run files, and a run that hung looked the same as one that was working.
 - Verified against real sessions on Claude Code 2.1.310 (Windows):
   - an untrusted folder is refused as `untrusted`;
   - `/aidlc:run` in a folder with no AIDLC config shows as `dead on arrival`;
-  - an AskUserQuestion shows as `NEEDS YOU · input needed`, and a cross-session message does not answer
-    it, which is why the skill says not to try;
+  - an AskUserQuestion shows as `NEEDS YOU · input needed`. A cross-session message sent to answer it
+    was held, because the two sessions ran in different permission modes, and expired undelivered. That
+    is one reason the skill says to leave the answer to the person;
   - a mono e2e run on a fixture project went `starting` → `NEEDS YOU (permission prompt)` through the
     Monitor watch. Its transcript shows the new `--sprint` rule loaded through the passed-on
     `--plugin-dir`. Once stopped, the watch reported it and exited.

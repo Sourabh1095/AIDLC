@@ -241,8 +241,9 @@ Needs you:
 
 - **`NEEDS YOU`** → tell the person at once, in one line: which run, what it waits on, and how to
   answer (the board says). A run waiting on a person still holds its slot; it continues by itself
-  once answered. Do not answer for them, and do not message the run instead: a cross-session message
-  cannot answer an open question.
+  once answered. Do not answer for them, and do not message the run instead: the answer is the
+  person's to give, and a run in a different permission mode from this session holds cross-session
+  messages for approval anyway.
 - **`blocked` / `waiting for your review` / `dead on arrival` / `session gone`** → the run is over for
   this sprint. Report it with the last `## Log` lines (or `claude logs`); do NOT auto-retry. Launch the
   next queued item in the freed slot (per §1.3, a queued item may be waiting on its repo's working
