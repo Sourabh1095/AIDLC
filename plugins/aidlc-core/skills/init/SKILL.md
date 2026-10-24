@@ -344,7 +344,8 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
    - Leave `.aidlc/runs/` **tracked** in every product repo — the run file is committed to the feature
      branch deliberately, so each PR carries its own audit trail (`aidlc:run-state` → *Location*).
      Only machine-local state is ignored (`.aidlc/sprint-*.json`, `staged-claude/`, logs,
-     `.claude/settings.local.json`).
+     `.claude/settings.local.json`). `.aidlc/memory/` — Claude Code's auto memory, which the
+     SessionStart hook keeps in the workspace — ignores itself with its own `.gitignore`; add no line for it.
 5. **Tooling baseline (TypeScript repos only).** If the `aidlc-stack-web` plugin is installed AND a
    repo's stack is TypeScript-based (`stack.frontend`/`stack.backend` is `nextjs`/`nestjs`/another TS
    framework), scaffold its strict baseline so quality is machine-enforced from day one, not left to

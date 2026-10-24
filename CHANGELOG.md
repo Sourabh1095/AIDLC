@@ -7,6 +7,41 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.58.0] — 2026-10-24
+
+### Project memory lives in the project (`aidlc`)
+
+Claude Code keeps its auto memory — what it learned in a workspace, the user's corrections, decisions it
+was asked to remember — in `~/.claude/projects/<slug>/memory/` by default: outside the workspace, on one
+machine, keyed to the folder's current path. On the maintainer's machine one project alone had 45 memory
+files there.
+
+- **The SessionStart hook keeps it in `.aidlc/memory/`.** Every session it checks that
+  `autoMemoryDirectory` in `.claude/settings.local.json` points at the workspace's `.aidlc/memory/`, and
+  writes it if not (only that key; the rest of the file keeps its formatting). The setting takes only an
+  absolute path, which is why it lives in the per-machine local file and why re-checking every session
+  matters: it repairs itself when the folder is moved or cloned elsewhere. A linked worktree uses the main
+  checkout's folder, as Claude Code itself does.
+- **Existing memories come along.** On the switch the hook copies what Claude Code had stored into the
+  new folder (never over a folder that already has a `MEMORY.md`). The old folder is left in place;
+  `/aidlc:upgrade` lists anything there that is not in the workspace and offers to delete the old
+  folder, on an explicit yes only.
+- **The first session is covered.** Measured: Claude Code reads settings before SessionStart hooks run,
+  so the switch takes effect from the next session. The session that makes it is told to read and save
+  memories in the new folder already.
+- **Per developer, out of git.** `.aidlc/memory/` carries its own `.gitignore`: auto memory is one
+  person's notes, and a `MEMORY.md` index every teammate rewrites would conflict on every merge. Team
+  knowledge stays in `.aidlc/facts.md`, `.aidlc/journal.md` and `docs/adr/`, which are committed. Delete
+  that `.gitignore` to share the folder anyway.
+- **`/aidlc:doctor`** reports where memory lives (`memory-home`), a copy left outside from before the move
+  (`memory-leftover`), and project agents declaring `memory: user`, which keeps agent memory in
+  `~/.claude/agent-memory/` (`agent-memory`). `scaffold-agent` now says to use `project` or `local`.
+- **Opt out** with `"memory": { "inWorkspace": false }` in `aidlc.config.json`. Nothing changes where
+  auto memory is switched off. `/aidlc:remove` keeps `.aidlc/memory/` and explains how to send memory back.
+
+Session transcripts stay in `~/.claude/projects/`. Claude Code has no per-project setting to move them,
+and they are conversation logs, not the memory a session loads.
+
 ## [0.57.1] — 2026-10-24
 
 ### Smaller prompts on the paths every run takes (`aidlc`)

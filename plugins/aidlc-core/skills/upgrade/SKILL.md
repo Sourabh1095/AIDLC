@@ -97,6 +97,14 @@ Report these; **never apply them silently.**
 - **New commands** the project has never seen. Worth one line — a team on 0.20 has no idea
   `/aidlc:do`, `/aidlc:replan`, `/aidlc:review-feedback` or `/aidlc:doctor` exist, and no amount of
   config migration tells them.
+- **Project memory left outside the workspace** (since 0.58.0). The SessionStart hook moves Claude
+  Code's auto memory into `.aidlc/memory/` and copies what existed, but leaves the old folder where it
+  was — doctor's `memory-leftover` check names it (`~/.claude/projects/<slug>/memory/`). List the files
+  there that are missing from, or differ from, `.aidlc/memory/`; copy the missing ones in (a differing
+  `MEMORY.md` is shown, not merged). Then offer to delete the old folder, on an explicit yes only — it is
+  the user's data. The guard will not delete outside the workspace, so hand over the command to run
+  with `!`: `node -e "require('fs').rmSync(process.argv[1], { recursive: true })" "<old folder>"`.
+  If doctor's `memory-home` check warns instead, the move has not happened yet: one new session does it.
 
 ## 5 · Report
 
@@ -109,6 +117,7 @@ settings   3 dead rules removed · 118 template rules proposed · staged
           → apply .aidlc/staged-claude/settings.json yourself
 rules      git-workflow.md diverged (you edited it) — left alone
            safety.md is 1 paragraph behind — shown above, append? 
+memory     in .aidlc/memory/ · old copy (45 files, all present here) — delete it? 
 new        /aidlc:do · /aidlc:replan · /aidlc:review-feedback · /aidlc:doctor
 
 Next: apply the staged settings, then /aidlc:doctor to confirm.

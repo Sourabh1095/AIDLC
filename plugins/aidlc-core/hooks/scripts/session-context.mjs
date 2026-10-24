@@ -18,6 +18,9 @@
 // Hard budget: MAX_LINES. D5 caps always-loaded context for a reason, and a snapshot
 // that costs more than it saves is a net loss. Everything is truncated, never paged.
 //
+// One side effect, and only one: it keeps Claude Code's auto memory inside the workspace
+// (lib/memory-home.mjs), because this is the only AIDLC code that runs in every session.
+//
 // Silent when the cwd is not an AIDLC project. Never throws: a context snapshot is not
 // worth breaking a session over, and every section is independently guarded so one bad
 // file cannot cost the others.
@@ -26,6 +29,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { frontmatter, readRuns, WAITING_ON_HUMAN, TERMINAL } from "./lib/run-files.mjs";
 import { readInput, cwdOf } from "./lib/hook-io.mjs";
+import { ensureWorkspaceMemory } from "./lib/memory-home.mjs";
 import { tail, latest } from "../../skills/journal/journal.mjs";
 
 const MAX_LINES = 15;
@@ -64,6 +68,23 @@ section(() => {
     `Reuse first: before writing a component, hook, helper, client, type or fixture, find what exists — ` +
       `node "${catalog}" query . <words> (or read .aidlc/catalog/, or load aidlc:reuse) — and extend it rather than write a second one.`,
   );
+});
+
+// --- 0b. Project memory stays in the workspace ---------------------------------------------------
+// Claude Code's auto memory defaults to ~/.claude/projects/<slug>/memory/; lib/memory-home.mjs keeps it
+// in .aidlc/memory/ instead. Silent except on the session that makes the switch, which still has the
+// old folder in its system prompt and would otherwise go on saving there.
+section(() => {
+  if (!cfg) return;
+  const m = ensureWorkspaceMemory({ cwd, cfg });
+  if (m?.state === "switched")
+    lines.push(
+      `Project memory now lives in ${m.target} — Claude Code moves there from the next session. Until then, ` +
+        `read and save memories in that folder, not ${m.from}` +
+        (m.copied ? ` (its ${m.copied} file(s) were copied in; /aidlc:upgrade offers to delete the old copy).` : "."),
+    );
+  else if (m?.state === "unreadable")
+    lines.push("Project memory is still outside the workspace: .claude/settings.local.json does not parse — /aidlc:doctor");
 });
 
 // --- 1+2. Runs: blocked first, because that is the only class needing a human now -------

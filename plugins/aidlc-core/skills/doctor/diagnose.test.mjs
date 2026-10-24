@@ -37,19 +37,18 @@ function workspace(spec = {}) {
   return root;
 }
 
-function diagnose(root) {
-  const home = mkdtempSync(join(tmpdir(), "doctor-home-"));
+function diagnose(root, home = mkdtempSync(join(tmpdir(), "doctor-home-"))) {
   tmps.push(home);
   const out = execFileSync("node", [SCRIPT, root, "--plugin-root", PLUGIN_ROOT, "--home", home, "--json"], { encoding: "utf8" });
   return JSON.parse(out);
 }
 
 /** Assert the check whose id starts with `id` has `status`. */
-function check(label, root, id, status) {
+function check(label, root, id, status, home) {
   n++;
   let got;
   try {
-    const r = diagnose(root);
+    const r = diagnose(root, home);
     const found = r.checks.filter((c) => c.id === id || c.id.startsWith(id + "-"));
     got = found.length ? found.map((c) => c.status) : ["<absent>"];
   } catch (e) {
@@ -460,6 +459,43 @@ const PLAN_MD = "---\nwaves: 3\n---\n";
 // --- Hooks + runtime --------------------------------------------------------------------------
 check("hook scripts resolve against the real plugin", workspace({ config: BASE_CONFIG }), "hooks", "ok");
 check("node version reported", workspace({}), "node", "ok");
+
+// --- 12. Project memory stays in the workspace ----------------------------------------------------
+{
+  const pinned = (root) => ({ autoMemoryDirectory: join(root, ".aidlc", "memory").replace(/\\/g, "/") });
+  check("memory: in ~/.claude by default → warn", workspace({ config: BASE_CONFIG }), "memory-home", "warn");
+
+  const inside = workspace({ config: BASE_CONFIG });
+  writeFileSync(join(inside, ".claude", "settings.local.json"), JSON.stringify(pinned(inside)));
+  check("memory: pinned to .aidlc/memory → ok", inside, "memory-home", "ok");
+  check("memory: no old copy → no leftover check", inside, "memory-leftover", "<absent>");
+
+  const home = mkdtempSync(join(tmpdir(), "doctor-home-"));
+  const legacy = join(home, ".claude", "projects", inside.replace(/[^A-Za-z0-9]/g, "-"), "memory");
+  mkdirSync(legacy, { recursive: true });
+  writeFileSync(join(legacy, "MEMORY.md"), "- old\n");
+  check("memory: an old copy outside the workspace → warn", inside, "memory-leftover", "warn", home);
+
+  check(
+    "memory: opted out → skip",
+    workspace({ config: { ...BASE_CONFIG, memory: { inWorkspace: false } } }),
+    "memory-home",
+    "skip",
+  );
+  check("memory: auto memory off → ok", workspace({ config: BASE_CONFIG, settings: { autoMemoryEnabled: false } }), "memory-home", "ok");
+  check(
+    "agent memory: memory: user → warn",
+    workspace({ config: BASE_CONFIG, files: { ".claude/agents/scout.md": "---\nname: scout\nmemory: user\n---\nbody\n" } }),
+    "agent-memory",
+    "warn",
+  );
+  check(
+    "agent memory: memory: project → silent",
+    workspace({ config: BASE_CONFIG, files: { ".claude/agents/scout.md": "---\nname: scout\nmemory: project\n---\nbody\n" } }),
+    "agent-memory",
+    "<absent>",
+  );
+}
 
 // --- Robustness: never throw -------------------------------------------------------------------
 n++;

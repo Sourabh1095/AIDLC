@@ -212,7 +212,8 @@ tomorrow, `/aidlc:run PROJ-123` continues from there.
 **Sessions start knowing what happened.** `.aidlc/journal.md` records one line per event — runs that
 landed, small fixes, what a consult concluded, when the order was re-planned — and a SessionStart hook
 reads it back with your blocked runs, the active wave and the last board snapshot. Run files are each
-item's memory; this is the workspace's.
+item's memory; this is the workspace's. Claude Code's own auto memory stays in the project too —
+`.aidlc/memory/`, not `~/.claude/projects/` — so what it learns about the project is kept with the project.
 
 **Process is proportional to consequence.** Four tiers — *answer*, *direct* (a gated commit, no
 ticket), *tracked* (branch + run file), *full* (the pipeline) — with a project-wide floor you set. Five

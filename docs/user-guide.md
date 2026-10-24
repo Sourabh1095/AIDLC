@@ -773,6 +773,7 @@ its own run file and branch.
 | Delivery order (waves) | `.aidlc/plan.md` (control plane) | forever; **shared** — committed + pushed with `cutBy` | what `next`/`sprint` run and in what order |
 | Who owns an item | your tracker's assignee field | forever | AIDLC **reads** it to scope picks; it never writes it |
 | Locally grown capabilities | `.claude/skills|agents/` + `.aidlc/extensions.json` | forever; promotable to all projects | self-extension with reuse tracking |
+| Claude Code's auto memory (what it learned here, your corrections) | `.aidlc/memory/` — kept in the workspace by the SessionStart hook, not `~/.claude/projects/` | per developer; ignores itself in git | Claude remembering this project between sessions |
 
 The deliberate consequence: **the conversation context is disposable.** Anything that matters
 is externalized as it happens, so deviations, restarts and model context limits can't corrupt

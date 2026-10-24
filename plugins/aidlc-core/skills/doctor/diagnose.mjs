@@ -30,6 +30,15 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { PHASES as RUN_PHASES, frontmatter, runDirs } from "../../hooks/scripts/lib/run-files.mjs";
 import { parseArgs } from "../../hooks/scripts/lib/cli.mjs";
+import {
+  autoMemoryOff,
+  countFiles,
+  currentMemoryDir,
+  defaultMemoryDir,
+  memoryRoot,
+  sameDir,
+  workspaceMemoryDir,
+} from "../../hooks/scripts/lib/memory-home.mjs";
 import { lintPermissionRules, lintSettingsText } from "./lint-rules.mjs";
 import { list, stale } from "../facts/facts.mjs";
 
@@ -586,6 +595,66 @@ if (cfg?.repos?.length) {
           "Run files ride into their feature branch; these have no committer in solo mode, so an uncommitted plan lives on one machine only.",
       );
   }
+}
+
+// --- 12. Where Claude Code keeps this workspace's memory -----------------------------------
+// Auto memory defaults to ~/.claude/projects/<slug>/memory/, outside the workspace. The SessionStart
+// hook moves it into .aidlc/memory/ (hooks/scripts/lib/memory-home.mjs); this reports whether that
+// happened, and whether a copy from before the move is still sitting outside.
+if (cfg) {
+  const target = workspaceMemoryDir(ROOT);
+  const now = currentMemoryDir(ROOT, HOME);
+  if (autoMemoryOff(ROOT, HOME)) add("ok", "memory-home", "project memory", "auto memory is off — nothing is kept outside the workspace");
+  else if (cfg.memory?.inWorkspace === false)
+    add("skip", "memory-home", "project memory", `memory.inWorkspace is false — kept at ${now}`);
+  else if (!sameDir(now, target))
+    add(
+      "warn",
+      "memory-home",
+      "project memory",
+      `kept at ${now}, outside the workspace`,
+      "Start a Claude Code session in this workspace: the AIDLC SessionStart hook points autoMemoryDirectory (in .claude/settings.local.json) " +
+        "at .aidlc/memory/ and copies the existing memories in. It takes effect from the session after that one. " +
+        "If a managed policy sets autoMemoryDirectory, it wins over any workspace setting — ask whoever manages it.",
+    );
+  else {
+    add("ok", "memory-home", "project memory", "kept in .aidlc/memory/, inside the workspace");
+    const legacy = defaultMemoryDir(memoryRoot(ROOT), HOME);
+    let left = 0;
+    try {
+      left = existsSync(legacy) ? countFiles(legacy) : 0;
+    } catch {
+      /* unreadable — nothing to report */
+    }
+    if (left)
+      add(
+        "warn",
+        "memory-leftover",
+        "project memory",
+        `${left} file(s) from before the move are still at ${legacy}`,
+        "Nothing reads that folder any more. Check .aidlc/memory/ has what you need, then delete it — /aidlc:upgrade offers to.",
+      );
+  }
+  // A project agent declared with `memory: user` keeps what it learns in ~/.claude/agent-memory/.
+  const agentsDir = join(ROOT, ".claude", "agents");
+  let userScoped = [];
+  try {
+    userScoped = readdirSync(agentsDir).filter((f) => {
+      if (!f.endsWith(".md")) return false;
+      const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(join(agentsDir, f), "utf8"))?.[1] ?? "";
+      return /^memory:\s*["']?user["']?\s*$/m.test(fm);
+    });
+  } catch {
+    /* no project agents */
+  }
+  if (userScoped.length)
+    add(
+      "warn",
+      "agent-memory",
+      "agent memory",
+      `${userScoped.join(", ")} declare memory: user — kept in ~/.claude/agent-memory/, outside the workspace`,
+      "Change it to memory: project (shared through git) or memory: local (this machine only) — both live under .claude/ in the workspace.",
+    );
 }
 
 // --- Output --------------------------------------------------------------------------------

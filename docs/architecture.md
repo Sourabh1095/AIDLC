@@ -71,6 +71,17 @@ so **staleness is impossible to miss** — a fact unverified for a quarter is no
 confidently wrong, and `/aidlc:doctor` counts them. Unlike the journal it is **not** append-only: it
 describes the present, and the journal already holds the history.
 
+**D2c — A project's memory lives in the project.** Claude Code keeps its own auto memory — what it
+learned in this workspace, the user's corrections — in `~/.claude/projects/<slug>/memory/` unless told
+otherwise: outside the workspace, tied to one machine and to the folder's current path. The setting that
+moves it, `autoMemoryDirectory`, takes only an absolute path, so it cannot be committed; the SessionStart
+hook writes it into `.claude/settings.local.json` on every session, pointing at `.aidlc/memory/` (the
+main checkout's, from a linked worktree), and copies in what was already stored. Claude Code reads
+settings before that hook runs, so the switch lands from the next session — the hook tells the session
+that made it to use the new folder itself. The folder ignores itself in git: auto memory is one
+developer's notes, and a shared `MEMORY.md` index would conflict on every merge; the team's knowledge
+already has committed homes in D2a, D2b and the ADRs. Opt out with `memory.inWorkspace: false`.
+
 **D3 — Agents only where isolation pays.** An agent needs its own context window (big
 exploration/diffs), a different tool surface, or independent adversarial judgment (the
 reviewer must not share the implementer's reasoning). Everything else — docker knowledge,

@@ -30,7 +30,9 @@ what is actually installed rather than working from a remembered count.
    are easy to get wrong: an agent that appends to the run file **needs `Edit`** (a `Read/Grep/Glob/
    Bash` "read-only" list cannot write its own findings), and you never guess an MCP tool id to
    tighten a list. Choose `model:` by judgment depth: haiku mechanical · sonnet default · opus
-   deep/adversarial.
+   deep/adversarial. If the role earns a persistent `memory:`, declare `project` (committed, shared)
+   or `local` (this machine) — **never `user`**, which keeps it in `~/.claude/agent-memory/`, outside
+   the workspace. `/aidlc:doctor` flags it.
 4. Follow `aidlc:agent-contract` for the finish contract and the report-back shape — the template
    carries the four-line inline version; keep it verbatim.
 

@@ -472,6 +472,13 @@
         "enabled": { "type": "boolean", "default": false, "description": "Turn on plugin self-feedback capture for this workspace." },
         "inbox": { "type": "string", "default": ".aidlc/plugin-feedback.md", "description": "Path (relative to the control plane) of the append-only feedback inbox the pipeline writes to." }
       }
+    },
+    "memory": {
+      "type": "object",
+      "description": "Where Claude Code's auto memory for this workspace lives. By default the AIDLC SessionStart hook keeps it in .aidlc/memory/ (per developer; the folder ignores itself in git) by writing autoMemoryDirectory into .claude/settings.local.json, and copies in what Claude Code had stored in ~/.claude/projects/<slug>/memory/. Team-wide knowledge belongs in .aidlc/facts.md and docs/adr/, which are committed.",
+      "properties": {
+        "inWorkspace": { "type": "boolean", "default": true, "description": "Keep auto memory inside the workspace. false leaves it wherever Claude Code's own settings put it." }
+      }
     }
   },
   "definitions": {
