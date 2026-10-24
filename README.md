@@ -258,7 +258,8 @@ solo project is untouched.
 branches, destructive database commands, production-targeted cluster commands, credential reads and
 `.env` exfiltration. Env-file access is default-deny with a per-workspace opt-in. New dependencies are
 gated for a supply-chain check before install, across every supported ecosystem. The pipeline cannot
-edit its own permissions or hook scripts.
+edit its own permissions or hook scripts, and a guard that cannot run blocks the call rather than
+letting it through unchecked.
 
 Design rationale: [`docs/architecture.md`](docs/architecture.md).
 Why each permission rule exists: [`docs/permissions-rationale.md`](docs/permissions-rationale.md).

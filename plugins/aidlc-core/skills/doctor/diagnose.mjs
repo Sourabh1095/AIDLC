@@ -96,6 +96,43 @@ const tryJson = (p) => {
   const forced = process.env.CLAUDE_CODE_EFFORT_LEVEL;
   if (forced)
     add("warn", "effort", "Effort override", `CLAUDE_CODE_EFFORT_LEVEL=${forced} is set`, "It overrides every agent's effort, so pipeline.effort and the per-dispatch levels have no effect. Unset it (shell profile, or the `env` block of a settings file) unless forcing one level is what you want.");
+
+  // Claude Code itself. Two things AIDLC relies on are recent: `onFailure: "block"` (2.1.295), which
+  // makes a guard hook that cannot start block the call instead of letting it through, and the Agent
+  // tool's `effort` parameter (2.1.292), which carries each dispatch's resolved level. An older
+  // version ignores both without a word — the guards still run, but one that fails to start allows
+  // everything, which is the failure nobody sees. A warning, not a fail: the pipeline still works.
+  const cc = claudeCodeVersion();
+  if (!cc) add("skip", "claude-code", "Claude Code version", "could not tell (no AI_AGENT in the environment, and `claude --version` did not answer)");
+  else if (compareVersions(cc, "2.1.295") < 0)
+    add(
+      "warn",
+      "claude-code",
+      "Claude Code version",
+      `${cc} is older than 2.1.295`,
+      "Update Claude Code (`claude update`). Before 2.1.295 a guard hook that cannot start lets the tool call through instead of blocking it; before 2.1.292 each agent runs at its own default effort instead of the level /aidlc:run resolved for it.",
+    );
+  else add("ok", "claude-code", "Claude Code version", cc);
+}
+
+// The running Claude Code's version. Its subprocesses carry it in AI_AGENT
+// (`claude-code_2-1-310_agent`, set since 2.1.120 for gh attribution); outside a session, ask the CLI.
+function claudeCodeVersion() {
+  const m = /^claude-code_(\d+)-(\d+)-(\d+)(?:_|$)/.exec(process.env.AI_AGENT ?? "");
+  if (m) return `${m[1]}.${m[2]}.${m[3]}`;
+  try {
+    const out = execSync("claude --version", { stdio: ["ignore", "pipe", "ignore"], timeout: 10000, encoding: "utf8" });
+    return /(\d+\.\d+\.\d+)/.exec(out)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function compareVersions(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
 }
 
 // --- 2. Config -------------------------------------------------------------------------

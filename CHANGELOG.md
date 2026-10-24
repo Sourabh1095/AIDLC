@@ -7,6 +7,31 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.62.1] — 2026-10-25
+
+### A guard that cannot run now blocks instead of allowing (`aidlc`)
+
+`runGuard` already turned every failure *inside* a guard into a permission ask. What it could not catch
+was the guard never running: node not on `PATH`, the plugin folder gone after an update, a module that
+fails to load. Claude Code treated each of those as a non-blocking hook error, so the force-push, the
+credential read or the `.env` edit went through, with only a dim notice in the transcript.
+
+- **`onFailure: "block"` on the three security guards** (`guard`, `protect-paths`, `env-guard`). Since
+  Claude Code 2.1.295, a hook that cannot start, crashes or times out then blocks the call, with node's
+  own error under `failed; blocking because onFailure is "block"`. Tested against real sessions: on
+  2.1.310 a guard whose script is missing blocks every call it covers. On 2.1.290 the key is ignored, the
+  guards load and block exactly as before, and a missing script still lets the call through. Older
+  versions lose nothing.
+- **`dep-vet` says `onFailure: "continue"` out loud.** It only ever asks, so a broken nudge must not stop
+  every shell command. Stating it also keeps Windows without Git Bash from blocking on it, which is what an
+  unset key does there for a shell-form hook.
+- **`/aidlc:doctor` checks the Claude Code version** and warns below 2.1.295, where a guard that cannot
+  start still fails open, and the per-dispatch effort level (2.1.292) is not applied. It reads the running
+  version from the environment and falls back to `claude --version`.
+- `hooks.test.mjs` pins each guard's `onFailure`, and a new guard fails the suite until someone decides it.
+  The user guide's troubleshooting table explains the new block and its two usual causes.
+- Versions: `aidlc` 0.62.0 → **0.62.1**, marketplace → **0.62.1**.
+
 ## [0.62.0] — 2026-10-25
 
 ### New home: `Sourabh1095/AIDLC`, marketplace renamed to `aidlc`

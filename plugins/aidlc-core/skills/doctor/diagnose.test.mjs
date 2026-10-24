@@ -37,18 +37,23 @@ function workspace(spec = {}) {
   return root;
 }
 
-function diagnose(root, home = mkdtempSync(join(tmpdir(), "doctor-home-"))) {
+// AI_AGENT pins the Claude Code version the doctor sees, so no case depends on — or spawns — the
+// machine's own `claude`, the same reason `--home` exists. A case overrides it through `env`.
+function diagnose(root, home = mkdtempSync(join(tmpdir(), "doctor-home-")), env = {}) {
   tmps.push(home);
-  const out = execFileSync("node", [SCRIPT, root, "--plugin-root", PLUGIN_ROOT, "--home", home, "--json"], { encoding: "utf8" });
+  const out = execFileSync("node", [SCRIPT, root, "--plugin-root", PLUGIN_ROOT, "--home", home, "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, AI_AGENT: "claude-code_2-1-310_agent", ...env },
+  });
   return JSON.parse(out);
 }
 
-/** Assert the check whose id starts with `id` has `status`. */
-function check(label, root, id, status, home) {
+/** Assert the check whose id starts with `id` has `status`. `env` adds variables for this run. */
+function check(label, root, id, status, home, env) {
   n++;
   let got;
   try {
-    const r = diagnose(root, home);
+    const r = diagnose(root, home, env);
     const found = r.checks.filter((c) => c.id === id || c.id.startsWith(id + "-"));
     got = found.length ? found.map((c) => c.status) : ["<absent>"];
   } catch (e) {
@@ -78,6 +83,23 @@ check(
   "warn",
 );
 check("no verify gate warns", workspace({ config: BASE_CONFIG }), "gate", "warn");
+
+// --- Claude Code version ----------------------------------------------------------------
+// Below 2.1.295 a guard that cannot start lets the call through, so the version is a safety fact.
+check("Claude Code before 2.1.295 warns", workspace({ config: BASE_CONFIG }), "claude-code", "warn", undefined, { AI_AGENT: "claude-code_2-1-290_agent" });
+check("Claude Code 2.1.295 passes", workspace({ config: BASE_CONFIG }), "claude-code", "ok", undefined, { AI_AGENT: "claude-code_2-1-295_agent" });
+check("Claude Code 2.2.0 passes", workspace({ config: BASE_CONFIG }), "claude-code", "ok", undefined, { AI_AGENT: "claude-code_2-2-0_agent" });
+{
+  // The version must come from AI_AGENT, not from the machine's own `claude` — a parse miss falls
+  // back to the CLI, which made the cases above pass on a developer machine for the wrong reason.
+  n++;
+  const c = diagnose(workspace({ config: BASE_CONFIG }), undefined, { AI_AGENT: "claude-code_2-1-290_agent" }).checks.find((x) => x.id === "claude-code");
+  if (c && /^2\.1\.290\b/.test(c.detail)) console.log("ok    Claude Code version is read from AI_AGENT");
+  else {
+    fails++;
+    console.log(`FAIL  Claude Code version is read from AI_AGENT — detail: ${c ? c.detail : "<absent>"}`);
+  }
+}
 check(
   "a declared gate passes",
   workspace({ config: { ...BASE_CONFIG, pipeline: { gates: { verify: { steps: [] } } } } }),

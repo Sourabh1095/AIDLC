@@ -10,6 +10,11 @@
 // asks. Not deny — a bug in a guard must not brick every Bash call in the session — but
 // never a silent pass either. `runGuard` is the wrapper that makes that true for any
 // failure, including ones nobody anticipated.
+//
+// The one failure no code in here can catch is the script never running: node missing, the
+// plugin folder gone, a module that fails to load. That is handled in hooks.json instead —
+// each security guard sets `onFailure: "block"`, so Claude Code (2.1.295+) blocks the call
+// when the hook cannot start. There it is a deny, not an ask, because nothing ran to ask.
 import { readFileSync } from "node:fs";
 
 // The parsed hook payload, or null when stdin is not a JSON object.

@@ -542,7 +542,13 @@ and `hooks.test.mjs` pins which tool reaches which hook.
 no guard ran at all. And a hook that crashed exited 1, which Claude Code treats as a non-blocking
 error: the call proceeded. Every security hook now runs inside `lib/hook-io.mjs` → `runGuard`, which
 turns unreadable input or any thrown error into a permission *ask* — never a silent allow, never a
-session-bricking deny. What counts as a guardrail (permission settings, the **running** hooks, git
+session-bricking deny. That covers every failure *inside* a guard, but not the guard never running:
+node missing, the plugin folder gone, a module that fails to load. For those the three security
+guards set `onFailure: "block"` in `hooks.json`, so Claude Code (2.1.295+) blocks the call. That is a
+deny rather than an ask because nothing ran that could ask, and a guard nobody can run is not a
+guard. `dep-vet` says `"continue"`: it only ever asks, so a broken nudge must not stop every shell
+command. Older Claude Code ignores the key and behaves as before; `/aidlc:doctor` warns about it.
+What counts as a guardrail (permission settings, the **running** hooks, git
 config and hooks, CI files) is defined once in `lib/protected-paths.mjs` and enforced on both the tool
 path and the shell path.
 

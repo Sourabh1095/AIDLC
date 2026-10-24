@@ -60,5 +60,28 @@ for (const [event, entries] of Object.entries(HOOKS)) {
   }
 }
 
+// What a guard does when it cannot run at all. `runGuard` turns every failure INSIDE a guard
+// into an ask, but it cannot help when node is missing, the plugin folder is gone, or a module
+// fails to load: the script never reaches it, and a hook that never ran was a non-blocking
+// error — the call went through. `onFailure: "block"` (Claude Code 2.1.295+) closes that.
+// The security guards must carry it. dep-vet must say "continue" out loud: it only ever asks,
+// so a broken nudge must not stop every shell command (and on Windows without Git Bash an
+// UNSET onFailure on a shell-form hook already blocks, which is not what dep-vet wants).
+const ON_FAILURE = { guard: "block", "protect-paths": "block", "env-guard": "block", "dep-vet": "continue" };
+for (const entry of HOOKS.PreToolUse || []) {
+  for (const h of entry.hooks) {
+    const script = h.command.match(/scripts\/([\w-]+)\.mjs/)[1];
+    n++;
+    const want = ON_FAILURE[script];
+    if (!want) {
+      fails++;
+      console.log(`FAIL PreToolUse ${script}.mjs: new guard — decide its onFailure and add it to ON_FAILURE here`);
+    } else if (h.onFailure !== want) {
+      fails++;
+      console.log(`FAIL PreToolUse ${script}.mjs: onFailure is ${JSON.stringify(h.onFailure)}, must be "${want}"`);
+    } else console.log(`ok   PreToolUse ${script}.mjs: onFailure ${want}`);
+  }
+}
+
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
