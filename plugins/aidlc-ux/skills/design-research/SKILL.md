@@ -1,6 +1,6 @@
 ---
 name: design-research
-description: Discipline for researching award-winning design inspiration — mining Awwwards/FWA and current best-in-class work for transferable techniques that serve a specific narrative, with real cited sources. Load when producing or reviewing design/inspiration.md.
+description: How to mine award-winning work for techniques that serve a narrative, with cited sources. Load when producing or reviewing design/inspiration.md.
 user-invocable: false
 ---
 

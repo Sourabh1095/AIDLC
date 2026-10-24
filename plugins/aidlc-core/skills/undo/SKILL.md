@@ -1,6 +1,6 @@
 ---
 name: undo
-description: Reverse an AIDLC run cleanly — close its PR and delete its branch, or revert it through a new PR when it already merged — and put the board back the way the run found it. Never rewrites history, never force-pushes, never deletes a tracker item, shows the whole plan before touching anything. Use when a run should not have happened, went the wrong way, or the work is no longer wanted.
+description: Reverse an AIDLC run — close its PR and delete its branch, or revert it through a new PR if it merged — and put the board back. Never rewrites history; shows the plan first. Use when a run should not have happened.
 argument-hint: <work-item-id> [reason]
 disable-model-invocation: true
 ---

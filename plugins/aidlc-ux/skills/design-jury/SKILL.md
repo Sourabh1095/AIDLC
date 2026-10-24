@@ -1,6 +1,6 @@
 ---
 name: design-jury
-description: The Awwwards-style scoring rubric and anti-bias rules used to judge a rendered UI out of 10 and gate the design pipeline — plus the shared render & evidence protocol (resolve the dev-server URL from the repo, fail loud on a non-UI response, capture states) that BOTH the jury and the fidelity checker follow. Load when acting as the jury, when rendering a built UI to check it, or when reviewing a jury report.
+description: The Awwwards-style scoring rubric, anti-bias rules and the shared render-and-evidence protocol. Load when acting as the jury, rendering a built UI to check it, or reviewing a jury report.
 user-invocable: false
 ---
 

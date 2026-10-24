@@ -1,6 +1,6 @@
 ---
 name: adopt
-description: Scan an existing workspace — one repo or several, in one folder or a multi-root VS Code workspace — and derive an evidence-backed profile of its topology, languages, package managers, frameworks, monorepo packages, gates, CI, VCS state, SaaS runtime constraints (tenancy, feature flags, migrations, API contracts, compliance), undocumented architecture decisions, debt worth tracking and capability gaps. On an already-adopted workspace it also reports drift against the last scan. Read-only: writes only .aidlc/adoption/profile.json and report.md. The brownfield counterpart to /aidlc:bootstrap, which infers a project's shape from a requirements document — adopt infers it from the code that is already there. Use when adopting AIDLC on a project that already has code, before answering /aidlc:init's topology and stack questions from memory, or to re-scan an adopted workspace for drift.
+description: Read-only scan of an existing workspace (one repo or several) into an evidence-backed profile — topology, stack, real gates, CI, git conventions, runtime constraints, undocumented decisions and debt. Re-run it to report drift. Use when adopting AIDLC on code that already exists.
 argument-hint: "[--depth quick|standard|deep] [--max-adrs <n>] [--max-debt <n>] [--only <root|package>]"
 disable-model-invocation: true
 ---

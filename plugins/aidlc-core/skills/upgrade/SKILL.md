@@ -1,6 +1,6 @@
 ---
 name: upgrade
-description: Bring a project's AIDLC files up to the installed plugin version — config shape migrations, permission-rule migrations, rules and CLAUDE.md drift. Shows every change before applying, never overwrites anything a human authored, and stages settings.json rather than editing it. Use after /plugin marketplace update, when /aidlc:doctor reports the config was written by an older plugin, or when a project has been on an old version for a while.
+description: Catch a project's AIDLC files up with the installed plugin — config and permission-rule migrations, rules and CLAUDE.md drift, every change shown first. Use after /plugin marketplace update, or when /aidlc:doctor says the config is old.
 argument-hint: "[--check — report only, change nothing]"
 disable-model-invocation: true
 ---

@@ -1,6 +1,6 @@
 ---
 name: adopt-backlog
-description: Turn the debt an adoption scan found into tracked work — absent gates, untested critical paths, end-of-life dependencies, TODO clusters, sensitive paths with no review history, docs drift — as properly shaped items with testable acceptance criteria, deduplicated against the existing board, capped, and every one shown before anything is created. Opt-in and propose-only by default; findings whose location is itself a disclosure never carry it into an item. Use after /aidlc:adopt on a brownfield project to make what the scan found visible as work rather than as a report nobody re-reads.
+description: File the debt an adoption scan found (missing gates, untested critical paths, end-of-life dependencies, TODO clusters) as deduplicated items with acceptance criteria, each shown before it is created. Use after /aidlc:adopt.
 argument-hint: "[--max-items <n>] [--only <kind|root>] [--dry-run] [path to profile.json]"
 disable-model-invocation: true
 ---

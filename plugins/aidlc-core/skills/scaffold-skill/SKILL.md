@@ -1,6 +1,6 @@
 ---
 name: scaffold-skill
-description: Create a new reusable project-local skill from the AIDLC template and register it in the extensions registry. Use when a needed capability (a procedure, convention or integration pattern) does not exist in any installed plugin or local skill and will plausibly be reused.
+description: Create a reusable project-local skill from the AIDLC template. Use when a needed procedure, convention or integration exists in no installed plugin or local skill.
 argument-hint: "<skill-name> [one-line purpose]"
 ---
 
@@ -32,6 +32,7 @@ Proceed only if the capability is missing AND plausibly reused (a second work it
    values referenced from config rather than hardcoded (hardcoding blocks promotion later).
 4. The `description:` line decides whether the skill ever fires — write it with the trigger
    vocabulary of real tasks ("Load when integrating Stripe payments, webhooks or refunds...").
+   Keep it short: every session carries it. Say when to load the skill, not everything it covers.
 
 ## 2 · Register
 

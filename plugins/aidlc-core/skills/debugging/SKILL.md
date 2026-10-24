@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: The AIDLC bug protocol — reproduce first, failing test, isolate root cause, minimal fix, regression sweep. Load when working on any bug-type work item or diagnosing a failure during a run.
+description: The bug protocol — reproduce, failing test, root cause, minimal fix, regression sweep. Load for any bug item or when diagnosing a failure during a run.
 user-invocable: false
 ---
 

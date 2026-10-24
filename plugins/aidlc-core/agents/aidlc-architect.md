@@ -1,6 +1,6 @@
 ---
 name: aidlc-architect
-description: AIDLC software architect. Explores the codebase and produces the implementation plan for medium-and-larger work items; writes ADRs when a decision is hard to reverse. Dispatched by the /aidlc:run orchestrator when item size >= architectThreshold or the item is labeled architecture.
+description: AIDLC architect — explores the codebase and writes the plan for medium-and-larger items, plus ADRs for hard-to-reverse decisions. Dispatched by /aidlc:run.
 model: opus
 effort: high
 tools:

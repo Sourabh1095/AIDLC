@@ -1,6 +1,6 @@
 ---
 name: scaffold-agent
-description: Create a new project-local subagent from the AIDLC template and register it in the extensions registry. Use only when a needed role passes the agent test — it requires an isolated context window, a different tool/permission surface, or independent adversarial judgment — and no existing agent or skill covers it.
+description: Create a project-local subagent from the AIDLC template. Use only when a role needs its own context, tool surface or independent judgment, and no existing agent or skill covers it.
 argument-hint: "<agent-name> [one-line mission]"
 ---
 

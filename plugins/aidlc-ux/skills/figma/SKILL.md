@@ -1,6 +1,6 @@
 ---
 name: figma
-description: Connect a project's Figma files to the pipeline and keep them in sync — link screens or a design system, scope which pages count, map frames to routes, extract the spec, variables and component inventory, and re-sync to detect drift after the designer moves. Invoked as /aidlc-ux:figma; the design pod calls the same extraction when it builds a Figma-sourced surface or adopts a Figma design system.
+description: Link a project's Figma files (screens or a design system), map frames to routes, extract the spec, and re-sync to catch drift. Invoked as /aidlc-ux:figma; the design pod uses the same extraction.
 argument-hint: [<figma-url> | sync | status] [--system] [screen or route]
 ---
 

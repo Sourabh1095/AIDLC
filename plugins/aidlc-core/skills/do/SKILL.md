@@ -1,6 +1,6 @@
 ---
 name: do
-description: The general front door to AIDLC — hand the orchestrator any prompt and it grounds itself in the project (config, in-flight runs, backlog, ADRs) before deciding what to do with it, at the lightest ceremony that fits. Use for opinion and fit questions ("would this feature sit right here?", "should we use X?"), investigations, diagnoses, small direct fixes (a typo, a rename — done here, no ticket), and plain-language "build this / fix this" requests — anything that is not already a bare work-item ID.
+description: AIDLC's front door for any prompt — it grounds in the project (config, runs, backlog, ADRs), then answers or acts at the lightest ceremony that fits. Use for fit and opinion questions ("should we use X?"), investigations, small fixes (a typo, a rename) and plain "build this / fix this" requests that are not a bare work-item ID.
 argument-hint: "<anything — a question, an opinion call, or work to do>"
 ---
 

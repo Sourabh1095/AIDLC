@@ -2,7 +2,7 @@
   "name": "aidlc-stack-web",
   "displayName": "AIDLC Stack Pack — Web",
   "description": "Default web stack expertise for the AIDLC pipeline: TypeScript coding standards, enterprise project structure, Next.js, NestJS, Postgres, MongoDB, DB migrations, Docker, API design, the Node/TypeScript half of CI (the npm gate, isolated-checkout dependency resolution, cross-platform lockfiles), and the Prettier auto-format hook.",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "author": {
     "name": "Sourabh Sudheer",
     "url": "https://github.com/Sourabh1095"

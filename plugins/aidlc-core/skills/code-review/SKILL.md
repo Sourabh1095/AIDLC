@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: The AIDLC code-review checklist, severity taxonomy and finding-report format used by the aidlc-reviewer agent in the verify phase. Load when reviewing a pipeline diff against acceptance criteria and standards.
+description: The review checklist, severity taxonomy and finding format for the verify phase. Load when reviewing a pipeline diff against acceptance criteria and standards.
 user-invocable: false
 ---
 

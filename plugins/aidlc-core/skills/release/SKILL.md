@@ -1,6 +1,6 @@
 ---
 name: release
-description: Release mechanics — semver decision from conventional commits, changelog generation, tagging and release notes for GitHub or Azure DevOps. Use for release work items or when asked to cut, prepare or tag a release.
+description: Cut a release — semver from conventional commits, changelog, tag and notes for GitHub or Azure DevOps. Use for release items or when asked to cut, prepare or tag a release.
 argument-hint: "[repo — required in poly, implied in mono] [package — monorepo only]"
 ---
 

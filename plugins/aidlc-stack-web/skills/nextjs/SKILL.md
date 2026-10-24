@@ -1,6 +1,6 @@
 ---
 name: nextjs
-description: Next.js App Router conventions — server/client component split, data fetching, server actions, routing, caching and performance patterns. Load when implementing, planning or reviewing Next.js frontend work.
+description: Next.js App Router conventions — server/client split, data fetching, server actions, routing, caching, performance. Load when implementing, planning or reviewing Next.js frontend work.
 user-invocable: false
 ---
 

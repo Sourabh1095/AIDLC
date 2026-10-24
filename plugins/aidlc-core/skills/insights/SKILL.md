@@ -1,6 +1,6 @@
 ---
 name: insights
-description: Outcome metrics for the AIDLC pipeline in this workspace — runs done/blocked/awaiting review, time to done and per phase, fix cycles, findings by source (reuse/duplication, agent review, human review, QA, security, design, gate holes), month by month, plus the few readings worth acting on. Read-only. Use when asked how the pipeline is doing, whether a change to it helped, where time goes, or what keeps coming back in review.
+description: Read-only outcome metrics for this workspace's pipeline — time to done, fix cycles, findings by source, month by month. Use when asked how the pipeline is doing, whether a change helped, where time goes, or what keeps coming back in review.
 argument-hint: "[--since YYYY-MM-DD] [--themes]"
 ---
 

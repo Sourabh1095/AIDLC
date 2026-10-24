@@ -138,6 +138,13 @@ is the client's system of record; a pipeline that extends its schema has made a 
 two rules files). The framework's bulk (playbooks, stack expertise, adapters) costs zero
 tokens until a task triggers it.
 
+The one part of a plugin that is *not* zero until used is its descriptions: Claude Code lists the
+name and description of every model-visible skill and every agent in every session where the plugin
+is enabled. That is real, per-session cost, so it is budgeted. `scripts/check-context-cost.mjs` (in
+CI) holds each plugin to a character budget and each description to 340 characters. A description
+says *when* to load the component; what it covers belongs in its body. Command-only skills
+(`disable-model-invocation: true`) are never listed to the model and do not count.
+
 **D6 — High autonomy, hard guardrails.** Allow the full story→PR path; deny irreversible /
 production / secret / self-modification operations; ask on ambiguous blast radius. Two layers:
 static permission rules + context-aware hooks (branch-aware push guard, exfil patterns,

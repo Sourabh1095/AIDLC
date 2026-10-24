@@ -1,6 +1,6 @@
 ---
 name: ux-narrative
-description: Discipline for writing a UX narrative — the experience story (vision, tone, journey, signature moment) that anchors every downstream design and motion decision. Load when writing or reviewing design/narrative.md.
+description: How to write the UX narrative (vision, tone, journey, signature moment) that anchors design decisions. Load when writing or reviewing design/narrative.md.
 user-invocable: false
 ---
 

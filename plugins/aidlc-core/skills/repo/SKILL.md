@@ -1,6 +1,6 @@
 ---
 name: repo
-description: Declare and bootstrap a repo in a poly (multi-repo) AIDLC workspace — append it to repos[] in aidlc.config.json, git-init the folder with the configured default branch, and make a base commit so the pipeline can branch into it immediately. Use when work references a repo that isn't declared yet (a shared lib, a new product), or to add a repo to a poly workspace.
+description: Declare and bootstrap a repo in a poly workspace — add it to repos[], git-init it and make a base commit. Use when work references a repo that is not declared yet.
 argument-hint: "add <name> | list"
 disable-model-invocation: true
 ---

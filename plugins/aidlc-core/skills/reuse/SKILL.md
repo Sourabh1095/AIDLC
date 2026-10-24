@@ -1,6 +1,6 @@
 ---
 name: reuse
-description: Use BEFORE writing or planning any new code in this project — a feature, screen, component, hook, helper, API client, type or test — to find what already exists (the reuse catalog), extend it instead of writing a second one, and put new shared code where the next change will find it. Also catches code a branch duplicated (dup-check). Load for any implement, plan or review task, including plain requests like "add X to Y".
+description: Use BEFORE writing or planning new code (a feature, screen, component, hook, helper, client, type or test) — find what already exists and extend it instead of writing a second one, and catch what a branch duplicated. Load for any implement, plan or review task, including plain requests like "add X to Y".
 user-invocable: false
 ---
 

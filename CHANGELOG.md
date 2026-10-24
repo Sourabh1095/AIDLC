@@ -7,6 +7,31 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.63.1] — 2026-10-25
+
+### Every session carries about 40% less of AIDLC (`aidlc`, `aidlc-ux`, `aidlc-stack-web`)
+
+Claude Code lists the name and description of every model-visible skill and every agent in every
+session where a plugin is enabled. With all three plugins installed, that was about 21,400 characters of
+descriptions in every session, on every machine, whether AIDLC was used or not. Most of it explained
+what a skill covers, which its body already says, instead of when to load it, which is the only part
+that decides triggering.
+
+- **All 71 model-visible descriptions rewritten** to what the component is and when to load it, keeping
+  the trigger phrases (what a user says, or when the pipeline loads it). 21,413 → 13,041 characters (−39%).
+  The ten longest command-only descriptions (`bootstrap` was 1,127 characters) are 63% shorter too. Those
+  never reach the model, but they fill the `/` menu and count in `claude plugin details`.
+- **`claude plugin details aidlc`: about 7,450 → 4,650 tokens.** What the model actually carries is lower
+  still, because that figure also counts the command-only skills.
+- **Triggering is unchanged.** The eval suite still scores 1.00 on all three cases (reuse in planning,
+  reuse in implementing, a typo fix through `/aidlc:do`), and the lead over the no-plugin baseline went
+  from +0.25 to +0.28.
+- **`npm run check:context` (in CI)** keeps it that way: a character budget per plugin, and 340
+  characters per description. D5 in `architecture.md` now covers descriptions, and the promotion bar and
+  `scaffold-skill` say the same.
+- Versions: `aidlc` 0.63.0 → **0.63.1**, `aidlc-ux` 0.9.1 → **0.9.2**, `aidlc-stack-web` 0.14.1 →
+  **0.14.2**, marketplace → **0.63.1**.
+
 ## [0.63.0] — 2026-10-25
 
 ### `/aidlc:sprint` runs are background sessions, and they can ask you things (`aidlc`, `aidlc-ux`)

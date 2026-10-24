@@ -1,6 +1,6 @@
 ---
 name: replan
-description: Re-order the backlog when priorities change — take a new priority signal (a client's "checkout before search", a phasing directive like "finish all the backend before starting the UI", or a revised requirements doc), re-sequence the not-yet-started work into ordered waves of items that can run concurrently, and persist it as an execution plan that /aidlc:next and /aidlc:sprint follow. Writes nothing to the tracker. Use when priorities change mid-project, when the delivery order needs resetting, or when asked to re-plan, re-prioritize, re-sequence or re-phase.
+description: Re-sequence not-yet-started work into waves when priorities change ("checkout before search", "all backend first", a revised spec), saved as the plan /aidlc:next and /aidlc:sprint follow. Use when asked to re-plan, re-prioritize, re-sequence or re-phase.
 argument-hint: "[how you want it re-planned — \"checkout before search\", \"all BE first then UI\", or a path to a revised requirements doc; empty = it asks]"
 ---
 

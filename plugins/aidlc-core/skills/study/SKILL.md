@@ -1,6 +1,6 @@
 ---
 name: study
-description: Write the business study of the product from the project brain — what the product is and for whom, every user type and what each can do, every module (purpose, capabilities, rules, data, connections), the end-to-end flows, the data, integrations, key decisions, delivery history, intended versus built, and the open questions. Every claim traces to the code, a requirement or a person; assumptions are kept apart as questions. Use when a project ends, for a handover, or when asked for a document that explains the whole product.
+description: Write the business study of the product from the project brain — users, modules, flows, data, decisions, intended versus built, open questions, every claim sourced. Use when a project ends, for a handover, or when asked for a document that explains the whole product.
 argument-hint: "[--out <path>] [--refresh]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: security
-description: The AIDLC security review procedure — OWASP-oriented diff review, dependency audit steps, secret patterns and authz reasoning. Load when performing a security pass on a work item's changes or auditing dependencies.
+description: The security review procedure — OWASP-oriented diff review, dependency audit, secret patterns, authz reasoning. Load for a security pass on a work item or a dependency audit.
 user-invocable: false
 ---
 

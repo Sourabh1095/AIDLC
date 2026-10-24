@@ -1,6 +1,6 @@
 ---
 name: ceremony
-description: How much process a piece of work gets — the four tiers (answer, direct, tracked, full), how to pick one, and how to move between them. Load before deciding whether a request needs a work item, a branch or a PR.
+description: The four process tiers (answer, direct, tracked, full) and how to pick one. Load before deciding whether a request needs a work item, a branch or a PR.
 user-invocable: false
 ---
 

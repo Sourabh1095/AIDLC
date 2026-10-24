@@ -1,6 +1,6 @@
 ---
 name: ci-web
-description: The Node/TypeScript half of CI — the shipped GitHub Actions and Azure Pipelines templates, the typecheck/lint/format/boundaries gate and its dependency-cruiser assertion, cross-repo package resolution under isolated single-repo checkout, cross-platform lockfiles for Linux runners, and how to reproduce a red CI run locally in the CI image. Load alongside `aidlc:ci-cd` when the repo is a Node/TS repo. Host mechanics (triggers, pinning, secrets, Azure pools and queue authorization) live in `aidlc:ci-cd`, not here.
+description: The Node/TypeScript half of CI — shipped templates, the typecheck/lint/format/boundaries gate, cross-repo resolution, lockfiles, reproducing a red run locally. Load together with aidlc:ci-cd on a Node/TS repo.
 user-invocable: false
 ---
 

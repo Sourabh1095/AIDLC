@@ -1,6 +1,6 @@
 ---
 name: figma-handoff
-description: Discipline for working from an existing Figma file — screens to build to, or a design system to build within. Covers reading the file through the Figma MCP, page scoping, extracting a screen spec, variables and components, what fidelity means, what is allowed to deviate, and how the fidelity check is scored. Load when extracting from Figma, implementing from it, or reviewing design/figma-spec.md, design/figma-system.md or a fidelity report.
+description: Working from an existing Figma file — reading it via MCP, extracting the spec, what fidelity means and how it is scored. Load when extracting from Figma, implementing from it, or reviewing a Figma spec or fidelity report.
 user-invocable: false
 ---
 

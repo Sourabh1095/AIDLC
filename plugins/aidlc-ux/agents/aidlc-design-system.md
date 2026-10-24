@@ -1,6 +1,6 @@
 ---
 name: aidlc-design-system
-description: AIDLC design-system owner and the uniformity anchor. Turns the UX narrative and inspiration into a concrete, tokenized design system — color, typography, spacing/grid, radius, elevation — emitted to code as the single source of truth every component must consume. Dispatched by the /aidlc-ux:design pipeline; also handles design-system fix rounds from the jury.
+description: AIDLC design-system owner — turns the narrative and inspiration into tokens in code that every component consumes. Dispatched by /aidlc-ux:design, including jury fix rounds.
 model: sonnet
 effort: medium
 tools:

@@ -14,7 +14,8 @@
     "check:permissions": "node scripts/lint-permissions.mjs",
     "check:templates": "node scripts/check-templates.mjs",
     "check:xrefs": "node scripts/check-xrefs.mjs",
-    "check": "npm run check:manifests && npm run check:permissions && npm run check:templates && npm run check:xrefs",
+    "check:context": "node scripts/check-context-cost.mjs",
+    "check": "npm run check:manifests && npm run check:permissions && npm run check:templates && npm run check:xrefs && npm run check:context",
     "verify": "npm test && npm run check"
   }
 }

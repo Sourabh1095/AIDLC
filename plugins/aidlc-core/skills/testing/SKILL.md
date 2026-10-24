@@ -1,6 +1,6 @@
 ---
 name: testing
-description: AIDLC test policy — the test pyramid, what to test per change type, coverage expectations and flaky-test protocol. Load when writing or evaluating tests during the verify phase.
+description: Test policy — the pyramid, what to test per change type, coverage and flaky tests. Load when writing or evaluating tests in the verify phase.
 user-invocable: false
 ---
 

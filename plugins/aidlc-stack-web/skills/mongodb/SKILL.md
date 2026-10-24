@@ -1,6 +1,6 @@
 ---
 name: mongodb
-description: MongoDB conventions — document modeling (embed vs reference), index strategy, aggregation patterns and update discipline. Load when designing collections, writing queries/aggregations or reviewing MongoDB-touching changes.
+description: MongoDB conventions — document modeling, indexes, aggregations and update discipline. Load when designing collections, writing queries or reviewing MongoDB changes.
 user-invocable: false
 ---
 

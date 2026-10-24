@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Diagnose an AIDLC workspace before it wastes a run — config, settings, plugin enablement, permission rules, repo paths, hook scripts, run files, tracker reachability, host CLI auth and CI gating. Read-only; reports problems with the exact remediation. Use when /aidlc:* commands are missing or misbehaving, when a run blocks on permissions, after installing or updating the plugins, or when onboarding a machine.
+description: Read-only diagnosis of an AIDLC workspace (config, plugins, permissions, hooks, run files, tracker and CLI auth), each problem with its fix. Use when /aidlc:* commands are missing or misbehave, a run blocks on permissions, or after installing or updating the plugins.
 argument-hint: "[--quick — deterministic file checks only, no network]"
 ---
 

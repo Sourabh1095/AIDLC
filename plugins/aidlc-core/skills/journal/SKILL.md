@@ -1,6 +1,6 @@
 ---
 name: journal
-description: The workspace journal (.aidlc/journal.md) — durable project memory, one line per event, read back at session start. Load when finishing a command that changed something, or when you need to know what has been happening in this workspace.
+description: The workspace journal (.aidlc/journal.md), one line per event, read back at session start. Load when finishing a command that changed something, or to see what has been happening here.
 user-invocable: false
 ---
 

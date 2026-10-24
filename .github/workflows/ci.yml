@@ -80,3 +80,5 @@ jobs:
         run: npm run check:templates
       - name: "Cross-references: skills, agents, plugin-root paths, doc links"
         run: npm run check:xrefs
+      - name: "Context cost: what every session pays for each plugin's descriptions"
+        run: npm run check:context

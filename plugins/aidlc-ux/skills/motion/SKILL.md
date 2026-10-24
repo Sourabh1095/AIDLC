@@ -1,6 +1,6 @@
 ---
 name: motion
-description: Discipline for motion and interaction design — animation, micro-interactions, scroll-based/motion-to-scroll, parallax, hover, transitions, sequencing, WebGL — that serves meaning within a performance and accessibility budget. Load when specifying, building or reviewing motion.
+description: Motion and interaction design (animation, scroll effects, transitions, WebGL) that serves meaning within a performance and accessibility budget. Load when specifying, building or reviewing motion.
 user-invocable: false
 ---
 

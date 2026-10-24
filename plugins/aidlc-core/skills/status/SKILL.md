@@ -1,6 +1,6 @@
 ---
 name: status
-description: Show the AIDLC dashboard — all active pipeline runs with their phase, branch and PR, plus a snapshot of ready backlog items. Use when the user asks about AIDLC progress, active runs, or what's next.
+description: The AIDLC dashboard — active runs with phase, branch and PR, plus ready backlog items. Use when asked about AIDLC progress, active runs or what's next.
 ---
 
 # /aidlc:status — AIDLC dashboard

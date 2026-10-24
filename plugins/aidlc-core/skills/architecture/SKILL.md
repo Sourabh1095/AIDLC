@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: ADR triggers and format, design-review heuristics and the explore-before-deciding checklist for the AIDLC design phase. Load when planning a medium-or-larger work item or making a hard-to-reverse technical decision.
+description: ADR triggers and format, and the explore-before-deciding checklist. Load when planning a medium-or-larger work item or making a hard-to-reverse technical decision.
 user-invocable: false
 ---
 

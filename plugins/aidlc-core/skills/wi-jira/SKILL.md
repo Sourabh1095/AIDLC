@@ -1,6 +1,6 @@
 ---
 name: wi-jira
-description: Work-item adapter for Jira via the Atlassian MCP server. Implements fetch, query, children, create, transition, comment, link and updateAC over Jira issues using JQL, discovering the site's custom fields and its per-issue-type statuses before it maps anything. Load when workItems.source is "jira".
+description: Work-item adapter for Jira (Atlassian MCP server). Load when workItems.source is "jira".
 user-invocable: false
 ---
 

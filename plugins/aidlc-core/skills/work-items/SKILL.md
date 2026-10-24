@@ -1,6 +1,6 @@
 ---
 name: work-items
-description: The canonical WorkItem schema, adapter operation contract, and source routing for the AIDLC pipeline. Load whenever you need to read or update epics, stories, tasks, bugs or spikes from any tracker (Jira, Azure DevOps, or the local markdown backlog).
+description: The canonical WorkItem schema, adapter contract and tracker routing. Load whenever reading or updating epics, stories, tasks, bugs or spikes in any tracker.
 user-invocable: false
 ---
 

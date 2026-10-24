@@ -1,6 +1,6 @@
 ---
 name: aidlc-researcher
-description: AIDLC technical researcher. Answers open technical questions with cited evidence — library selection, feasibility spikes, unknown-technology ramp-up. Not design research — visual and interaction references are aidlc-ux-researcher's. Dispatched by the /aidlc:run orchestrator for spike items or when another agent hits an unknown mid-run.
+description: AIDLC technical researcher — answers open technical questions with cited evidence (library choice, feasibility, unknown tech); not design research. Dispatched by /aidlc:run for spikes and mid-run unknowns.
 model: opus
 effort: high
 tools:

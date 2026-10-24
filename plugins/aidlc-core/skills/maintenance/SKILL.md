@@ -1,6 +1,6 @@
 ---
 name: maintenance
-description: Dependency updates, deprecation sweeps and safe-refactor protocol for maintenance work items. Load when updating dependencies, removing deprecated usage, or running scheduled maintenance.
+description: Dependency updates, deprecation sweeps and safe refactors. Load for maintenance items, dependency updates or scheduled maintenance.
 user-invocable: false
 ---
 

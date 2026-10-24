@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Branch naming, conventional commits, push and PR creation for the AIDLC pipeline — GitHub (gh CLI) and Azure Repos (az CLI) paths. Load when branching for a work item, committing pipeline work, or opening a pull request.
+description: Branch naming, conventional commits, push and PR creation (GitHub via gh, Azure Repos via az). Load when branching, committing or opening a pull request for a work item.
 user-invocable: false
 ---
 

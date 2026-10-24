@@ -1,6 +1,6 @@
 ---
 name: review-feedback
-description: Pull a human reviewer's comments off an open PR and work them like pipeline findings — fetch the unresolved threads (GitHub or Azure Repos), record each against the run file with its author, fix them through the normal fix cycle, push, and reply on each thread. Use when a PR has review comments to address, when asked to handle review feedback, or when resuming a run whose PR came back with changes requested.
+description: Work a reviewer's PR comments like pipeline findings — fetch the unresolved threads (GitHub or Azure Repos), fix them through the fix cycle, push and reply on each. Use when a PR has review comments to address.
 argument-hint: "<work-item ID, or a PR URL/number>"
 disable-model-invocation: true
 ---

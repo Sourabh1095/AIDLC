@@ -1,6 +1,6 @@
 ---
 name: design
-description: Run the UI/UX design pod on a new OR existing frontend — a single page/screen or the whole app. Screens already in Figma → extract the design, build to it, check fidelity (jury optional). No designs → narrative → inspiration → design system → build/redesign + motion → strict jury loop until the rendered UI scores ≥ threshold (default 9/10). Accepts brand references (logo, colors, fonts, reference screenshots) and Figma URLs. Invoked as /aidlc-ux:design and called by /aidlc:run for UI items.
+description: Run the UI/UX design pod on a page, a screen or the whole app, new or existing. Builds to Figma screens when they exist (fidelity gate); otherwise designs and iterates until the jury scores at least the threshold. Invoked as /aidlc-ux:design and by /aidlc:run for UI items.
 argument-hint: <id | page/route | path | "redesign X" | figma-url | description>  [+ brand refs]
 ---
 

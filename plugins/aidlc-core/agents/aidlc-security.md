@@ -1,6 +1,6 @@
 ---
 name: aidlc-security
-description: AIDLC security reviewer. Deep security pass over a work item's diff — OWASP review, dependency audit, secret scan, authz reasoning. Dispatched by the /aidlc:run orchestrator when the diff touches securityReviewPaths, adds/updates dependencies, or the item is labeled security.
+description: AIDLC security reviewer — OWASP review, dependency audit, secret scan and authz reasoning on an item's diff. Dispatched by /aidlc:run for security paths, dependency changes or security items.
 model: opus
 effort: high
 tools:

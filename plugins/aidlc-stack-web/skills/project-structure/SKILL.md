@@ -1,6 +1,6 @@
 ---
 name: project-structure
-description: Enterprise project structure for the web stack — the canonical folder trees, layering rules and state/data conventions (NestJS backend; Next.js App-Router or RTK-Query SPA frontend) that make a repo read as enterprise-grade at a glance. Load when scaffolding a repo, placing new code, or reviewing that code lives in the right layer.
+description: Enterprise project structure for the web stack — folder trees, layering rules and state/data conventions for NestJS and Next.js or SPA frontends. Load when scaffolding a repo, placing new code, or reviewing that code sits in the right layer.
 user-invocable: false
 ---
 

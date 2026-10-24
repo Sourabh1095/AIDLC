@@ -1,6 +1,6 @@
 ---
 name: wi-markdown
-description: Work-item adapter for the local markdown backlog (backlog/ folder). Implements fetch, query, children, create, transition, comment, link and updateAC over one-file-per-item markdown with YAML frontmatter. Load when workItems.source is "markdown".
+description: Work-item adapter for the markdown backlog (backlog/). Load when workItems.source is "markdown".
 user-invocable: false
 ---
 

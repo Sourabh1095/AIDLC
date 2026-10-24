@@ -1,6 +1,6 @@
 ---
 name: remove
-description: Remove AIDLC from this project cleanly — delete the framework's own files, revert only the sections it merged into files the project already owned (CLAUDE.md, .claude/settings.json, .gitignore), and keep everything the team authored, including their ADRs, backlog items and run history. Shows the complete plan and deletes nothing without approval; verifies afterwards that the project's own files are byte-identical to before adoption. Use when an evaluation ends, when a pilot repo is being handed back, or before re-adopting from scratch. This removes AIDLC from the PROJECT; the plugin itself is removed with /plugin uninstall.
+description: Remove AIDLC from this project — delete its own files, revert only what it merged, keep everything the team wrote. Shows the plan first and verifies the project's files are back to how they were. The plugin itself goes with /plugin uninstall.
 argument-hint: "[--dry-run] [--keep <docs|backlog|runs|adoption>]"
 disable-model-invocation: true
 ---

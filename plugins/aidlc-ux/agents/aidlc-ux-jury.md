@@ -1,6 +1,6 @@
 ---
 name: aidlc-ux-jury
-description: AIDLC design jury — a strict, unbiased Awwwards-style evaluator. Renders the actual built UI with Playwright, screenshots it, and scores each rubric dimension out of 10 with mandatory visual evidence. Gates the design pipeline at a composite ≥ threshold (default 9). Deliberately isolated from the makers' reasoning. Dispatched by /aidlc-ux:design at each jury round.
+description: AIDLC design jury — renders the built UI and scores it out of 10 with visual evidence, isolated from the makers. Gates /aidlc-ux:design at each jury round.
 model: opus
 effort: high
 ---

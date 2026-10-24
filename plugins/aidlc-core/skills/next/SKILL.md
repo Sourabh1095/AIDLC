@@ -1,6 +1,6 @@
 ---
 name: next
-description: Pick the highest-priority ready work item from the backlog and run it through the AIDLC pipeline. Use when asked to work on the next item, pick up work, or continue with the backlog.
+description: Pick the highest-priority ready item and run it through the pipeline. Use when asked to work on the next item, pick up work or continue with the backlog.
 argument-hint: "[--mine | --unassigned | --any — override the ownership scope, optional]"
 ---
 

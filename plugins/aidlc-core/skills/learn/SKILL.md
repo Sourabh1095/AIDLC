@@ -1,6 +1,6 @@
 ---
 name: learn
-description: Build or refresh the project brain (.aidlc/brain/) — map the product's modules from the code, read one module deeply into its page (purpose, user types, business rules, data, connections, flows, entry points, gaps), or refresh every page the code has moved past. Use when taking over a module, when starting with AIDLC on an existing project, or when the session says brain pages are behind the code.
+description: Build or refresh the project brain — map the modules from the code, read one deeply, or refresh pages the code has moved past. Use when taking over a module, starting AIDLC on an existing project, or when brain pages are behind the code.
 argument-hint: "[module | path | --stale | --map]"
 ---
 

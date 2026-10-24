@@ -1,6 +1,6 @@
 ---
 name: docs-writing
-description: Documentation style and scope rules — what to update per change type (README, CHANGELOG, API docs), docstring policy and writing conventions. Load when updating project documentation for a work item.
+description: What to update per change type (README, CHANGELOG, API docs) and how to write it. Load when updating project documentation for a work item.
 user-invocable: false
 ---
 

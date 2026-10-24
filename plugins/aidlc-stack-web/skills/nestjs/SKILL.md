@@ -1,6 +1,6 @@
 ---
 name: nestjs
-description: NestJS backend conventions — module boundaries, dependency injection, DTO validation, error handling, configuration and testing patterns. Load when implementing, planning or reviewing NestJS backend work.
+description: NestJS conventions — module boundaries, dependency injection, DTO validation, errors, configuration, testing. Load when implementing, planning or reviewing NestJS backend work.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: docker
-description: Docker conventions — multi-stage builds for Node/Next.js/NestJS, compose-based dev environments, image hygiene, container security basics, and running the CI image locally to reproduce a red pipeline. Load when writing or reviewing Dockerfiles or compose files, when a change touches how the app is built or run, or when reproducing a CI failure that won't reproduce in your workspace.
+description: Docker conventions — multi-stage Node builds, compose dev environments, image hygiene, container security, running the CI image locally. Load for Dockerfiles or compose files, build or run changes, or a CI failure that won't reproduce locally.
 user-invocable: false
 ---
 

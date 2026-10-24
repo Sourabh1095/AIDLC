@@ -1,6 +1,6 @@
 ---
 name: run-state
-description: The AIDLC run-file format and checkpoint/resume protocol. A run file (.aidlc/runs/<ID>.md) is the durable, resumable state of one pipeline run. Load whenever creating, updating, resuming or archiving a pipeline run.
+description: The run-file format (.aidlc/runs/<ID>.md) and checkpoint/resume protocol. Load when creating, updating, resuming or archiving a pipeline run.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: intake
-description: Turn a requirement described in plain language into proper backlog items — epic/stories/tasks/bugs with acceptance criteria — in the active tracker (Jira, Azure DevOps or markdown), deduplicated against what already exists. Use when the user describes something they want built or fixed that is not yet a work item.
+description: Turn a plain-language requirement into backlog items with acceptance criteria in the active tracker, deduplicated against the board. Use when the user describes something to build or fix that is not yet a work item.
 argument-hint: "<the requirement, in plain language>"
 ---
 

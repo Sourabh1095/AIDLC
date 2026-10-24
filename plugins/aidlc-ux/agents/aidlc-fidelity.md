@@ -1,6 +1,6 @@
 ---
 name: aidlc-fidelity
-description: AIDLC design-fidelity checker for Figma-sourced UI. Renders the built screen with Playwright at the design's viewport and compares it against the Figma reference shot and spec, classifying every difference as BLOCKING / MINOR / ADAPTATION. This is the quality gate on Figma projects — the jury's counterpart, judging match-to-design rather than taste. Dispatched by /aidlc-ux:design on Figma-sourced surfaces.
+description: AIDLC fidelity checker for Figma-sourced UI — renders the built screen and compares it with the Figma reference, classifying each difference. Dispatched by /aidlc-ux:design.
 model: opus
 effort: high
 ---

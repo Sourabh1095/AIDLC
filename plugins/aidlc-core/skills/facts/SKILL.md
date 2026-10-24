@@ -1,6 +1,6 @@
 ---
 name: facts
-description: Project facts (.aidlc/facts.md) — the operational truths this pipeline keeps relearning, each with the date it was last verified. Load before diagnosing an environment failure, before briefing an implementer, or when grounding an answer about how this project actually behaves; write to it whenever a run learns something the hard way.
+description: Project facts (.aidlc/facts.md) — dated operational truths the pipeline keeps relearning. Read before diagnosing an environment failure or briefing an implementer; add one whenever a run learns something the hard way.
 user-invocable: false
 ---
 

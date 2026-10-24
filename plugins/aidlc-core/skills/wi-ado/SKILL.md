@@ -1,6 +1,6 @@
 ---
 name: wi-ado
-description: Work-item adapter for Azure DevOps Boards via the ADO MCP server, with an az boards CLI fallback and a PAT+REST last-resort. Implements fetch, query, children, create, transition, comment, link and updateAC using WIQL, discovering the process's custom fields and per-work-item-type states before it maps anything. Load when workItems.source is "ado".
+description: Work-item adapter for Azure DevOps Boards (MCP server, az CLI fallback). Load when workItems.source is "ado".
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: groom
-description: Backlog refinement session — sweep todo items, refine weak acceptance criteria, size unsized items, flag blockers and stale items, propose epic decompositions and priority changes. Use when asked to groom, refine or clean up the backlog.
+description: Backlog refinement — fix weak acceptance criteria, size items, flag blockers and stale items, propose splits and priority changes. Use when asked to groom, refine or clean up the backlog.
 argument-hint: "[label or item-type filter · --mine · --unassigned, all optional]"
 ---
 

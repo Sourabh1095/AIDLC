@@ -1,6 +1,6 @@
 ---
 name: requirements
-description: Acceptance-criteria quality bar, INVEST checklist and the assumption-logging protocol for the AIDLC requirements phase. Load when validating, refining or writing acceptance criteria for a work item.
+description: The acceptance-criteria bar, INVEST checklist and assumption-logging protocol. Load when validating, refining or writing acceptance criteria.
 user-invocable: false
 ---
 

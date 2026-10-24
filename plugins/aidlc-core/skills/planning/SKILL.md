@@ -1,6 +1,6 @@
 ---
 name: planning
-description: Work decomposition, sizing heuristics and dependency detection for AIDLC plans. Load when writing an implementation plan for a work item or sizing/sequencing backlog items.
+description: Decomposition, sizing and dependency detection for AIDLC plans. Load when writing an implementation plan or sizing and sequencing backlog items.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Discipline for building a tokenized design system as the single source of truth — color, typography, spacing/grid, radius, elevation — that makes a UI feel uniform. Load when defining or reviewing design tokens and design/design-system.md.
+description: How to build a tokenized design system (color, type, spacing, radius, elevation) as the single source of truth. Load when defining or reviewing design tokens and design/design-system.md.
 user-invocable: false
 ---
 

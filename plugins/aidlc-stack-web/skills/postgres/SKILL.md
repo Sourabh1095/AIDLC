@@ -1,6 +1,6 @@
 ---
 name: postgres
-description: PostgreSQL conventions — schema design, indexing strategy, query patterns and review heuristics for the AIDLC pipeline. Load when designing schemas, writing queries or reviewing Postgres-touching changes.
+description: PostgreSQL conventions — schema design, indexing, query patterns and review heuristics. Load when designing schemas, writing queries or reviewing Postgres changes.
 user-invocable: false
 ---
 

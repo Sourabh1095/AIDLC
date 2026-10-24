@@ -1,6 +1,6 @@
 ---
 name: ci-cd
-description: Authoring and fixing CI pipelines, independent of stack — GitHub Actions and Azure Pipelines conventions, pinning, caching, secrets, artifacts, and the red-check diagnosis protocol. Load when creating or modifying workflow YAML or diagnosing failing checks. For a Node/TypeScript repo, load `aidlc-stack-web:ci-web` alongside it — the npm-specific gate and its traps live there.
+description: CI authoring and red-check diagnosis for GitHub Actions and Azure Pipelines, any stack. Load when changing workflow YAML or diagnosing failing checks; on a Node repo, together with aidlc-stack-web:ci-web.
 user-invocable: false
 ---
 

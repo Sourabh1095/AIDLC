@@ -1,6 +1,6 @@
 ---
 name: agent-contract
-description: The contract every AIDLC subagent owes its orchestrator — the finish contract (never return on a pending background task), the report-back shape, and the tool-restriction policy that decides which agents get a `tools:` allowlist. Load when writing, reviewing or scaffolding an agent, or when an agent returned something the orchestrator could not act on.
+description: What every AIDLC subagent owes its orchestrator — the finish contract, the report-back shape and the tool-restriction policy. Load when writing, reviewing or scaffolding an agent.
 user-invocable: false
 ---
 

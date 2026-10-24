@@ -1,6 +1,6 @@
 ---
 name: dogfood
-description: Capture AIDLC-plugin friction hit during a run — gaps, wrong/missing guidance, steps worked around, skill/agent/template bugs (distinct from project bugs) — as a structured entry in a local feedback inbox for the plugin maintainer to triage. Use when you notice the plugin itself (not the project) is the problem, or when the user runs /aidlc:dogfood.
+description: Log friction with the AIDLC plugin itself (wrong or missing guidance, workarounds, skill or template bugs, not project bugs) to a local inbox for its maintainer. Use when the plugin is the problem, or on /aidlc:dogfood.
 argument-hint: ["<what the plugin should do better>"]
 ---
 

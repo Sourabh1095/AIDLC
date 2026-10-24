@@ -1,6 +1,6 @@
 ---
 name: brain
-description: The project brain (.aidlc/brain/) — this person's growing understanding of the product. A page per module (purpose, capabilities, user types, business rules, data, connections, entry points, gaps), plus the user types, end-to-end flows and vocabulary; every line says where it came from, every page records the commit it was checked against. Load before explaining, planning or changing a module, when taking over or handing over a module, after a run changes one, and when you have just learned how part of the product works.
+description: The project brain (.aidlc/brain/) — a sourced page per module, plus user types, flows and vocabulary. Load before explaining, planning or changing a module, when taking over or handing over one, or after learning how part of the product works.
 user-invocable: false
 ---
 

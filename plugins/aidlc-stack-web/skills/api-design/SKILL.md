@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: REST API contract conventions shared between the Next.js frontend and NestJS backend — resource naming, status codes, error shape, pagination, versioning and OpenAPI discipline. Load when adding or changing API endpoints.
+description: REST contract conventions between the Next.js frontend and NestJS backend — naming, status codes, error shape, pagination, versioning, OpenAPI. Load when adding or changing API endpoints.
 user-invocable: false
 ---
 

@@ -25,7 +25,8 @@ How project-born skills and agents enter the shared plugins. Audience: the platf
 - [ ] **Right home**: stack-specific → the matching stack pack; universal → core.
       Doesn't duplicate an existing skill (extend that skill instead — smaller PR).
 - [ ] **Trigger-worthy description**: the `description:` would actually fire on the tasks it
-      serves; body ≤ ~100 lines, concrete over abstract.
+      serves, in ≤ 340 characters (every session pays for it — `npm run check:context`); body
+      ≤ ~100 lines, concrete over abstract.
 - [ ] **Safe**: nothing that widens permissions, weakens hooks, or instructs agents to bypass
       guardrails.
 

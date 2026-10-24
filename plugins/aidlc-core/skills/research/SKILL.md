@@ -1,6 +1,6 @@
 ---
 name: research
-description: The AIDLC spike protocol — sharpen the question, gather cited evidence, verify load-bearing claims, deliver a decision report. Load when running a spike work item or researching a technical choice mid-run.
+description: The spike protocol — sharpen the question, gather cited evidence, verify the load-bearing claims, deliver a decision. Load for a spike item or a technical choice mid-run.
 user-invocable: false
 ---
 

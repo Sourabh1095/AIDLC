@@ -1,6 +1,6 @@
 ---
 name: db-migrations
-description: Database migration safety — expand-contract sequencing, rollback discipline, backfills and risky-DDL rules for Postgres and MongoDB. Load whenever a change touches schema, adds columns/collections/indexes, or requires a data backfill.
+description: Migration safety — expand-contract, rollback, backfills and risky-DDL rules for Postgres and MongoDB. Load whenever a change touches schema or indexes, or needs a backfill.
 user-invocable: false
 ---
 

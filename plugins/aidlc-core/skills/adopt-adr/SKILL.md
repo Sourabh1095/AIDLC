@@ -1,6 +1,6 @@
 ---
 name: adopt-adr
-description: Write retroactive ADRs for the decisions an existing codebase already embodies — from the adrCandidates the adoption scan derived, one ADR at a time behind its own approval, each citing the code that proves the decision and leaving its rationale explicitly unrecorded for a human to fill. Existing architecture docs elsewhere (Confluence, Notion, RFCs/) are linked from the index, never copied or relocated. Use after /aidlc:adopt on a brownfield project whose docs/adr/ is empty while its decisions are everywhere in the code.
+description: Write retroactive ADRs for the decisions the code already embodies, one at a time behind approval, citing the code and leaving the rationale for a person. Use after /aidlc:adopt when docs/adr/ is empty.
 argument-hint: "[--only <decisionKind>] [path to profile.json]"
 disable-model-invocation: true
 ---

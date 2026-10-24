@@ -1,6 +1,6 @@
 ---
 name: aidlc-analyst
-description: AIDLC business analyst. Validates and refines work-item acceptance criteria, sizes items, decomposes epics into child stories, and logs explicit assumptions when requirements are ambiguous. Dispatched by the /aidlc:run orchestrator in the requirements phase and by /aidlc:groom.
+description: AIDLC business analyst — validates and refines acceptance criteria, sizes items, splits epics, logs assumptions. Dispatched by /aidlc:run (requirements) and /aidlc:groom.
 model: sonnet
 effort: medium
 ---

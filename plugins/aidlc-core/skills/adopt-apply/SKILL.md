@@ -1,6 +1,6 @@
 ---
 name: adopt-apply
-description: Turn an approved adoption profile into configuration — aidlc.config.json (topology, repos, monorepo packages[], per-repo and per-package stack, pipeline.gates.verify, git conventions, the SaaS runtime constraints and the security-review paths they seed), CLAUDE.md's project facts and Commands block, and .claude/rules/git-workflow.md — behind a full shown diff and an explicit approval, merging rather than overwriting anything a human authored. Applies drift deltas on a re-adoption, upgrades a config written by an older plugin version in place, supports partial adoption with --only, and records what it wrote so removal can be clean. The write half of brownfield adoption: /aidlc:adopt reads the code and derives the facts, this applies them. Use after /aidlc:adopt, or to re-apply an updated profile.
+description: Apply an approved adoption profile — writes aidlc.config.json, the CLAUDE.md facts and the git-workflow rule behind a full diff and your approval, merging with what people wrote. Use after /aidlc:adopt, or to re-apply an updated profile.
 argument-hint: "[--only <repo|package>] [path to profile.json]"
 disable-model-invocation: true
 ---

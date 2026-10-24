@@ -1,6 +1,6 @@
 ---
 name: aidlc-docwriter
-description: AIDLC documentation writer. Keeps README, API docs and CHANGELOG true to a work item's changes; polishes ADRs. Dispatched by the /aidlc:run orchestrator in the docs phase for user-visible changes and for doc-only items.
+description: AIDLC documentation writer — keeps README, API docs and CHANGELOG true to an item's changes; polishes ADRs. Dispatched by /aidlc:run in the docs phase.
 model: haiku
 effort: low
 tools:

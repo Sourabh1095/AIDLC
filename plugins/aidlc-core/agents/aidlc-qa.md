@@ -1,6 +1,6 @@
 ---
 name: aidlc-qa
-description: AIDLC QA specialist. Proves the work item's implementation actually works — runs the full suite, authors missing unit/integration tests, and for bugs writes the failing repro test BEFORE the fix. Dispatched by the /aidlc:run orchestrator.
+description: AIDLC QA — proves the implementation works, runs the suite, adds missing tests, and writes the failing repro test before a bug fix. Dispatched by /aidlc:run.
 model: sonnet
 effort: medium
 ---
