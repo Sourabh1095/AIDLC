@@ -101,7 +101,13 @@ It grows where work already happens, from what that work already holds: a pipeli
 modules its diff touched, using the diff and the acceptance criteria, and gives a module its first page
 the first time a run touches it. `/aidlc:do` adds what an explanation or diagnosis taught it, and
 intake and grooming add intended behaviour as `[req]` lines. A page is stamped only when everything
-that moved under it was read, so a teammate's change the run did not read keeps the page marked behind. The model writes the pages; the script enumerates modules
+that moved under it was read, so a teammate's change the run did not read keeps the page marked behind.
+
+`/aidlc:study` writes the end-of-project business study **from** the brain (`brain.mjs digest`), not
+from a fresh read: a product of real size does not fit in one context, and the brain is that read,
+done over the project's life and kept honest against the code. `[assumed]` lines never become
+narrative; they become the study's open questions, and what the brain does not cover is listed rather
+than papered over. The model writes the pages; the script enumerates modules
 from the code's layout, diffs and stamps — the parts a model does badly. It is read on demand: the
 session gets one line saying the brain exists and what is behind, and planning opens only the pages a
 task touches.

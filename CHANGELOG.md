@@ -7,6 +7,23 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.61.0] — 2026-10-24
+
+### The project brain, phase 3: the business study (`aidlc`)
+
+- **`/aidlc:study`** writes the end-of-project business study from the project brain. It covers the
+  product; every user type and what it can do, with a user type × module matrix; every module (purpose,
+  capabilities, rules, data, connections, entry points); the end-to-end flows, with Mermaid diagrams for
+  long ones; data, integrations and key decisions; operations; delivery history; intended versus built;
+  open questions; and a glossary. Two appendices cover coverage and freshness, and sources.
+- **Assembled from the brain, not from a cold read** (`brain.mjs digest`). A real product does not fit in
+  one context, and the brain is that read, done over the project's life and kept checked against the code.
+- **Truth rules.** `[assumed]` lines never become narrative: they become the study's open questions. A
+  section built on a page that is behind the code says so, naming the commit. What the brain does not
+  cover is listed, not papered over. Before writing, the command offers to refresh stale pages and learn
+  missing modules, with the cost said out loud.
+- The study stays as private as the brain (`.aidlc/brain/study/`) until the user shares it.
+
 ## [0.60.0] — 2026-10-24
 
 ### The project brain, phase 2: it grows as you work, and hands modules over (`aidlc`)

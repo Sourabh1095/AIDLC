@@ -169,6 +169,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:review-feedback <ID>` | Pull unresolved PR threads, fix them through the normal cycle, push, reply on each. A comment you disagree with gets answered on the thread — and nothing you didn't fix gets resolved |
 | `/aidlc:status` | Dashboard: active runs, blockers, backlog snapshot, drift |
 | `/aidlc:insights` | Is the pipeline getting better? Time to done and per phase, fix cycles, findings by source (duplication, agent vs human review, QA, security), month by month — read-only |
+| `/aidlc:study` | **The business study**, written from your project brain: the product, every user type and what it can do, every module, the end-to-end flows, data, integrations, decisions, delivery history, intended vs built. Assumptions are kept apart as questions, and anything not covered is said |
 | `/aidlc:learn [module \| --stale]` | Grow your **project brain** (`.aidlc/brain/`, private to you): map the product's modules, read one deeply — purpose, user types, business rules, data, flows, gaps — or refresh the pages the code has moved past, including changes teammates made without AIDLC |
 | `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |
 
@@ -224,7 +225,8 @@ git, and every page records the commit it was checked against, so a module a tea
 AIDLC shows as behind before anything relies on it. It grows as you work: each pipeline run teaches it
 the modules it changed, `/aidlc:do` adds what an explanation taught it, and intake and grooming add what
 was intended. `/aidlc:learn` reads a module in depth on demand, and *"I'm taking over payments"* through
-`/aidlc:do` gives you the handoff brief.
+`/aidlc:do` gives you the handoff brief. When the project ends, `/aidlc:study` writes the business study
+from it.
 
 **Process is proportional to consequence.** Four tiers — *answer*, *direct* (a gated commit, no
 ticket), *tracked* (branch + run file), *full* (the pipeline) — with a project-wide floor you set. Five

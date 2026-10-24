@@ -23,7 +23,7 @@ Script — `B` below: `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs" <comm
 | `stamp <page>` | the page marked as checked against HEAD |
 | `index` | `index.md` regenerated |
 | `which <files…>` | the pages that cover those files, and the module a file sits in when no page does yet |
-| `digest` | everything a business study is assembled from |
+| `digest` | everything a business study is assembled from (`/aidlc:study`) |
 
 **Switched off** when `aidlc.config.json` has `"brain": { "enabled": false }`. Then nothing below
 applies, and nothing writes to it.
