@@ -221,7 +221,10 @@ is for, who uses it, its business rules, data, connections and open questions �
 the journeys across modules and the domain's vocabulary. Every line says where it came from (the code,
 a requirement, a person, or an assumption still to confirm). The brain is yours alone and stays out of
 git, and every page records the commit it was checked against, so a module a teammate changed without
-AIDLC shows as behind before anything relies on it. `/aidlc:learn` grows it.
+AIDLC shows as behind before anything relies on it. It grows as you work: each pipeline run teaches it
+the modules it changed, `/aidlc:do` adds what an explanation taught it, and intake and grooming add what
+was intended. `/aidlc:learn` reads a module in depth on demand, and *"I'm taking over payments"* through
+`/aidlc:do` gives you the handoff brief.
 
 **Process is proportional to consequence.** Four tiers — *answer*, *direct* (a gated commit, no
 ticket), *tracked* (branch + run file), *full* (the pipeline) — with a project-wide floor you set. Five

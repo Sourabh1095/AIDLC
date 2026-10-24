@@ -57,6 +57,10 @@ Load in this order and stop as soon as you can answer. This is a floor, not a bu
    these are the operational truths the project keeps relearning, and they are what separates an answer
    grounded in how the project *behaves* from one grounded only in how it is *configured*. Cite the
    `verified` date whenever you lean on one.
+6b. **The project brain** — when `.aidlc/brain/` exists and the prompt is about a part of the product,
+   read `index.md` and that module's page before reading code (`aidlc:brain` → *Reading it*). It is
+   what this person's sessions have already understood about the module: its rules, its user types,
+   how it connects. Check a page that is behind against the code before leaning on it.
 7. **The project's runtime constraints** — `saas` in config (or on the resolved repo entry), where the
    project has one: tenancy model, whether releases ride feature flags, migration constraints, which
    API files are public contracts. On a live SaaS these decide more about whether an idea fits than the
@@ -75,6 +79,7 @@ cleanup.
 |---|---|---|
 | an opinion, a fit judgment, a "should we" | **CONSULT** (§3) | a recommendation. No item, no branch, no code. |
 | to understand how or why something works | **EXPLAIN** (§4) | an answer grounded in the code + the ADR that explains *why* |
+| to take over a module, or a briefing on one ("I'm taking over payments") | **BRIEF** (§4) | the module's purpose, users, flows, rules, recent changes, open work, open questions and who to ask |
 | a defect understood | **DIAGNOSE** (§4) | a cause, and an offer to file it |
 | something small and obvious changed | **DIRECT** (§5) | the change, gated and committed on the current branch. No item, no PR. |
 | something built or changed that warrants a trail | **BUILD** (§5) | `aidlc:ceremony` tier 2 or 3 — tracked, or the full pipeline |
@@ -109,6 +114,12 @@ An opinion or fit question answered from **this project**, not general best prac
   history is exactly what this door has and a cold read does not. Don't re-derive a rationale an ADR
   already records.
 - **DIAGNOSE** — follow `aidlc:debugging`. Reproduce before theorizing.
+- **BRIEF** — `aidlc:brain` → *Handing over a module*. No page yet → offer `/aidlc:learn <module>`,
+  which reads the module and writes the page the brief comes from.
+- **What you learned goes back into the brain.** When EXPLAIN or DIAGNOSE taught you how part of the
+  product works, and its page did not already say it, add the line (`aidlc:brain` → *Writing it*). A
+  module with no page gets one, created the first time work touches it. Skip this when `brain.enabled`
+  is false.
 - Either route surfacing a **real defect**: report it, then offer to file it (`/aidlc:intake`). The
   fix goes through BUILD, not inline here. **Exception** — an in-flight run already owns that code:
   the fix belongs to that run, so say so and point at `/aidlc:run <ID>` rather than opening a

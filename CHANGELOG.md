@@ -7,6 +7,34 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.60.0] — 2026-10-24
+
+### The project brain, phase 2: it grows as you work, and hands modules over (`aidlc`)
+
+Phase 1 grew the brain only when someone ran `/aidlc:learn`. Now it grows where work already happens,
+from what that work already holds, so it costs little beyond the work itself.
+
+- **Every pipeline run teaches it** (`aidlc:run` §10). From the branch diff and the item's acceptance
+  criteria, without reading anything new, the run updates the pages for the modules it changed: new
+  capabilities, rules, data and entry points as `[code]`, and the criteria as `[req: ID]`. The first time
+  a run touches a module, the module gets its page. Planning (§5) reads the pages for the modules an item
+  touches, so a plan knows the business rules it could break.
+- **`brain.mjs which <files…>`** names the pages that cover a set of files, and for files no page
+  covers, the candidate module they sit in. That is what lets a page start from real work rather than
+  a full read.
+- **A page is stamped only when everything that moved under it was read.** A teammate's change the run
+  never read keeps the page marked behind.
+- **Freshness compares content, not history.** A run stamps on its feature branch, and a squash merge
+  lands the same code as a new commit. Comparing the code itself, the page stays current after the
+  merge. A page from an abandoned branch still reads as behind. A sprint worktree now stamps its own
+  branch's commit, not the main checkout's.
+- **`/aidlc:do`** grounds itself in the brain, writes back what an explanation or diagnosis taught it,
+  and has a **BRIEF** route: *"I'm taking over payments"* returns the module's purpose, users, flows,
+  rules, recent changes, open work, open questions and who has worked on it lately.
+- **Intake and grooming** add the intended behaviour of the Stories and Bugs they write as `[req: ID]`
+  lines, but only on modules that already have a page, and never for Tasks.
+- **Opt out** with `"brain": { "enabled": false }`: no session line, and nothing writes to the brain.
+
 ## [0.59.0] — 2026-10-24
 
 ### The project brain, phase 1: AIDLC builds its own understanding of the product (`aidlc`)

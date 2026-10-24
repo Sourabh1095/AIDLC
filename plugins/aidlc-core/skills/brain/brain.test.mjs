@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 import { samePath } from "../../hooks/scripts/lib/paths.mjs";
-import { init, brainDir, candidateModules, workspaceModules, status, stamp, findPage, renderIndex, writeIndex, diffCommands } from "./brain.mjs";
+import { init, brainDir, candidateModules, workspaceModules, status, stamp, findPage, renderIndex, writeIndex, diffCommands, which, digest, enabled } from "./brain.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const tmps = [];
@@ -105,22 +105,64 @@ page(repo, "modules/ghost", { module: "ghost", paths: "src/ghost", checked: "dea
 check("a commit this repo does not have", st()["modules/ghost"].state, "unknown-commit");
 check("findPage by bare name", findPage(repo, "ghost").id, "modules/ghost");
 
+// --- A run stamps on its branch; a squash merge must not make the page look stale --------------------
+git(repo, "checkout", "-q", "-b", "feat/sq");
+write(repo, "src/modules/orders/orders.controller.ts", "export const c = 2;\n");
+commit(repo, "orders: new endpoint");
+stamp(repo, "orders");
+git(repo, "checkout", "-q", "-");
+git(repo, "merge", "--squash", "-q", "feat/sq");
+git(repo, "commit", "-qm", "squash: orders endpoint");
+check("squash-merged: same code under a new commit → current", st()["modules/orders"].state, "current");
+
+// --- which: the pages a change touched, and the module a page does not exist for yet -------------------
+{
+  const w = which(repo, ["src/modules/orders/orders.service.ts", "app/(shop)/cart/page.tsx", "src/lib/date.ts"]);
+  check("which: a covered file names its page", w.pages, [{ id: "modules/orders", files: ["src/modules/orders/orders.service.ts"] }]);
+  check("which: an uncovered file names its candidate module", w.candidates.map((c) => [c.name, c.files]), [["cart", ["app/(shop)/cart/page.tsx"]]]);
+  check("which: shared code belongs to no module", w.unmapped, ["src/lib/date.ts"]);
+}
+
+// --- digest: what a business study is built from -------------------------------------------------------
+{
+  const f = join(brainDir(repo), "modules", "payments.md");
+  writeFileSync(f, readFileSync(f, "utf8") + "\n## Business rules\n- Refunds over 500 need a manager [assumed]\n- Card only [req: P-12]\n");
+  const d = digest(repo);
+  check("digest: every assumption, with its page", d.assumed, [{ page: "modules/payments", line: "Refunds over 500 need a manager [assumed]" }]);
+  check("digest: requirement IDs the pages cite", d.requirements, ["P-12"]);
+  check("digest: sections are parsed", d.pages.find((p) => p.id === "modules/payments").sections["Business rules"].includes("Card only"), true);
+  check("digest: code modules with no page", d.uncovered.map((c) => c.name), ["cart"]);
+}
+
 // --- Index -------------------------------------------------------------------------------------------
 const idx = renderIndex(repo);
 check("index links each module", idx.includes("[Orders](modules/orders.md)"), true);
 check("index carries the purpose", idx.includes("Takes and tracks orders."), true);
-check("index says which are behind", /Orders.*\| behind — 1 file\(s\)/.test(idx), true);
-check("index counts what needs a refresh", idx.includes("3 module page(s) · 3 behind the code"), true);
+check("index says which are current", /Orders.*\| current @/.test(idx), true);
+check("index counts what needs a refresh", idx.includes("3 module page(s) · 2 behind the code"), true);
 writeIndex(repo);
 check("writeIndex writes index.md", existsSync(join(dir, "index.md")), true);
 check("index.md is not itself a page", status(repo).some((p) => p.id === "index"), false);
 
-// --- A linked worktree reads the main checkout's brain -------------------------------------------------
+// --- A linked worktree reads the main checkout's brain, and stamps its own branch -----------------------
 {
   const wt = join(temp("brain-wt-"), "w");
   git(repo, "worktree", "add", "-q", "-b", "feat/wt", wt);
   check("worktree: same brain as the main checkout", samePath(brainDir(wt), dir), true);
+  write(wt, "src/modules/payments/payouts.ts");
+  commit(wt, "payouts");
+  const r = stamp(wt, "payments");
+  check("worktree: stamps the worktree's own commit", r.checked, git(wt, "rev-parse", "--short", "HEAD"));
+  check("worktree: current there", status(wt).find((p) => p.id === "modules/payments").state, "current");
+  check("…and behind on main, which does not have that code", status(repo).find((p) => p.id === "modules/payments").state, "off-branch");
   git(repo, "worktree", "remove", "--force", wt);
+}
+
+// --- Switched off -------------------------------------------------------------------------------------
+{
+  const off = temp("brain-off-");
+  write(off, ".claude/aidlc.config.json", JSON.stringify({ project: { key: "P" }, brain: { enabled: false } }));
+  check("brain.enabled: false switches it off", [enabled(off), enabled(repo)], [false, true]);
 }
 
 // --- Poly: one module across a backend repo and a frontend repo ------------------------------------------
@@ -156,12 +198,18 @@ check("index.md is not itself a page", status(repo).some((p) => p.id === "index"
 
 // --- The session line ----------------------------------------------------------------------------------
 {
-  const out = execFileSync("node", [join(HERE, "..", "..", "hooks", "scripts", "session-context.mjs")], {
-    input: JSON.stringify({ cwd: repo, source: "startup" }),
-    env: { ...process.env, CLAUDE_CONFIG_DIR: join(temp("brain-home-"), ".claude") },
-    encoding: "utf8",
-  });
-  check("session start names the brain and what is behind", /Project brain: .*3 module page\(s\), 3 behind the code \(ghost, orders, payments\)/.test(out), true);
+  const hook = () =>
+    execFileSync("node", [join(HERE, "..", "..", "hooks", "scripts", "session-context.mjs")], {
+      input: JSON.stringify({ cwd: repo, source: "startup" }),
+      env: { ...process.env, CLAUDE_CONFIG_DIR: join(temp("brain-home-"), ".claude") },
+      encoding: "utf8",
+    });
+  check("session start names the brain and what is behind", /Project brain: .*3 module page\(s\), 2 behind the code \(ghost, payments\)/.test(hook()), true);
+  const cfgFile = join(repo, ".claude", "aidlc.config.json");
+  const cfg = readFileSync(cfgFile, "utf8");
+  writeFileSync(cfgFile, JSON.stringify({ ...JSON.parse(cfg), brain: { enabled: false } }));
+  check("…and says nothing when the brain is switched off", hook().includes("Project brain"), false);
+  writeFileSync(cfgFile, cfg);
 }
 
 for (const t of tmps) rmSync(t, { recursive: true, force: true });

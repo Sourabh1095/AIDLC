@@ -25,7 +25,7 @@
 // The model writes the pages; this script does what a model does badly — enumerate, diff, stamp.
 // Never throws on a bad page: one unreadable file must not hide the others.
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
-import { join, relative, resolve, basename } from "node:path";
+import { join, relative, resolve, basename, isAbsolute } from "node:path";
 import { execFileSync } from "node:child_process";
 import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
 import { frontmatter } from "../../hooks/scripts/lib/run-files.mjs";
@@ -120,9 +120,14 @@ export function findPage(ws, name) {
 // --- Freshness ---------------------------------------------------------------------------------------
 
 const underAny = (file, paths) => paths.some((q) => file === q || file.startsWith(q + "/"));
+// A page's paths relative to the workspace (prefixed with its `repo` when it sets one).
+const wsPaths = (p) => p.paths.map((q) => (p.repo === "." ? q : `${p.repo}/${q}`));
 
-// What changed in a repo between a page's `checked` commit and HEAD. Off-branch pages are compared
-// from the merge-base, so what the refresh reads is what this branch has that the page never saw.
+// What differs in a repo between the code a page was checked against and HEAD. CONTENT, not history:
+// a run stamps its pages on its feature branch, and a squash merge lands the same code as a new
+// commit — history says "not an ancestor", content says nothing changed, and content is the question.
+// An abandoned branch's page still reads as behind, because the code it described is not in HEAD.
+// `onBranch` only labels which of the two a behind page is.
 function changedSince(repoDir, checked, head) {
   const sha = tryGit(repoDir, ["rev-parse", "--verify", "--quiet", `${checked}^{commit}`]);
   if (!sha) return null;
@@ -132,10 +137,9 @@ function changedSince(repoDir, checked, head) {
   } catch {
     onBranch = false;
   }
-  const base = onBranch ? sha : tryGit(repoDir, ["merge-base", sha, head]);
-  if (!base) return null;
-  const out = tryGit(repoDir, ["diff", "--name-only", base, head]);
-  return { base, onBranch, files: out ? out.split(/\r?\n/).filter(Boolean).map(toPosix) : [] };
+  const out = tryGit(repoDir, ["diff", "--name-only", sha, head]);
+  if (out === null) return null;
+  return { base: sha, onBranch, files: out.split(/\r?\n/).filter(Boolean).map(toPosix) };
 }
 
 // A page's paths, grouped by the repo that holds each: [{ dir, key, rel: [repo-relative paths] }].
@@ -178,7 +182,7 @@ const SEVERITY = ["unknown-commit", "off-branch", "behind", "never-checked", "cu
 //   no-git         — none of its paths is in a git repo
 // One `git diff` per distinct (repo, checked) pair, not per page: this runs at session start.
 export function status(ws) {
-  const root = memoryRoot(resolve(ws));
+  const root = resolve(ws);
   const dirs = repoDirs(root);
   const heads = new Map();
   const diffs = new Map();
@@ -196,7 +200,7 @@ export function status(ws) {
       const d = diffs.get(cacheKey);
       if (!d) return { ...g, state: "unknown-commit", changed: [] };
       const changed = d.files.filter((f) => underAny(f, g.rel)).map((f) => (g.key === "." ? f : `${g.key}/${f}`));
-      return { ...g, base: d.base, changed, state: !d.onBranch ? "off-branch" : changed.length ? "behind" : "current" };
+      return { ...g, base: d.base, changed, state: !changed.length ? "current" : d.onBranch ? "behind" : "off-branch" };
     });
     const state = SEVERITY.find((s) => repos.some((r) => r.state === s));
     return { ...p, state, changed: repos.flatMap((r) => r.changed), repos };
@@ -231,7 +235,7 @@ export function stamp(ws, name, { now = new Date() } = {}) {
   const p = findPage(ws, name);
   if (!p) throw new Error(`no page named ${name}`);
   if (!p.paths.length) throw new Error(`${p.id} has no paths — it is dated by \`updated\`, not checked against code`);
-  const root = memoryRoot(resolve(ws));
+  const root = resolve(ws);
   const heads = pathGroups(root, p, repoDirs(root)).map((g) => ({ key: g.key, head: tryGit(g.dir, ["rev-parse", "--short", "HEAD"]) }));
   const missing = heads.filter((h) => !h.head).map((h) => h.key);
   if (missing.length) throw new Error(`not a git repo: ${missing.join(", ")} — nothing to stamp against`);
@@ -272,7 +276,7 @@ export function renderIndex(ws) {
     lines.push("| Module | What it does | Code | State |", "|---|---|---|---|");
     for (const p of mods) {
       const name = p.id.split("/").pop();
-      const code = p.paths.map((q) => (p.repo === "." ? q : `${p.repo}/${q}`)).join(", ");
+      const code = wsPaths(p).join(", ");
       const state = `${STATE_LABEL[p.state] ?? p.state}${p.changed?.length ? ` — ${p.changed.length} file(s)` : ""}${p.checked ? ` @${p.checked}` : ""}`;
       lines.push(`| [${cell(p.title ?? name)}](${p.id}.md) | ${cell(p.purpose ?? "")} | ${cell(code)} | ${state} |`);
     }
@@ -372,7 +376,7 @@ export function candidateModules(repoRoot, { repo = ".", maxDepth = 5 } = {}) {
 // usually the two halves of one module. The user confirms the list, so a merge that is wrong
 // (four unrelated `health` endpoints) costs a sentence, while a split that is wrong costs a page.
 export function workspaceModules(ws) {
-  const root = memoryRoot(resolve(ws));
+  const root = resolve(ws);
   const dirs = repoDirs(root);
   if (dirs.length === 1) return candidateModules(root).map((c) => ({ ...c, repos: ["."] }));
   const byName = new Map();
@@ -388,6 +392,88 @@ export function workspaceModules(ws) {
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// --- Which module does a file belong to? -------------------------------------------------------------------
+
+// For the files a run or a session just touched: the pages that cover them, and for files no page
+// covers, the candidate module they sit in — so the brain grows a page for a module the first time work
+// touches it, with no /aidlc:learn needed first. Files in neither (shared code, config) are `unmapped`:
+// the reuse catalog knows those.
+export function which(ws, files) {
+  const root = resolve(ws);
+  const rel = files.map((f) => toPosix(isAbsolute(f) ? relative(root, f) : f).replace(/^\.\//, ""));
+  const withPaths = pages(ws).filter((p) => p.paths.length);
+  const covered = new Map();
+  const rest = [];
+  for (const f of rel) {
+    const hits = withPaths.filter((p) => underAny(f, wsPaths(p)));
+    for (const p of hits) covered.set(p.id, [...(covered.get(p.id) ?? []), f]);
+    if (!hits.length) rest.push(f);
+  }
+  const candidates = [];
+  if (rest.length)
+    for (const c of workspaceModules(ws)) {
+      const mine = rest.filter((f) => underAny(f, c.paths));
+      if (mine.length) candidates.push({ name: c.name, paths: c.paths, files: mine });
+    }
+  const placed = new Set(candidates.flatMap((c) => c.files));
+  return {
+    pages: [...covered].map(([id, fs]) => ({ id, files: fs })),
+    candidates,
+    unmapped: rest.filter((f) => !placed.has(f)),
+  };
+}
+
+// --- Digest: what a business study is assembled from ----------------------------------------------------------
+
+function sections(file) {
+  let text;
+  try {
+    text = readFileSync(file, "utf8").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+  } catch {
+    return {};
+  }
+  const heads = [...text.matchAll(/^##\s+(.+?)\s*$/gm)];
+  return Object.fromEntries(
+    heads.map((h, i) => [h[1], text.slice(h.index + h[0].length, i + 1 < heads.length ? heads[i + 1].index : text.length).trim()]),
+  );
+}
+
+// Everything a study needs, so the model assembles from the brain instead of re-reading the code: each
+// page's sections and freshness, every `[assumed]` line (they get their own chapter, never the
+// narrative), the requirement IDs the pages cite, and the code modules no page covers yet.
+export function digest(ws) {
+  const all = status(ws);
+  const assumed = [];
+  const requirements = new Set();
+  for (const p of all) {
+    let text = "";
+    try {
+      text = readFileSync(p.file, "utf8");
+    } catch {
+      continue;
+    }
+    for (const l of text.split(/\r?\n/)) {
+      if (/\[assumed\]/i.test(l)) assumed.push({ page: p.id, line: l.replace(/^\s*[-*]\s*/, "").trim() });
+      for (const m of l.matchAll(/\[req:\s*([^\]]+)\]/gi)) for (const id of m[1].split(/[,\s]+/).filter(Boolean)) requirements.add(id);
+    }
+  }
+  const coveredPaths = all.flatMap(wsPaths);
+  const overlaps = (q) => coveredPaths.some((c) => q === c || q.startsWith(c + "/") || c.startsWith(q + "/"));
+  return {
+    workspace: basename(memoryRoot(resolve(ws))),
+    pages: all.map(({ file, repos, ...p }) => ({ ...p, sections: sections(file) })),
+    assumed,
+    requirements: [...requirements].sort(),
+    uncovered: workspaceModules(ws)
+      .filter((c) => !c.paths.some(overlaps))
+      .map(({ name, paths, files }) => ({ name, paths, files })),
+  };
+}
+
+// `"brain": { "enabled": false }` in aidlc.config.json switches the brain off for a workspace: no
+// session line, and the pipeline and the other commands stop growing it.
+export const enabled = (ws) => tryJson(join(resolve(ws), ".claude", "aidlc.config.json"))?.brain?.enabled !== false;
 
 // --- CLI -------------------------------------------------------------------------------------------------
 
@@ -426,9 +512,28 @@ if (isEntry(import.meta.url)) {
     } else if (cmd === "index") {
       const file = writeIndex(ws);
       out({ file }, file);
-    }
-    else {
-      console.error("usage: brain.mjs <init|modules|status|changes|stamp|index> <workspace> [page] [--json]");
+    } else if (cmd === "which") {
+      const r = which(ws, positional.slice(2));
+      out(
+        r,
+        [
+          ...r.pages.map((p) => `page ${p.id}: ${p.files.join(", ")}`),
+          ...r.candidates.map((c) => `no page yet — module "${c.name}" (paths: ${c.paths.join(", ")}): ${c.files.join(", ")}`),
+          r.unmapped.length ? `not in any module: ${r.unmapped.join(", ")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n") || "(no files given)",
+      );
+    } else if (cmd === "digest") {
+      const d = digest(ws);
+      out(
+        d,
+        `${d.pages.length} page(s) · ${d.pages.filter((p) => NEEDS_REFRESH.has(p.state)).length} behind · ` +
+          `${d.assumed.length} assumption(s) to confirm · ${d.requirements.length} requirement(s) cited · ` +
+          `${d.uncovered.length} code module(s) with no page${d.uncovered.length ? `: ${d.uncovered.map((c) => c.name).join(", ")}` : ""}`,
+      );
+    } else {
+      console.error("usage: brain.mjs <init|modules|status|changes|stamp|index|which|digest> <workspace> [page | files…] [--json]");
       process.exit(2);
     }
   } catch (e) {

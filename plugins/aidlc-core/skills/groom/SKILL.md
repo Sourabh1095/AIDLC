@@ -85,6 +85,12 @@ completion) plus, for markdown source, epics too. For each item, in priority ord
    items that really target the **`control-plane`** (F8) or an **undeclared repo** (a shared lib /
    future product → offer `/aidlc:repo add`, F2).
 
+**Acceptance criteria you applied are intent the project brain should hold.** When this person has a
+brain (`.aidlc/brain/`, unless `brain.enabled` is false), an item whose criteria you **wrote** (not
+merely proposed) and whose module has a page gets its business rules and capabilities on that page as
+`[req: <ID>]` (`aidlc:brain` → *Writing it*). A rule stated twice is corrected in place, not repeated.
+Skip Tasks: the Story carries the intent.
+
 ## Flow check — is the *order* still right, not just the items? (one pass, at the end)
 
 Grooming makes items **ready**; it says nothing about **when they run**. Those are different failures,

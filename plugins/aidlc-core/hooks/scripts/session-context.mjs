@@ -93,7 +93,7 @@ section(() => {
 // brain exists never opens it. Which pages are behind comes from one `git diff` per stamp commit, and
 // most of the change on a team where one person uses AIDLC arrives from outside it.
 section(() => {
-  if (!cfg) return;
+  if (!cfg || cfg.brain?.enabled === false) return;
   const mods = brainStatus(cwd).filter((p) => p.kind === "module");
   if (!mods.length) return;
   const behind = mods.filter((p) => NEEDS_REFRESH.has(p.state)).map((p) => p.id.split("/").pop());

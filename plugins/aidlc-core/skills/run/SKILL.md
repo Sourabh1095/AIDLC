@@ -232,6 +232,13 @@ query <repo-path> <words…>` — and record what the plan uses, extends and new
 most of the work, and an orchestrator planning from "a quick look" is exactly how a second date
 formatter gets written next to the first. Pass the architect the same instruction; it is in its brief.
 
+**Plan from understanding when a project brain exists** (`.aidlc/brain/`, unless `brain.enabled` is
+false): `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs" which <ws> <paths the item will touch>`
+names the module pages. Read those, and only those (`aidlc:brain` → *Reading it*). Their business rules
+and connections are what a plan breaks when nobody mentions them. A page that is behind is a hint, not
+evidence: check the lines the plan relies on in the code. Name the pages you read in the plan's
+`### Reuse` block, and the architect's brief.
+
 **Every plan task declares the paths it will touch** — `- [ ] <task>  ·  paths: src/screens/users.tsx`.
 This is not bookkeeping: §6 uses it to decide what can be implemented concurrently, and a task with no
 declared paths is never parallelized (unprovable is not the same as safe). Two more fields where they
@@ -663,6 +670,13 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> 
 
 A run that ends `blocked` (§7) journals `blocked` with the item, the phase and the blocking finding
 instead. Never let a failed append affect the run — it returns null and says nothing by design.
+
+**Teach the project brain what the item changed** (`aidlc:brain` → *After a run*), unless
+`brain.enabled` is false. It runs from what the run already holds — the branch diff and the acceptance
+criteria — so it reads nothing new. The first time a run touches a module, that module gets a page:
+this is how the brain grows without anyone running `/aidlc:learn`. The brain is not in git, so this
+adds no commit and no PR change. A run that ended `blocked` or `abandoned` teaches nothing: its code
+may never land.
 
 Report to the user in ≤6 lines: item, branch, PR URL (or merge sha), assumptions count, findings
 resolved, anything needing human eyes. **Where the run bound Tasks (§5), say so in the item line** —

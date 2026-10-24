@@ -92,9 +92,16 @@ types, cross-module flows and a glossary, every line tagged with its source — 
 It is **per person**, kept out of git, because on many teams one person uses AIDLC and the rest change
 the code by other means. That makes freshness the central problem: most change never passes through
 the tool. So each page records the commit it was last checked against, and `brain.mjs status` maps one
-`git diff` per stamp commit onto the pages' paths. A page whose commit is not in HEAD's history
-(another branch, a squash merge) counts as behind too, since an uncommitted brain does not change with
-the branch. A refresh reads only that diff. The model writes the pages; the script enumerates modules
+`git diff` per stamp commit onto the pages' paths. The comparison is by **content**, not history: a run
+stamps its pages on its feature branch, and a squash merge lands the same code as a new commit, which
+history calls foreign and content calls unchanged. A page from an abandoned branch still reads as
+behind, because the code it describes is not in HEAD. A refresh reads only that diff.
+
+It grows where work already happens, from what that work already holds: a pipeline run teaches it the
+modules its diff touched, using the diff and the acceptance criteria, and gives a module its first page
+the first time a run touches it. `/aidlc:do` adds what an explanation or diagnosis taught it, and
+intake and grooming add intended behaviour as `[req]` lines. A page is stamped only when everything
+that moved under it was read, so a teammate's change the run did not read keeps the page marked behind. The model writes the pages; the script enumerates modules
 from the code's layout, diffs and stamps — the parts a model does badly. It is read on demand: the
 session gets one line saying the brain exists and what is behind, and planning opens only the pages a
 task touches.

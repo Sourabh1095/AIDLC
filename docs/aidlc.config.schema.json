@@ -479,6 +479,13 @@
       "properties": {
         "inWorkspace": { "type": "boolean", "default": true, "description": "Keep auto memory inside the workspace. false leaves it wherever Claude Code's own settings put it." }
       }
+    },
+    "brain": {
+      "type": "object",
+      "description": "The project brain (.aidlc/brain/): this person's growing understanding of the product — a page per module, user types, flows and vocabulary — kept out of git. Grown by /aidlc:learn, by every pipeline run (the modules it changed), by /aidlc:do (what an explanation or diagnosis taught it) and by intake and grooming (intended behaviour). See the aidlc:brain skill.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "false switches the brain off for this workspace: no session line, and nothing writes to it." }
+      }
     }
   },
   "definitions": {

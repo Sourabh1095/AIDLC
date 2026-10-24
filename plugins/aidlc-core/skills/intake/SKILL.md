@@ -106,6 +106,12 @@ planning.
 
 ## 4 · HAND OFF
 
+**Record the intent in the project brain** when this person has one (`.aidlc/brain/`, unless
+`brain.enabled` is false). For each created Story or Bug whose module has a page, add the business rules
+and capabilities its acceptance criteria state as `[req: <ID>]` lines (`aidlc:brain` → *Writing it*).
+Leave Tasks out, and leave out modules that have no page yet: the run that builds the item creates
+the page from real code.
+
 Report the created IDs, then offer exactly one next action:
 - single item → "Run it now? `/aidlc:run <ID>`"
 - multiple → "Start with <highest-priority ID>? (`/aidlc:next` will pick it up too)"
