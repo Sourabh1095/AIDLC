@@ -49,6 +49,13 @@ check("findings parsed with category and severity", parsed.findings.map((f) => [
   [["reuse", "MAJOR"], ["human review", "MAJOR"], ["agent review", "MINOR"], ["gate hole", "NOTE"]]);
 check("elapsed hours", parsed.hours, 4);
 check("hours per phase from the log", parsed.phaseHours, { requirements: 0.5, design: 0.5, implement: 2, verify: 1 });
+{
+  const withDispatch = parseRun("## Log\n- 2026-09-01T10:00Z dispatch aidlc-implementer effort=medium\n- 2026-09-01T11:00Z dispatch aidlc-reviewer effort=high\n", { item: "X" });
+  check("dispatch lines carry the effort", withDispatch.dispatches, [{ agent: "aidlc-implementer", effort: "medium" }, { agent: "aidlc-reviewer", effort: "high" }]);
+  const s2 = summarize([{ ...withDispatch, item: "X", phase: "done", findings: [], fixCycles: 0, reviewRounds: 0 }]);
+  check("effort totals by level", s2.effort.byLevel, { medium: 1, high: 1 });
+  check("render shows the effort line", render(s2).includes("agent dispatches by effort: medium 1 · high 1"), true);
+}
 
 // A workspace: one archived done run, one blocked, one live; the archived copy of PROJ-1 wins.
 const ws = mkdtempSync(join(tmpdir(), "insights-"));

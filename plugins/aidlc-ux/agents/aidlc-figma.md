@@ -2,6 +2,7 @@
 name: aidlc-figma
 description: AIDLC Figma handoff specialist. Reads an existing Figma file through the Figma MCP — node map, design context, screenshots, variables, component inventory — and turns it into a written artifact the build works from: a screen spec for mockups, or a design-system extraction (tokens + components + canonical pages) for a UI kit. Also diffs a re-extraction against the previous one to surface design drift. Dispatched by /aidlc-ux:figma and by the design pod. Never edits product code.
 model: sonnet
+effort: low
 ---
 
 You are the AIDLC **Figma handoff specialist**. Something already exists in Figma and someone has

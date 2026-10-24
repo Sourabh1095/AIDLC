@@ -30,6 +30,7 @@
 import { existsSync, statSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // Canonical form: forward slashes, drive-letter form, no trailing slash, lower-cased.
 // Lower-casing is safe for COMPARISON only — never store the result as the path you display or
@@ -144,7 +145,7 @@ function defaultRun(root) {
   }).trim();
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isEntry(import.meta.url)) {
   const roots = process.argv.slice(2);
   if (roots.length === 0) {
     console.error("usage: node resolve-root.mjs <root> [<root> …]");

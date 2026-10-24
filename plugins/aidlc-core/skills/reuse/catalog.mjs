@@ -30,6 +30,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSy
 import { join, relative, resolve, extname, basename, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // Directories never worth reading.
 export const IGNORED_DIRS = new Set([
@@ -508,7 +509,7 @@ function parseArgs(argv) {
   return { flags, pos };
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = isEntry(import.meta.url);
 if (isMain) {
   const [cmd, ...rest] = process.argv.slice(2);
   const { flags, pos } = parseArgs(rest);

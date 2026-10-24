@@ -58,6 +58,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // Types that are coordination units, not runnable leaves. Note `feature`: it is absent from the
 // canonical WorkItem enum but real on an ADO board (Epic→Feature→Story→Task), and an adapter that
@@ -528,7 +529,7 @@ export function planSnapshot(planMarkdown) {
 }
 
 // ---- cli ---------------------------------------------------------------------------------------
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = isEntry(import.meta.url);
 const USAGE = "usage: node resolve-waves.mjs <items.json> [aidlc.config.json]\n" +
               "       node resolve-waves.mjs --snapshot-ids <plan.md>\n" +
               "       node resolve-waves.mjs --freshness <plan.md | plan-snapshot.json> <items-now.json> [--complete]";

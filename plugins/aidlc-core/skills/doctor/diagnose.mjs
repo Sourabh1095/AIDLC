@@ -29,6 +29,7 @@ import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { PHASES as RUN_PHASES, frontmatter, runDirs } from "../../hooks/scripts/lib/run-files.mjs";
+import { parseArgs } from "../../hooks/scripts/lib/cli.mjs";
 import { lintPermissionRules, lintSettingsText } from "./lint-rules.mjs";
 import { list, stale } from "../facts/facts.mjs";
 
@@ -36,16 +37,7 @@ import { list, stale } from "../facts/facts.mjs";
 // exists so the suite can run against a fixture home instead of the real one — user-scope
 // settings genuinely participate in the diagnosis (F42: enablement may live there), so a
 // test that could not control them would be reading the developer's own machine.
-const VALUE_FLAGS = new Set(["--plugin-root", "--home"]);
-const rawArgv = process.argv.slice(2);
-const flags = {};
-const positional = [];
-for (let i = 0; i < rawArgv.length; i++) {
-  const a = rawArgv[i];
-  if (VALUE_FLAGS.has(a)) flags[a] = rawArgv[++i];
-  else if (a.startsWith("--")) flags[a] = true;
-  else positional.push(a);
-}
+const { flags, positional } = parseArgs(process.argv.slice(2), ["--plugin-root", "--home"]);
 const asJson = flags["--json"] === true;
 const pluginRoot = flags["--plugin-root"] ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const HOME = flags["--home"] ?? homedir();
@@ -95,6 +87,12 @@ const tryJson = (p) => {
     add("warn", "node", "Node runtime", `v${process.versions.node} is end-of-life and not tested`, "Upgrade to a maintained Node LTS (20, 22 or 24) — the hooks are tested on those.");
   else
     add("fail", "node", "Node runtime", `v${process.versions.node} is below the minimum`, "Install Node 20 or newer — the hooks are ES modules and use modern fs APIs.");
+
+  // Claude Code lets this variable override every effort setting, including the per-dispatch level
+  // /aidlc:run resolves for each agent — so with it set, `pipeline.effort` silently does nothing.
+  const forced = process.env.CLAUDE_CODE_EFFORT_LEVEL;
+  if (forced)
+    add("warn", "effort", "Effort override", `CLAUDE_CODE_EFFORT_LEVEL=${forced} is set`, "It overrides every agent's effort, so pipeline.effort and the per-dispatch levels have no effect. Unset it (shell profile, or the `env` block of a settings file) unless forcing one level is what you want.");
 }
 
 // --- 2. Config -------------------------------------------------------------------------

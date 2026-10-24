@@ -2,6 +2,7 @@
 name: aidlc-ux-writer
 description: AIDLC UX narrative writer. Turns a work item into an experience story — vision, tone, journey, signature moment — before any pixel is designed. The narrative is the north star every downstream design/motion decision must trace back to. Dispatched by the /aidlc-ux:design pipeline in the narrative phase.
 model: sonnet
+effort: medium
 tools:
   - Read
   - Grep

@@ -49,36 +49,19 @@ Brief the analyst with the requirement text (and, in poly, the repo registry fro
    - Multiple independent outcomes, > L, **or work that spans repos** → an epic + 2–8 INVEST child
      stories. In poly, **each child targets exactly one repo** (`repo` set) with `dependsOn`
      capturing genuine cross-repo order.
-   - **A frontend + backend pair is contract-first, not chained** (`aidlc:work-items` → *Contract-first
-     siblings*). Do NOT author `frontend dependsOn backend` reflexively — that serializes the whole
-     feature to protect one unknown, the interface. Instead:
-     - **The interface is new or changing** → emit **three** children: a small **contract child** (an
-       OpenAPI path, GraphQL SDL type, `.proto` message, JSON Schema, or an exported type in a declared
-       shared package) in the repo that owns it, then the backend and frontend children each
-       `dependsOn: [<contract child>]` and **not on each other**. Both then start the moment the contract
-       lands, and `/aidlc:sprint` will select them together. Give the frontend child AC that are
-       satisfiable against generated types + contract-derived fixtures, so it never idles on a running
-       backend.
-     - **The interface already exists and this feature does not change it** → **no contract child and no
-       `dependsOn` edge at all.** Read the existing contract first and say on both items that the shape is
-       already there. Chaining here is pure lost time and it is the easy mistake, because the chain looks
-       prudent.
-     - **Genuinely one-sided or no interface between them** → one child, or two unchained children.
-     Chain them only for a real ordering that is not the interface (a migration that must land first, a
-     feature flag the frontend reads). Name that reason on the item — an unexplained `dependsOn` is
-     indistinguishable from the reflex.
-   - **Poly — author cross-repo work at the tier `workspace.crossRepoSplit` sets** (default `story`; see
-     `aidlc:work-items` → *Cross-repo split tier*). The runnable leaf is always single-repo; only its
-     tier differs. A described outcome touching >1 declared repo becomes:
-     - **`story` (default):** a **Feature → one per-repo child Story** (each Story = one repo = one PR).
-       Never author a single fat cross-repo Story for `/aidlc:run` to split later; going one tier up
-       keeps each repo unit a proper Story (ADO forbids Story→Story parenting).
-     - **`task`:** a **User Story (the user-value umbrella) → one per-repo child Task** (API → backend
-       repo, UI → frontend repo, migration → db repo), each Task a single-repo leaf; the Story rolls up
-       when its tasks complete.
-     Either way, a single **Task** never spans repos, and when a split re-homes ACs across children,
-     apply the **AC coverage map** (`aidlc:work-items` → *Re-decomposition*): every original AC lands on
-     a child, none dropped.
+   - **A frontend + backend pair is contract-first, not chained** — apply `aidlc:work-items` →
+     *Contract-first siblings* (the full rule is in its `references/structure.md`). In short: a new or
+     changing interface gets a small **contract child**, and both implementation children `dependsOn`
+     it and **not each other**; an interface that already exists unchanged gets **no contract child and
+     no edge** (read the contract and say so on both items). What is specific to authoring them here:
+     give the frontend child AC satisfiable against generated types and contract-derived fixtures, so it
+     never idles on a running backend; and chain two children only for a real ordering that is not the
+     interface (a migration, a flag), with the reason written on the item.
+   - **Poly — author cross-repo work at the tier `workspace.crossRepoSplit` sets** (`aidlc:work-items` →
+     *Cross-repo split tier*): `story` (default) → a **Feature with one Story per repo**, never one fat
+     cross-repo Story for `/aidlc:run` to split later; `task` → a **Story umbrella with one Task per
+     repo**. A Task never spans repos, and when a split re-homes ACs, apply the **AC coverage map**
+     (`aidlc:work-items` → *Re-decomposition & supersession*) — every original AC lands on a child.
    - Work that belongs to **no product repo** (workspace README, cross-repo docs, control-plane config)
      → target `control-plane` (F8), not a product repo. Work referencing a repo **not yet declared** (a
      shared lib, a future product) → note it and offer to declare it (`/aidlc:repo add`), don't fold it

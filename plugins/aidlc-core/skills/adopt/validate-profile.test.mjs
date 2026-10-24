@@ -10,7 +10,7 @@
 //   2. MUTATIONS — each breaks exactly one invariant and must be caught with the right message.
 //      A validator that only ever says OK is worth nothing.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1232,7 +1232,12 @@ try {
   if (!existsSync(skillPath)) {
     console.log("skip  SKILL agreement — SKILL.md not reachable");
   } else {
-    const skill = readFileSync(skillPath, "utf8");
+    // The skill is SKILL.md plus the step files it reads in full (references/) — the long steps were
+    // moved there so the skill fits in one read, and they are still the skill.
+    const refDir = join(HERE, "references");
+    const skill = [skillPath, ...(existsSync(refDir) ? readdirSync(refDir).filter((f) => f.endsWith(".md")).map((f) => join(refDir, f)) : [])]
+      .map((p) => readFileSync(p, "utf8"))
+      .join("\n");
     const AUTHORED = [
       "STATUSES", "CONFIDENCES", "EVIDENCE_KINDS", "RESOLVED_FROM", "SHAPES", "TOPOLOGIES",
       "CLASSIFICATIONS", "SKIP_REASONS", "SUPPORTS", "SURFACE_KINDS", "GAP_KINDS", "DOC_KINDS",

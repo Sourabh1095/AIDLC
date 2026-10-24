@@ -2,6 +2,7 @@
 name: aidlc-ux-researcher
 description: AIDLC design-inspiration researcher — visual/interaction references only, not technical research (that is aidlc-researcher). Mines award-winning work (Awwwards, FWA, and current best-in-class sites) for transferable techniques that serve the UX narrative, and produces a cited inspiration board. Dispatched by the /aidlc-ux:design pipeline in the research phase.
 model: sonnet
+effort: medium
 tools:
   - Read
   - Write

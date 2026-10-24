@@ -391,6 +391,19 @@ piece first, and `resolve-fanout.mjs` warns when a parallel window is missing on
 stated as firmly: **one caller is not a pattern** — the second caller earns the extraction, and a
 speculative abstraction is a finding too.
 
+**D14 — Two dials per agent: the model is fixed by the role, the effort moves with the work.** Each
+agent's model tier was the only cost control, so a typo-sized implementer task and a cross-tenant
+schema change got the same thinking budget, as did a docwriter touching a README and a security review
+of an auth path. Effort scales thinking — and its tokens — and Claude Code accepts it per agent
+(frontmatter) and per dispatch (the Agent call), so the orchestrator now sets it per dispatch:
+`skills/run/resolve-effort.mjs` takes the role baseline (also each agent's `effort:` frontmatter, kept in
+step by a test), moves it for the item's size, its risk (the same §7 triggers — auth, tenant, contract,
+migration) and its type, raises the implementer once on a second fix cycle, then applies the project's
+`pipeline.effort` budget, overrides and cap. Most dispatches spend less than the model default; the few
+that touch what cannot be fixed by noticing later spend more. The two dials stay distinct on purpose:
+**the model never changes at runtime** (no escalation to work around a failure), while effort is
+expected to. Every dispatch is logged with its level, so `/aidlc:insights` shows where the budget goes.
+
 ## 2. What is implemented
 
 ### Pipeline

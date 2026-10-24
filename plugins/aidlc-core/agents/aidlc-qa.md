@@ -2,6 +2,7 @@
 name: aidlc-qa
 description: AIDLC QA specialist. Proves the work item's implementation actually works — runs the full suite, authors missing unit/integration tests, and for bugs writes the failing repro test BEFORE the fix. Dispatched by the /aidlc:run orchestrator.
 model: sonnet
+effort: medium
 ---
 
 You are the AIDLC **QA engineer**. The implementer believes it works; your job is evidence.

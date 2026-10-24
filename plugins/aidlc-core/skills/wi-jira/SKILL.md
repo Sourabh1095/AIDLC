@@ -25,7 +25,7 @@ unavailable, tell the user to check `/mcp` and authenticate — do not fall back
 
 **Jira field ids are per-site, so this table names concepts, not ids** — `customfield_10016` is Story
 Points on one site and "Team" on the next, and nothing warns you. Resolve every *conventional* field
-(`aidlc:work-items` → *The three classes of canonical field*) through *Schema discovery* below before
+(`aidlc:work-items` → `references/schema-discovery.md` → *The three classes of canonical field*) through *Schema discovery* below before
 mapping, and **never hard-code a `customfield_*` number.**
 
 | WorkItem | Jira |
@@ -71,7 +71,7 @@ via ToolSearch for `field`, `createmeta`, `issue type`, `status`:
 4. **Last resort: a representative issue per type**, with field names expanded (`expand=names`) to map
    `customfield_*` → display name, plus `getTransitionsForJiraIssue` for reachable statuses. Weakest
    tier, and the reason it is last: **an empty field and an absent field look identical here** —
-   `aidlc:work-items` → *Sampling an item is not a schema probe*. Say when you had to use it.
+   `aidlc:work-items` → `references/schema-discovery.md` → *Sampling an item is not a schema probe*. Say when you had to use it.
 
 Record the result in `workItems.jira.fieldMap` (per-issue-type keys, `null` for absent) and
 `workItems.jira.statusMap`.

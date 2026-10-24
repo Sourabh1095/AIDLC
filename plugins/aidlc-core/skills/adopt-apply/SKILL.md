@@ -316,6 +316,15 @@ Two consequences to state at the same time, not later: `pipeline.ceremony` floor
 mode unless explicitly set, and `source: markdown` earns a warning (the backlog becomes git files several
 people groom concurrently). Neither is a block.
 
+### 3.3c · `reuse.sharedPaths` (from each root's `reuse`)
+
+The reuse catalog (`aidlc:reuse`) finds shared code by folder name — `components`, `hooks`, `lib`,
+`utils`, `services` and the like. Where the scan found a root's shared code living under names it does
+not know (`reuse.proposedSharedPaths`), propose them as that repo's `reuse.sharedPaths` (in mono, the
+top-level `reuse.sharedPaths`), each with the evidence the scan gave. **Union, never replace**, like every
+array a human may have added to. Without this the catalog is empty for such a project, and every plan
+after adoption is written without knowing what the code already provides.
+
 ### 3.4 · Git conventions and `rules/git-workflow.md`
 
 Write the conventions onto the repo entry (or the mono `git` block): `integrationBranch`, `commitStyle`,

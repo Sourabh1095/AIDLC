@@ -2,6 +2,7 @@
 name: aidlc-motion
 description: AIDLC motion and interaction specialist. Designs and implements animation, micro-interactions, scroll-based/motion-to-scroll effects, parallax, hover states, transitions, sequencing and (when justified) WebGL — all serving the UX narrative and within a strict performance + accessibility budget. Dispatched by the /aidlc-ux:design pipeline; also handles motion fix rounds from the jury.
 model: sonnet
+effort: medium
 tools:
   - Read
   - Grep

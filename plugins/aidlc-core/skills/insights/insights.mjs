@@ -16,6 +16,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { frontmatter, runDirs, WAITING_ON_HUMAN } from "../../hooks/scripts/lib/run-files.mjs";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // Where a finding came from, from the text before its first colon. The categories are the questions
 // worth asking: is the code duplicating things, are humans catching what agents missed, is the gate
@@ -68,12 +69,15 @@ export function parseRun(text, fm) {
   }
   const stamps = [];
   const phases = [];
+  const dispatches = [];
   for (const line of section(text, "Log").split(/\r?\n/)) {
     const m = line.match(STAMP_RE);
     if (!m) continue;
     const at = toDate(m[1]);
     if (!at) continue;
     stamps.push(at);
+    const d = m[2].match(/^dispatch\s+(\S+)\s+effort=(\S+)/);
+    if (d) dispatches.push({ agent: d[1], effort: d[2] });
     const p = m[2].match(/(?:phase\b[^→]*)?→\s*([a-z-]+)/i);
     if (p) phases.push({ at, phase: p[1].toLowerCase() });
   }
@@ -96,6 +100,7 @@ export function parseRun(text, fm) {
     hours: started && ended ? (ended - started) / 36e5 : null,
     phaseHours,
     findings,
+    dispatches,
   };
 }
 
@@ -175,6 +180,15 @@ export function summarize(runs, { since } = {}) {
     reviewRounds: rs.reduce((n, r) => n + r.reviewRounds, 0),
     categories,
     medianHoursByPhase: Object.fromEntries(Object.entries(phaseTotals).map(([p, hs]) => [p, round(median(hs), 2)])),
+    // Where the thinking budget goes (pipeline.effort): dispatches per level, and per agent.
+    effort: rs.flatMap((r) => r.dispatches ?? []).reduce(
+      (acc, d) => {
+        acc.byLevel[d.effort] = (acc.byLevel[d.effort] || 0) + 1;
+        (acc.byAgent[d.agent] ??= {})[d.effort] = (acc.byAgent[d.agent][d.effort] || 0) + 1;
+        return acc;
+      },
+      { byLevel: {}, byAgent: {} },
+    ),
     byMonth: Object.fromEntries(Object.entries(months).sort()),
   };
   s.signals = signals(s);
@@ -257,6 +271,8 @@ export function render(s) {
   lines.push(`  median time to done: ${s.medianHoursToDone ?? "?"} h · fix cycles/run: ${s.meanFixCycles} (${s.runsNeedingAFixCycle} needed one) · human review rounds: ${s.reviewRounds}`);
   const ph = Object.entries(s.medianHoursByPhase);
   if (ph.length) lines.push(`  median hours by phase: ${ph.map(([p, h]) => `${p} ${h}`).join(" · ")}`);
+  const ef = ["low", "medium", "high", "xhigh", "max"].filter((l) => s.effort?.byLevel[l]);
+  if (ef.length) lines.push(`  agent dispatches by effort: ${ef.map((l) => `${l} ${s.effort.byLevel[l]}`).join(" · ")}`);
   lines.push("", "Findings by source:");
   for (const [k, v] of Object.entries(s.categories)) lines.push(`  ${k.padEnd(14)} ${String(v.total).padStart(4)} total · ${String(v.blockerOrMajor).padStart(3)} blocker/major · in ${v.runs} run(s)`);
   const months = Object.entries(s.byMonth);
@@ -271,7 +287,7 @@ export function render(s) {
   return lines.join("\n") + "\n";
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (isEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const root = argv[0] && !argv[0].startsWith("--") ? resolve(argv[0]) : process.cwd();
   const i = argv.indexOf("--since");

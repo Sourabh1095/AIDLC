@@ -2,6 +2,7 @@
 name: {{AGENT_NAME}}
 description: {{WHEN_THE_ORCHESTRATOR_SHOULD_DISPATCH_THIS — role + trigger conditions.}}
 model: sonnet
+effort: medium   # low = mechanical · medium = scoped engineering · high = its judgement is the safety net (aidlc:agent-contract §4)
 # tools: restrict only if the role demands it (e.g. reviewers get no Edit/Write)
 x-aidlc:
   origin: project

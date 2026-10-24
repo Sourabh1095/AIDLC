@@ -29,6 +29,7 @@ import { readFileSync, statSync, existsSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 const SOURCE_EXT = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte", ".py", ".go", ".java", ".kt",
@@ -223,7 +224,7 @@ export function describe(c) {
     : `${where} (${c.lines} lines) repeats ${other}, which this change also adds — write it once, in a shared place, and use it from both`;
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = isEntry(import.meta.url);
 if (isMain) {
   const argv = process.argv.slice(2);
   const flag = (n) => {

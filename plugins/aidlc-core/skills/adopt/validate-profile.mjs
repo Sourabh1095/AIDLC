@@ -27,6 +27,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 let errors = [];
 let warnings = [];
@@ -256,7 +257,7 @@ function checkGate(g, where, seen) {
     warn(where, "environmentDependent with no `services` listed — name them so an environment failure is diagnosable");
 
   // Two gates with the same name in the same scope make execution order ambiguous.
-  const key = `${g.name} ${g.package ?? ""}`;
+  const key = `${g.name}\u0000${g.package ?? ""}`;
   if (seen.has(key)) err(where, `duplicate gate \`${g.name}\`${g.package ? ` for package ${g.package}` : ""} — the gate list is an ordered sequence, so names must be unique within a scope`);
   else seen.add(key);
 }
@@ -1057,8 +1058,7 @@ export function validateProfileText(profileText, reportText) {
 }
 
 // ---- CLI ----
-const isMain =
-  process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = isEntry(import.meta.url);
 
 if (isMain) {
   const [profilePath, reportPath] = process.argv.slice(2);

@@ -35,6 +35,7 @@
     "maxFixCycles": 3,
     "architectThreshold": "M",
     "planApproval": "large",
+    "effort": { "budget": "balanced", "max": "xhigh" },
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
     "envFileAccess": "ask",
     "gates": {

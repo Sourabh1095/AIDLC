@@ -30,6 +30,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 export function resolveGate(config, repoName, packageName) {
   const verify = config?.pipeline?.gates?.verify;
@@ -90,7 +91,7 @@ export const runnableSteps = (steps) => steps.filter((s) => s.status === "presen
 // Steps that need services: a failure is "environment unavailable", not "code broken".
 export const environmentDependent = (steps) => steps.filter((s) => s.environmentDependent === true);
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = isEntry(import.meta.url);
 if (isMain) {
   const [cfgPath, repoName, packageName] = process.argv.slice(2);
   if (!cfgPath || !repoName) {

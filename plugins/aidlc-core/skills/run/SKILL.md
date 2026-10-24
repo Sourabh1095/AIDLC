@@ -116,19 +116,12 @@ file verbatim. Saying it twice makes one plan look like two.
 | bug | repro-first: requirements(light) → **QA writes failing repro test** → implement fix → verify |
 | task | slim: skip requirements agent (orchestrator sanity-checks scope inline) → plan → implement → verify |
 | spike | research only: dispatch **aidlc-researcher** per `aidlc:research`; output = decision report committed to `docs/research/`; no PR unless the item asks; transition item to done, comment the recommendation + report path |
-| epic | decompose only: dispatch `aidlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `aidlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (`children(<ID>)` — the adapter op, not `query`, which would filter out everything already done), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **This pass also runs the integration join** for a feature whose children were split across an interface (§2.5 → *The join*): the children were each verified against the contract and never against each other, so the seam is the one thing no child's own run could prove. A missing join is a `MAJOR` finding, not a pass. **Before declaring the epic done, run the `/aidlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
+| epic | decompose only: dispatch `aidlc-analyst` to split into child stories via `adapter.create(...)` — **in poly, each child is routed to exactly one repo** (see §2.5). When the split **replaces existing items** (re-decomposition), follow `aidlc:work-items` → *Re-decomposition & supersession*: emit an **AC coverage map (old→new)**, flag any uncovered original AC, and **link + supersede** the originals (don't leave them `New`). Comment the child IDs (with their repos) on the epic, then STOP — children run individually. **Exception — consolidation:** if the epic's children already exist and are all implemented (`children(<ID>)` — the adapter op, not `query`, which would filter out everything already done), don't re-decompose; instead run ONE consolidated pass over the epic's combined changes with whichever agents have a **`per-epic` cadence** (`pipeline.verification`; by default that's **security** — reviewer/QA are on-demand). Security honors `securityConfirm` (ask before running). This is where per-epic-deferred verification is paid once, for the whole feature. **This pass also runs the integration join** for a feature whose children were split across an interface (`references/cross-boundary.md` → *The join*): the children were each verified against the contract and never against each other, so the seam is the one thing no child's own run could prove. A missing join is a `MAJOR` finding, not a pass. **Before declaring the epic done, run the `/aidlc:status` ground-truth reconciliation** over the epic + children (board vs run files vs disk/git) so status drift or a dropped requirement is caught, not shipped silently; then report. |
 
 ### Umbrella story (poly, `workspace.crossRepoSplit: task`)
-
-When `crossRepoSplit` is `task` (see `aidlc:work-items` → *Cross-repo split tier*), a **User Story is a
-cross-repo umbrella** and its child **Tasks are the single-repo runnable leaves**. So a Story whose
-child Tasks span repos is NOT a `full` single-repo story run — treat it like the **epic/`decompose`
-variant**: coordinate its per-repo Task children (run each in its repo per §2.5, in `dependsOn` order),
-write a coordination file, and roll the Story up when its tasks complete (parent rollup, §3a / close
-reconciliation). **Recognize existing children — don't re-decompose** a Story whose per-repo Tasks are
-already on the board (query first; mirror the epic *consolidation* exception). Running an individual
-**Task** of such a Story is a normal single-repo run (§2.5 non-epic path). In the default `story` mode
-this doesn't apply — a Story is itself the single-repo leaf and runs the `full` variant.
+Only in poly with `crossRepoSplit: task`: a Story whose child Tasks span repos is an **umbrella**,
+coordinated like an epic rather than run as one leaf — follow `${CLAUDE_PLUGIN_ROOT}/skills/run/references/cross-boundary.md` → *Umbrella
+story*. Running one of its Tasks is an ordinary single-repo run.
 
 ### UI detection (decide here, not later)
 
@@ -143,59 +136,28 @@ available AND `ux.enabled` is true AND
   or a redesign; OR
 - the stack has a frontend (`stack.frontend` set) and delivering the item clearly means rendering
   something (not a pure API/DB/infra change).
-When true, also resolve and record on the run file:
-- **scope** — a specific page/route/component named by the item, else the whole app;
-- **mode** — `greenfield` only when the frontend has **no established system at all**: no
-  `design/design-system.md` **and** no theme/tokens/component library in code (a Tailwind theme, CSS
-  variables, a `components/ui` folder — `aidlc:reuse` → `catalog.mjs query <repo> component ui theme`
-  shows it). Otherwise `retrofit` for a scoped surface, or `redesign` if the item asks to redo the whole
-  app. Reading only for the design file classed every app that had never met the pod as greenfield, and
-  the pod then built a second design system beside the one already in the code;
-- **brand** — whether `ux.brand` config or `design/brand/` holds anchors to honor;
-- **designSource** — `figma` when the screens already exist in Figma (the resolved repo/package has
-  `ux.figma.enabled` with a `fileKey`, OR the item/AC/attachments carry a `figma.com/design/…` URL,
-  OR `design/figma-spec.md` already covers this surface), else `generated`. This is not a detail: on
-  `figma` the pod **implements an approved design** — tokens are extracted from the file, there's no
-  narrative/inspiration phase, the gate is fidelity to the design, and the **jury is optional**
-  (`ux.figma.jury`, default `suggest`). Record the file key and the node ids for the scoped screens
-  where the map has them. Mixed scope is normal — a mapped route runs the Figma track, an unmapped one
-  the generated track. (`aidlc-ux:design` §0.5.)
-- **systemSource** — `figma` when the **design system** lives in Figma (`ux.figma.designSystem` on the
-  resolved repo/package, else the **top-level** block — one brand, many apps, so a workspace-scoped
-  system is declared once even in poly — or an existing `design/figma-system.md`), else `project`.
-  Independent of `designSource`: the common enterprise case is a brand handing over a UI kit and no
-  mockups (`systemSource: figma` + `designSource: generated`). The pod then still designs the screens
-  and **the jury still gates** — but the values are given, so an off-system colour, space or
-  re-invented component is a Consistency defect rather than a preference.
+When true, read `${CLAUDE_PLUGIN_ROOT}/skills/run/references/ui.md` and resolve and record what it lists on the run file — **scope**,
+**mode** (`greenfield` only when there is no design system at all, neither `design/design-system.md`
+nor a theme/tokens/component library in code), **brand**, **designSource** (`figma` when the screens
+are drawn) and **systemSource** (`figma` when the design system is given).
 If none of the signals fire, `ui: false` — never force the design pod onto backend/infra work.
 (This is a judgment call; when genuinely unsure whether a frontend item warrants the design pod,
 default `ui: true` — an over-invoked jury is cheap insurance; a missed one ships un-judged UI.)
 
-**Scaffold-scope gate (deterministic — don't burn the pod on an empty shell).** A frontend/`ux.enabled`
-repo is NOT enough to fire the pod: a **scaffold/skeleton** item renders no real UI surface yet. Set
-`ui: false` (skeleton-only, jury skipped) — **even in a UI repo** — when the item reads as scaffold,
-i.e. *any* of: minimal-shell / bootstrap / "stand up the app" scope with **no named page/route/screen**
-to design; **functional-only** DoD/AC (builds, routes, lints, a placeholder/health page renders — no
-visual/interaction/UX criteria); `ux.uiPaths` empty or pointing only at not-yet-built placeholders; or
-the item is labeled/titled `scaffold`/`skeleton`/`bootstrap`/`init`/`wiring`. Conversely `ui: true`
-when a concrete page/route/component is named or the AC ask for visual/layout/motion/UX quality (not
-just "it renders"). **Ambiguity errs toward `ui: true`** — the scaffold read must be *clear* to skip.
-This is the **same rule in interactive and non-interactive (`/aidlc:sprint`, headless) modes**: headless
-applies it with no prompt; interactive may surface it as a confirmable *"Skeleton only [recommended] vs
-Full design pod"* recommendation, but the recommendation is not the only gate. (Mirrors
-`aidlc-ux:design` → *Pod-scope gate*, the pod's own view of the same contract.)
+**Scaffold-scope gate.** A frontend repo alone does not fire the pod: an item that reads as a scaffold —
+no named page/route/screen, functional-only AC, or titled `scaffold`/`skeleton`/`bootstrap`/`init`/
+`wiring` — is `ui: false`, headless or interactive alike. Ambiguity errs toward `ui: true`. The full rule
+is `${CLAUDE_PLUGIN_ROOT}/skills/run/references/ui.md` → *Scaffold-scope gate*.
 
-## 2.5 · ROUTE TO REPO (poly; a no-op in mono)
-
-With one repo in the registry (mono), skip this — the single entry is the target; leave `repo:`
-unset on the run file. With several:
-
-**Non-epic item** — resolve its target repo via the chain in `aidlc:work-items` → *Repos & routing*
-(control-plane → explicit `repo` → label match → single default → analyst grounding → undeclared-repo →
-ask). Record the resolved repo on the run file's `repo:` and write it back via
-`adapter.link`/`adapter.updateAC` where the source supports it. From here **every
-git/branch/commit/push/PR/verify step for this run targets `workspace.root`/`<repo.path>`**,
-using THAT repo entry's `host`/`remote`/`defaultBranch`/`branchPattern`.
+## 2.5 · ROUTE TO REPO AND PACKAGE
+**The repo.** **Mono:** the single registry entry is the target; leave `repo:` unset. **Poly:** resolve
+the item's repo via `aidlc:work-items` → *Repos & routing* (control-plane → explicit `repo` → label match
+→ single default → analyst grounding → undeclared-repo → ask), record it as `repo:` and write it back via
+`adapter.link`/`adapter.updateAC` where the source supports it. From then on **every
+git/branch/commit/push/PR/verify step targets that repo** with its own `host`/`remote`/`defaultBranch`/
+`branchPattern` — and *how* to target it without walling the run on permission prompts (`git -C`, quoted
+absolute paths, the `control-plane` and undeclared-repo outcomes) is in the reference below, which is
+required reading in poly.
 
 **Then resolve the PACKAGE, if the repo has any** (`repos[].packages[]`, or top-level `packages[]` in
 mono) — per `aidlc:work-items` → *Item → package resolution* (explicit → label → path → single default →
@@ -214,142 +176,10 @@ it changes for the rest of this run:
 - **Nothing about branching changes.** One item = one repo = one branch = one PR. The package narrows
   scope *inside* the leaf; it is not a new leaf, and it never justifies two branches in one repo.
 
-**An item spanning packages inside one repo decomposes like cross-repo work** — per-package children,
-sequenced by the packages' own `dependsOn` graph so a shared package lands before its consumers. Do not
-be tempted to do it in one branch because they happen to share a repo: the review unit and the revert
-unit stay the same size, which is the point. Follow `aidlc:work-items` → *Re-decomposition & supersession*
-(AC coverage map, flag uncovered ACs, link + supersede) exactly as for a cross-repo split.
-
-**How to target it (F43) — the session cwd stays at the control plane; you do NOT get to change it.**
-The mechanism differs by command family, and getting it wrong walls the run on permission prompts:
-
-- **git → `git -C "<abs repo path>" <verb> …`.** Never `cd <path> && git …`: Claude Code prompts for
-  *every* compound command that `cd`s into a different directory and then runs `git`, regardless of
-  the allowlist, because git in a new directory can execute that directory's hooks. `git -C` is the
-  only form that runs unprompted, and the shipped template allows the poly verbs in both bare and
-  `-C` form (with the force-push/hard-reset denies mirrored in `-C` form too).
-
-  **If you edit those rules, two matcher constraints are load-bearing — both verified by running
-  headless probes, not by reading docs (F45; the docs describe neither):**
-  1. **`:*` does not compose with a mid-pattern `*`.** `Bash(git -C * add:*)` matches **nothing**.
-     Where a rule has a wildcard in the middle, the trailing wildcard must be written `*`, not `:*`.
-  2. **A trailing ` *` (space-star) does not match end-of-string.** `Bash(git -C * status *)` misses a
-     bare `git -C <path> status`, and a deny written `Bash(git -C * push * --force *)` misses
-     `git -C <path> push origin --force` — the dangerous form. Use no-space `*` on these rules; for
-     bare-verb denies where no path varies, add an exact-match rule (`Bash(git push --force)`)
-     alongside the ` *` form so the argument-less spelling is covered without swallowing
-     `--force-with-lease`, which must stay in `ask`.
-
-  Re-verify any change by running it. A rule that matches nothing fails **open** on the allow side
-  (the run blocks, loudly) but fails **closed** on the deny side (force-push protection silently
-  disappears) — the deny half cannot be validated by watching a run succeed.
-- **everything else (npm, pnpm, docker, test/lint/build) → `cd "<abs repo path>" && <cmd>`.** A `cd`
-  is read-only and each half is matched independently, so the bare `Bash(npm run:*)`-style rules keep
-  applying. **Always quote the path, and never assume it sits under the workspace root** — a repo entry
-  may carry an absolute path to another parent, another drive, or a UNC share (`aidlc:work-items` →
-  *Repos & routing*). In this shell a cross-drive `cd "D:/work/api"` is a normal `cd`; a UNC path is
-  reachable but cannot be a shell cwd on Windows, so for those prefer the tool's own directory flag
-  (`git -C`, `npm --prefix` where the allowlist permits) or say plainly that the repo needs a mapped
-  drive. There is no `-C` equivalent for these, and
-  `npm --prefix` would miss the allowlist the same way `git -C` did. Avoid output redirects in the
-  same compound command as the `cd` (they prompt when the redirect target's directory is ambiguous);
-  `2>/dev/null` alone is fine.
-- **`gh` / `az repos` →** pass the repo explicitly (`gh -R <owner>/<repo>`, `az repos pr … --repository`)
-  rather than relying on cwd.
-
-In mono the session cwd already *is* the repo, so bare `git <verb>` is correct there and no `-C` is
-needed. The run file lives at
-`<repo.path>/.aidlc/runs/{ID}.md` and is committed to the branch (so the PR still carries the full audit
-trail). Two routing outcomes are first-class, not ad-hoc:
-- **`control-plane`** (F8) — a workspace-level item (README, cross-repo docs, control-plane config)
-  routes to the workspace root and branches/merges there through the same gate. No `repos[]` entry
-  needed; `repo: control-plane` on the run file.
-- **Undeclared repo** (F2) — grounding says the work belongs in a repo not in `repos[]` (a shared lib,
-  a future product). **Offer to declare it** (`/aidlc:repo add` — appends `repos[]` + bootstraps the
-  folder), then route to the new entry. Never silently fold it into another repo.
-
-**Non-epic item whose scope spans repos** — the runnable leaf must be single-repo (1 leaf = 1 repo =
-1 branch = 1 PR); how you get there depends on `workspace.crossRepoSplit` (default `story`; see
-`aidlc:work-items` → *Cross-repo split tier*). A **Task** that spans repos is always wrong — a task is a
-leaf; decompose it into per-repo tasks. A **Story** that spans repos:
-
-- **`task` mode — expected, not an error.** The Story is the cross-repo **umbrella**; its per-repo
-  child **Tasks are the leaves**. Handle per §2 *Umbrella story*: coordinate/run the Task children in
-  `dependsOn` order, roll the Story up on completion. If the umbrella has no child Tasks yet, decompose
-  it into per-repo Tasks first (AC coverage map — `aidlc:work-items` → *Re-decomposition*). Do NOT
-  offer the three options below or warn — this is the project's chosen convention.
-- **`story` mode (default) — mis-authored; fix it.** A cross-repo Story breaks *1 story = 1 repo*; it
-  should have been a **Feature → per-repo Stories**. Do NOT run as-is. Offer three options consistently:
-  1. **Decompose-and-run** — split into per-repo children now and run them (in `dependsOn` order); the
-     parent becomes an umbrella. **Follow `aidlc:work-items` → *Re-decomposition & supersession*** (AC
-     coverage map, flag uncovered ACs, link+supersede the original if it's being replaced).
-  2. **Decompose-defer** — create the per-repo children and STOP (pick up via `/aidlc:next`).
-  3. **Single-repo subset** — the item really only needs one repo after grounding → route there, note
-     the descope.
-  **Prefer re-modelling one tier up — a Feature with per-repo Stories** — so each repo unit is a proper
-  Story; author it right up front (`aidlc:intake`/`aidlc:groom`/`aidlc:planning`), this run-time split is
-  the safety net. (ADO forbids Story→Story parenting, so a run-time split of a Story yields child Tasks
-  — a stopgap, exactly why the Feature-tier authoring is preferred in `story` mode.)
-
-**Epic / cross-repo requirement** — the feature may span repos. Dispatch **aidlc-analyst** to ground
-it against the candidate repos and decompose into **one child story per affected repo**, setting each
-child's `repo`, `parent` (the epic), and `dependsOn` (real cross-repo order only).
-
-**Frontend + backend children are contract-first, not chained** (`aidlc:work-items` → *Contract-first
-siblings*). Where the interface is new or changing, the decomposition is **three** children: a small
-**contract child** (OpenAPI path / GraphQL SDL / `.proto` / JSON Schema / an exported type in a declared
-shared package) in the repo that owns it, then the backend and frontend children each
-`dependsOn: [<contract child>]` and **not on each other**. Where the interface already exists unchanged,
-there is **no contract child and no edge** — read the contract and confirm it, don't chain on a hunch.
-Execution order follows from the graph without a special case: contract lands → both siblings become
-ready in the same pass → they run **concurrently** (§below), and the **join** proves they compose.
-
-Create the children (`adapter.create`), then:
-- Write a **coordination file** at the control plane `.aidlc/runs/{EPIC-ID}.md` (from the run-file
-  template; `repo:` left null) tracking the child IDs, their repos, `dependsOn` order and a status
-  rollup. This one is NOT committed to any product branch — it is cross-cutting workspace state.
-- Run the children in `dependsOn` order (independent children may be handed to `/aidlc:sprint`);
-  each child is its own atomic run per the rules above. Update the rollup as each child's PR opens.
-- **Siblings that are ready together run together, not one after the other.** Once a wave's dependencies
-  are terminal, every child that becomes ready is independent *by construction* — that is what the
-  `dependsOn` graph asserts — so hand the whole wave to `/aidlc:sprint` rather than walking it serially.
-  For a contract-first triple this is the payoff: the contract child runs alone, then backend and frontend
-  run **concurrently** in their own repos, branches and PRs. Record the wave in the coordination file
-  (`wave 2: PROJ-125 (backend) ‖ PROJ-126 (frontend)`) so the rollup shows what overlapped. Walking a
-  ready wave one child at a time is not safer — the graph already said they don't touch each other — it
-  is just slower.
-- **The join: prove the siblings compose (contract-first features).** A feature whose children were
-  split across an interface is **not done when both PRs are open** — each was verified against the
-  contract, neither against the other. When the last child of such a feature reaches terminal, run the
-  **integration join** as part of the epic/feature consolidation pass (§2):
-  1. Check out both siblings' merged state (their default branches post-merge, or the open PR heads if
-     you are joining pre-merge — say which you did).
-  2. Run the **contract-level verification**: the project's contract tests (schema validation, generated
-     client vs served response, Pact-style consumer checks), and where the project has one, the **e2e path
-     that exercises the real call** end to end. Resolve these from the repos' own gates
-     (`resolve-gate.mjs` — an `e2e` step is common at repo level); **do not invent a test framework** for a
-     project that has none.
-  3. **No contract test and no e2e anywhere** → that is a real coverage hole, not a pass. Write
-     `- [MAJOR][open] no integration verification exists for <feature>: <backend child> and <frontend child>
-     were each verified against the contract, never against each other` into the coordination file's
-     `## Findings` and say it plainly in the report. The whole point of parallelizing across a contract is
-     that the contract is the only thing holding the two sides together — a project that cannot test the
-     seam should know that is what it chose.
-  4. A failure here is a **feature-level blocker**: it belongs to whichever side diverged from the
-     contract, so open a fix item against that child (or feed it into an open PR), and never mark the
-     parent done over a red join.
-  Features whose children share no interface skip the join — there is no seam to prove.
-- **Shared-dependency pilot — a green pilot is necessary, not sufficient (F28).** When the first
-  child is a **shared-package dependency** the others consume (a `dev-config`/sdk/types repo), do NOT
-  declare "pattern proven, fan out" on that repo's own green: it validates itself via relative imports
-  and **never exercises the consumers' cross-repo resolution path**. Before fanning out to the
-  remaining consumers, run **at least one true consumer** end-to-end (its CI must resolve the shared
-  dependency under isolated single-repo checkout and go green). If that consumer surfaces a
-  resolution blocker (unpublished `file:` sibling can't resolve in CI — F28; cross-platform lockfile —
-  F29; depcruise floor — F30), **halt and flag rather than fan out or silently re-architect** the
-  merged pattern. Lead with one consumer so the blast radius surfaces on one repo, not five.
-- Comment the child IDs + repos on the epic, then proceed child-by-child (or STOP and let the user
-  pick them up via `/aidlc:next`, per autonomy).
+**Work that crosses a boundary — read `${CLAUDE_PLUGIN_ROOT}/skills/run/references/cross-boundary.md`** when the workspace is poly, the item
+spans repos or packages (it is decomposed, never done in one branch), an epic is being split across
+them (contract-first siblings, the coordination file, running ready siblings together), or it is an
+epic's consolidation pass (*The join*). A single-repo, single-package item never needs it.
 
 ## 3 · START
 
@@ -423,61 +253,13 @@ Prefer paths that are **files**, not directories or globs: two globs cannot be p
 resolver assumes they collide and serializes both.
 
 ### Bind the plan to the board's Task tier
-
-The leaf is the branch/PR unit; the **Task tier is the team's unit of effort**
-(`aidlc:work-items` → *The Task tier*). The run file's `## Plan` and the board's child Tasks are the
-same breakdown, so bind them rather than keeping a private second copy. Read
-`pipeline.taskSync.mode` (default `adopt`) — `off` skips this whole block, plan as above and continue.
-
-Otherwise call **`children(<ID>, {type: "task"})`** *before* writing `## Plan`, and take one of three
-paths:
-
-**A · Tasks exist → they ARE the plan.** Seed `## Plan` from them, **in the board's order**, one plan
-line per Task, each carrying its ID as a `wi:` binding:
-
-```
-- [ ] Add the profile DTOs  ·  paths: src/dto/profile.ts  ·  wi: PROJ-145
-```
-
-Then do the work the board cannot do for you: **enrich each line with `paths:`, and with
-`foundation:`/`dependsOn:` where they apply**, grounded in the code exactly as above. A Task carries a
-title and (sometimes) a description; it never carries a path list, and §6 will hold every unenriched
-line serial. Three rules keep the binding honest:
-
-- **Never silently drop or re-order a Task.** The board is the human's record of the work. A Task you
-  cannot implement as written stays in the plan, unticked, with the reason on the line — it does not
-  vanish because it was inconvenient.
-- **A step the Tasks don't cover is a plan-only line** (no `wi:`). Add it, and say in `## Log` that it
-  is unbacked. In `author` mode, offer to create the Task for it.
-- **`aidlc:planning`'s 3–8 guidance does not apply to an adopted list** — it governs plans *you* author.
-  Take however many Tasks the board has. But a leaf arriving with ~15+ Tasks is a **sizing signal**: say
-  so in one line (the Story is probably an XL that should have been split), then run it as scoped. Do
-  not truncate — a plan that quietly covers 8 of 15 Tasks reports green over work nobody did.
-
-**B · No Tasks, `mode: author` → author them.** Write the grounded plan first (as above), then
-**propose the Task list to the user before creating anything** — `create` is externally visible, so it
-takes the same gate as `/aidlc:intake` §3. On approval, `create` one Task per plan task (parented to
-the leaf, its `paths:` line in the description, no estimate — see below) and write each returned ID
-back as that line's `wi:`. On decline, continue with an unbound plan; that is a fine outcome.
-
-**C · No Tasks, `mode: adopt` (the default) → nothing changes.** Write the plan as above with no `wi:`
-bindings. A board that does not use the Task tier behaves exactly as it did before this existed.
-
-**Never write an estimate, priority or `dependsOn` onto a Task**, in any mode. Those carry human intent
-and the contract has no op for them by design (`aidlc:work-items` → *What the contract deliberately
-cannot do*). You move Tasks through their **states**; what the work was supposed to cost stays the
-team's number.
-
-**When the architect writes the plan** (size ≥ `architectThreshold`), make the `children` call
-**first** and pass the adopted list in its brief. The binding is an input to planning, not an
-annotation bolted on afterwards: an architect that has not seen the team's Tasks will author a
-different decomposition, and reconciling the two after the fact is exactly the duplication this
-removes. It returns the plan already bound — do not re-map it.
-
-In **poly**, `children` may return Tasks routed to a different repo than this run's — that is the
-`crossRepoSplit: task` umbrella shape, and it is handled at §2, not here. If you reach this section and
-the children span repos, you are running an umbrella as if it were a leaf: go back to §2.
-
+The board's child Tasks are the team's unit of effort, and the plan binds to them rather than shadowing
+them. Read `pipeline.taskSync.mode` (default `adopt`); `off` skips this. Otherwise call
+**`children(<ID>, {type: "task"})` before writing `## Plan`** — and pass the list in the architect's brief
+when it plans. No Tasks and mode `adopt` → nothing changes. **Tasks exist, or mode `author`** → follow
+`${CLAUDE_PLUGIN_ROOT}/skills/run/references/task-sync.md` → *Binding the plan*: existing Tasks **are** the plan, in the board's order, each
+line keeping its `wi:` id (never drop, reorder or re-decompose one; never write an estimate, priority or
+`dependsOn` onto one); `author` mode proposes Tasks and creates them only on approval.
 Record `taskSync: adopted <n> | authored <n> | none` on the run file's `## Log`, so the audit trail
 states whether the board's breakdown drove this plan or the plan was AIDLC's own.
 
@@ -497,7 +279,8 @@ When due, run the fan-out resolver now (§6 — it is cheap and its schedule bel
 present **at most ~25 lines**: the approach in one sentence (and the rejected alternative), the
 `### Reuse` block, the tasks with their paths and `foundation`/`dependsOn` edges, the schedule summary,
 the risks (ADR, contract, migration, new dependency, assumptions logged at §4), and which agents will
-run (implementers, and reviewer/QA/security per cadence). Then ask with AskUserQuestion:
+run at what effort (`resolve-effort.mjs … --table` with this item's size, type and risks — the one
+line per agent that tells the user what this item is about to spend). Then ask with AskUserQuestion:
 
 - **Approve** → log `plan approved` and continue to §6.
 - **Change it** → take the user's words as a constraint, revise `## Plan` (re-dispatch the architect
@@ -530,31 +313,11 @@ reads as what happens.
 **All-serial is the common answer and is not a failure** — most items are one coherent change. When it
 resolves that way, dispatch ONE implementer exactly as before and skip the rest of this block.
 
-A **parallel window** means several plan tasks whose declared paths are provably disjoint and which
-depend on nothing inside the window. Six screens getting the same treatment is the shape this exists
-for. Dispatch them like this:
-
-1. **One batch, N implementers** (`pipeline.implementFanout.maxAgents`, default 3, hard cap 5), each in
-   **fan-out mode** (`aidlc-implementer` → *Fan-out mode*): its brief carries **only its own task and its
-   own path allowlist**, and says plainly that it must not touch a path outside that list and must
-   **not commit**.
-2. **You commit, they don't.** This is the whole reason the fan-out is safe: the files are disjoint but
-   git is not, and two agents racing `git add`/`commit` in one checkout is the collision D7 is really
-   about. As each returns, `git add` **its declared paths** and commit in plan order with the task's own
-   message (`aidlc:git-workflow` → *Commits*), then tick its checkbox. A window's bound Tasks sync at its
-   closing checkpoint (*Mirror progress to the bound Tasks*, below) — the board write is yours too.
-3. **Account for everything before moving on.** Each agent reports the paths it changed *and created*.
-   After the window's commits, `git status` must be clean. Anything left over is a path an agent touched
-   without declaring — commit it in a clearly-named reconciliation commit and **write it to `## Findings`
-   as a fan-out contract violation**, because an undeclared write is exactly what the disjointness proof
-   assumed away. Never leave it dirty for the next window to absorb.
-4. **The gate runs ONCE, at the end of the window** — not per agent. A window is a partial change by
-   construction (screen 2 done, screen 5 not started), so a mid-window gate failure says nothing useful,
-   and running the full suite N times is the most expensive way to learn that. Individual agents may run
-   narrow checks over their own files; the resolved gate (§7) is the authority.
-5. **A `BLOCKED` verdict from any member ends the window.** Commit the clean members, leave the blocked
-   task's checkbox unticked with its reason, and treat it as the ordinary blocker path below — do not
-   dispatch the next window on top of a half-applied one.
+A **parallel window** — several tasks with provably disjoint paths that depend on nothing inside the
+window — is dispatched per `${CLAUDE_PLUGIN_ROOT}/skills/run/references/fanout.md`: N implementers in fan-out mode (each with only its own
+task and path allowlist, none commits), **you** commit each one's declared paths in plan order, `git
+status` is clean before the next window, the gate runs once at the window's end, and a `BLOCKED` member
+ends the window.
 
 Record `fanout: <schedule summary>` on the run file (e.g. `1 -> [2|3|4] -> 5`), so the audit trail states
 what ran concurrently. If the resolver is unavailable, **run everything serially** — the fan-out is an
@@ -615,81 +378,17 @@ If implementer reports a hard blocker (missing dependency/credentials/contradict
 phase `blocked`, record in `## Findings`, `adapter.comment`, report to user, STOP.
 
 ### Mirror progress to the bound Tasks
+Where plan lines carry `wi:` bindings, sync the board **at every checkpoint from here on** per
+`${CLAUDE_PLUGIN_ROOT}/skills/run/references/task-sync.md` → *Mirroring progress*: ticked → `done`, dispatched → `in_progress`, read-back
+verified. **You** write the board, never the implementer. Never reopen a terminal Task, never move one
+that is already ahead, never fight a rejected transition (log it and continue), and leave a blocked
+Task's state alone (comment the blocker on it).
 
-Where §5 bound plan lines to Tasks (`wi:`), the board's effort tier tracks the commits that spend it.
-**You do this, not the implementer** — one writer to the board, for the same reason there is one writer
-to git in a parallel window.
-
-**Sync on every checkpoint** from this phase onward — after each fan-out window, when the implementer
-returns, at phase end, and on resume. Read `## Plan` and, for each line carrying `wi:`:
-
-| Line state | Action |
-|---|---|
-| checkbox **ticked**, Task not yet terminal | `transition(<task>, done)` |
-| checkbox **unticked** and the task is **currently dispatched** (the serial task in hand, or any member of the open window), Task still `todo` | `transition(<task>, in_progress)` |
-| anything else | leave it alone |
-
-Driving it off the checkboxes rather than off agent reports is what makes it **idempotent and
-resume-safe**: the run file is the durable record, so re-syncing a partially-synced run is a no-op
-rather than a double-write. Every transition is **read-back-verified** like any other mutation
-(`aidlc:work-items` → *Write verification*).
-
-Four guards, three of them mirroring the parent rollup at §3a:
-
-- **Never reopen a terminal Task.** Not on a fix cycle, not on a scope-change resume, not when a later
-  window touches the same files. A Task that a human closed stays closed.
-- **Never move a Task that is already ahead of where you would put it** (in_review/done/blocked) —
-  leave it and note it. You only ever advance `todo`→`in_progress`→`done`.
-- **Never fight the tracker.** A rejected transition (team rollup rules, a required field, a state the
-  type does not have) is a `## Log` note and the run continues. This is bookkeeping; it does not gate
-  delivery.
-- **Blocked stays on the leaf.** When the run blocks on a bound task, `comment` the blocker onto that
-  Task and **leave its state alone**. The Story is already `blocked` and that is the item a human
-  triages; a Task flipped to blocked that no later phase reliably flips back is board litter.
-
-**Fix cycles** (§7) trail the leaf ID only where the reworked task's Task is already done — the effort
-was accounted for and re-opening it would double-count. Where it is still open, the fix commit trails
-both, and the finding note names the Task either way.
-
-**UI items → design pod.** If the run file's `ui:` flag (set at §2) is **true**: once
-backend/structure is in place, hand the frontend off by following `aidlc-ux:design` for this item's
-run file, passing the **scope, mode, brand, designSource and systemSource** you recorded at §2 — and,
-in poly, the **resolved frontend repo** (its `path` as the working dir). The pod resolves the render
-URL from the repo itself and fails loud rather than judging the wrong server (F13 — the protocol is
-`aidlc-ux:design-jury` → *Render & evidence protocol*; core does not restate it). It runs
-narrative → research →
-design system → (build/redesign +) motion, then the **jury loop to `ux.juryThreshold` (default 9),
-capped at `ux.maxJuryRounds`**. Its `[open]` jury findings join `## Findings` and gate the PR the
-same as reviewer/QA findings.
-
-**`systemSource: figma` changes what the design system is, not what the gate is.** The pod extracts
-the brand's design-system file once (canonical pages only) into `design/figma-system.md`, emits the
-project's whole token layer from its variables, and wires up the components it defines — then designs
-the screens within that vocabulary and runs the **normal jury loop**. The system being given doesn't
-lower the bar; it fixes the palette, type, spacing and components the bar is met with. Off-system
-values and re-invented components are Consistency defects. In a workspace-scoped system every
-frontend derives from the same extraction, so a system change makes every frontend stale at once —
-`/aidlc-ux:figma sync` names them.
-
-**`designSource: figma` changes what the gate is.** The pod extracts the design through the Figma MCP
-(spec + variables + reference shots), maps the variables onto the project's tokens, builds to the
-spec, and then runs the **fidelity check** instead of the jury: pass is **zero blocking deviations**
-from the design, capped at `ux.figma.maxFidelityRounds` (default 2). Its `[open]` fidelity findings
-join `## Findings` and gate the PR exactly as jury findings do. The **jury does not gate here** — the
-design was approved outside this session, so it's offered (`ux.figma.jury: suggest`, the default) and
-skipped without prompting on a headless/sprint run; when it does run it's advisory and never triggers
-a redesign. If the Figma MCP is unreachable or unauthenticated, the pod **blocks and says so** rather
-than inventing a design — treat it like any other blocked run (report, `## Findings`, stop); it is
-never "solved" by letting the pipeline design the screens itself.
-
-**Scaffold owns the port (F13).** When the implement phase **scaffolds a UX repo and assigns its
-dev-server port** (e.g. picks :3100 to avoid colliding with an API on :3000), write that port back to
-the repo's `ux.renderBaseUrl` in `aidlc.config.json` (the scaffold owns the port, so it owns the config
-value) and **flag any cross-repo port collision**. This keeps the jury's fallback honest even before it
-derives the port itself.
-- If `ui: true` but `aidlc-ux` is not installed, build the UI with the implementer as usual and note
-  in `## Findings` that the design gate was unavailable (so a human knows it shipped un-judged).
-- `ui: false` items skip the pod entirely.
+**UI items → design pod.** If the run file's `ui:` flag (§2) is **true**, hand the frontend to the pod
+once backend/structure is in place, per `${CLAUDE_PLUGIN_ROOT}/skills/run/references/ui.md` → *Design pod handoff* — the pod's jury or
+fidelity findings join `## Findings` and gate the PR like any other; an unreachable Figma blocks the run
+rather than letting the pipeline invent the design; `ui: true` without `aidlc-ux` installed is built by
+the implementer and noted as un-judged. `ui: false` items skip the pod entirely.
 
 Phase → `verify`. Checkpoint.
 
@@ -935,8 +634,8 @@ mode; branch-caused failures feed one extra fix cycle (respect `maxFixCycles` ov
 
 Phase → `done`. Final checkpoint + `## Log` summary (phases run, fix cycles, PR URL or local-merge sha).
 
-**Reconcile the bound Tasks once more.** The final checkpoint runs the §6 sync, so every ticked plan
-line's Task is closed. Any bound Task still open at this point is an **unticked plan line** — descoped,
+**Reconcile the bound Tasks once more** (only where plan lines carry `wi:`). The final checkpoint runs
+the §6 board sync, so every ticked plan line's Task is closed. Any bound Task still open at this point is an **unticked plan line** — descoped,
 deferred, or quietly never done — and it must be **named in the report, not closed to tidy the board**.
 A Story going Done over an open Task is either honest (the Task moved out of scope, and a human should
 retire it) or a dropped requirement, and only the human can tell which. Closing it here would erase the
@@ -1006,6 +705,16 @@ a recurring procedure):
   with a model/API error, do NOT retry it on a bigger model — report the exact error and stop
   the phase; a model that won't load is an environment problem to fix, not a reason to burn a
   higher tier. (Overriding a tier is a human decision, never an automatic recovery.)
+- **Every dispatch carries an effort level, resolved — not guessed.** The model tier is fixed per role;
+  effort is the dial that fits the thinking (and its tokens) to the work in front of the agent. Before
+  each Agent call:
+  `node "${CLAUDE_PLUGIN_ROOT}/skills/run/resolve-effort.mjs" .claude/aidlc.config.json <agent> --size <S|M|L|XL> --type <type> [--risk auth,tenant,contract,migration,security] [--phase <phase>] [--fix-cycle <n>]`
+  and pass the printed level as the Agent tool's `effort` for that call. Risk is the §7 triggers' list
+  (an auth/tenant path, an `apiContracts` path, a migration, the `security` label) — the same facts,
+  not a new judgement. Log it on the dispatch line: `- <UTC> dispatch <agent> effort=<level>` —
+  `/aidlc:insights` reads it. A second fix cycle raises the implementer one level, once
+  (`pipeline.effort.escalateOnRetry`); that is the only automatic raise, and it never touches the
+  model tier. If the script is unavailable, omit `effort` and the agent's own default applies.
 - Checkpoint the run file BEFORE dispatching any agent and AFTER it returns.
 - Agent briefs always include: run-file path, the section(s) they may append to, and
   "return a short verdict + pointer, not a transcript".

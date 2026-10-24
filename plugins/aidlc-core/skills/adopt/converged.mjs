@@ -31,6 +31,7 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // Fields that vary run-to-run without the workspace having changed. `drift` is here because it
 // merely echoes this very comparison — including it would make the answer depend on itself.
@@ -140,7 +141,7 @@ export function converged(existing, candidate, changedPaths = null, kind = "prof
   return { converged: false, firstDifference: diff, commitExcusable };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const kind = argv.includes("--config") ? "config" : "profile";
   const [existingPath, candidatePath, changedPathsFile] = argv.filter((a) => a !== "--config");

@@ -37,6 +37,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // Paths where "one writer at a time" is the whole point. These are the aggregators: every screen
 // registers in the same barrel, every feature appends to the same route table, every dependency lands
@@ -266,7 +267,7 @@ export const scheduleSummary = (r) =>
     .map((g) => (g.kind === "parallel" ? `[${g.tasks.map((t) => t.id).join("|")}]` : g.tasks[0].id))
     .join(" -> ");
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = isEntry(import.meta.url);
 if (isMain) {
   const [planPath, cfgPath] = process.argv.slice(2);
   if (!planPath) {

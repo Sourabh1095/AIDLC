@@ -100,7 +100,7 @@ per-repo worktrees add contention risk without adding isolation.
 
 ```
 # POLY — cwd stays at the control plane; the pipeline routes into repo.path itself
-claude -p "/aidlc:run {ID}" --permission-mode acceptEdits    # background; capture PID + log file
+claude -p "/aidlc:run {ID}" --permission-mode acceptEdits --effort <pipeline.effort.headless|medium>    # background; capture PID + log file
 ```
 
 ```
@@ -109,9 +109,13 @@ git worktree add ../{repo.name}-wt-{ID} -b <branch> {remote}/<base>
 # <branch>: the repo's branchPattern, rendered per aidlc:git-workflow → Branching (type map included)
 # <base>:   the repo's integrationBranch when it declares one (GitFlow `develop`), else defaultBranch
 cd ../{repo.name}-wt-{ID}
-claude -p "/aidlc:run {ID}" --permission-mode acceptEdits    # background; capture PID + log file
+claude -p "/aidlc:run {ID}" --permission-mode acceptEdits --effort <pipeline.effort.headless|medium>    # background; capture PID + log file
 ```
 
+- **`--effort` sets each background session's own thinking level** — the orchestrating main thread
+  of that run, routing and bookkeeping — from `pipeline.effort.headless` (default `medium`). Its agents
+  still get their per-dispatch effort from `resolve-effort.mjs`. N runs at once multiply whatever this
+  costs, which is why it is a setting rather than inherited from whatever session launched them.
 - **Mono worktrees still need trusting** — a worktree is a new workspace path, and Claude Code
   ignores `.claude/settings.json` allow rules in untrusted workspaces (every git/npm command would be
   denied). Before launching, add `projects["<worktree-path>"].hasTrustDialogAccepted: true` to

@@ -2,6 +2,7 @@
 name: aidlc-reviewer
 description: AIDLC adversarial code reviewer. Reviews the work item's diff against acceptance criteria and coding standards with fresh eyes — never shares the implementer's context. Dispatched by the /aidlc:run orchestrator in the verify phase.
 model: sonnet
+effort: medium
 tools:
   - Read
   - Grep

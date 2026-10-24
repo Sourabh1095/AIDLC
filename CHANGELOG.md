@@ -7,6 +7,65 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.56.0] — 2026-10-24
+
+Effort as a second dial beside the model tier, lighter prompts, and the script plumbing made one thing.
+`aidlc` 0.56.0 · `aidlc-ux` 0.9.0.
+
+### Reasoning effort per agent dispatch (`aidlc`, `aidlc-ux`)
+
+Each agent's model tier was the only cost control: a typo-sized implementer task and a cross-tenant
+schema change got the same thinking budget. Effort — accepted by Claude Code per agent (frontmatter) and
+per dispatch (the Agent call) — now moves with the work (architecture **D14**):
+
+- **Every agent declares a role baseline** (`effort:` frontmatter): `low` for the docwriter and the Figma
+  extractor, `medium` for scoped engineering, `high` where the agent's judgement is the safety net
+  (architect, security, researcher, jury, fidelity). A test keeps the frontmatter and the policy in step.
+- **`/aidlc:run` resolves the level for every dispatch** with `skills/run/resolve-effort.mjs`: size (a
+  small item drops a level, a large one rises), risk (the same §7 triggers — auth, tenant, contract,
+  migration, security — raise the agents that guard them), type (epic decomposition), and one raise for
+  the implementer on a second fix cycle. The model tier never changes at runtime.
+- **`pipeline.effort`** — `budget` (`economy` / `balanced` / `quality` shift everything a level), `max`
+  (a hard cap, default `xhigh`; `max` is opt-in), per-agent `overrides`, `escalateOnRetry`, and
+  `headless` (the `--effort` each `/aidlc:sprint` background session runs at).
+- The **plan checkpoint shows the effort table** for the item, every dispatch is logged with its level,
+  and **`/aidlc:insights` reports dispatches by effort**. A project-local agent keeps its own frontmatter.
+- **`/aidlc:doctor` warns when `CLAUDE_CODE_EFFORT_LEVEL` is set** — it overrides every per-agent level,
+  so `pipeline.effort` would silently do nothing.
+
+### Lighter prompts — conditional sections load only when they apply (`aidlc`)
+
+The orchestrator loaded about 121 KB of instructions on every run, most of it for situations the run
+was not in. Sections that apply only sometimes now live in `references/` beside their skill, moved
+verbatim (no rule rewritten), each heading kept with its binding rules and a pointer — so every existing
+`§2.5` / *Section* cross-reference still lands.
+
+- **`run`** 79 KB → 56 KB: cross-repo and cross-package work (`references/cross-boundary.md`), UI items
+  and the design-pod handoff (`ui.md`), the board's Task tier (`task-sync.md`) and parallel windows
+  (`fanout.md`). §2.5 also stopped saying "a no-op in mono" — package resolution applies to a mono
+  monorepo, and the old heading told it to skip that.
+- **`work-items`** 41 KB → 22 KB: schema discovery (read by the Jira/ADO adapters when they probe) and
+  work structure (packages, split tier, Task tier, contract-first siblings, re-decomposition).
+- **`adopt`** 82 KB → 35 KB: the four longest steps are step files read in full when the scan reaches
+  them — the skill was too long to read in one call, so its later steps could simply not be seen.
+- `intake`'s restatement of contract-first siblings and the split tier is now the binding points and a
+  pointer to their one owner.
+- **Adoption inventories reusable code**: the scan builds the reuse catalog per root and records
+  shared folders the catalog does not recognise; `/aidlc:adopt-apply` offers them as `reuse.sharedPaths`.
+
+### One copy of the CLI plumbing, and F55 (`aidlc`)
+
+- **`hooks/scripts/lib/cli.mjs`** — the entry-point check, argument parsing and JSON reading every script
+  had its own copy of. The entry check had four spellings; two compared paths exactly, so a resolver
+  launched with `d:\` instead of `D:\`, or through a junction or symlink, printed nothing and exited 0.
+  All fourteen scripts use the shared one; a test launches through a junction and a swapped drive case.
+- **F55 fixed: `/aidlc:upgrade` rewrites only what changed.** It re-serialized the whole config, turning
+  a two-key migration into a 147-line diff nobody could review. `skills/upgrade/json-edit.mjs` patches the
+  changed values in place and keeps the file's formatting, inline arrays and line endings, falling back
+  to a full rewrite only if the patch would not round-trip.
+- `validate-profile.mjs` no longer carries a literal NUL byte, which made ripgrep and the Grep tool skip
+  the file as binary.
+
 ## [0.55.0] — 2026-10-24
 
 Measuring the pipeline, and making the human's two moments cheaper — approving the plan and reviewing

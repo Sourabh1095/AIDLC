@@ -35,6 +35,7 @@
 // Never throws. Losing a fact is not worth losing the work that discovered it.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 /** Closed set, so the file stays greppable and a reader can load only what they need. */
 export const AREAS = new Set([
@@ -192,7 +193,7 @@ export function add(root, area, text, { ref = null, now = new Date(), similarAt 
 }
 
 // --- CLI ---------------------------------------------------------------------------------------
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop())) {
+if (isEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const flag = (name, dflt = null) => {
     const i = argv.indexOf(name);

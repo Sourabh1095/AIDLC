@@ -23,6 +23,7 @@
 // Never throws. A journal that breaks a run is worse than no journal at all.
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 /** Rotate once the file passes this many entries. Keeps the tail read cheap forever. */
 export const MAX_ENTRIES = 500;
@@ -131,7 +132,7 @@ function rotate(root, now) {
 // --- CLI ---------------------------------------------------------------------------------
 // Only when run directly. Import-safe so the SessionStart hook can use the functions
 // without spawning a process.
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop())) {
+if (isEntry(import.meta.url)) {
   const [cmd, root, ...rest] = process.argv.slice(2);
   const at = root || process.cwd();
   if (cmd === "append") {

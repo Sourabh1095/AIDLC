@@ -28,6 +28,7 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // current   — the array as it stands in the config (may be undefined on first apply)
 // seeds     — what the profile says should be there
@@ -65,7 +66,7 @@ export function resolveSeeds(current, seeds, lastSeeded) {
   };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isEntry(import.meta.url)) {
   const [cfgPath, profPath] = process.argv.slice(2);
   if (!cfgPath || !profPath) {
     console.error("usage: node seed-paths.mjs <aidlc.config.json> <profile.json>");

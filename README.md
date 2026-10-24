@@ -260,6 +260,7 @@ The settings worth knowing on day one:
 | `workspace.layout` | `mono` (default) · `poly` — several repos under one control plane |
 | `git.mode` | `remote` (default: push + PR) · `local` (no remote yet: a confirmed local merge instead) |
 | `pipeline.ceremony` | The process floor: `direct` (default) · `tracked` · `full` |
+| `pipeline.effort` | Reasoning effort per agent dispatch — `budget` (economy · balanced · quality), a `max` cap, per-agent `overrides`. Each agent has a role default and `/aidlc:run` adjusts it for the item's size and risk: the token dial beside the fixed model tiers |
 | `pipeline.verification` | How often reviewer/QA/security run — per item, per epic, on demand, or off. The default is economical; your CI gate is the per-item floor |
 | `pipeline.gates.verify` | Your project's real gate commands, per repo and package |
 | `team.mode` | `solo` (default) · `shared` |

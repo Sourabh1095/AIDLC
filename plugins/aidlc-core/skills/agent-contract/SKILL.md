@@ -95,8 +95,26 @@ Two rules follow, and both have bitten:
 orchestrator never routes a fix to a judging agent, so the read-only guarantee for the jury and the
 fidelity checker is structural as well as stated.
 
-## 4 · Writing a new agent
+## 4 · Model tier and effort — two dials, set for different reasons
+
+Every agent declares both in its frontmatter: `model:` (which model) and `effort:` (how hard it thinks).
+The **model is fixed by the role** and never changes at runtime — not to work around a failure, not for
+a hard item (`aidlc:run` → *Orchestrator invariants*). **Effort is the role's baseline and moves per
+dispatch**: `/aidlc:run` resolves it from the item's size, type and risk with
+`skills/run/resolve-effort.mjs` and passes it on the Agent call, which overrides the frontmatter. So the
+frontmatter value is what a dispatch from anywhere else gets (groom → analyst, the design pod → its
+agents) and must match `BASELINE` in that script — `resolve-effort.test.mjs` fails when they drift.
+
+Pick the baseline for the typical dispatch, not the hardest one: `low` for mechanical work (docs,
+extraction), `medium` for scoped engineering, `high` where the agent's judgement is the safety net
+(architecture, security, the jury). The resolver raises it where the item calls for more, and the
+project's `pipeline.effort` budget and cap apply on top — a high baseline cannot be capped back down by
+anything but the cap, so over-setting it is the expensive mistake.
+
+## 5 · Writing a new agent
 
 `aidlc:scaffold-agent` owns the agent-vs-skill test. Once an agent is justified, it inherits this file:
-reference it, add the one-line finish rule inline (so it binds even if this skill never loads), and
-spend the agent's own body on what only that role knows — its brief, its modes, its verdict set.
+reference it, add the one-line finish rule inline (so it binds even if this skill never loads), set its
+`model:` and `effort:` per §4 (a plugin-shipped agent also goes into `BASELINE`; a project-local one
+resolves from its own frontmatter), and spend the agent's own body on what only
+that role knows — its brief, its modes, its verdict set.

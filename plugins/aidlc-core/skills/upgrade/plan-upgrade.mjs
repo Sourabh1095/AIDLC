@@ -21,29 +21,16 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrateConfig, classify } from "./migrate-config.mjs";
 import { planSettings } from "./plan-settings.mjs";
+import { patchJsonText } from "./json-edit.mjs";
+import { parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
 
-const VALUE_FLAGS = new Set(["--plugin-root"]);
-const raw = process.argv.slice(2);
-const flags = {};
-const positional = [];
-for (let i = 0; i < raw.length; i++) {
-  if (VALUE_FLAGS.has(raw[i])) flags[raw[i]] = raw[++i];
-  else if (raw[i].startsWith("--")) flags[raw[i]] = true;
-  else positional.push(raw[i]);
-}
+const { flags, positional } = parseArgs(process.argv.slice(2), ["--plugin-root"]);
 const ROOT = resolve(positional[0] || process.cwd());
 const PLUGIN = resolve(flags["--plugin-root"] ?? join(dirname(fileURLToPath(import.meta.url)), "..", ".."));
 const asJson = flags["--json"] === true;
 const doWrite = flags["--write"] === true;
 
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
-const tryJson = (p) => {
-  try {
-    return readJson(p);
-  } catch {
-    return null;
-  }
-};
 
 const cfgPath = join(ROOT, ".claude", "aidlc.config.json");
 const settingsPath = join(ROOT, ".claude", "settings.json");
@@ -67,7 +54,10 @@ if (!existsSync(cfgPath)) {
     const m = migrateConfig(cfg, { pluginVersion });
     result.config = { shape: m.shape, signals: m.signals, changes: m.changes, conflicts: m.conflicts };
     if (doWrite && !m.conflicts.length && m.changes.length) {
-      const next = JSON.stringify(m.config, null, 2) + "\n";
+      // Patch only the values that changed, keeping the file's own formatting. Re-serializing the
+      // whole object turned a two-key migration into a 147-line diff (F55): every inline array the
+      // human had written on one line came back exploded, and the real change was unreviewable.
+      const next = patchJsonText(readFileSync(cfgPath, "utf8"), m.config);
       JSON.parse(next); // prove it parses before it lands
       writeFileSync(cfgPath, next);
       result.config.written = cfgPath;

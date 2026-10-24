@@ -298,6 +298,18 @@
         },
         "maxFixCycles": { "type": "integer" },
         "architectThreshold": { "enum": ["S", "M", "L", "XL"] },
+        "effort": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Reasoning effort per agent dispatch — the dial beside each agent's fixed model tier, and the main token control (skills/run/resolve-effort.mjs). Each agent's frontmatter carries its role baseline; /aidlc:run adjusts it per dispatch for the item's size, risk and type, and raises the implementer once on a second fix cycle. Claude Code then clamps to the model's maximum, applies any maxEffortLevel setting, and lets CLAUDE_CODE_EFFORT_LEVEL override everything (doctor warns when it is set).",
+          "properties": {
+            "budget": { "enum": ["economy", "balanced", "quality"], "default": "balanced", "description": "Shifts every dispatch one level down (economy) or up (quality)." },
+            "max": { "enum": ["low", "medium", "high", "xhigh", "max"], "default": "xhigh", "description": "Hard cap on any dispatch. max-level effort is opt-in only: the docs warn it shows diminishing returns." },
+            "overrides": { "type": "object", "additionalProperties": { "enum": ["low", "medium", "high", "xhigh", "max"] }, "description": "Fixed level per agent name (e.g. { \"aidlc-reviewer\": \"high\" }), applied after the policy and before the cap." },
+            "escalateOnRetry": { "type": "boolean", "default": true, "description": "Raise the implementer one level on a second fix cycle. Never changes the model tier." },
+            "headless": { "enum": ["low", "medium", "high", "xhigh", "max"], "default": "medium", "description": "--effort for each /aidlc:sprint background session's own orchestrating thread." }
+          }
+        },
         "planApproval": { "enum": ["off", "large", "ask"], "default": "off", "description": "When /aidlc:run shows the plan and waits for a go-ahead before any code is written (aidlc:run §5 → Plan checkpoint). off: never. large: items at or above architectThreshold, and any plan that writes an ADR, touches an apiContracts path, adds a migration or adds a dependency. ask: every item. Headless runs (/aidlc:sprint) never wait — they log the skip. /aidlc:run <ID> --plan-only always stops after the plan." },
         "securityReviewPaths": {
           "type": "array",

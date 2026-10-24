@@ -17,6 +17,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 const GROUPS = [
   ["bookkeeping", /(^|\/)\.aidlc\//],
@@ -122,7 +123,7 @@ function changedFiles(root, base) {
     });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (isEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   const flag = (n) => {
     const i = argv.indexOf(`--${n}`);

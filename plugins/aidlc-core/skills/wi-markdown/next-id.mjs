@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, existsSync, openSync, closeSync, unlinkSyn
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
 
 // The main worktree of the repo at `dir`, or `dir` itself when it is not a linked worktree.
 export function mainWorktree(dir) {
@@ -86,7 +87,7 @@ export function allocate(workspace, key, { timeoutMs = 10000 } = {}) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (isEntry(import.meta.url)) {
   const [ws, key] = process.argv.slice(2);
   if (!ws || !key) {
     console.error("usage: node next-id.mjs <workspace-root> <PROJECT_KEY>");

@@ -198,108 +198,12 @@ reconciliation (below) is the *detection* safety net.
 
 ## Schema discovery — probe the board, never assume its fields and states
 
-**Every field mapping and status map an adapter documents is a default to verify, not a constant to
-trust.** Jira and Azure Boards both let a project add custom fields, rename or remove built-in ones,
-make a field required on create, restrict it to a picklist, and define its own workflow states — and
-both scope all of that **per issue/work-item type**. A pipeline that hard-codes the vendor defaults
-works on a fresh trial board and quietly misbehaves on every real one. That has already cost this
-framework twice: **F7** was a customized ADO board whose states were nothing like Agile's defaults,
-**F20** the same board scoping those states *per type*. Custom **fields** are the identical class of
-divergence and had no rule at all — only a scattering of "detect the convention from an existing item"
-asides, which is the weakest possible probe (see *Sampling an item is not a schema probe* below).
-
-**`source: markdown` has nothing to discover** — its schema is the file format this framework defines
-(`aidlc:wi-markdown`), so everything below is a no-op there and binds the tracker adapters only.
-
-So the **first tracker operation of a session resolves the schema before it maps anything**, and the
-resolution — not the vendor default — is what every later op uses:
-
-1. **Probe** the real schema for the types this session touches: the field list keyed by **stable id**
-   (never display name), and the state/status set with each state's **category**. Each adapter documents
-   the exact call — `wi-ado` → *Field discovery* + *Status map*, `wi-jira` → *Schema discovery*.
-2. **Reconcile** against `workItems.<source>.fieldMap` / `.statusMap` in config. A configured value the
-   probe **confirms** wins — it is a human's deliberate override and outranks any heuristic. A
-   configured value naming something that does not exist on that type is **wrong, not authoritative**:
-   use the probe and report the divergence in one line.
-3. **Self-heal** — write the resolved map back to config when it diverges, showing what changed. This is
-   F7's self-heal generalized to fields: it is what stops the same board being re-probed forever, and
-   what stops a stale map from steering a run for weeks.
-4. **Adapt, don't extend.** A canonical field with no home on that type falls back to the adapter's
-   documented alternative (a label, a description section, the run file) — **never** create a custom
-   field, a state, a workflow, or an issue type. The board is the client's system of record and the
-   pipeline is a guest in it; the same argument that keeps `priority` out of the contract (*What the
-   contract deliberately cannot do*) forbids inventing schema. `package` is the worked example: most
-   trackers have no field for it, so it rides a label rather than a field the pipeline created.
-
-### The three classes of canonical field
-
-Which class a field is in decides what "adapt" means, so classify before probing:
-
-| Class | Canonical fields | Rule |
-|---|---|---|
-| **Universal** | `id`, `type`, `title`, `description`, `status`, `labels`, `assignee`, `parent` | The tracker cannot not have these. Still per-type-scoped for `status`, and `parent` may be a *different field* on a legacy site (Jira's "Epic Link"). |
-| **Conventional** | `acceptanceCriteria`, `estimate`, `priority`, `repo`, `dependsOn` | Present under whatever id **this site** chose, or absent entirely. Resolve per type; on absence use the documented fallback. This is where custom fields live and where assuming a default is wrong. |
-| **Unrepresented** | `package`, run-file state | No field, by design. Carried as a label plus the run file. Do not go looking for one, and do not make one. |
-
-### `fieldMap` — where a resolution is recorded
-
-`workItems.<source>.fieldMap`, alongside `statusMap` and with the same two shapes:
-
-```json
-"fieldMap": {
-  "User Story": { "acceptanceCriteria": "Microsoft.VSTS.Common.AcceptanceCriteria", "estimate": "Microsoft.VSTS.Scheduling.StoryPoints" },
-  "Task":       { "acceptanceCriteria": null, "estimate": null }
-}
-```
-
-- **Keys** are the tracker's own type names (preferred), or — where one id genuinely covers every type —
-  the canonical field names directly (the flat shape `statusMap` also allows). Prefer per-type; treat a
-  flat map as a hint.
-- **Values** are the field's **stable id**: an ADO reference name (`Microsoft.VSTS.*`, `Custom.*`), a Jira
-  field id (`customfield_10101`, `parent`). **Never a display name** — display names are localized,
-  renameable, and non-unique, and in ADO a renamed field keeps its reference name, so the id is the only
-  thing that survives the rename that would otherwise break every read.
-- **`null` means "this type has no such field — use the documented fallback"**, and it is a *resolution*,
-  not a gap. `acceptanceCriteria: null` on a Task is precisely why that Task's criteria live in its
-  description. A missing key means *not yet probed*; `null` means *probed and absent*. Keep them distinct.
-
-### Sampling an item is not a schema probe
-
-Reading a representative item and inferring the convention from it is the fallback tier, not the method,
-because **a field that exists but is empty is indistinguishable from a field that does not exist.** Infer
-from a sample and an unfilled AC field reads as "this project keeps AC in the description" — after which
-the pipeline writes ACs into descriptions on a board that has a perfectly good field, and nobody notices
-because nothing errors. Ask the tracker for the **type's field list** (ADO) or **createmeta** (Jira),
-which enumerate fields whether or not they hold a value. Sample an item only to break a genuine tie
-(which of two AC-ish fields the team actually uses), and say that is what you did.
-
-### Required-on-create is discovered before the create, not after it fails
-
-A site can make any field mandatory on create — `Team`, `Severity`, `Value Area`, a custom picklist — and
-the failure arrives as a rejected `create` in the middle of an epic decomposition, halfway through
-creating children. Read the required set from the same probe, **before** the first `create`, and:
-
-- fill it from canonical data where the mapping allows;
-- else use the value **the process itself supplies** (a field default, or a single allowed value);
-- else **ask the user, and never invent one.** A guessed `Severity` or a made-up `Team` is worse than a
-  blocked create: it is silently wrong data in the client's system of record, and nobody reviews it.
-
-Picklist-restricted fields follow the same rule — write a value from the probed allowed set or ask;
-free text into a restricted field is a rejection at best and a wrong value at worst.
-
-### Probe lazily, once, and loudly on failure
-
-- **Narrowly.** Resolve the types and fields this session's operations actually need — a `fetch` of one
-  Story does not need the Bug type's picklists.
-- **Once.** Memoize for the session; do not re-probe per op. The config write-back is the cross-session
-  half, which is why step 3 exists.
-- **Not cached beyond that.** A board changes — someone adds a state on Tuesday. A schema treated as
-  permanent is confidently wrong in exactly the way a stale fact is (`aidlc:facts` → *Staleness*), so
-  the probe re-runs each session and reconciles.
-- **On probe failure, say so and degrade to the documented defaults** — one line naming what could not
-  be resolved and what was assumed instead. Never let an unresolvable schema look like a resolved one:
-  the whole cost of F7 and F20 was a map that *looked* authoritative. A tracker fact learned the hard way
-  here is worth a `tracker`-area entry in `aidlc:facts`.
+Before mapping anything on Jira or ADO, probe the board's real fields and its **per-type** states
+once per session (lazily, loudly on failure) and record each resolution in `fieldMap`. Never infer a
+field from one sampled item, never assume vendor defaults, never create a field, state or type, and
+discover required-on-create fields **before** the first create. Markdown needs none of this. The full
+procedure — the three classes of canonical field, `fieldMap`, sampling, required fields, probing — is
+`${CLAUDE_PLUGIN_ROOT}/skills/work-items/references/schema-discovery.md`; `wi-jira` and `wi-ado` implement it.
 
 ## Repos & routing (mono and poly)
 
@@ -356,191 +260,35 @@ routed by this chain), with `dependsOn` sequencing. See `aidlc:run` §2.
 
 ### Item → package resolution (monorepo only; a no-op everywhere else)
 
-A **monorepo is one git repo holding many independently-owned packages**, so resolving the repo does not
-finish the job: `repos[]` marks the git boundary, `packages[]` marks the ownership boundary inside it.
-Once the repo resolves, if that repo entry (or the top-level config, in mono) carries `packages[]`,
-resolve the package too — same chain, one tier down, stopping at the first that resolves:
-
-1. **Explicit** — the item's `package` field names a known `packages[].name`.
-2. **Label** — an item label matches a package's `labels`. Several match → don't guess; fall through.
-3. **Path** — the item names files or directories that sit under exactly one package's `path`. This is
-   the tier that resolves most real items, because a well-written item says where the work is.
-4. **Single default** — one package declared, or exactly one with `default: true`.
-5. **Ground** — read the candidate packages' `role`/`stack` and the code the item describes, and pick.
-   Log the reasoning as an assumption.
-6. **Ask** — still ambiguous → ask, listing the packages.
-
-What resolving it buys, and what it does not:
-
-- **The gate narrows.** `pipeline.gates.verify` resolves with the package name, which **layers** the
-  package's steps over the repo's rather than replacing them (`aidlc:run` §7 / `resolve-gate.mjs`).
-- **Stack and UX narrow.** A monorepo's packages routinely differ — a Next.js app beside a Python
-  worker — so standards, structure guidance and the design pod resolve from the *package's* `stack`/`ux`,
-  falling back to the repo's. Resolving these per repo is how a worker gets handed web coding standards.
-- **The PR is labeled with the package**, so a reviewer sees the ownership boundary the diff crosses.
-- **It adds no branch and no PR.** One item = one repo = one branch = one PR, unchanged. The package is
-  a scope *within* the leaf, not a new leaf.
-
-**An item whose scope spans packages decomposes exactly as cross-repo work does** — per-package children
-with `dependsOn` sequencing, ordered by the packages' own `dependsOn` graph (a shared package's child
-lands before its consumers'). The difference from cross-repo is only that the children share a git repo,
-so they could in principle share a branch: **they must not.** One child, one branch, one PR keeps the
-review unit and the revert unit the same size, which is the whole reason the rule exists. Follow
-*Re-decomposition & supersession* below for the AC coverage map, same as any other split.
-
-Where the tracker has no package field (most do), carry it on the run file's `package:` and as an item
-label — do **not** invent a custom field, and do not fold it into `repo` (`api/web` as a repo name breaks
-every path resolution downstream).
+Monorepo only. Resolve explicit `package` → label → path → single default → analyst grounding →
+ask, and record `package:` on the run file; it scopes the plan, the standards and the gate inside the
+one repo/branch/PR. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/work-items/references/structure.md` → *Item → package resolution*.
 
 ## Cross-repo split tier (poly) — where a feature's work meets the repos
 
-A feature in poly naturally spans repos (an API in the backend, its UI in the frontend, a migration in
-the DB repo). **Epics and Features always span repos** (they carry no single `repo`; they fan out). The
-only real constraint is physical: the **runnable leaf** — the thing that gets one branch + one PR —
-must live in **one repo**, because separate git repos can't share a branch/PR. Everything above the
-leaf can span repos freely.
-
-*Which tier is the leaf* is a per-project convention, set by `workspace.crossRepoSplit` (default
-`story`). Both are first-class — pick the one the tracker board is authored for:
-
-- **`story` (default, recommended).** A **Feature → per-repo Stories**; each **Story is the
-  single-repo leaf** (one repo = one branch = one PR) and its **Tasks are that repo's breakdown**.
-  Fits ADO's `Epic→Feature→Story→Task` hierarchy natively (no Story→Story nesting), makes one Story a
-  clean reviewable/estimable PR, and keeps velocity honest.
-- **`task`.** A **User Story is a cross-repo umbrella** capturing one unit of user value; its child
-  **Tasks are the single-repo leaves** (API task → backend repo, UI task → frontend repo, migration →
-  db repo), each its own branch/PR. The Story rolls up when all its tasks complete (parent rollup +
-  reconciliation, above). Natural when a team defines a story as *user value* rather than *deliverable
-  unit*, and the common shape when an existing board already nests cross-repo tasks under one story.
-
-Worked example (a "Profile page" epic), both tiers, in the user-guide. The orchestrator honors the
-knob in `aidlc:run` §2/§2.5; authoring skills (`intake`/`groom`/`planning`) propose the matching shape.
-The **runnable leaf is single-repo in both** — only its tier differs.
+`workspace.crossRepoSplit`: **`story`** (default) — cross-repo work is a Feature with one Story per
+repo; **`task`** — a Story is the cross-repo umbrella and its Tasks are the single-repo leaves. Either way
+the runnable leaf is one repo = one branch = one PR. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/work-items/references/structure.md` → *Cross-repo split tier*.
 
 ## The Task tier — the unit of effort, bound to the commits that spend it
 
-The leaf is the **branch/PR unit**, and it is a Story by default for a physical reason: a branch and a
-PR are one per repo, and a Story is the smallest thing that is independently reviewable and revertable.
-That is a statement about *git*, and it was quietly read as a statement about *effort* — which it never
-was. On most boards (and on ADO natively: StoryPoints live on the Story, RemainingWork hours on the
-Task) the **Task tier is where a team accounts for the work actually done**. A Story says what; the
-Tasks beneath it are the doing.
-
-Both are true at once, and the pipeline holds them apart:
-
-| Tier | What it is | What the pipeline gives it |
-|---|---|---|
-| Story (the leaf) | one reviewable, revertable increment | one branch, one PR, one `in_progress`→`in_review`→`done` arc |
-| **Task** | **one unit of effort** | **one commit-sized plan step, its own commit, its own transition** |
-
-**The run file's `## Plan` and the board's Tasks are the same breakdown.** `aidlc:planning` already
-requires plan tasks to be commit-sized and path-declaring; a board's Tasks are that list, authored by a
-human, one tier up in durability. Modelling them twice and only ever writing to AIDLC's private copy is
-what leaves a board showing a Story go New → Active → Done with every Task under it still New. So the
-plan **binds** to them instead:
-
-- Each plan line may carry a **`wi:` binding** to the Task it implements —
-  `- [ ] Add the DTOs  ·  paths: src/dto/profile.ts  ·  wi: PROJ-145`.
-- A **bound task's commit names both IDs** in its trailer (`Refs: PROJ-123, PROJ-145`) — the Story for
-  the PR, the Task for the effort. See `aidlc:git-workflow` → *Commits*.
-- **Ticking the checkbox transitions the Task**, read-back-verified like any other write.
-
-Governed by `pipeline.taskSync.mode`, and the mechanics live in `aidlc:run` §5 (bind) and §6 (mirror):
-
-- **`adopt` (default).** Where child Tasks exist, they *are* the plan — seed `## Plan` from them and
-  mirror progress back. Where they don't, behave exactly as before and create nothing. A board that
-  does not use the Task tier is unaffected.
-- **`author`.** As `adopt`, plus: where a leaf has no Tasks, propose one per plan task and create them
-  on approval — creation is externally visible, so it goes through a gate like every other `create`.
-- **`off`.** The plan stays private; nothing below the leaf is read or written.
-
-**What this deliberately does NOT do: write an estimate.** The pipeline never sets a Task's
-StoryPoints, Effort or RemainingWork, in any mode. Those are the same class of field as `priority` and
-`dependsOn` — a human's record of what they asked for and what they think it costs (see *What the
-contract deliberately cannot do*). AIDLC moves a Task through its states so the burndown is honest about
-*what is done*; how much it was supposed to cost stays the team's number. An invented estimate would
-make velocity a measurement of the pipeline's guesswork.
-
-**Nor does it shrink the PR.** Binding commits to Tasks does not make a Task the leaf — one Story is
-still one branch and one PR, because a Task-sized PR ("add the DTO") is not independently shippable.
-If a team genuinely wants a branch per Task, that is the `crossRepoSplit: task` tier above, which is a
-different decision with a different cost.
+A plan line and a board Task are the same unit: lines bind to Tasks with `wi:`, a ticked box
+transitions the Task, commit trailers name both ids. The pipeline moves Task **states** only — never an
+estimate, priority or `dependsOn`. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/work-items/references/structure.md` → *The Task tier*.
 
 ## Contract-first siblings (how frontend and backend run at the same time)
 
-A feature split across a backend and a frontend child has an interface between them, and **the interface
-is the only reason they cannot both start now.** The reflex is to chain them — `frontend dependsOn
-backend` — which is correct about the dependency and wrong about the cost: it serializes the whole
-feature to protect one unknown, the response shape.
-
-The other reflex, *start both and reconcile at the end*, is worse. Two agents that have each already
-written code against a shape they guessed do not "sync"; one of them gets rewritten, and which one
-depends on nothing more principled than whose work is cheaper to throw away. **Coordination after the
-code is the expensive place to put it.**
-
-So put it before the code. Decompose a feature with an interface into **three** children, not two:
-
-1. **The contract child** — a real, committed artifact in the repo that owns it: an OpenAPI path, a
-   GraphQL SDL type, a `.proto` message, a JSON Schema, or an exported type in a declared shared package.
-   Small (usually S), single-repo, its own branch and PR like any other leaf. It is a normal item — not a
-   ceremony, not a doc.
-2. **The implementation children** — backend and frontend, each `dependsOn: [<contract child>]` and
-   **explicitly NOT on each other**. That is the edge that makes them concurrent: `/aidlc:sprint`'s
-   independence check reads `dependsOn`, so two siblings that depend only on a landed contract are
-   selected together (and, in poly, they are in different repos, so they were already isolated).
-3. **The join** — integration verification at the parent tier, once both are terminal. Contract tests,
-   or an e2e path that exercises the real call. This is the step that actually proves "the thing works",
-   and it is where the epic/feature consolidation pass earns its keep (`aidlc:run` §2).
-
-The frontend child **must not sit idle waiting for a running backend** — that would reintroduce the
-serialization through the back door. It builds against the contract: generated types where the stack
-generates them, and fixtures/mocks derived from the contract where it doesn't. Its AC are satisfiable
-without the backend deployed; the join is what tests them together.
-
-**When NOT to do this — three cases, and the third is the common mistake:**
-
-- **No interface between the children** (a styling change plus an unrelated migration) → they were
-  always independent. Don't invent a contract child; just don't chain them either.
-- **The work is one-sided** (backend-only, frontend-only) → one child, nothing to coordinate.
-- **The interface already exists and this feature doesn't change it** → there is nothing to agree, so
-  there is no contract child *and no `dependsOn` edge*. Both children start immediately. Chaining
-  frontend behind backend here is pure lost time, and it is the easiest mistake to make because the
-  chain *looks* prudent. Check before you chain: read the existing contract, and if the shape the
-  frontend needs is already in it, say so on both items.
-
-Two constraints carried from elsewhere, because a contract child is exactly the kind of item they exist
-for: a change to a path declared in `saas.apiContracts` is **additive unless the item explicitly asks to
-break it**, and a `public: true` contract means external consumers, which the PR body must say plainly
-(`aidlc:run` §7, trigger 2). And if the contract turns out wrong once implementation starts — it does
-sometimes — that is a **scope change**, handled by the reconciliation in `aidlc:run` §1: amend the
-contract in a follow-up item, mark the affected tasks `[needs-rework]`, and never let the two
-implementation children quietly diverge from the artifact they both agreed to.
+Where a feature splits across an interface that is new or changing, a small **contract child** lands
+first and the frontend and backend children both `dependsOn` it — **never each other** — so they run
+concurrently; the epic's consolidation pass runs the integration join. Where the interface exists
+unchanged: no contract child, no edge. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/work-items/references/structure.md` → *Contract-first siblings*.
 
 ## Re-decomposition & supersession (don't drop requirements or orphan originals)
 
-When work is **re-decomposed** — an epic/feature/story split into new children that REPLACE existing
-items (the cross-repo split in `aidlc:run` §2.5 / `aidlc:intake`, or any restructure) — the pipeline must
-not leak requirements or leave the board diverged from what was built:
-
-1. **AC coverage map (old → new).** Before creating children, map every acceptance criterion (and each
-   discrete deliverable) of the originals onto the child that will carry it. **Flag any original AC not
-   covered by a child** and route it explicitly — into a child, or a new follow-up item — never let it
-   vanish. (The live miss this catches: a husky-hooks AC silently dropped in a re-decomposition and
-   delivered in zero repos, found only by a manual audit.)
-2. **Reconcile the originals you supersede.** Link each superseded original to its delivering
-   child(ren) and transition it to a **terminal** state — never leave it `todo`/`New`, or `query()`
-   resurfaces delivered work as "ready" and risks re-running it. Prefer a **superseded** terminal
-   (throughput-neutral) over a plain "done" so N replaced items don't count as N delivered. The exact
-   state available is **per-work-item-type, not global** — probe the item's type for its terminal
-   states and adapt (see `wi-ado`: `Removed` may exist for a Story but not a Task); never hard-code a
-   state name. If a carved-out AC moved to a new follow-up, link that too.
-3. **No silent retype.** Some trackers can't change an item's *type* in place (see `wi-ado`) —
-   restructure by **create-new + link + supersede**, or an umbrella parent, never by pretending an item
-   changed tier. Note the tier of the AC field too (in ADO it is Story-tier, not Task-tier).
-
-Detection backstop: `/aidlc:status` runs a **ground-truth reconciliation** (tracker status vs run files
-+ git + disk) at epic/story close — see that skill. Prevention (this section + write-verification
-above) and detection (status) together close the loop the manual audit had to do by hand.
+Splitting or restructuring existing items: carry **every** original AC onto a child via an **AC
+coverage map (old → new)**, flag any AC no child covers, and **link + supersede** the originals — never
+drop a requirement, never orphan the replaced item. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/work-items/references/structure.md` → *Re-decomposition &
+supersession*.
 
 ## Parent rollup (keep parents honest — both ends of a child's life)
 

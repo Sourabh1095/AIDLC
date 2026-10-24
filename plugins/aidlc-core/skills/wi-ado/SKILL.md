@@ -132,7 +132,7 @@ resolve every one *before* decomposing an epic — a rejected create halfway thr
 leaves a half-built hierarchy. Common culprits on customized processes:
 `Microsoft.VSTS.Common.ValueArea`, a mandatory `Custom.Team`, a restricted `System.AreaPath`. Fill from
 canonical data, else the field's own `defaultValue` / its single `allowedValues` entry, else **ask** —
-never invent (`aidlc:work-items` → *Required-on-create*).
+never invent (`aidlc:work-items` → `references/schema-discovery.md` → *Required-on-create*).
 
 **Respect each field's type when writing.** `allowedValues` means a picklist: write a legal value or ask,
 because free text is rejected. An `HTML` field takes HTML (as `System.Description` and the AC field
