@@ -82,6 +82,23 @@ that made it to use the new folder itself. The folder ignores itself in git: aut
 developer's notes, and a shared `MEMORY.md` index would conflict on every merge; the team's knowledge
 already has committed homes in D2a, D2b and the ADRs. Opt out with `memory.inWorkspace: false`.
 
+**D2d — The brain knows the product, and knows when it is out of date.** Every other memory records
+events, decisions, truths or one item. None answers *"what does the payments module do, who uses it,
+and how does an order get from cart to invoice?"* — what a person taking over a module asks, and what
+an end-of-project business study is made of. `.aidlc/brain/` holds that: a page per module, plus user
+types, cross-module flows and a glossary, every line tagged with its source — `[code]`, `[req]`,
+`[told]` or `[assumed]` — because a study that mixes guesses with facts is worse than none.
+
+It is **per person**, kept out of git, because on many teams one person uses AIDLC and the rest change
+the code by other means. That makes freshness the central problem: most change never passes through
+the tool. So each page records the commit it was last checked against, and `brain.mjs status` maps one
+`git diff` per stamp commit onto the pages' paths. A page whose commit is not in HEAD's history
+(another branch, a squash merge) counts as behind too, since an uncommitted brain does not change with
+the branch. A refresh reads only that diff. The model writes the pages; the script enumerates modules
+from the code's layout, diffs and stamps — the parts a model does badly. It is read on demand: the
+session gets one line saying the brain exists and what is behind, and planning opens only the pages a
+task touches.
+
 **D3 — Agents only where isolation pays.** An agent needs its own context window (big
 exploration/diffs), a different tool surface, or independent adversarial judgment (the
 reviewer must not share the implementer's reasoning). Everything else — docker knowledge,

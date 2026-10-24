@@ -22,10 +22,15 @@ import { homedir } from "node:os";
 import { samePath } from "./paths.mjs";
 import { patchJsonText } from "../../../skills/upgrade/json-edit.mjs";
 
-const GITIGNORE =
-  "# Claude Code's auto memory for this workspace: one developer's notes, kept out of git.\n" +
-  "# Team decisions belong in docs/adr/ and .aidlc/facts.md. Delete this file to commit the folder anyway.\n" +
-  "*\n";
+// Give a per-person folder its own `.gitignore` of `*`, so it stays out of git without anyone
+// editing the project's .gitignore — and deleting that one file is how someone opts to share it.
+// Never overwrites: a folder someone already decided about keeps its decision.
+export function keepOutOfGit(dir, why) {
+  const file = join(dir, ".gitignore");
+  if (existsSync(file)) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, `# ${why}\n# Delete this file to commit the folder anyway.\n*\n`);
+}
 
 // Where Claude Code keeps its own state: CLAUDE_CONFIG_DIR when set, else ~/.claude.
 export const claudeDir = (home = homedir()) => process.env.CLAUDE_CONFIG_DIR || join(home, ".claude");
@@ -115,8 +120,7 @@ export function ensureWorkspaceMemory({ cwd, cfg, home = homedir() }) {
   const local = readSettings(localFile);
   if (local === undefined) return { state: "unreadable", target };
 
-  mkdirSync(target, { recursive: true });
-  if (!existsSync(join(target, ".gitignore"))) writeFileSync(join(target, ".gitignore"), GITIGNORE);
+  keepOutOfGit(target, "Claude Code's auto memory for this workspace: one developer's notes. Team decisions belong in docs/adr/ and .aidlc/facts.md.");
   const pinned = local?.value?.autoMemoryDirectory;
   if (typeof pinned === "string" && sameDir(expandHome(pinned, home), target)) return { state: "ok", target };
 

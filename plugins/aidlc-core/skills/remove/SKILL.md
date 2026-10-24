@@ -53,7 +53,7 @@ of them is unrecoverable. A clean tree also makes §5's verification meaningful.
 | Tier | Paths | Default |
 |---|---|---|
 | **A · Framework machinery** — ours, no human content | `.claude/aidlc.config.json`, `.claude/rules/git-workflow.md`, `.claude/rules/safety.md`, `.claude/rules/reuse.md`, AIDLC hook scripts, `.claude/aidlc.config.*.example.json`, `.aidlc/adoption/profile.json` | **Delete** |
-| **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/journal.md` + `.aidlc/journal-archive/`, `.aidlc/facts.md`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `.aidlc/memory/`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
+| **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/journal.md` + `.aidlc/journal-archive/`, `.aidlc/facts.md`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `.aidlc/memory/`, `.aidlc/brain/`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
 | **C · Merged into files the project owned** | `CLAUDE.md`, `.gitignore`, and any stack tooling config `init` merged into (`tsconfig.base.json`, `eslint.config.mjs`, …) | **Revert our sections only** |
 | **C′ · Guardrail file — reverted content is *staged*, never written** | `.claude/settings.json` (+ `.local`) | **Produce the reverted file for the user to apply** (§3) |
 
@@ -82,6 +82,9 @@ choice:
   here, so memory keeps working where it is. The user can delete that key to send memory back to
   `~/.claude/projects/<slug>/memory/` — moving the folder's files there first, or the memories stay behind.
   It is per-developer and ignores itself in git, so other teammates each have their own.
+- **`.aidlc/brain/`** — keep. It is this person's understanding of the product — a page per module,
+  the user types, the flows — built up over the project, and plain markdown that reads fine without
+  AIDLC. It is not in git, so deleting it cannot be undone from history. Say that before offering it.
 - **`.aidlc/adoption/report.md`** — keep. It documents facts about *their* code — the coverage holes, the
   runtime constraints, the redacted secret findings — and every one of those outlives the framework. If
   it records a `committed-secret` finding, **say so out loud here**: deleting the report does not rotate

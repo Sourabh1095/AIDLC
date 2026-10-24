@@ -497,6 +497,28 @@ check("node version reported", workspace({}), "node", "ok");
   );
 }
 
+// --- 13. The project brain ----------------------------------------------------------------------
+{
+  const w = workspace({ config: BASE_CONFIG });
+  check("brain: none started → no check", w, "brain", "<absent>");
+  try {
+    execSync("git init -q && git config user.email t@t.co && git config user.name t", { cwd: w, stdio: "ignore" });
+    writeFileSync(join(w, "a.ts"), "x");
+    mkdirSync(join(w, "src", "orders"), { recursive: true });
+    writeFileSync(join(w, "src", "orders", "o.ts"), "1");
+    execSync("git add -A && git commit -qm init", { cwd: w, stdio: "ignore" });
+    const sha = execSync("git rev-parse --short HEAD", { cwd: w, encoding: "utf8" }).trim();
+    mkdirSync(join(w, ".aidlc", "brain", "modules"), { recursive: true });
+    writeFileSync(join(w, ".aidlc", "brain", "modules", "orders.md"), `---\nmodule: orders\npaths: src/orders\nchecked: ${sha}\n---\n# Orders\n`);
+    check("brain: page matches the code → ok", w, "brain", "ok");
+    writeFileSync(join(w, "src", "orders", "o.ts"), "2");
+    execSync("git commit -qam change", { cwd: w, stdio: "ignore" });
+    check("brain: code moved since the page was checked → warn", w, "brain", "warn");
+  } catch {
+    console.log("skip  git fixture unavailable");
+  }
+}
+
 // --- Robustness: never throw -------------------------------------------------------------------
 n++;
 try {

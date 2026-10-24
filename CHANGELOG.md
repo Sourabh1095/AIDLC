@@ -7,6 +7,39 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.59.0] — 2026-10-24
+
+### The project brain, phase 1: AIDLC builds its own understanding of the product (`aidlc`)
+
+The other memories record events, decisions, operational truths and one item at a time. None of them
+answers *"what does this module do, who uses it, and how does it connect to the rest?"* — what a person
+taking over a module asks, and what an end-of-project business study is made of.
+
+- **`.aidlc/brain/`** holds a page per module (purpose, capabilities, user types, business rules,
+  data, connections, entry points, recent changes, gaps), plus `overview.md`, `actors.md`,
+  `glossary.md` and `flows/` for journeys that cross modules. Every line is tagged with its source:
+  `[code: path]`, `[req: ID]`, `[told: date]` or `[assumed]`. An assumption is never stated as fact
+  until a person or the code confirms it.
+- **Per person, out of git.** On many teams one person uses AIDLC and the rest change the code by
+  other means, so the brain is that person's own. The folder ignores itself, through the same helper
+  `.aidlc/memory/` now uses (`keepOutOfGit`), and a linked worktree shares the main checkout's brain.
+- **It knows when it is out of date.** Each page records the commit it was last checked against.
+  `brain.mjs status` maps one `git diff` per stamp commit onto the pages' folders, so a module a
+  teammate changed without AIDLC reads as behind. So does a page checked on a branch HEAD no longer
+  contains. A refresh reads only that diff. In a multi-repo workspace a module that spans a backend
+  and a frontend repo is one page, with a commit recorded per repo (`checked: api@…, web@…`).
+- **`/aidlc:learn`** maps the modules from the code's layout and merges layers into one module (the
+  orders screen, API route and service are one candidate with three paths). Monorepo apps give way to
+  their features, and route groups are see-through. The user confirms the list, then the command
+  learns one module deeply, or refreshes every page that is behind (`--stale`).
+- **`aidlc:brain`** is the format and the rules: read only the pages a task touches, write deltas,
+  stamp only after reading everything that changed, and never record secrets or customer data.
+- The session opens with one line once a brain exists (how many pages, which are behind), and
+  `/aidlc:doctor` reports pages behind the code.
+
+Next: phase 2 grows it as a side effect of the pipeline, `/aidlc:do`, intake and grooming, and adds
+the handoff brief. Phase 3 is `/aidlc:study`, the business study.
+
 ## [0.58.1] — 2026-10-24
 
 ### CI passes on every OS again, and two path bugs it was hiding (`aidlc`)

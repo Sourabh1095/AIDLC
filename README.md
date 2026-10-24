@@ -169,6 +169,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:review-feedback <ID>` | Pull unresolved PR threads, fix them through the normal cycle, push, reply on each. A comment you disagree with gets answered on the thread — and nothing you didn't fix gets resolved |
 | `/aidlc:status` | Dashboard: active runs, blockers, backlog snapshot, drift |
 | `/aidlc:insights` | Is the pipeline getting better? Time to done and per phase, fix cycles, findings by source (duplication, agent vs human review, QA, security), month by month — read-only |
+| `/aidlc:learn [module \| --stale]` | Grow your **project brain** (`.aidlc/brain/`, private to you): map the product's modules, read one deeply — purpose, user types, business rules, data, flows, gaps — or refresh the pages the code has moved past, including changes teammates made without AIDLC |
 | `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |
 
 ### Shaping the work
@@ -214,6 +215,13 @@ landed, small fixes, what a consult concluded, when the order was re-planned —
 reads it back with your blocked runs, the active wave and the last board snapshot. Run files are each
 item's memory; this is the workspace's. Claude Code's own auto memory stays in the project too —
 `.aidlc/memory/`, not `~/.claude/projects/` — so what it learns about the project is kept with the project.
+
+**It builds its own understanding of the product.** `.aidlc/brain/` holds a page per module — what it
+is for, who uses it, its business rules, data, connections and open questions — plus the user types,
+the journeys across modules and the domain's vocabulary. Every line says where it came from (the code,
+a requirement, a person, or an assumption still to confirm). The brain is yours alone and stays out of
+git, and every page records the commit it was checked against, so a module a teammate changed without
+AIDLC shows as behind before anything relies on it. `/aidlc:learn` grows it.
 
 **Process is proportional to consequence.** Four tiers — *answer*, *direct* (a gated commit, no
 ticket), *tracked* (branch + run file), *full* (the pipeline) — with a project-wide floor you set. Five

@@ -773,6 +773,7 @@ its own run file and branch.
 | Delivery order (waves) | `.aidlc/plan.md` (control plane) | forever; **shared** — committed + pushed with `cutBy` | what `next`/`sprint` run and in what order |
 | Who owns an item | your tracker's assignee field | forever | AIDLC **reads** it to scope picks; it never writes it |
 | Locally grown capabilities | `.claude/skills|agents/` + `.aidlc/extensions.json` | forever; promotable to all projects | self-extension with reuse tracking |
+| What the product is and how it works — modules, user types, rules, flows | `.aidlc/brain/` — one page per module, each stamped with the commit it was checked against | per developer; ignores itself in git; pages behind the code are flagged | taking over a module; planning from understanding; the end-of-project business study |
 | Claude Code's auto memory (what it learned here, your corrections) | `.aidlc/memory/` — kept in the workspace by the SessionStart hook, not `~/.claude/projects/` | per developer; ignores itself in git | Claude remembering this project between sessions |
 
 The deliberate consequence: **the conversation context is disposable.** Anything that matters

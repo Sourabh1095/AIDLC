@@ -41,7 +41,8 @@ marketplace's own CI uses) · **`git -C` coverage in poly** (F43) · each declar
 a real git repo · the control-plane `.gitignore` ignoring every product repo by path (the gitlink trap)
 · every hook script the plugin registers existing on disk · every run file parsing with a valid phase
 · **project memory kept inside the workspace** (`.aidlc/memory/`), any copy left in `~/.claude/projects/`
-from before the move, and project agents declaring `memory: user`.
+from before the move, and project agents declaring `memory: user` · **project brain pages behind the
+code** (once a brain exists).
 
 Report its output as-is. `--json` gives the same result machine-readably if you need to reason over it.
 

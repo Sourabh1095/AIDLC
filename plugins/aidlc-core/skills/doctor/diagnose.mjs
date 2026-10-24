@@ -42,6 +42,7 @@ import {
 } from "../../hooks/scripts/lib/memory-home.mjs";
 import { lintPermissionRules, lintSettingsText } from "./lint-rules.mjs";
 import { list, stale } from "../facts/facts.mjs";
+import { status as brainStatus, NEEDS_REFRESH } from "../brain/brain.mjs";
 
 // `--plugin-root` and `--home` take a value; everything else is a bare flag. `--home`
 // exists so the suite can run against a fixture home instead of the real one — user-scope
@@ -648,6 +649,32 @@ if (cfg) {
       `${userScoped.join(", ")} declare memory: user — kept in ~/.claude/agent-memory/, outside the workspace`,
       "Change it to memory: project (shared through git) or memory: local (this machine only) — both live under .claude/ in the workspace.",
     );
+}
+
+// --- 13. The project brain ---------------------------------------------------------------------
+// Reported only once someone has started one. Pages behind the code are the failure that matters:
+// on a team where one person uses AIDLC, most change arrives from outside it.
+{
+  const mods = brainStatus(ROOT).filter((p) => p.kind === "module");
+  if (mods.length) {
+    const behind = mods.filter((p) => NEEDS_REFRESH.has(p.state));
+    const never = mods.filter((p) => p.state === "never-checked");
+    if (behind.length)
+      add(
+        "warn",
+        "brain",
+        "project brain",
+        `${behind.length} of ${mods.length} module page(s) behind the code: ${behind.map((p) => p.id.split("/").pop()).join(", ")}`,
+        "/aidlc:learn --stale reads only what changed since each page was checked. A page that is behind describes code that has moved — do not plan from it until it is refreshed.",
+      );
+    else
+      add(
+        "ok",
+        "brain",
+        "project brain",
+        `${mods.length} module page(s), none behind the code${never.length ? ` (${never.length} not learned yet)` : ""}`,
+      );
+  }
 }
 
 // --- Output --------------------------------------------------------------------------------

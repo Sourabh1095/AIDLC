@@ -31,6 +31,7 @@ import { frontmatter, readRuns, WAITING_ON_HUMAN, TERMINAL } from "./lib/run-fil
 import { readInput, cwdOf } from "./lib/hook-io.mjs";
 import { ensureWorkspaceMemory } from "./lib/memory-home.mjs";
 import { tail, latest } from "../../skills/journal/journal.mjs";
+import { status as brainStatus, NEEDS_REFRESH } from "../../skills/brain/brain.mjs";
 
 const MAX_LINES = 15;
 
@@ -85,6 +86,22 @@ section(() => {
     );
   else if (m?.state === "unreadable")
     lines.push("Project memory is still outside the workspace: .claude/settings.local.json does not parse — /aidlc:doctor");
+});
+
+// --- 0c. The project brain --------------------------------------------------------------------------
+// Only once this person has started one. It is the read-side trigger: a session that is not told the
+// brain exists never opens it. Which pages are behind comes from one `git diff` per stamp commit, and
+// most of the change on a team where one person uses AIDLC arrives from outside it.
+section(() => {
+  if (!cfg) return;
+  const mods = brainStatus(cwd).filter((p) => p.kind === "module");
+  if (!mods.length) return;
+  const behind = mods.filter((p) => NEEDS_REFRESH.has(p.state)).map((p) => p.id.split("/").pop());
+  lines.push(
+    `Project brain: .aidlc/brain/ — ${mods.length} module page(s), ` +
+      (behind.length ? `${behind.length} behind the code (${behind.slice(0, 3).join(", ")}${behind.length > 3 ? ", …" : ""})` : "all current") +
+      `. Read a module's page before explaining, planning or changing it (aidlc:brain); /aidlc:learn refreshes or adds pages.`,
+  );
 });
 
 // --- 1+2. Runs: blocked first, because that is the only class needing a human now -------

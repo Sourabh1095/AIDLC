@@ -78,7 +78,7 @@ export function isSharedFile(relPath, extraPaths = []) {
   return parts.some((d) => SHARED_DIR_NAMES.has(d));
 }
 
-function* walk(root, dir = root) {
+export function* walk(root, dir = root) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -99,7 +99,7 @@ function* walk(root, dir = root) {
 // Extraction
 
 // A file of tests (as opposed to test SUPPORT — fixtures, factories and helpers are shared code).
-const isTestFile = (rel) => /\.(test|spec)\.[a-z]+$|(^|\/)test_[^/]*\.py$|_test\.(go|py)$/i.test(rel);
+export const isTestFile = (rel) => /\.(test|spec)\.[a-z]+$|(^|\/)test_[^/]*\.py$|_test\.(go|py)$/i.test(rel);
 
 function kindForJs(name, decl, file) {
   if (/^(interface|type|enum)$/.test(decl)) return "type";
