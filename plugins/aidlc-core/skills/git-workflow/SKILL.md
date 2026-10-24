@@ -133,20 +133,7 @@ Push: `git push -u <remote> <branch>` (never `--force`; `--force-with-lease` req
 
 ### Fork-based contribution (`contribution: "fork"`)
 
-The user cannot push to the upstream repo, so pushing to `<remote>` would fail — this is detected at
-adoption time precisely so a run does not discover it at push time. Instead:
-
-1. Push the branch to the **fork** (the repo's own `remote`, conventionally `origin`, which points at the
-   fork): `git push -u <remote> <branch>`.
-2. Open the PR **against the upstream**, from the fork's branch:
-   `gh pr create --repo <upstream owner/repo> --head <fork owner>:<branch> --base <base> …`
-   (`<upstream owner/repo>` from `upstreamRemote`'s URL). On Azure Repos, fork PRs need the fork as the
-   source repository — if `az` cannot express it, stop and print the exact manual PR step rather than
-   opening a PR against the wrong repo.
-3. If the fork does not exist yet, **do not create it silently** — creating a repo under the user's account
-   is their call. Report what is needed (`gh repo fork <upstream> --remote=false`) and stop.
-
-Everything else — branching, commits, the gate — is unchanged.
+When `contribution: "fork"`: push the branch to the fork remote and open the PR **against the upstream** from the fork's branch; never create the fork yourself — say what is needed and stop. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/git-workflow/references/fork.md`.
 
 ### GitHub (`host: github`)
 
@@ -171,65 +158,11 @@ gh pr create --title "<PR title per the project's convention>" --body-file <tmp-
 
 ### Azure Repos (`host: azure-repos`)
 
-Prereqs: `az` CLI with the `azure-devops` extension, logged in; set session defaults once:
-`az devops configure --defaults organization=https://dev.azure.com/{org} project={project}`
-(org/project from `aidlc.config.json → workItems.ado`, or ask the user if source ≠ ado).
-
-```
-az repos pr create --repository <repo> --source-branch <branch> --target-branch <base> \
-  --title "[<ID>] <imperative summary>" --description "<line1>" "<line2>" ... -o json
-```
-- `--description` takes one argument PER PARAGRAPH — split the filled pr-body template on blank
-  lines and pass each block as a separate quoted argument (markdown renders fine in ADO).
-- Capture `.url` (or build `.../{project}/_git/{repo}/pullrequest/{pullRequestId}`) from the JSON
-  output → run-file `pr:` + `adapter.link(id, {pr})`.
-- Link the work item to the PR: `az repos pr work-item add --id <prId> --work-items <numeric-id>`
-  (strip the key prefix — ADO IDs are bare integers).
-- If `az` is not installed/authenticated, report the exact error and print manual PR-creation
-  instructions with the pushed branch name. Never silently skip the PR step.
+When `host: azure-repos`: `az repos pr create` (its `--description` takes one argument per paragraph of the filled PR body), capture the PR URL into the run file and `adapter.link`, and link the work item (`az repos pr work-item add`, numeric id). Without a working `az`, print the manual PR steps — never silently skip the PR. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/git-workflow/references/azure-repos.md`.
 
 ## Local mode (no remote)
 
-Used when the resolved repo's `mode` is `local` — a project with no usable remote yet (e.g. before
-the team has created the origin). Nothing is pushed and no PR is opened; the branch is integrated on the
-local **`<base>`** instead. **The human gate is preserved — it moves from "review + merge the PR" to
-"approve the local merge".** Never merge into `<base>` unattended.
-
-After green verify (the orchestrator calls this at `aidlc:run` §8), from the repo's checkout
-(cwd = `workspace.root`/`<repo.path>`):
-
-1. **Show what will land**: the item, branch, commit list (`git log --oneline <base>..<branch>`),
-   and a diffstat (`git diff --stat <base>...<branch>`). Any open BLOCKER/MAJOR finding →
-   do NOT offer the merge; it goes back through the fix cycle first.
-2. **Gate — get explicit approval** (this replaces PR review):
-   - Interactive session → ask the user to confirm the local merge (AskUserQuestion where available).
-   - Non-interactive (headless/sprint) or the user declines → do NOT merge. Leave the branch as-is,
-     set phase `review-pending`, and report: `git diff <base>...<branch>` to review, then
-     re-run `/aidlc:run <ID>` to integrate (or merge it yourself). This mirrors `manual` verification.
-3. **Merge** (only after approval), into **`<base>`**, honouring the repo's `mergeStrategy` — a
-   squash-only project must not receive a merge commit just because that is AIDLC's default:
-   ```
-   git checkout <base>
-   # mergeStrategy: merge (default) — preserve the feature as a distinct merge commit
-   git merge --no-ff <branch> -m "Merge <branch> ([<ID>] <imperative summary>)"
-   # mergeStrategy: squash — one commit on <base>, message in the project's commit style
-   git merge --squash <branch> && git commit
-   # mergeStrategy: rebase — linear history, no merge commit
-   git rebase <base> <branch> && git checkout <base> && git merge --ff-only <branch>
-   ```
-   The `rebase` path rewrites the feature branch's commits; that is expected here (it is the project's
-   chosen strategy on a branch that has not been shared), but `git rebase` is in the `ask` permission list,
-   so it prompts — which is correct, not a bug to route around.
-   Record the resulting commit on the run file (`pr: local-merge:<short-sha>`) and via
-   `adapter.link(id, {pr: "local-merge:<sha>"})`. Then delete the merged branch
-   (`git branch -d <branch>`) unless the user wants it kept — **never** if it is a `longLivedBranches` entry.
-4. **Never** push, force-anything, or touch a remote in local mode. If a `remote` is in fact
-   configured and reachable, tell the user they can switch this repo to `mode: remote` for the
-   PR flow — don't silently start pushing.
-
-Merge conflict on step 3 (`<base>` moved under a long-running item): stop, report the
-conflicting paths, and hand back to the implementer for a `git merge`-style resolution on the
-branch first — never resolve conflicts blind on `<base>`.
+When the repo's `mode` is `local`: nothing is pushed and no PR opens — after green verify, show the commits and diffstat and get **explicit approval** to merge into `<base>` (never unattended; headless or declined → `review-pending`), merge per the repo's `mergeStrategy`, record `pr: local-merge:<sha>`, and never touch a remote. Open BLOCKER/MAJOR findings mean no merge is offered. **Read `${CLAUDE_PLUGIN_ROOT}/skills/git-workflow/references/local-mode.md` before merging** — it is the procedure.
 
 ## Failure handling
 

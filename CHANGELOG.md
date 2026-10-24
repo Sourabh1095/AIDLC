@@ -7,6 +7,26 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.57.1] — 2026-10-24
+
+### Smaller prompts on the paths every run takes (`aidlc`)
+
+The same treatment as 0.56.0, for four more frequently-loaded skills: sections that apply only in some
+situations moved verbatim into `references/` beside the skill, each heading kept with a stub of its
+binding rules and a pointer, so every existing cross-reference still lands. A script moved them and
+checked that every moved line exists in its reference file.
+
+- **`wi-ado`** 25.8 → 19.7 KB: field discovery and ADO re-decomposition specifics (`discovery.md`, read the
+  first time a type is touched), connectivity diagnosis and the PAT fallback (`connectivity.md`).
+- **`git-workflow`** 16.7 → 12.9 KB: fork contribution, Azure Repos PR creation and local mode, each
+  read only by a repo configured that way. GitHub PR creation, the common path, stays inline.
+- **`status`** 17.1 → 14.8 KB: post-merge cleanup, which runs only on a merged run and the user's go-ahead.
+- **`do`** 16.2 → 13.7 KB: the CONSULT procedure, read only for opinion and fit questions.
+
+A `/aidlc:next` on an Azure DevOps project now loads ~129 KB of instructions where it loaded ~173 KB
+before 0.54.0 — while carrying the reuse, effort, plan-checkpoint and golden-path behaviour added since.
+The `ceremony-direct` eval (a typo through `/aidlc:do` stays a direct change) still passes.
+
 ## [0.57.0] — 2026-10-24
 
 Golden paths, a clean way back from a run, and nothing that needs an API key. `aidlc` 0.57.0.

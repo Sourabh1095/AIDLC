@@ -78,67 +78,11 @@ When decomposing:
 
 ## Re-decomposition & supersession (ADO specifics)
 
-Implements `aidlc:work-items` → *Re-decomposition & supersession* on Azure Boards. Three ADO
-constraints shape it:
-
-- **Terminal state is per-work-item-type, not per-process.** When superseding an original that was
-  re-tracked under new children (throughput-neutral), prefer the **`Removed`** state — but `Removed`
-  exists for **User Story**, while a **Task** on the same board may have only **`Closed`** as terminal.
-  So **probe the available states for THAT item's type** (`az boards work-item show` the type / inspect
-  the process, or attempt `Removed` and catch the rejection) and adapt: prefer `Removed`, else fall
-  back to `Closed` **plus a `superseded; delivered under <child ids>` comment**. Never hard-code
-  `Removed`. Never leave the original `New` (`query` would resurface it as ready).
-- **No REST retype.** ADO cannot change a work item's *type* via the API — you cannot "convert" a Task
-  into a Story. Restructure by **create-new + link + supersede**, or by making the original an
-  **umbrella** parent with new correctly-typed children under it (e.g. a carved-out AC becomes a new
-  Task under a new umbrella Story, not a converted Task). Preserve the parent's real type via
-  `sourceRaw.adoType`.
-- **AC field is Story-tier.** `Microsoft.VSTS.Common.AcceptanceCriteria` lives on Stories/PBIs/Bugs,
-  not Tasks. `updateAC` must write ACs to the **Story**; a Task only carries them in its
-  `System.Description`. When re-decomposing, ensure carried ACs land on a Story-tier item.
+Superseding on Azure Boards: the terminal state is **per type** — prefer `Removed`, else `Closed` plus a `superseded; delivered under <ids>` comment, and never leave the original `New`. ADO cannot retype an item (create new + link + supersede instead), and acceptance criteria live on the Story tier, never a Task. Full rules: `${CLAUDE_PLUGIN_ROOT}/skills/wi-ado/references/discovery.md` → *Re-decomposition & supersession*.
 
 ## Field discovery — by **reference name, per work-item-type**
 
-Implements `aidlc:work-items` → *Schema discovery* on Azure Boards. **One probe per type answers both
-halves** (its fields and its states), so do them together the first time a type is touched:
-
-```bash
-az rest --method get --url "https://dev.azure.com/{org}/{project}/_apis/wit/workitemtypes/{type}/fields?api-version=7.1"
-az rest --method get --url "https://dev.azure.com/{org}/{project}/_apis/wit/workitemtypes/{type}/states?api-version=7.1"
-```
-
-(or the MCP equivalents — ToolSearch for `work item type`). The fields response is the authoritative
-list for that type: each entry carries `referenceName`, the display `name`, `alwaysRequired`,
-`allowedValues` and `defaultValue`. `_apis/wit/fields` lists the *organization's* fields, which is a
-superset of any one type's — useful to find a custom field's reference name from its display name, never
-sufficient on its own to conclude a type has it.
-
-**Key everything on `referenceName`.** Renaming a field in ADO changes only its display name; the
-reference name is immutable, so a map built on reference names survives the rename that would otherwise
-break every read and write. Custom fields added by an inherited process are `Custom.<Name>`.
-
-Resolution per canonical field (record the result in `workItems.ado.fieldMap`, `null` where absent):
-
-| Canonical | Resolve as |
-|---|---|
-| `acceptanceCriteria` | `Microsoft.VSTS.Common.AcceptanceCriteria` when the type has it; else a `Custom.*` field whose display name reads as acceptance criteria; else **`null` → the `## Acceptance Criteria` section of `System.Description`**. Story-tier either way (see *Re-decomposition*) |
-| `estimate` | whichever of `Microsoft.VSTS.Scheduling.StoryPoints` (Agile) / `.Effort` (Scrum) / `.Size` (CMMI) the type actually has — read-only, the pipeline never writes it |
-| `priority` | `Microsoft.VSTS.Common.Priority` when present. **Absent → order by `Microsoft.VSTS.Common.BacklogPriority` (the board's own rank) and report every item as P3**, rather than inventing a priority the board does not hold. A Bug-only `Microsoft.VSTS.Common.Severity` is *not* a priority field — do not substitute it |
-| `repo` | a `repo:<name>` tag by default; `System.AreaPath` where the project maps repos to area paths; a `Custom.*` repository field where one exists. Record which — `null` means the tag convention |
-| `labels` / `assignee` / `parent` | `System.Tags` / `System.AssignedTo` / the Hierarchy-Reverse link — universal, no probe needed |
-
-**Required-on-create, before the first create.** Filter the type's field list for `alwaysRequired` and
-resolve every one *before* decomposing an epic — a rejected create halfway through creating children
-leaves a half-built hierarchy. Common culprits on customized processes:
-`Microsoft.VSTS.Common.ValueArea`, a mandatory `Custom.Team`, a restricted `System.AreaPath`. Fill from
-canonical data, else the field's own `defaultValue` / its single `allowedValues` entry, else **ask** —
-never invent (`aidlc:work-items` → `references/schema-discovery.md` → *Required-on-create*).
-
-**Respect each field's type when writing.** `allowedValues` means a picklist: write a legal value or ask,
-because free text is rejected. An `HTML` field takes HTML (as `System.Description` and the AC field
-already do), a `treePath` field takes a real classification node, and an identity field takes a resolvable
-identity — a plain string in any of them fails in a way the `az` CLI tier can report as success, which is
-exactly what *Write verification* below exists to catch.
+The first time a type is touched, probe its fields **and** states together (`_apis/wit/workitemtypes/{type}/fields` and `/states`), key everything on `referenceName` (display names change), record the result in `workItems.ado.fieldMap`, resolve every `alwaysRequired` field **before** the first create, and write each field in its own type (picklist, HTML, treePath, identity). The resolution table and procedure: `${CLAUDE_PLUGIN_ROOT}/skills/wi-ado/references/discovery.md` → *Field discovery*.
 
 ## Status map — resolve by **state category, per work-item-type** (F20)
 
@@ -233,40 +177,11 @@ retry 2–3× with a short backoff; on a persistent mismatch **raise a hard erro
 
 ## Connectivity — "connected" ≠ "authenticated"
 
-`/mcp` showing `azure-devops · connected · N tools` means the MCP **process started and registered
-tools** — it does NOT mean ADO is reachable. It authenticates on the first real call; a common failure
-is the opaque *"Failed to find api location for area."* Root cause is almost always the **launch
-environment**: `ADO_MCP_ORG` must be set **and** `az login` must be accessible **in the shell that
-launched Claude Code**. Installing `az` mid-session doesn't help — it isn't on the launching shell's
-PATH; a full relaunch from a shell with both is required. If board reads fail this way, verify (and
-tell the user): `echo $ADO_MCP_ORG` is set, `az account show` succeeds, `az devops configure --defaults
-organization=… project=…` ran — all in the launching shell — then relaunch. (`/aidlc:status` surfaces
-this as a doctor check.)
+A connected ADO MCP is not an authenticated one: *"Failed to find api location for area"* means the shell that launched Claude Code lacks `ADO_MCP_ORG` or an `az login` — relaunch from a shell with both. Diagnosis steps: `${CLAUDE_PLUGIN_ROOT}/skills/wi-ado/references/connectivity.md` → *Connectivity*.
 
 ## PAT + REST last-resort (tier 3 — off by default)
 
-When **neither** the MCP nor `az` can reach the board and the user has explicitly provided a
-Personal Access Token, the same eight operations can run over the ADO REST API directly. This is a
-deliberate escape hatch, not a normal path — prefer fixing MCP/`az` first.
-
-- **Gate it.** Use this tier only when (a) tiers 1–2 are confirmed unavailable, and (b) a PAT is
-  present. A PAT needs **Work Items: Read & Write** + **Project & Team: Read** at minimum. Never
-  invent or persist one.
-- **Secret handling — never write the token to a file.** Read it from the environment
-  (`AZURE_DEVOPS_EXT_PAT`, the same var `az` honors) or accept it for in-session use only. **Do not
-  echo it, commit it, or embed it in any generated artifact.** In particular, **never generate a
-  self-contained HTML file with the PAT baked in** — that browser-pusher pattern (from the standalone
-  claude.ai planner skill) is for sandboxes with no network and no CLI; here the write path is a
-  direct, verified REST call, and a token-in-a-file is an avoidable leak.
-- **Transport.** Basic auth header `Authorization: Basic base64(":" + PAT)`; create via
-  `POST {org}/{project}/_apis/wit/workitems/${type}?api-version=7.1` with a
-  `application/json-patch+json` body of `{op:add, path:/fields/<field>, value}` ops; iterations via
-  `POST .../_apis/wit/classificationnodes/iterations`; parent/child via a `PATCH` adding a
-  `System.LinkTypes.Hierarchy-Forward` relation. Field/type names per process are in the bootstrap
-  skill's `references/work_item_types.md`.
-- **Same contract still applies.** REST writes are subject to the identical **write-verification**
-  (read back, assert, retry, hard-error on mismatch) and per-type **status-category** resolution as
-  the MCP/`az` tiers — the transport changes, the guarantees do not.
+Only when the MCP **and** `az` are both confirmed unavailable **and** the user supplied a Personal Access Token: the same eight operations over REST, under the same write-verification and per-type state rules. Never write, echo, commit or embed the token. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/wi-ado/references/connectivity.md` → *PAT + REST last-resort*.
 
 ## Cautions
 
