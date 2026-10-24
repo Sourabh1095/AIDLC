@@ -4,8 +4,9 @@ An **AI Development Life Cycle** for [Claude Code](https://claude.com/claude-cod
 work item — or just describe what you want — and it takes the change from requirements to an open pull
 request, verifying against *your* project's real gate along the way. A human still reviews and merges.
 
-It is built entirely from Claude Code primitives (agents, skills, hooks, permissions, MCP servers) and
-ships as three installable plugins, so there is nothing to run and no service to host.
+It is built entirely from Claude Code primitives (agents, skills, hooks, permissions, MCP servers and a
+mod) and ships as plugins: one you need, and five you add when your project calls for them. There is
+nothing to run and no service to host, and it works on your Claude plan with no API key.
 
 ```
 describe it, or name a work item
@@ -59,18 +60,42 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Build screens that already exist in Figma | `/aidlc-ux:figma <url>` → `/aidlc-ux:design` |
 | Record why the code is the way it is | ADRs, written by the architect or `/aidlc:adopt-adr` |
 | Cut a release | `/aidlc:release` |
+| See what's running and what's waiting on you, without asking | install `aidlc-cockpit`, then glance above the prompt or open `/aidlc-board` |
+| Know when a reviewer commented or a check went red on your PR | the cockpit watches the pipeline's PRs and tells you the command to run |
+| Send a PM or client where things stand | `/aidlc:status --publish` — a page on claude.ai, private until you share it |
+| Hand the product over at the end of a project | `/aidlc:study` — the business study, shareable as a Claude Doc the client can comment on and export to Word or PDF |
+| Know what each work item cost | `/aidlc:insights`, with the cockpit installed |
 | Catch an old project up after `/plugin marketplace update` | `/aidlc:upgrade` |
 | Reverse a run that should not have happened | `/aidlc:undo PROJ-123` — closes the PR or opens a revert PR, puts the board back; never rewrites history |
 | Leave cleanly | `/aidlc:remove` |
 
 ---
 
+## Requirements
+
+- **Claude Code 2.1.295 or later** (`claude --version`; update with `claude update`). Older versions
+  run, but a guard hook that cannot start lets the call through there instead of blocking it.
+  `/aidlc:doctor` checks this.
+- **A Claude account** — Pro, Max, Team or Enterprise. No API key is needed anywhere. Publishing a
+  page or a Doc (`--publish`) needs a session signed in with a claude.ai account.
+- **git** and **Node.js 20 or later** (the guard hooks and scripts are plain Node, with no packages
+  to install).
+- Your host's CLI, signed in: **`gh`** for GitHub, or **`az`** with the `azure-devops` extension for
+  Azure Repos and Boards. Jira works through the Atlassian MCP server (`aidlc-tracker-jira`).
+- Windows, macOS or Linux.
+
 ## Install
 
-Per developer, once:
+Per developer, once. The shortest path is one line, which adds the marketplace and installs the core:
 
 ```
-/plugin marketplace add Sourabh1095/AIDLC     # or a local path / Azure Repos URL
+/plugin install aidlc@aidlc --marketplace Sourabh1095/AIDLC
+```
+
+Then add what your project needs:
+
+```
+/plugin marketplace add Sourabh1095/AIDLC     # already done if you used the line above
 
 /plugin install aidlc@aidlc                # required — the pipeline itself
 /plugin install aidlc-tracker-jira@aidlc   # required IF your tracker is Jira
@@ -89,7 +114,21 @@ Per developer, once:
 | **`aidlc-ux`** | 7 design agents, the Figma and Playwright MCP servers, and a design pipeline that gates on either a jury score or fidelity to a Figma design. | Your project has a UI worth judging |
 | **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, a desktop notification when a sprint run needs you, your pull requests watched (review comments, red checks, merges, each with the command to run next), and what each work item cost by phase (feeds `/aidlc:insights`). Calls no model, gates nothing. | You want to see the pipeline without asking for it, or know what an item costs |
 
-Developing this repo itself: `claude --plugin-dir <your-clone>/plugins/aidlc-core`
+### Updating
+
+```
+/plugin marketplace update aidlc     # pulls the new plugin versions
+/reload-plugins
+/aidlc:upgrade                       # in each project: catches its config and permission rules up
+/aidlc:doctor                        # confirms the project can run
+```
+
+The plugin update changes the plugin, not your projects. `/aidlc:upgrade` shows every change before
+making it, and stages permission changes for you to apply. A project that installed AIDLC at project
+scope keeps that version until you run `claude plugin update aidlc@aidlc --scope project` in it.
+
+Developing this repo itself: `claude --plugin-dir <your-clone>/plugins/aidlc-core` (add more
+`--plugin-dir` flags for the other plugins).
 
 ---
 
@@ -135,6 +174,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 ```
 /aidlc:next            # pick the top ready item and run it
 /aidlc:status          # what's in flight, what's blocked, what's next
+/aidlc-board           # with aidlc-cockpit: runs, sprint and pull requests in a pane, no tokens
 ```
 
 **Full playbook:** [`docs/user-guide.md`](docs/user-guide.md).
@@ -190,6 +230,12 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 |---|---|
 | `/aidlc-ux:design <route \| path \| "redesign X">` | Run the design pod on a screen or the whole app. No designs → narrative → inspiration → design system → build + motion → a strict jury loop until the rendered UI scores ≥9/10. Screens already in Figma → build to them and gate on fidelity instead |
 | `/aidlc-ux:figma <url> \| sync \| status` | Link a Figma file (screens, or a design system), map frames to routes, extract the spec and variables, and re-sync later to find what drifted |
+
+### Cockpit (needs `aidlc-cockpit`)
+
+| Command | Purpose |
+|---|---|
+| `/aidlc-board` | A pane with every run, the sprint and the pipeline's pull requests, what needs you first. A sprint run waiting on you has **Copy attach command**; a PR that needs you has **Put in prompt**, which fills in its command for you to send. Answers with no model turn. The line above the prompt shows the same at a glance |
 
 ### Extending and maintaining
 
@@ -256,6 +302,16 @@ makes grooming propose rather than overwrite a colleague's acceptance criteria, 
 never writes it — who does the work is a staffing decision. Everything is gated on that one flag, so a
 solo project is untouched.
 
+**Parallel work that can still ask.** `/aidlc:sprint` runs each item as a Claude Code background
+session, isolated in its own worktree or repo. When one needs a person (a plan approval, a permission,
+a security confirm), the board says which run and how to answer. It carries on once you do, and it
+keeps going if you close the sprint session.
+
+**You can see it without asking.** The optional cockpit is a Claude Code mod. It draws the runs in
+flight, the sprint, and the pipeline's pull requests above your prompt, and notifies you when something
+needs you. It also measures what each work item costs, by phase. It only reads what the pipeline's own
+scripts report, never calls a model, and AIDLC works the same without it.
+
 **Guardrails are hooks, not hope.** A pre-flight hook blocks force-pushes and pushes from protected
 branches, destructive database commands, production-targeted cluster commands, credential reads and
 `.env` exfiltration. Env-file access is default-deny with a per-workspace opt-in. New dependencies are
@@ -298,7 +354,9 @@ Full schema: [`docs/aidlc.config.schema.json`](docs/aidlc.config.schema.json).
 | `plugins/aidlc-stack-web/` | Web stack pack: skills, the tooling/structure/CI templates, the format hook |
 | `plugins/aidlc-ux/` | UX pod: 7 design agents, design skills, artifact templates, Figma + Playwright MCP |
 | `plugins/aidlc-cockpit/` | The cockpit mod: `hooks/register.tsx` draws, `hooks/view.mjs` decides what to show (tested with node) |
+| `plugins/aidlc-tracker-jira/`, `plugins/aidlc-tracker-ado/` | The tracker MCP servers, one plugin each |
 | `plugins/aidlc-core/templates/project/` | The project template `/aidlc:init` scaffolds |
+| `scripts/` | The repo's own checks: `npm run verify` runs every test suite, then the manifest, permission, template, cross-reference and context-cost checks |
 | `docs/` | Guides, walkthroughs, architecture, schemas, rationale |
 
 ### Documentation map
@@ -320,8 +378,13 @@ Full schema: [`docs/aidlc.config.schema.json`](docs/aidlc.config.schema.json).
 
 All planned phases are implemented: the core pipeline and quality gates, Jira/Azure Boards/markdown
 trackers, GitHub and Azure Repos, mono **and** multi-repo workspaces, 9 pipeline agents plus the 7-agent
-design pod, the web stack pack, parallel sprints, wave re-planning, team mode, brownfield adoption, and
-the self-extension/promotion workflow.
+design pod, the web stack pack, parallel sprints in background sessions, wave re-planning, team mode,
+brownfield adoption, the project brain and business study, sharing to claude.ai, the cockpit (runs,
+sprint, PR watch and cost per item), and the self-extension/promotion workflow.
+
+*Tests.* Every script ships with a test suite, run on Linux, macOS and Windows with Node 20, 22 and 24.
+Behavioural evals (`claude plugin eval`) measure the prompts against a no-plugin baseline, and the
+cockpit has its own tests under `claude plugin test`.
 
 *Verification.* Every command in the adoption set — `adopt`, `adopt-apply`, `adopt-adr`,
 `adopt-backlog`, `remove` — has been run end to end against a purpose-built multi-root fixture (a

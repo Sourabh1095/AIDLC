@@ -4,9 +4,10 @@ How to use AIDLC in any project — new or existing.
 
 ## 1. Prerequisites
 
-- Claude Code installed and authenticated.
+- Claude Code **2.1.295 or later**, signed in. A Claude plan (Pro, Max, Team or Enterprise) is enough:
+  AIDLC never needs an API key. Publishing a page or a Doc (`--publish`) needs a claude.ai sign-in.
 - `git` and (for GitHub projects) the `gh` CLI, authenticated (`gh auth login`).
-- Node.js ≥ 18 (hook scripts and MCP servers run on Node).
+- Node.js **20 or later** (hook scripts and MCP servers run on Node; 18 still runs but is untested).
 - For Azure DevOps projects: `az` CLI with the `azure-devops` extension, logged in.
 
 ## 2. Install the plugin (once per developer)
