@@ -167,11 +167,14 @@ End with one actionable line, e.g.:
 - a plan with **breaking** drift → "`.aidlc/plan.md` is stale (PROJ-127 re-decomposed) — `/aidlc:replan`"
 - done runs with merged PRs → "PROJ-120's PR merged — run cleanup: transition item to Done and archive the run file."
 - **a done/`in_review` run whose PR has unresolved review threads** → "PROJ-124's PR has 6 unresolved
-  comments from @priya — `/aidlc:review-feedback PROJ-124`". Worth a cheap check on any open PR this
-  pipeline opened (`gh pr view --json reviewDecision` / the ADO thread count), because the run file says
-  `done` and nothing else in this dashboard would reveal that the change is waiting on the author, not
+  comments from @priya — `/aidlc:review-feedback PROJ-124`". Check every open PR this pipeline opened
+  with `node "${CLAUDE_PLUGIN_ROOT}/skills/status/pr-state.mjs" <ws>`: it asks GitHub or Azure Repos,
+  read-only, for each PR's state, review decision, unresolved threads and checks, and prints the next
+  command. It remembers merged and closed PRs, so it never asks about them twice. The run file says
+  `done`, and nothing else in this dashboard would reveal that the change is waiting on the author, not
   on the reviewer. **`changes_requested` with no local activity is the most actionable line on the
-  board** — surface it above the ready-items suggestion.
+  board** — surface it above the ready-items suggestion. A red check goes next to it (`/aidlc:run <ID>`:
+  the devops agent diagnoses), and a merged PR feeds *Post-merge cleanup* below.
 
 ## Step 5 — Publish the board (`--publish` only)
 

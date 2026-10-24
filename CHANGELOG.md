@@ -7,6 +7,33 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.67.0] — 2026-10-25
+
+### Your pull requests, watched (`aidlc`, `aidlc-cockpit`)
+
+A run file says `done` the moment its PR opens, and nothing changes in it when a reviewer asks for
+changes, a check goes red or the PR merges. The most common next step in AIDLC,
+`/aidlc:review-feedback`, depended on someone remembering to go and look.
+
+- **`skills/status/pr-state.mjs`** asks GitHub (`gh`) or Azure Repos (`az`), read-only, about every PR
+  the pipeline opened: state, review decision, unresolved review threads and checks. It says the next
+  command for each: `/aidlc:review-feedback <ID>` for comments or changes requested, `/aidlc:run <ID>`
+  for a red check (the devops agent diagnoses), or `/aidlc:status` to clean up after a merge. Its
+  queries are the ones `/aidlc:review-feedback` uses. A merged or closed PR is asked about once and
+  remembered in the git-ignored `.aidlc/logs/pr-state.json`, so archived runs never become a polling
+  bill. A missing or signed-out CLI is reported as such, never as a state it did not read.
+- **The cockpit watches them** every five minutes, only while a surface draws (`/aidlc-board` looks at
+  once). A PR that needs you goes on the line above the prompt
+  (`P-7 PR #42: 2 unresolved review threads → /aidlc:review-feedback P-7`) and raises a desktop
+  notification. **Put in prompt** on the board puts the command in your prompt, and you press Enter.
+  No model turn, no tokens.
+- **`/aidlc:status`** uses the same script for its PR suggestions instead of hand-run `gh` calls.
+- **The cockpit checks core's version** before reading anything. An old core is named, with the command
+  to update it, instead of showing as an empty board.
+- Tests: `pr-state.test.mjs` (21, with the host CLIs replaced by a function), `view.test.mjs` (now 53),
+  mod tests (now 8). Live: with `gh` not installed, a GitHub PR reports `gh not installed`.
+- Versions: `aidlc` 0.66.0 → **0.67.0**, `aidlc-cockpit` 0.2.0 → **0.3.0**, marketplace → **0.67.0**.
+
 ## [0.66.0] — 2026-10-25
 
 ### Share what AIDLC knows with people who don't use Claude Code (`aidlc`)

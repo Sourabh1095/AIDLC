@@ -2,7 +2,7 @@
 //
 // The mod itself runs only inside Claude Code (its own tests: `claude plugin test plugins/aidlc-cockpit`).
 // Everything that decides what a person sees is here, so CI checks it on every OS.
-import { advance, bandModel, boardText, commandItem, coreCandidates, ledgerName, mergeLedger, newestSprintFile, phaseOf, prLabel, runFileTarget, runLine, transitions } from "./view.mjs";
+import { advance, bandModel, boardText, commandItem, coreCandidates, coreTooOld, ledgerName, mergeLedger, newestSprintFile, phaseOf, prLabel, prTransitions, runFileTarget, runLine, transitions } from "./view.mjs";
 import { check, done } from "../../aidlc-core/hooks/scripts/lib/testkit.mjs";
 
 // ---- finding core
@@ -121,5 +121,29 @@ check("ledger names are path-safe", [ledgerName("PROJ-1", "1a2b3c4d-5e6f"), ledg
 check("the band shows what a run has cost", bandModel({ runs: [{ item: "P-1", phase: "verify" }], sprint: null, costs: { "P-1": 1.84 }, at: 0, problem: null }).lines[0].text, "AIDLC  P-1 · verify · $1.84");
 check("an unmeasured run shows no price", runLine({ item: "P-1", phase: "verify" }).text, "P-1 · verify");
 check("a sub-cent run is not shown as free", runLine({ item: "P-1", phase: "verify" }, 0.0015).text, "P-1 · verify · <$0.01");
+
+// ---- pull requests
+{
+  const prs = [
+    { item: "P-7", pr: "u7", number: 42, state: "open", review: "changes_requested", unresolved: 3, checks: "passing", next: "3 unresolved review threads → /aidlc:review-feedback P-7" },
+    { item: "P-8", pr: "u8", number: 43, state: "open", review: "review_required", unresolved: 0, checks: "pending", next: null },
+  ];
+  const band = bandModel({ runs: [], sprint: null, prs, at: 0, problem: null });
+  check("a PR that needs you gets the band on its own", band.lines.map((l) => l.text), ["AIDLC  P-7 PR #42: 3 unresolved review threads → /aidlc:review-feedback P-7"]);
+  check("…and counts as needing you", band.needsYou, 1);
+  const withRuns = bandModel({ runs: [{ item: "P-1", phase: "implement" }], sprint: null, prs, at: 0, problem: null });
+  check("PR lines follow the runs", withRuns.lines.map((l) => l.text), ["AIDLC  P-1 · implement", "       P-7 PR #42: 3 unresolved review threads → /aidlc:review-feedback P-7"]);
+  check("a PR waiting on reviewers stays off the band", bandModel({ runs: [], sprint: null, prs: [prs[1]], at: 0, problem: null }), null);
+  const text = boardText({ runs: [], sprint: null, prs: [...prs, { item: "P-9", pr: "u9", number: 44, error: "gh not signed in", next: null }], at: 0, problem: null });
+  check("the board lists every PR with its state", [/P-7 PR #42: open · changes requested · 3 unresolved · checks passing → \/aidlc:review-feedback P-7/.test(text), /P-8 PR #43: open · review required · checks pending$/m.test(text), /P-9 PR #44: gh not signed in/.test(text)], [true, true, true]);
+}
+{
+  const was = [{ item: "P-7", pr: "u7", number: 42, next: null }];
+  const now = [{ item: "P-7", pr: "u7", number: 42, next: "checks failing → /aidlc:run P-7" }];
+  check("a PR newly needing something notifies", prTransitions(was, now), [{ item: "P-7", kind: "pr", text: "P-7 PR #42: checks failing → /aidlc:run P-7" }]);
+  check("the same need again is silent", prTransitions(now, now), []);
+  check("the first look notifies nothing", prTransitions(null, now), []);
+}
+check("core version check", [coreTooOld("0.66.0", "0.67.0"), coreTooOld("0.67.0", "0.67.0"), coreTooOld("1.0.0", "0.67.0"), coreTooOld(undefined, "0.67.0")], [true, false, false, true]);
 
 done();

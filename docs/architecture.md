@@ -466,8 +466,10 @@ An organization can allow only its own mods (`allowManagedModsOnly`). Nothing a 
 optional plugin** that gates no tool call and rewrites no prompt. The one thing it writes is its own
 cost ledger, git-ignored under `.aidlc/logs/costs/`. Every guard stays a
 settings hook in core, which works everywhere. And it computes nothing itself: the runs come from
-`run-files.mjs --json` and the sprint board from `sprint.mjs board --json`, so the cockpit cannot
-disagree with `/aidlc:status` or `/aidlc:sprint`. What to show is decided in plain `view.mjs` so CI tests
+`run-files.mjs --json`, the sprint board from `sprint.mjs board --json` and the pull requests from
+`pr-state.mjs --json`, so the cockpit cannot disagree with `/aidlc:status` or `/aidlc:sprint`. It
+checks core's version before reading any of them, so an old core shows as "update aidlc" rather than as
+an empty board. What to show is decided in plain `view.mjs` so CI tests
 it on every OS. The mod file only gathers and draws. It never calls a model, and it polls only while a
 surface is drawing, so an unattended background run pays nothing for it.
 

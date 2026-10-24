@@ -14,7 +14,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { CockpitBoardRow, CockpitRun, CockpitSnapshot, CockpitSprint } from '../types'
+import type { CockpitBoardRow, CockpitPr, CockpitRun, CockpitSnapshot, CockpitSprint } from '../types'
 import type { Charge, Ledger, LedgerFile } from './view.mjs'
 import {
   advance,
@@ -23,10 +23,14 @@ import {
   cacheDirOf,
   commandItem,
   coreCandidates,
+  coreTooOld,
   ledgerName,
   mergeLedger,
   newestSprintFile,
   phaseOf,
+  prLine,
+  prState,
+  prTransitions,
   runFileTarget,
   runLine,
   toSlash,
@@ -38,10 +42,14 @@ const COMMAND = 'aidlc-board'
 const POLL_MS = 30_000
 const FLUSH_MS = 120_000
 const MIN_GAP_MS = 5_000
+// Pull requests change on a person's time, not a turn's, and each look is a call to GitHub or Azure.
+const PR_MS = 300_000
+// The oldest core this cockpit reads correctly: pr-state.mjs (0.67), costs.mjs (0.65), run-files --json (0.64).
+const MIN_CORE = '0.67.0'
 
 // Change the shape tag when the snapshot's fields change: a reload keeps $.state, and the tag makes
 // the new code decline what the old code stored instead of misreading it.
-const snapshot = atom({ plugin: 'aidlc-cockpit', key: 'snapshot' } as const, null, { shape: 'snapshot-2' })
+const snapshot = atom({ plugin: 'aidlc-cockpit', key: 'snapshot' } as const, null, { shape: 'snapshot-3' })
 const hidden = atom({ plugin: 'aidlc-cockpit', key: 'hidden' } as const, false)
 
 const clockTime = (ms: number) => {
@@ -58,6 +66,9 @@ let lastAt = 0
 let ledger: Ledger = { item: null, phase: null, baseline: null }
 let costRoot: string | undefined
 let sessionId: string | undefined
+let coreVersion: string | null | undefined
+let prs: CockpitPr[] | null = null
+let prsAt = 0
 
 // Claude Code traces every call a mod makes on `$`, so `$` is only ever passed to functions declared
 // at the top of this file.
@@ -71,6 +82,15 @@ async function findCore($: EngineInterface): Promise<string | null> {
   for (const dir of coreCandidates($.plugin.root, versions))
     if (await $.fs.exists(`${dir}/skills/sprint/sprint.mjs`)) return dir
   return null
+}
+
+async function readCoreVersion($: EngineInterface, dir: string): Promise<string | null> {
+  try {
+    const v = (JSON.parse(await $.fs.read(`${dir}/.claude-plugin/plugin.json`)) as { version?: unknown }).version
+    return typeof v === 'string' ? v : null
+  } catch {
+    return null
+  }
 }
 
 async function nodeJson($: EngineInterface, args: string[], cwd: string): Promise<unknown> {
@@ -176,6 +196,13 @@ async function refresh($: EngineInterface, force = false): Promise<void> {
       await update($, snapshot, () => ({ runs: [], sprint: null, at: now, problem: 'the aidlc plugin was not found next to aidlc-cockpit — install aidlc@aidlc' }))
       return
     }
+    // An older core is missing scripts this cockpit reads, which would show as an empty board.
+    if (coreVersion === undefined) coreVersion = await readCoreVersion($, core)
+    if (coreTooOld(coreVersion, MIN_CORE)) {
+      const problem = `this cockpit needs aidlc ${MIN_CORE} or later (found ${coreVersion ?? 'an unknown version'}) — /plugin marketplace update aidlc`
+      await update($, snapshot, () => ({ runs: [], sprint: null, at: now, problem }))
+      return
+    }
     const runs = ((await nodeJson($, [`${core}/hooks/scripts/lib/run-files.mjs`, cwd, '--json'], cwd)) as CockpitRun[] | null) ?? []
     let sprint: CockpitSprint | null = null
     let listing: Awaited<ReturnType<EngineInterface['fs']['list']>> = []
@@ -205,7 +232,20 @@ async function refresh($: EngineInterface, force = false): Promise<void> {
       $.ui.toast(t.text)
     }
     lastRows = sprint?.rows ?? null
-    const snap: CockpitSnapshot = { runs, sprint, costs, at: now, problem: null }
+
+    // The pipeline's pull requests: a slower cadence, since each look asks GitHub or Azure.
+    if (force || now - prsAt >= PR_MS) {
+      prsAt = now
+      const fresh = (await nodeJson($, [`${core}/skills/status/pr-state.mjs`, cwd, '--json'], cwd)) as CockpitPr[] | null
+      if (fresh) {
+        for (const t of prTransitions(prs, fresh)) {
+          void $.ui.notify(t.text, { title: 'AIDLC pull request' })
+          $.ui.toast(t.text)
+        }
+        prs = fresh
+      }
+    }
+    const snap: CockpitSnapshot = { runs, sprint, costs, prs: prs ?? [], at: now, problem: null }
     await update($, snapshot, () => snap)
   } finally {
     busy = false
@@ -341,6 +381,29 @@ export const register: Register = on => {
                 )}
               </Box>
             ))}
+          </Box>
+        )}
+        {(snap.prs ?? []).length > 0 && (
+          <Box flexDirection="column">
+            <Text weight="bold">{`Pull requests (${(snap.prs ?? []).length})`}</Text>
+            {(snap.prs ?? []).map(p => {
+              // The command to run next, put in the prompt for the person to send (never sent for them).
+              const command = p.next?.split(' → ').slice(-1)[0]
+              return (
+                <Box flexDirection="row" gap="sm">
+                  <Text color={p.next ? 'warning' : p.error ? 'subtle' : 'text'}>{p.next ? prLine(p) : `${p.item} PR #${p.number}: ${p.error ?? prState(p)}`}</Text>
+                  {command?.startsWith('/') && (
+                    <Button
+                      key={`pr-${p.item}`}
+                      label="Put in prompt"
+                      onPress={() =>
+                        void $.prompt.fill({ text: command, mode: 'replace' }).catch(() => $.ui.toast(`Type ${command} to run it`))
+                      }
+                    />
+                  )}
+                </Box>
+              )
+            })}
           </Box>
         )}
         <Text dimColor>{`Updated ${clockTime(snap.at)} · costs are API-equivalent (/cost) · /${COMMAND} to refresh`}</Text>

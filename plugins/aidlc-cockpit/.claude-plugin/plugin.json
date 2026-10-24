@@ -2,7 +2,7 @@
   "name": "aidlc-cockpit",
   "displayName": "AIDLC Cockpit",
   "description": "A mod that shows AIDLC beside the chat: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, /aidlc-board with no model turn, a desktop notification when a sprint run needs you, and what each work item cost by phase. It draws what core's scripts report, calls no model and gates nothing; the only file it writes is its cost ledger.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Sourabh Sudheer",
     "url": "https://github.com/Sourabh1095"

@@ -87,7 +87,7 @@ Per developer, once:
 | **`aidlc-tracker-ado`** | The Azure DevOps MCP server. Optional — the adapter's `az boards`/`az rest` tier covers every operation and is what headless runs already use. | You want the richer interactive tier on ADO |
 | **`aidlc-stack-web`** | TypeScript standards, enterprise project structure, Next.js/NestJS/Postgres/Mongo conventions, migrations, Docker, API design, the Node CI half, the Prettier format hook. | Your project is TypeScript/Node |
 | **`aidlc-ux`** | 7 design agents, the Figma and Playwright MCP servers, and a design pipeline that gates on either a jury score or fidelity to a Figma design. | Your project has a UI worth judging |
-| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, a desktop notification when a sprint run needs you, and what each work item cost by phase (feeds `/aidlc:insights`). Calls no model, gates nothing. | You want to see the pipeline without asking for it, or know what an item costs |
+| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, a desktop notification when a sprint run needs you, your pull requests watched (review comments, red checks, merges, each with the command to run next), and what each work item cost by phase (feeds `/aidlc:insights`). Calls no model, gates nothing. | You want to see the pipeline without asking for it, or know what an item costs |
 
 Developing this repo itself: `claude --plugin-dir <your-clone>/plugins/aidlc-core`
 

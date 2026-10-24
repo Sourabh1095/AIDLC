@@ -8,6 +8,7 @@
 
 const MAX_RUN_LINES = 3;
 const MAX_NEED_LINES = 2;
+const MAX_PR_LINES = 2;
 
 export const toSlash = (p) => String(p).replace(/\\/g, "/").replace(/\/+$/, "");
 const parent = (p) => {
@@ -69,35 +70,47 @@ export function runLine(run, usd) {
   return { text: bits.join(" · ") + hint, tone: waiting ? "warning" : "subtle" };
 }
 
+// One PR that needs something, as one line.
+export const prLine = (p) => `${p.item} PR #${p.number}: ${p.next}`;
+
 // The line above the prompt, or null when there is nothing worth the room. A sprint, when one is
-// running, takes the band: it is the one place several runs can each be waiting on the person.
+// running, takes the band: it is the one place several runs can each be waiting on the person. Pull
+// requests that need something (review comments, a red check, a merge to clean up) follow either.
 export function bandModel(snapshot) {
   if (!snapshot) return null;
   if (snapshot.problem) return { lines: [{ text: `AIDLC cockpit: ${snapshot.problem}`, tone: "subtle" }], needsYou: 0 };
+  const lines = [];
+  let needsYou = 0;
   const rows = snapshot.sprint?.rows ?? [];
   if (rows.length && !snapshot.sprint.allTerminal) {
     const need = rows.filter((r) => r.needsYou && !r.terminal);
     const inFlight = rows.filter((r) => !r.terminal).length;
-    const lines = [
-      {
-        text: `AIDLC sprint · ${rows.length} run${rows.length === 1 ? "" : "s"} · ${inFlight} in flight${need.length ? ` · ${need.length} need${need.length === 1 ? "s" : ""} you` : ""}`,
-        tone: need.length ? "warning" : "subtle",
-      },
-    ];
+    lines.push({
+      text: `AIDLC sprint · ${rows.length} run${rows.length === 1 ? "" : "s"} · ${inFlight} in flight${need.length ? ` · ${need.length} need${need.length === 1 ? "s" : ""} you` : ""}`,
+      tone: need.length ? "warning" : "subtle",
+    });
     for (const r of need.slice(0, MAX_NEED_LINES))
       lines.push({ text: `  ${r.item}: ${r.waitingFor ?? r.status}${r.session ? ` → claude attach ${r.session}` : ""}`, tone: "warning" });
     if (need.length > MAX_NEED_LINES) lines.push({ text: `  +${need.length - MAX_NEED_LINES} more — /aidlc-board`, tone: "subtle" });
-    return { lines, needsYou: need.length };
+    needsYou += need.length;
+  } else {
+    const runs = snapshot.runs ?? [];
+    // Runs waiting on the person first: they are the reason to look.
+    const ordered = [...runs].sort((a, b) => Number(WAITING_PHASES.has(b.phase)) - Number(WAITING_PHASES.has(a.phase)));
+    for (const r of ordered.slice(0, MAX_RUN_LINES)) lines.push(runLine(r, snapshot.costs?.[r.item]));
+    if (runs.length > MAX_RUN_LINES) lines.push({ text: `+${runs.length - MAX_RUN_LINES} more — /aidlc-board`, tone: "subtle" });
+    needsYou += runs.filter((r) => WAITING_PHASES.has(r.phase)).length;
   }
-  const runs = snapshot.runs ?? [];
-  if (!runs.length) return null;
-  // Runs waiting on the person first: they are the reason to look.
-  const ordered = [...runs].sort((a, b) => Number(WAITING_PHASES.has(b.phase)) - Number(WAITING_PHASES.has(a.phase)));
-  const lines = ordered.slice(0, MAX_RUN_LINES).map((r) => runLine(r, snapshot.costs?.[r.item]));
-  lines[0] = { ...lines[0], text: `AIDLC  ${lines[0].text}` };
-  for (let i = 1; i < lines.length; i++) lines[i] = { ...lines[i], text: `       ${lines[i].text}` };
-  if (runs.length > MAX_RUN_LINES) lines.push({ text: `       +${runs.length - MAX_RUN_LINES} more — /aidlc-board`, tone: "subtle" });
-  return { lines, needsYou: runs.filter((r) => WAITING_PHASES.has(r.phase)).length };
+  const prs = (snapshot.prs ?? []).filter((p) => p.next);
+  for (const p of prs.slice(0, MAX_PR_LINES)) lines.push({ text: prLine(p), tone: "warning" });
+  if (prs.length > MAX_PR_LINES) lines.push({ text: `+${prs.length - MAX_PR_LINES} more PRs — /aidlc-board`, tone: "subtle" });
+  needsYou += prs.length;
+  if (!lines.length) return null;
+  // One label for the band; the sprint header carries its own, sprint detail lines keep their indent.
+  return {
+    lines: lines.map((l, i) => (i === 0 ? (l.text.startsWith("AIDLC") ? l : { ...l, text: `AIDLC  ${l.text}` }) : l.text.startsWith("  ") ? l : { ...l, text: `       ${l.text}` })),
+    needsYou,
+  };
 }
 
 // The board as plain text: the /aidlc-board reply, for surfaces that draw no pane.
@@ -113,7 +126,37 @@ export function boardText(snapshot) {
     out.push("", `Sprint (${rows.length}):`);
     for (const r of rows) out.push(`  ${r.item} · ${r.phase ?? "—"} · ${r.waitingFor ? `${r.status} (${r.waitingFor})` : r.status}${r.needsYou ? ` → ${r.needsYou}` : ""}`);
   }
+  const prs = snapshot.prs ?? [];
+  if (prs.length) {
+    out.push("", `Pull requests (${prs.length}):`);
+    for (const p of prs) out.push(`  ${p.item} PR #${p.number}: ${p.error ?? prState(p)}${p.next ? ` → ${p.next.split(" → ").slice(-1)[0]}` : ""}`);
+  }
   return out.join("\n");
+}
+
+// A PR's state in words: "open · changes requested · 2 unresolved · checks failing".
+export function prState(p) {
+  const bits = [p.state + (p.draft ? " (draft)" : "")];
+  if (p.review && p.review !== "none") bits.push(p.review.replace(/_/g, " "));
+  if (p.unresolved) bits.push(`${p.unresolved} unresolved`);
+  if (p.checks && p.checks !== "none") bits.push(`checks ${p.checks}`);
+  return bits.join(" · ");
+}
+
+// A PR newly needing something is worth a notification; one that needed the same thing last time is
+// not. The first look of a session notifies nothing.
+export function prTransitions(prev, now) {
+  if (!prev || !now) return [];
+  const before = new Map(prev.map((p) => [p.pr, p.next ?? null]));
+  return now.filter((p) => p.next && before.has(p.pr) && before.get(p.pr) !== p.next).map((p) => ({ item: p.item, kind: "pr", text: prLine(p) }));
+}
+
+// Is the core plugin new enough for this cockpit? Compares a.b.c numerically.
+export function coreTooOld(version, min) {
+  const a = String(version ?? "0").split(".").map(Number);
+  const b = String(min).split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  return false;
 }
 
 // What changed between two sprint boards that is worth interrupting someone for: a run starting to

@@ -637,6 +637,11 @@ chat in the terminal, the desktop app and VS Code:
 - **`/aidlc-board`** opens a board pane with every run and the sprint, with a button that copies a
   waiting run's attach command. It answers with no model turn, so it costs nothing.
 - **A desktop notification** when a sprint run starts waiting on you or finishes.
+- **Your pull requests, watched.** Every few minutes it asks GitHub or Azure Repos about each PR the
+  pipeline opened, read-only. When one gets review comments or changes requested, a check goes red, or
+  it merges, the line says so with the command to run next (`P-7 PR #42: 2 unresolved review threads →
+  /aidlc:review-feedback P-7`), and you get a notification. **Put in prompt** on the board puts that
+  command in your prompt; you press Enter. It needs `gh` (or `az`) signed in, as the pipeline itself does.
 - **What each item cost**, on its line (`PROJ-123 · verify · $1.84`) and in `/aidlc:insights`: the
   cost per item, the median per done item, and the share by phase. It is Claude Code's own `/cost`
   figure (an API-equivalent estimate, which on a plan is a measure of usage rather than a bill), charged

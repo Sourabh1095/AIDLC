@@ -26,11 +26,28 @@ export type CockpitBoardRow = {
 
 export type CockpitSprint = { rows: CockpitBoardRow[]; allTerminal: boolean };
 
+/** One pull request the pipeline opened, as core's `pr-state.mjs --json` reports it. */
+export type CockpitPr = {
+  item: string;
+  pr: string;
+  number: number;
+  host: 'github' | 'azure-repos';
+  state?: 'open' | 'merged' | 'closed' | 'unknown';
+  draft?: boolean;
+  review?: string;
+  unresolved?: number;
+  checks?: 'passing' | 'failing' | 'pending' | 'none';
+  error?: string;
+  next: string | null;
+};
+
 export type CockpitSnapshot = {
   runs: CockpitRun[];
   sprint: CockpitSprint | null;
   /** What each item has cost so far (ledger + this session's uncharged spend), when measured. */
   costs?: Record<string, number>;
+  /** The pipeline's open pull requests, looked at every few minutes. */
+  prs?: CockpitPr[];
   at: number;
   problem: string | null;
 };

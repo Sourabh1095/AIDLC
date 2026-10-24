@@ -1,5 +1,5 @@
 // Types for view.mjs, so register.tsx type-checks against the same functions node tests.
-import type { CockpitBoardRow, CockpitRun, CockpitSnapshot } from '../types';
+import type { CockpitBoardRow, CockpitPr, CockpitRun, CockpitSnapshot } from '../types';
 
 export type Tone = 'warning' | 'subtle';
 export type Line = { text: string; tone: Tone };
@@ -26,4 +26,8 @@ export declare function ledgerName(item: string, session: string): string;
 export declare function mergeLedger(existing: Partial<LedgerFile> | null, at: { item: string; session: string; now: string }, charges: readonly Charge[]): LedgerFile;
 export declare function bandModel(snapshot: CockpitSnapshot | null): Band | null;
 export declare function boardText(snapshot: CockpitSnapshot | null): string;
+export declare function prLine(p: CockpitPr): string;
+export declare function prState(p: CockpitPr): string;
+export declare function prTransitions(prev: readonly CockpitPr[] | null, now: readonly CockpitPr[] | null): { item: string; kind: 'pr'; text: string }[];
+export declare function coreTooOld(version: string | null | undefined, min: string): boolean;
 export declare function transitions(prevRows: readonly CockpitBoardRow[] | null, rows: readonly CockpitBoardRow[] | null): Transition[];

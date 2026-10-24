@@ -15,11 +15,36 @@ const ROWS = [
   { item: 'S-2', repo: null, phase: 'design', fixCycles: '0', branch: null, pr: null, session: 'bbbb2222', status: 'NEEDS YOU', waitingFor: 'input needed', needsYou: 'input needed → claude attach bbbb2222', terminal: false },
 ]
 
-type World = { config?: boolean; sprint?: { rows: unknown[]; allTerminal: boolean } | null }
+type World = {
+  config?: boolean
+  sprint?: { rows: unknown[]; allTerminal: boolean } | null
+  prs?: unknown[]
+  coreVersion?: string
+  /** Files the fake disk holds, keyed by a normalized path. */
+  disk?: Record<string, string>
+}
+
+// Paths arrive in the platform's spelling; the fake disk is keyed by a normalized form.
+const key = (p: string) => p.replace(/\\/g, '/').replace(/^[A-Za-z]:/, '')
 
 function engine(on: On, world: World) {
   mock.clock(on, { now: 1_000_000 })
-  const seen = { notified: [] as string[], copied: [] as string[] }
+  const seen = { notified: [] as string[], copied: [] as string[], filled: [] as string[] }
+  const disk = (world.disk ??= {})
+  on('fs.read', (_, e) => {
+    if (/aidlc-core[\\/]\.claude-plugin[\\/]plugin\.json$/.test(e.path)) return { value: JSON.stringify({ version: world.coreVersion ?? '0.67.0' }) }
+    const text = disk[key(e.path)]
+    if (text === undefined) throw new Error(`ENOENT ${e.path}`)
+    return { value: text }
+  })
+  on('fs.write', (_, e) => {
+    disk[key(e.path)] = e.text
+    return { value: undefined }
+  })
+  on('prompt.fill', (_, e) => {
+    seen.filled.push(e.text)
+    return { isFilled: true }
+  })
   on('command.register', () => ({ value: { command: 'aidlc-board' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.toast', () => ({ value: undefined }))
@@ -49,7 +74,9 @@ function engine(on: On, world: World) {
   on('process.run', (_, e) => ({
     value: {
       exitCode: 0,
-      stdout: JSON.stringify(e.argv.some(a => a.includes('run-files.mjs')) ? RUNS : world.sprint),
+      stdout: JSON.stringify(
+        e.argv.some(a => a.includes('run-files.mjs')) ? RUNS : e.argv.some(a => a.includes('pr-state.mjs')) ? (world.prs ?? []) : world.sprint,
+      ),
       stderr: '',
       isStdoutTruncated: false,
       isStderrTruncated: false,
@@ -121,22 +148,11 @@ test('Hide gives the band back', async ($, on) => {
 })
 
 test('a phase change charges the phase that ended, in a file per item and session', async ($, on) => {
-  engine(on, { sprint: null })
-  // Paths arrive in the platform's spelling; key the fake disk by a normalized form.
-  const key = (p: string) => p.replace(/\\/g, '/').replace(/^[A-Za-z]:/, '')
   const disk: Record<string, string> = { '/ws/.aidlc/runs/P-1.md': '---\nitem: P-1\nphase: implement\n---\n' }
+  engine(on, { sprint: null, disk })
   let usd = 1
   on('session.usage', () => ({ value: { startedAt: 0, context: {}, rateLimits: [], cost: { usd } } as never }))
   on('session.id', () => ({ value: 'abcd1234-0000-0000' }))
-  on('fs.read', (_, e) => {
-    const text = disk[key(e.path)]
-    if (text === undefined) throw new Error(`ENOENT ${e.path}`)
-    return { value: text }
-  })
-  on('fs.write', (_, e) => {
-    disk[key(e.path)] = e.text
-    return { value: undefined }
-  })
   on('tool.call', () => ({ result: {} }))
   await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
 
@@ -148,6 +164,36 @@ test('a phase change charges the phase that ended, in a file per item and sessio
   const ledger = Object.entries(disk).find(([p]) => p.endsWith('/.aidlc/logs/costs/P-1--abcd1234.json'))
   expect(ledger).toBeDefined()
   expect(JSON.parse(ledger![1]).phases).toEqual({ implement: 2.5 })
+})
+
+test('a pull request that needs you shows, notifies, and puts its command in the prompt', async ($, on) => {
+  const waiting = { item: 'P-7', pr: 'https://github.com/acme/web/pull/42', number: 42, host: 'github', state: 'open', review: 'review_required', unresolved: 0, checks: 'pending', next: null }
+  const world: World = { sprint: null, prs: [waiting] }
+  const seen = engine(on, world)
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aidlc-board' })
+  expect(seen.notified).toEqual([])
+
+  world.prs = [{ ...waiting, review: 'changes_requested', unresolved: 2, next: '2 unresolved review threads → /aidlc:review-feedback P-7' }]
+  const { text } = await $.command.run({ command: 'aidlc-board' })
+  expect(text).toContain('P-7 PR #42: open · changes requested · 2 unresolved · checks pending → /aidlc:review-feedback P-7')
+  expect(seen.notified).toContain('P-7 PR #42: 2 unresolved review threads → /aidlc:review-feedback P-7')
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text', text: /PR #42/ }))?.text).toBe('       P-7 PR #42: 2 unresolved review threads → /aidlc:review-feedback P-7')
+  await band.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'pr-P-7' })
+  expect(seen.filled).toEqual(['/aidlc:review-feedback P-7'])
+  await pane.unmount()
+})
+
+test('an older core is named, not shown as an empty board', async ($, on) => {
+  engine(on, { sprint: null, coreVersion: '0.64.0' })
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+  const { text } = await $.command.run({ command: 'aidlc-board' })
+  expect(text).toContain('this cockpit needs aidlc 0.67.0 or later (found 0.64.0)')
 })
 
 test('outside an AIDLC workspace it draws nothing', async ($, on) => {
