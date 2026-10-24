@@ -7,6 +7,20 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.67.1] — 2026-10-25
+
+### Run files are written with Write and Edit, never the shell (`aidlc`)
+
+Found in the live sprint test for 0.63.0: a run's orchestrator wrote its run file with a shell heredoc.
+In a background sprint run that is a permission prompt, so it showed as "needs you" on the board, where
+a Write would have been accepted under `acceptEdits`.
+
+- `aidlc:run-state` → *Protocol* now says it: Write creates the run file and Edit makes every change.
+  No heredoc, `echo >>` or `sed -i`, and `sed -i` also does nothing silently when its text is not there.
+  The same goes for the markdown tracker's item files.
+- The adoption guide lists `aidlc-cockpit` with the other plugins.
+- Versions: `aidlc` 0.67.0 → **0.67.1**, marketplace → **0.67.1**.
+
 ## [0.67.0] — 2026-10-25
 
 ### Your pull requests, watched (`aidlc`, `aidlc-cockpit`)

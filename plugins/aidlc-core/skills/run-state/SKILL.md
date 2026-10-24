@@ -77,6 +77,13 @@ transitions that Task; omit it for a plan-only step.)
 
 **Create** — at run start, from the template. Frontmatter first, then sections in the order above.
 
+**Write it with the Write and Edit tools, never through the shell.** Write creates it, and Edit makes
+every change after that. A heredoc, `echo >>` or `sed -i` on the run file is a shell command, and two
+things go wrong with it. In a sprint, a background run accepts file edits but stops on a permission
+prompt for a shell command, so every checkpoint becomes a "needs you". And `sed` silently does nothing
+when the text it expected is not there, where Edit fails loudly. The same applies to the backlog item
+files of the markdown tracker.
+
 **Checkpoint** — update the run file:
 - on EVERY phase transition (`phase:` + `updated:` + a Log line) — before starting the next phase. The
   Log line is exactly `- <UTC> phase <from> → <to>`: `/aidlc:insights` reads those lines for time per
