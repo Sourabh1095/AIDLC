@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { allocate, highestExisting } from "./next-id.mjs";
 import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
+import { samePath } from "../../hooks/scripts/lib/paths.mjs";
 
 
 const repo = mkdtempSync(join(tmpdir(), "nextid-"));
@@ -29,7 +30,7 @@ git("worktree", "add", "-b", "feature/x", wt);
 check("the worktree's copy is stale", readFileSync(join(wt, "backlog", ".sequence"), "utf8").trim(), "5");
 const fromWorktree = allocate(wt, "PROJ");
 check("allocating from a worktree uses the MAIN worktree's sequence", fromWorktree.id, "PROJ-6");
-check("…and says where it allocated", fromWorktree.root.toLowerCase() === repo.toLowerCase(), true);
+check("…and says where it allocated", samePath(fromWorktree.root, repo), true);
 
 // A .sequence that fell behind the files never reissues an existing id.
 writeFileSync(join(repo, "backlog", "items", "PROJ-30-imported.md"), "x");

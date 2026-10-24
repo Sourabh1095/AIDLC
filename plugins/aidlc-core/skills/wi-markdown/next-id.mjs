@@ -16,6 +16,7 @@ import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
+import { samePath } from "../../hooks/scripts/lib/paths.mjs";
 
 // The main worktree of the repo at `dir`, or `dir` itself when it is not a linked worktree.
 export function mainWorktree(dir) {
@@ -96,7 +97,8 @@ if (isEntry(import.meta.url)) {
   try {
     const { id, root } = allocate(resolve(ws), key);
     console.log(id);
-    if (resolve(root).toLowerCase() !== resolve(ws).toLowerCase()) console.error(`(allocated in the main worktree: ${root} — create the item file there)`);
+    // git names the main worktree by its real path; `ws` may be a symlinked or short-name spelling.
+    if (!samePath(root, ws)) console.error(`(allocated in the main worktree: ${root} — create the item file there)`);
   } catch (e) {
     console.error(`next-id: ${e.message}`);
     process.exit(1);

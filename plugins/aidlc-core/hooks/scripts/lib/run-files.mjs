@@ -9,6 +9,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
+import { normPath, realPath, samePath } from "./paths.mjs";
 
 // Every phase a run file can be in (`aidlc:run-state` → Format). `review-pending` was used by five
 // skills and accepted by doctor, but missing from the documented list — so readers disagreed about
@@ -49,7 +50,8 @@ function worktrees(dir) {
       .split(/\r?\n/)
       .filter((l) => l.startsWith("worktree "))
       .map((l) => resolve(l.slice(9).trim()))
-      .filter((p) => p.toLowerCase() !== resolve(dir).toLowerCase());
+      // git lists the main checkout by its real path; `dir` may be a symlinked or short-name spelling.
+      .filter((p) => !samePath(p, dir));
   } catch {
     return [];
   }
@@ -74,7 +76,10 @@ export function runDirs(cwd) {
   const seen = new Set();
   return all
     .map((r) => join(r, ".aidlc", "runs"))
-    .filter((d) => (seen.has(d.toLowerCase()) ? false : (seen.add(d.toLowerCase()), true)))
+    .filter((d) => {
+      const key = normPath(realPath(d));
+      return seen.has(key) ? false : (seen.add(key), true);
+    })
     .filter((d) => existsSync(d));
 }
 

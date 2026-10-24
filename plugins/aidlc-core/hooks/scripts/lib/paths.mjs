@@ -8,6 +8,7 @@
 //      `resolve` reads it as `<current drive>:\d\work\app`, so an in-project delete written in
 //      the Git Bash form was judged "outside" and blocked.
 import { resolve } from "node:path";
+import { realpathSync } from "node:fs";
 
 export const CASE_INSENSITIVE_FS = process.platform === "win32" || process.platform === "darwin";
 
@@ -18,6 +19,22 @@ export function normPath(p) {
   return CASE_INSENSITIVE_FS ? s.toLowerCase() : s;
 }
 
+// The path the OS itself would name, for comparing a path against one that came from git or from
+// another process. `realpathSync.native`, not the JS `realpathSync`: only the native call expands
+// Windows 8.3 short names, and GitHub's Windows runners hand out `C:\Users\RUNNER~1\…` temp paths
+// that git answers as `C:/Users/runneradmin/…` — the same folder, compared unequal. It also resolves
+// macOS's `/var` → `/private/var`. A path that does not exist yet stays lexical.
+export function realPath(p) {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return resolve(p);
+  }
+}
+
+// Do two paths name the same location on disk?
+export const samePath = (a, b) => normPath(realPath(a)) === normPath(realPath(b));
+
 // Is `child` the same as, or inside, `parent`? Both are resolved paths.
 export function isWithin(child, parent) {
   const c = normPath(child);
@@ -26,10 +43,12 @@ export function isWithin(child, parent) {
 }
 
 // A shell path as the OS will see it. On Windows, the Git Bash spellings `/c/x` and
-// `/cygdrive/c/x` become `C:/x`; everywhere else the path is returned unchanged. Only
-// meaningful for paths that came through the Bash tool — PowerShell reads `/c/x` as a
-// path on the current drive, exactly like Node does.
+// `/cygdrive/c/x` become `C:/x`; PowerShell reads `/c/x` as a path on the current drive,
+// exactly like Node does. On macOS and Linux, PowerShell still takes `\` as a separator while
+// Node's POSIX path functions read it as part of a name — so `.claude\settings.json` from the
+// PowerShell tool resolved to a file that does not exist, and the settings check let it through.
 export function fromShellPath(p, toolName = "Bash") {
+  if (toolName === "PowerShell" && process.platform !== "win32") return String(p).replace(/\\/g, "/");
   if (process.platform !== "win32" || toolName !== "Bash") return String(p);
   return String(p)
     .replace(/^\/cygdrive\/([a-zA-Z])(?=\/|$)/, (_, d) => `${d.toUpperCase()}:`)

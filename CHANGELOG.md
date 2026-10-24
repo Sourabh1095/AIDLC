@@ -7,6 +7,28 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.58.1] — 2026-10-24
+
+### CI passes on every OS again, and two path bugs it was hiding (`aidlc`)
+
+The repo's CI test job had failed on every push to `main` since 2 August (`fde4c23`), on Linux, macOS
+and Windows alike, and nothing noticed. Reproduced here rather than guessed: a fresh shallow clone with an
+empty home, Linux in Docker on Node 20, 22 and 24, and Windows with an 8.3 short-name temp folder of the
+kind GitHub's Windows runners hand out.
+
+- **Guard, macOS/Linux, PowerShell tool:** `Copy-Item x -Destination .claude\settings.json` was allowed.
+  PowerShell takes `\` as a separator on every OS, but Node's POSIX path functions read it as part of a
+  file name, so the "existing settings file" check looked for a file that does not exist.
+  `fromShellPath` now converts it for the PowerShell tool off Windows.
+- **Paths compared against git's answer now go through the OS's real path** (`realPath` / `samePath` in
+  `lib/paths.mjs`, on `realpathSync.native`). The JS `realpathSync` does not expand Windows short names
+  (`C:\Users\RUNNER~1\…`), and a plain-text compare misses macOS's `/var` → `/private/var`. Fixed where it
+  bit: doctor's "is this workspace its own git repo" check (it skipped instead of warning about an
+  uncommitted plan), `next-id`'s "allocated in the main worktree" note, `run-files`' worktree list (the
+  main checkout could be listed twice) and the project-memory comparisons from 0.58.0.
+- **Tests that assumed Windows** now use each OS's own spelling: an outside folder is `C:\Windows\Temp\x`
+  or `/var/tmp/x`, and `.Claude/Settings.json` is the settings file only where the filesystem ignores case.
+
 ## [0.58.0] — 2026-10-24
 
 ### Project memory lives in the project (`aidlc`)

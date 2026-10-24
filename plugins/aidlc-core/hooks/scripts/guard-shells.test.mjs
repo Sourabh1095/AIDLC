@@ -14,6 +14,9 @@ import { hookOutcome } from "./lib/testkit.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GUARD = join(HERE, "guard.mjs");
+// A folder outside the test repo, spelled the way this OS spells absolute paths. `C:\…` on macOS or
+// Linux is a relative path INSIDE the repo, so a delete of it is rightly allowed there.
+const OUTSIDE = process.platform === "win32" ? "C:\\Windows\\Temp\\x" : "/var/tmp/x";
 
 // A repo on a feature branch, with a workspace config declaring extra permanent branches.
 const repo = mkdtempSync(join(tmpdir(), "guardsh-"));
@@ -65,9 +68,9 @@ check("Get-Content -Path:.env", "block", "ps: -Path:value binding", "PowerShell"
 check("[IO.File]::ReadAllText('.env')", "block", "ps: .NET file API", "PowerShell");
 check("Set-Content .claude/settings.json '{}'", "block", "ps: Set-Content settings.json", "PowerShell");
 check("Copy-Item evil.json -Destination .claude\\settings.json", "block", "ps: Copy-Item onto settings", "PowerShell");
-check("Remove-Item -Recurse -Force C:\\Windows\\Temp\\x", "block", "ps: recursive delete outside", "PowerShell");
-check("Remove-Item -r C:\\Windows\\Temp\\x", "block", "ps: -r prefix of -Recurse", "PowerShell");
-check("cmd /c rd /s /q C:\\Windows\\Temp\\x", "block", "ps: cmd rd /s outside", "PowerShell");
+check(`Remove-Item -Recurse -Force ${OUTSIDE}`, "block", "ps: recursive delete outside", "PowerShell");
+check(`Remove-Item -r ${OUTSIDE}`, "block", "ps: -r prefix of -Recurse", "PowerShell");
+check(`cmd /c rd /s /q ${OUTSIDE}`, "block", "ps: cmd rd /s outside", "PowerShell");
 check(
   `powershell -enc ${Buffer.from("Get-Content .env", "utf16le").toString("base64")}`,
   "block",
@@ -113,7 +116,8 @@ check("git p -u origin feature/PROJ-1-x", "allow", "alias: configured alias, leg
 
 // ================= SHELL WRITES TO THE GUARDRAILS =================
 check("echo {} > .claude/settings.json", "block", "protect: redirect onto settings");
-check("echo {} > .Claude/Settings.json", "block", "protect: case variant");
+// Only where the filesystem ignores case is `.Claude/Settings.json` the settings file at all.
+check("echo {} > .Claude/Settings.json", process.platform === "linux" ? "allow" : "block", "protect: case variant");
 check("cp evil.json .claude/settings.json", "block", "protect: cp onto settings");
 check("rm .claude/settings.json", "block", "protect: delete settings");
 check(`cp evil.mjs "${join(HERE, "guard.mjs").replace(/\\/g, "/")}"`, "block", "protect: overwrite the running guard");

@@ -23,13 +23,14 @@
 // auth, MCP tool names, required-check policy, whether the gate commands actually run —
 // needs tools and a session, so it lives in SKILL.md and is reported alongside this
 // output. Never throws: a diagnosis that crashes is worse than one that says "unknown".
-import { readFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { PHASES as RUN_PHASES, frontmatter, runDirs } from "../../hooks/scripts/lib/run-files.mjs";
 import { parseArgs } from "../../hooks/scripts/lib/cli.mjs";
+import { normPath, realPath } from "../../hooks/scripts/lib/paths.mjs";
 import {
   autoMemoryOff,
   countFiles,
@@ -61,18 +62,10 @@ const ROOT = resolve(positional[0] || process.cwd());
 // realpath — so a lexical comparison of the two disagrees about a directory that is one
 // directory. And APFS is case-insensitive by default, so a workspace opened by a
 // differently-cased path is still the same workspace. Windows has the same casing story
-// with `C:\Users` vs `c:\users`.
-const CASE_INSENSITIVE_FS = process.platform === "win32" || process.platform === "darwin";
-const canonicalPath = (p) => {
-  let s;
-  try {
-    s = realpathSync(p); // resolves symlinks; throws if the path does not exist
-  } catch {
-    s = resolve(p); // not on disk — lexical is the best answer available
-  }
-  s = s.replace(/\\/g, "/").replace(/\/+$/, "");
-  return CASE_INSENSITIVE_FS ? s.toLowerCase() : s;
-};
+// with `C:\Users` vs `c:\users`, plus 8.3 short names: GitHub's Windows runners hand out
+// `C:\Users\RUNNER~1\…` temp paths that git answers in long form, which the JS realpath
+// left unexpanded — so CI reported every test repo as "not a git repo of its own".
+const canonicalPath = (p) => normPath(realPath(p));
 
 const checks = [];
 /** status: ok | warn | fail | skip */

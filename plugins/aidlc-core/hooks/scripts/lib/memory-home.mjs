@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, cpSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
-import { normPath } from "./paths.mjs";
+import { samePath } from "./paths.mjs";
 import { patchJsonText } from "../../../skills/upgrade/json-edit.mjs";
 
 const GITIGNORE =
@@ -37,7 +37,7 @@ export const projectSlug = (dir) => resolve(dir).replace(/[^A-Za-z0-9]/g, "-");
 // The folder Claude Code uses when nothing sets autoMemoryDirectory.
 export const defaultMemoryDir = (root, home) => join(claudeDir(home), "projects", projectSlug(root), "memory");
 
-export const sameDir = (a, b) => normPath(resolve(a)) === normPath(resolve(b));
+export const sameDir = samePath;
 
 export const countFiles = (dir) =>
   readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length;
