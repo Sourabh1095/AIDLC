@@ -47,7 +47,7 @@ jobs:
         # does not, and `/var` is a symlink so a lexical path comparison disagrees with
         # git's realpath. Both were invisible on the two runners above.
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node: ["20", "22"]
+        node: ["20", "22", "24"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

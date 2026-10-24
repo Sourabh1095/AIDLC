@@ -440,7 +440,7 @@ silently crippled by a guessed tool id.
 
 ### Skills
 
-Commands: `do`, `run`, `next`, `sprint`, `status`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
+Commands: `do`, `run`, `next`, `sprint`, `status`, `insights`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
 `promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
 `run-state`, `journal`, `facts`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
@@ -579,7 +579,8 @@ and per package (different frontends, different mockups and dev ports); `ux.figm
 - Additional stack packs (`aidlc-stack-python`, `aidlc-stack-dotnet`) as demand appears.
 - More adapters via the same eight-operation contract (Linear, GitHub Issues).
 - Sentry-fed bug intake: production error → draft bug item with stack trace context.
-- Metrics: cycle-time and fix-cycle stats aggregated from archived run files.
+- Richer metrics: token cost per item (run files do not record it yet), and per-phase timing for runs
+  whose Log predates the `phase X → Y` lines `/aidlc:insights` reads.
 
 ## 4. Extension points (for adopting teams)
 

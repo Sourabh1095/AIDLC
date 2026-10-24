@@ -1,7 +1,7 @@
 ---
 name: run
 description: Run one work item (epic, story, task, bug or spike) through the full AIDLC pipeline — fetch, requirements, plan, implement, review + QA with fix cycles, PR, tracker update. Resumable. Use when asked to work on, implement, fix or deliver a work item by ID.
-argument-hint: <work-item-id>
+argument-hint: <work-item-id | requirement text> [--plan-only]
 disable-model-invocation: true
 ---
 
@@ -43,7 +43,9 @@ If you arrived here any other way — you inferred it from an ambiguous prompt �
    synthesize the single mono entry. The session cwd is the **workspace control plane** (holds
    `.claude/`, `backlog/`, `.aidlc/`); each repo lives at `workspace.root`/`<repo.path>`.
 2. Route to the active work-item adapter (per `aidlc:work-items`).
-3. **If `$ARGUMENTS` is not a work-item ID** (doesn't match `{PROJECT_KEY}-{number}`), the user
+3. **`--plan-only`** anywhere in `$ARGUMENTS` is a flag, not part of the ID or the requirement text: strip
+   it and remember it for §5 → *Plan checkpoint* (the run stops once the plan is shown).
+   **If `$ARGUMENTS` is not a work-item ID** (doesn't match `{PROJECT_KEY}-{number}`), the user
    handed you a raw requirement — follow `aidlc:intake` first (analyze against codebase +
    existing backlog, propose, create on approval), then continue this pipeline with the first
    ready item it created. This is the "describe it and it gets built" path.
@@ -478,6 +480,34 @@ the children span repos, you are running an umbrella as if it were a leaf: go ba
 
 Record `taskSync: adopted <n> | authored <n> | none` on the run file's `## Log`, so the audit trail
 states whether the board's breakdown drove this plan or the plan was AIDLC's own.
+
+### Plan checkpoint — the cheapest moment to change course
+
+A wrong plan is cheap to fix now and expensive after three implementers have written to it. Read
+`pipeline.planApproval`:
+
+| Value | When the user sees the plan before any code is written |
+|---|---|
+| `off` (default when absent) | never — the run continues |
+| `large` | the item is ≥ `pipeline.architectThreshold`, **or** the plan writes an ADR, touches an `apiContracts` path, adds a migration, or adds a dependency |
+| `ask` | every item |
+| `--plan-only` in `$ARGUMENTS` | always, and the run **stops** after it either way |
+
+When due, run the fan-out resolver now (§6 — it is cheap and its schedule belongs in the picture), then
+present **at most ~25 lines**: the approach in one sentence (and the rejected alternative), the
+`### Reuse` block, the tasks with their paths and `foundation`/`dependsOn` edges, the schedule summary,
+the risks (ADR, contract, migration, new dependency, assumptions logged at §4), and which agents will
+run (implementers, and reviewer/QA/security per cadence). Then ask with AskUserQuestion:
+
+- **Approve** → log `plan approved` and continue to §6.
+- **Change it** → take the user's words as a constraint, revise `## Plan` (re-dispatch the architect
+  with them when it wrote the plan), log `plan revised: <one line>`, and show the checkpoint again.
+- **Stop here** → leave the phase at `design`, log `plan parked for review`, and end with one line:
+  `/aidlc:run {ID}` resumes at implement with this plan. `--plan-only` always ends here.
+
+**A headless run never waits.** Under `/aidlc:sprint` (or any non-interactive session) there is nobody
+to answer: log `plan checkpoint skipped: headless` and continue — except with `--plan-only`, which
+stops as asked. A checkpoint that can hang a background run is worse than none.
 
 Phase → `implement`. Checkpoint.
 

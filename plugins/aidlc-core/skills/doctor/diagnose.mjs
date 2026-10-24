@@ -87,10 +87,14 @@ const tryJson = (p) => {
 
 // --- 1. Runtime ------------------------------------------------------------------------
 {
+  // CI tests Node 20, 22 and 24. 18 still runs the hooks but is end-of-life and untested, so it warns
+  // rather than fails: a guard that stops running because of a version check is worse than an old Node.
   const major = Number(process.versions.node.split(".")[0]);
-  if (major >= 18) add("ok", "node", "Node runtime", `v${process.versions.node}`);
+  if (major >= 20) add("ok", "node", "Node runtime", `v${process.versions.node}`);
+  else if (major >= 18)
+    add("warn", "node", "Node runtime", `v${process.versions.node} is end-of-life and not tested`, "Upgrade to a maintained Node LTS (20, 22 or 24) — the hooks are tested on those.");
   else
-    add("fail", "node", "Node runtime", `v${process.versions.node} is below the minimum`, "Install Node 18 or newer — the hooks are ES modules and use modern fs APIs.");
+    add("fail", "node", "Node runtime", `v${process.versions.node} is below the minimum`, "Install Node 20 or newer — the hooks are ES modules and use modern fs APIs.");
 }
 
 // --- 2. Config -------------------------------------------------------------------------

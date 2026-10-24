@@ -185,6 +185,32 @@ The item stays `in_review` and the run stays awaiting merge — **this command n
 transitions to done.** The human gate (D6) is the point of the PR, and a pipeline that closed its own
 review loop would have removed the one gate the framework promises to keep.
 
+### Teach it once — a comment reviewers keep making becomes a rule
+
+A comment made once is a review. The same comment in three runs ("use the project logger", "go through
+`assertOwner`") is a project convention nobody wrote down, and every run until someone does will need a
+person to say it again. After the report, check:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/insights/insights.mjs" <workspace-root> --themes
+```
+
+For each theme that this round's comments **also** hit (the word appears in a comment you just
+recorded), offer — once, in one AskUserQuestion, never by writing on your own — where it should live:
+
+- **A project rule** — append one line to `.claude/rules/conventions.md` (create it if absent; it is the
+  project's own file, not one AIDLC ships): *"Log through `src/lib/logger` — never `console.log`."*
+  Always loaded, so every run follows it. Right for a judgement a person applies.
+- **A lint rule** — when the convention is mechanical (`no-console`, a banned import), a lint rule
+  enforces it at the gate with no prompt cost at all. File it as a small item (`/aidlc:intake`) rather
+  than editing lint config from here.
+- **A fact** — when it is knowledge rather than a rule ("the auth middleware runs before tenancy"):
+  `facts.mjs add … codebase "<fact>"` (`aidlc:facts`).
+- **Not a convention** — the user decides that, too; say nothing more about it this round.
+
+Write only what the user picked, in their words or yours as approved, and journal it
+(`aidlc:journal`, kind `direct`: `convention recorded from review: <one line>`).
+
 ## Rules
 
 - **Attribution is not decoration.** Every finding carries who wrote it, because the answer goes back to

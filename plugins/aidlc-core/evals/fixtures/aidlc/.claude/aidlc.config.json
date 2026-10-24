@@ -1,0 +1,17 @@
+{
+  "project": { "key": "PROJ", "name": "web" },
+  "workItems": { "source": "markdown" },
+  "team": { "mode": "solo" },
+  "workspace": { "layout": "mono" },
+  "git": { "host": "github", "mode": "local", "defaultBranch": "main", "remote": "origin", "branchPattern": "{type}/{id}-{slug}" },
+  "repos": [],
+  "stack": { "frontend": "react", "backend": null, "databases": [] },
+  "pipeline": {
+    "ceremony": "direct",
+    "maxFixCycles": 2,
+    "architectThreshold": "M",
+    "planApproval": "off",
+    "verification": { "mode": "auto", "reviewer": "on-demand", "qa": "on-demand", "security": "off" }
+  },
+  "ux": { "enabled": false }
+}

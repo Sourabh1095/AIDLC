@@ -7,6 +7,84 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.55.0] — 2026-10-24
+
+Measuring the pipeline, and making the human's two moments cheaper — approving the plan and reviewing
+the PR. `aidlc` 0.55.0.
+
+### Behavioural evals — the prompts finally have tests (`aidlc`)
+
+The unit suites pinned the scripts; nothing pinned the ~90% of behaviour that lives in prompts, so a
+change to a skill was verified by running it and watching. `plugins/aidlc-core/evals/` is a
+`claude plugin eval` suite: a small React app that already has a `usePagination` hook, a `Pagination`
+control, a `Button` and a `formatDate`, set up as an AIDLC project, and three cases graded against a
+**no-plugin baseline arm** — so every score is also a measurement of what the plugin changes.
+`reuse-plan` (does the plan use what exists), `reuse-implement` (does the code), `ceremony-direct` (a
+typo stays a direct change: no item, no run file). None grants a shell tool, so they run on Windows,
+where Claude Code cannot sandbox one. `.github/workflows/evals.yml` runs them on demand.
+
+The first run reproduced the complaint that started this work: asked to add pagination to a screen,
+the model hand-rolled page state with `useState` **with the plugin loaded as much as without it** —
+the reuse skill never loaded, because nothing in an ordinary session told the model to look first.
+A probe then showed that eval sessions do not load a project's `CLAUDE.md` or `.claude/rules/` at all,
+so a scaffolded rule alone could not reach them — nor a real project initialised before it shipped.
+
+After the fixes below, `reuse-implement` (Sonnet, 2 trials per arm): **with AIDLC 1.0 — the existing
+hook and control used, nothing hand-rolled; without it 0.25.** `reuse-plan` passes in both arms (the
+fixture names its hook too plainly for planning to miss it) and stays as a regression guard.
+
+### Reuse is always on (`aidlc`)
+
+- **The SessionStart hook says it in every AIDLC session**, in one line with the exact catalog command:
+  find what exists before writing a component, hook, helper, client, type or fixture, and extend it.
+  This is the change the eval measured — the plugin reaches the session through its own hook whatever
+  the project's files say.
+- **`.claude/rules/reuse.md`**, scaffolded by `/aidlc:init` (and offered by `/aidlc:upgrade` to existing
+  projects): the same rule in the project's own always-loaded rules, where the team can see and edit it
+  — never copy a sibling and edit it, say what you reused.
+- `aidlc:reuse`'s description now triggers on any code-writing request, including a plain "add X to Y",
+  and the skill says what to do without a shell (read `.aidlc/catalog/`, or search the shared folders).
+- The catalog renders destructured props as names (`Pagination({ page, pageCount, onPageChange })`)
+  instead of truncating their inline type, and separates its sections properly.
+
+### Approve the plan before the code (`aidlc`)
+
+`pipeline.planApproval` — `off` (default), `large` (items ≥ `architectThreshold`, or a plan that writes an
+ADR, touches an API contract, adds a migration or a dependency) or `ask` (every item) — shows the plan
+before any code is written: the approach and the rejected alternative, the `### Reuse` block, tasks
+with paths and edges, the parallel schedule, the risks, and which agents will run. *Approve*, *Change it*
+(the plan is revised and shown again) or *Stop here* (resume later at implement). `/aidlc:run <ID>
+--plan-only` always stops there. Headless runs never wait. New projects get `large`.
+
+### A reviewer's guide in every PR (`aidlc`)
+
+Human review is the one gate the pipeline never removes and the slowest step in it. `pr-guide.mjs`
+orders the diff for a person — the largest logic files first, then the rest, tests, migrations, config,
+docs, run-state skipped — and flags files on the project's auth, tenant-isolation, API-contract,
+migration and dependency paths. The PR body's new *How to review this PR* section adds one line of *why*
+per start-here file and concrete *Try it* steps from the acceptance criteria.
+
+### `/aidlc:insights` — is the pipeline getting better? (`aidlc`)
+
+Read-only metrics from every run file, live and archived, across the control plane, repos and
+worktrees: done / blocked / awaiting review, time to done and per phase, fix cycles, findings by source
+(duplication, agent review, human review, QA, security, design, gate holes), month by month, and the few
+readings worth acting on. `--since` compares windows. Phase-transition log lines are now a fixed format
+(`- <UTC> phase <from> → <to>`) so the per-phase times are reliable.
+
+### Teach it once — recurring review comments become rules (`aidlc`)
+
+`insights.mjs --themes` finds what human reviewers keep asking for: words that recur in review comments
+across runs, with the comments. `/aidlc:review-feedback` now checks them after each round, and when this
+round's comments hit a theme seen before, offers once where it should live — a line in the project's own
+`.claude/rules/conventions.md`, a lint rule (filed as an item), or a fact — and writes only what the
+user picks. A comment made in three runs is a convention nobody wrote down.
+
+### Housekeeping
+
+- CI tests Node 20, 22 and 24; the repo requires Node ≥ 20. `/aidlc:doctor` warns on Node 18
+  (end-of-life, untested) instead of passing it silently.
+
 ## [0.54.0] — 2026-10-24
 
 Three fixes in one release, in priority order: the guardrails had real holes, the pipeline had no way

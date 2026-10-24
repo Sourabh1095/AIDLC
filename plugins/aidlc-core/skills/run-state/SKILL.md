@@ -78,7 +78,9 @@ transitions that Task; omit it for a plan-only step.)
 **Create** — at run start, from the template. Frontmatter first, then sections in the order above.
 
 **Checkpoint** — update the run file:
-- on EVERY phase transition (`phase:` + `updated:` + a Log line) — before starting the next phase;
+- on EVERY phase transition (`phase:` + `updated:` + a Log line) — before starting the next phase. The
+  Log line is exactly `- <UTC> phase <from> → <to>`: `/aidlc:insights` reads those lines for time per
+  phase, so a free-text transition is a phase that never shows up in the metrics;
 - after every subagent completes (its section content + a Log line);
 - whenever an assumption is made or a finding is raised/resolved.
 

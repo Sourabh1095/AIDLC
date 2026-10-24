@@ -140,14 +140,25 @@ function firstSentence(s) {
   return (m ? m[1] : t).slice(0, 120);
 }
 
+// The parameter list after `name` on its line — what a caller needs to know. A destructured props
+// object is reduced to the names it takes (`({ page, pageCount, onPageChange })`): its inline type is
+// usually longer than the rest of the line and says the same thing again.
 const sigOf = (line, name) => {
   const i = line.indexOf(name);
   const open = line.indexOf("(", i);
   if (open < 0) return "";
+  const rest = line.slice(open + 1).trimStart();
+  if (rest.startsWith("{")) {
+    const close = rest.indexOf("}");
+    if (close > 0) return `({ ${rest.slice(1, close).replace(/\s+/g, " ").replace(/\s*=\s*[^,]+/g, "").trim()} })`;
+  }
   let depth = 0;
   for (let k = open; k < line.length; k++) {
     if (line[k] === "(") depth++;
-    else if (line[k] === ")" && --depth === 0) return line.slice(open, k + 1).replace(/\s+/g, " ").slice(0, 90);
+    else if (line[k] === ")" && --depth === 0) {
+      const s = line.slice(open, k + 1).replace(/\s+/g, " ");
+      return s.length > 90 ? s.slice(0, 88) + "…)" : s;
+    }
   }
   return line.slice(open).replace(/\s+/g, " ").slice(0, 60) + "…";
 };
@@ -294,6 +305,7 @@ export function renderMarkdown(cat) {
   let area = null;
   for (const e of cat.entries) {
     if (e.area !== area) {
+      if (area !== null) lines.push("");
       area = e.area;
       lines.push(`## ${area}`, "");
     }

@@ -7,6 +7,9 @@
 
 {{WHAT_CHANGED_AND_WHY — 2–5 bullets}}
 
+{{REVIEW_GUIDE — the output of `pr-guide.mjs` (aidlc:git-workflow → PR body), with one line of WHY on each
+"Start here" file and concrete "Try it" steps from the acceptance criteria}}
+
 ## Acceptance criteria
 
 {{AC_CHECKLIST — copied from the item, with verified ones ticked}}

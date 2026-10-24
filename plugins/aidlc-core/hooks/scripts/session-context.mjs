@@ -23,6 +23,7 @@
 // file cannot cost the others.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { frontmatter, readRuns, WAITING_ON_HUMAN } from "./lib/run-files.mjs";
 import { readInput, cwdOf } from "./lib/hook-io.mjs";
 import { tail, latest } from "../../skills/journal/journal.mjs";
@@ -48,6 +49,21 @@ const section = (fn) => {
 let cfg = null;
 section(() => {
   cfg = JSON.parse(readFileSync(join(cwd, ".claude", "aidlc.config.json"), "utf8"));
+});
+
+// --- 0. Reuse first — the one behaviour every session needs, whatever it was opened for ---------
+// Measured, not assumed: asked to "add pagination to the orders screen" in a repo that already had a
+// pagination hook and control, the model hand-rolled page state with the plugin loaded exactly as often
+// as without it — nothing in an ordinary session told it to look first, and the reuse skill never
+// loaded (plugins/aidlc-core/evals → reuse-implement). `.claude/rules/reuse.md` says it in projects
+// scaffolded since 0.55; this line says it everywhere else, with the exact command to find what exists.
+section(() => {
+  if (!cfg) return;
+  const catalog = join(fileURLToPath(new URL("../../skills/reuse/catalog.mjs", import.meta.url)));
+  lines.push(
+    `Reuse first: before writing a component, hook, helper, client, type or fixture, find what exists — ` +
+      `node "${catalog}" query . <words> (or read .aidlc/catalog/, or load aidlc:reuse) — and extend it rather than write a second one.`,
+  );
 });
 
 // --- 1+2. Runs: blocked first, because that is the only class needing a human now -------

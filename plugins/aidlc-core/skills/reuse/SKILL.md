@@ -1,6 +1,6 @@
 ---
 name: reuse
-description: Reuse-first development — find what the project already has before writing anything, extend it rather than fork it, write new code where the next change will find it, and catch duplication a branch introduced. Owns the reuse catalog (catalog.mjs) and the duplication check (dup-check.mjs). Load when planning, implementing or reviewing a change.
+description: Use BEFORE writing or planning any new code in this project — a feature, screen, component, hook, helper, API client, type or test — to find what already exists (the reuse catalog), extend it instead of writing a second one, and put new shared code where the next change will find it. Also catches code a branch duplicated (dup-check). Load for any implement, plan or review task, including plain requests like "add X to Y".
 user-invocable: false
 ---
 
@@ -26,7 +26,9 @@ The catalog covers the repo's **shared areas** — `components`, `ui`, `hooks`, 
 test `fixtures`/`factories`/`conftest.py`, monorepo `packages`, plus anything in config
 `reuse.sharedPaths` — across TS/JS, Python, Go, Java/Kotlin, C#, Rust, PHP and Ruby. It is generated,
 never committed (`.aidlc/catalog/` is ignored) and cheap: query it every time rather than trusting an
-old copy. `--config .claude/aidlc.config.json` passes the project's `reuse` settings.
+old copy. `--config .claude/aidlc.config.json` passes the project's `reuse` settings. **No shell to run
+it?** Read `.aidlc/catalog/<repo>.md` if it exists, else Glob/Grep the shared folders above for exported
+names — the step is "know what exists before writing", not "run this command".
 
 ## The ladder — in this order, every time
 

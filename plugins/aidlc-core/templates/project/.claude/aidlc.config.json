@@ -34,6 +34,7 @@
     "ceremony": "direct",
     "maxFixCycles": 3,
     "architectThreshold": "M",
+    "planApproval": "large",
     "securityReviewPaths": ["**/auth/**", "**/*.env*", "package.json", "**/middleware*"],
     "envFileAccess": "ask",
     "gates": {

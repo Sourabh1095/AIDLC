@@ -89,6 +89,8 @@ Report these; **never apply them silently.**
   says on its face that a line you author is never overwritten by a scan, and the same holds here.
   Where the shipped version gained a rule the project's copy lacks, show that paragraph and offer to
   append it. Where the project's copy diverges because someone edited it, **leave it and say so.**
+  A shipped rule **file** the project does not have at all (`reuse.md`, added in 0.55.0) is offered
+  whole — it is new behaviour the project never saw, not drift.
 - **`CLAUDE.md`** — only the AIDLC-authored sections ("AIDLC workflow", "Configuration") are in scope,
   and only to *add* a command the project's copy never heard of. Everything else in that file belongs
   to the project.

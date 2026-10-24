@@ -1,3 +1,6 @@
 node_modules/
 .claude/settings.local.json
 *.log
+
+# claude plugin eval output (reports, traces) — regenerated per run
+plugins/*/evals/results/

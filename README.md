@@ -162,11 +162,12 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 
 | Command | Purpose |
 |---|---|
-| `/aidlc:run <ID \| text>` | Run one work item end to end. Resumable. Free text files it first |
+| `/aidlc:run <ID \| text>` | Run one work item end to end. Resumable. Free text files it first. `--plan-only` stops after the plan so you can review it; `pipeline.planApproval` makes that checkpoint routine |
 | `/aidlc:next` | Pick the highest-priority ready item and run it. On a team, scoped to what's assigned to you |
 | `/aidlc:sprint N` | Run N independent items in parallel with a live board (mono: worktrees · poly: per-repo) |
 | `/aidlc:review-feedback <ID>` | Pull unresolved PR threads, fix them through the normal cycle, push, reply on each. A comment you disagree with gets answered on the thread — and nothing you didn't fix gets resolved |
 | `/aidlc:status` | Dashboard: active runs, blockers, backlog snapshot, drift |
+| `/aidlc:insights` | Is the pipeline getting better? Time to done and per phase, fix cycles, findings by source (duplication, agent vs human review, QA, security), month by month — read-only |
 | `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |
 
 ### Shaping the work

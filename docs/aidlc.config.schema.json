@@ -298,6 +298,7 @@
         },
         "maxFixCycles": { "type": "integer" },
         "architectThreshold": { "enum": ["S", "M", "L", "XL"] },
+        "planApproval": { "enum": ["off", "large", "ask"], "default": "off", "description": "When /aidlc:run shows the plan and waits for a go-ahead before any code is written (aidlc:run §5 → Plan checkpoint). off: never. large: items at or above architectThreshold, and any plan that writes an ADR, touches an apiContracts path, adds a migration or adds a dependency. ask: every item. Headless runs (/aidlc:sprint) never wait — they log the skip. /aidlc:run <ID> --plan-only always stops after the plan." },
         "securityReviewPaths": {
           "type": "array",
           "items": { "type": "string" },

@@ -157,6 +157,15 @@ gh pr create --title "<PR title per the project's convention>" --body-file <tmp-
   project whose history/PRs use `PROJ-123: …` or a bare imperative gets that instead. Check
   `commitStyle` and recent PR titles rather than imposing brackets.
 - Build the body from `${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md` (fill all sections; delete inapplicable ones).
+- **Lead the reviewer through the diff.** Generate the *How to review this PR* section with
+  `node "${CLAUDE_PLUGIN_ROOT}/skills/git-workflow/pr-guide.mjs" <repo> --base <remote>/<base> --config <control-plane>/.claude/aidlc.config.json --repo <name>`:
+  it orders the changed files (the largest logic files first, then the rest, tests, migrations, config,
+  docs; run-state files skipped) and flags those on the project's auth, tenant, contract, migration and
+  dependency paths. Replace each `{{WHY}}` with one line on what that file does for this change — you
+  planned it, so you know — and replace *Try it* with steps a person can follow from the acceptance
+  criteria: what to run or open, what to do, what they should see. Human review is the one gate the
+  pipeline never removes and the slowest step in it; telling the reviewer where to start is the
+  cheapest time the pipeline can save them.
 - Capture the PR URL from stdout → run-file frontmatter `pr:` + `adapter.link(id, {pr})`.
 - If `gh` is not authenticated, report the exact error and tell the user to run `gh auth login`; do not retry blindly.
 

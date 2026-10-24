@@ -52,7 +52,7 @@ of them is unrecoverable. A clean tree also makes §5's verification meaningful.
 
 | Tier | Paths | Default |
 |---|---|---|
-| **A · Framework machinery** — ours, no human content | `.claude/aidlc.config.json`, `.claude/rules/git-workflow.md`, `.claude/rules/safety.md`, AIDLC hook scripts, `.claude/aidlc.config.*.example.json`, `.aidlc/adoption/profile.json` | **Delete** |
+| **A · Framework machinery** — ours, no human content | `.claude/aidlc.config.json`, `.claude/rules/git-workflow.md`, `.claude/rules/safety.md`, `.claude/rules/reuse.md`, AIDLC hook scripts, `.claude/aidlc.config.*.example.json`, `.aidlc/adoption/profile.json` | **Delete** |
 | **B · Containers the team filled** — ours by creation, theirs by content | `docs/adr/`, `backlog/`, `.aidlc/runs/`, `.aidlc/journal.md` + `.aidlc/journal-archive/`, `.aidlc/facts.md`, `.aidlc/extensions.json` + the skills it registers, `.aidlc/adoption/report.md`, `design/` (when `aidlc-ux` was used) | **Keep**, and ask per directory |
 | **C · Merged into files the project owned** | `CLAUDE.md`, `.gitignore`, and any stack tooling config `init` merged into (`tsconfig.base.json`, `eslint.config.mjs`, …) | **Revert our sections only** |
 | **C′ · Guardrail file — reverted content is *staged*, never written** | `.claude/settings.json` (+ `.local`) | **Produce the reverted file for the user to apply** (§3) |
