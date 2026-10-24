@@ -1,7 +1,7 @@
 ---
 name: run
 description: Run one work item (epic, story, task, bug or spike) through the full AIDLC pipeline — fetch, requirements, plan, implement, review + QA with fix cycles, PR, tracker update. Resumable. Use when asked to work on, implement, fix or deliver a work item by ID.
-argument-hint: <work-item-id | requirement text> [--plan-only]
+argument-hint: <work-item-id | requirement text> [--plan-only] [--sprint]
 disable-model-invocation: true
 ---
 
@@ -24,8 +24,8 @@ command in the framework — it branches, commits, pushes and opens PRs — so i
 model-invocable skill set: it cannot be entered because a prompt merely sounded like work. There are
 exactly three doors, and all three are a human choosing this pipeline:
 1. the user types `/aidlc:run <ID>` (or free text, §0.3);
-2. a **headless launch** (`/aidlc:sprint` runs `claude -p "/aidlc:run {ID}"` — a typed prompt in a fresh
-   session, so the flag doesn't bind);
+2. a **sprint launch** (`/aidlc:sprint` starts `claude --bg "/aidlc:run {ID} --sprint"`, or `claude -p`
+   as its fallback — a typed prompt in a fresh session, so the flag doesn't bind);
 3. a **sibling skill hands off explicitly** — `aidlc:next`, `aidlc:do` (BUILD/RESUME) and `aidlc:intake`
    send work here after the user invoked *them*. Because the Skill tool can't reach a
    model-invocation-disabled skill, those hand off by **reading
@@ -45,6 +45,12 @@ If you arrived here any other way — you inferred it from an ambiguous prompt �
 2. Route to the active work-item adapter (per `aidlc:work-items`).
 3. **`--plan-only`** anywhere in `$ARGUMENTS` is a flag, not part of the ID or the requirement text: strip
    it and remember it for §5 → *Plan checkpoint* (the run stops once the plan is shown).
+   **`--sprint`** is a flag too: `/aidlc:sprint` launched this run in a background session, next to
+   others. The person answers from the sprint board, so **ask at gates, not at offers**. A gate is a
+   question the run must not get past without a person: plan approval, the `ask` verification mode,
+   `securityConfirm`, the local-merge confirmation. Ask those as usual. An offer has a safe default
+   (the design pod's *skeleton vs full pod* confirmation, the Figma jury offer): take the default and log
+   it, because a batched run holding its slot over a suggestion is worse than the default.
    **If `$ARGUMENTS` is not a work-item ID** (doesn't match `{PROJECT_KEY}-{number}`), the user
    handed you a raw requirement — follow `aidlc:intake` first (analyze against codebase +
    existing backlog, propose, create on approval), then continue this pipeline with the first
@@ -295,9 +301,11 @@ line per agent that tells the user what this item is about to spend). Then ask w
 - **Stop here** → leave the phase at `design`, log `plan parked for review`, and end with one line:
   `/aidlc:run {ID}` resumes at implement with this plan. `--plan-only` always ends here.
 
-**A headless run never waits.** Under `/aidlc:sprint` (or any non-interactive session) there is nobody
-to answer: log `plan checkpoint skipped: headless` and continue — except with `--plan-only`, which
-stops as asked. A checkpoint that can hang a background run is worse than none.
+**A run that cannot ask never waits.** When AskUserQuestion is not available (a `claude -p` session,
+including the sprint's `--headless` fallback) there is nobody to answer: log `plan checkpoint skipped:
+headless` and continue — except with `--plan-only`, which stops as asked. A checkpoint that can hang a
+run nobody can reach is worse than none. A `--sprint` run in a background session *can* ask, so the
+checkpoint is a gate there too: the sprint board shows the run as waiting on you.
 
 Phase → `implement`. Checkpoint.
 

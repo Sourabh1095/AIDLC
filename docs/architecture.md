@@ -22,8 +22,8 @@ Being in the main session is *reach*, not *permission*, so entry is gated separa
 **`disable-model-invocation: true`**, like every other command that writes (`init`, `adopt*`, `sprint`,
 `sync`, `repo`, `promote`, `remove`, `undo`, `bootstrap`, `review-feedback`). It is the most side-effectful command in the
 framework — branch, commit, push, PR — and must never be entered because a prompt merely *sounded* like
-work. Its three doors are all a human choosing it: a typed `/aidlc:run`, a headless
-`claude -p "/aidlc:run {ID}"` from `sprint`, or an explicit handoff from `next`/`do`/`intake` after the
+work. Its three doors are all a human choosing it: a typed `/aidlc:run`, a background session
+`claude --bg "/aidlc:run {ID} --sprint"` from `sprint` (`claude -p` as its fallback), or an explicit handoff from `next`/`do`/`intake` after the
 user invoked one of *those*. Since the Skill tool cannot reach a model-invocation-disabled skill, those
 handoffs read `skills/run/SKILL.md` and follow it verbatim — which makes the handoff a written
 instruction rather than the model's discretion, and that is the property worth having. `/aidlc:do` is
@@ -156,8 +156,14 @@ else. Reversibility, not ceremony, is what the gate is protecting.
 is *isolation, not just similarity* — two units run concurrently only when they cannot collide on
 files or on each other's outputs. It applies at four levels, coarsest grain first:
 
-- **Item level (`/aidlc:sprint`).** Independent backlog items each get a headless
-  `claude -p "/aidlc:run <ID>"` background process, aggregated into one board. An `aidlc-analyst`
+- **Item level (`/aidlc:sprint`).** Independent backlog items each get a Claude Code **background
+  session** (`claude --bg "/aidlc:run <ID> --sprint"`), aggregated into one board by `sprint.mjs` from
+  `claude agents --json` and the run files. It was a `claude -p` process until 0.63.0, which had no way
+  to ask, so every gate a sprint run reached was skipped or stalled. A background session asks, the
+  board shows it as `NEEDS YOU`, and the person answers from agent view. Claude Code's own worktree
+  isolation for background sessions is switched off (`worktree.bgIsolation: "none"`), because the rule
+  below already is the isolation and a second layer would put poly runs in a control-plane worktree
+  with no product repos in it. An `aidlc-analyst`
   **independence check** (file/subsystem overlap, cross-referencing AC, parent-epic ordering — the
   same detection `aidlc:planning` uses) selects a conflict-free set; conflicting items queue behind
   their counterpart. What makes it safe is **one in-flight item per working tree**, achieved

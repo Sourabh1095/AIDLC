@@ -1,6 +1,6 @@
 ---
 name: sprint
-description: Run several independent work items in parallel headless pipeline runs — routed per repo from the control plane in poly, or in isolated git worktrees in mono — and aggregate progress into one board. Use when asked to work multiple backlog items at once or run a sprint.
+description: Run several independent work items in parallel, each as a Claude Code background session — routed per repo from the control plane in poly, or in isolated git worktrees in mono — and aggregate progress into one board that says which run needs you. Use when asked to work multiple backlog items at once or run a sprint.
 argument-hint: "[N — max parallel items, default 3]"
 disable-model-invocation: true
 ---
@@ -35,8 +35,8 @@ disagreement, and is a reason to re-plan. Cap the launch at `min(N, wave size)`.
    with non-terminal run files, epics with open children — same rules as `/aidlc:next`).
    **Scope by ownership in shared mode**, exactly as `/aidlc:next` step 2 does (`team.pickScope`,
    default `mine-then-unassigned`). A sprint launches N pipelines at once, so an unscoped selection is
-   the same collision as `next`'s multiplied by N — and it is worse here, because a headless run cannot
-   stop to ask whether it should really be branching on someone else's item. Also check the control
+   the same collision as `next`'s multiplied by N — and it is worse here, because N runs branch at once
+   and nobody is watching any one of them closely. Also check the control
    plane is current first (`aidlc:work-items` → *Control-plane freshness*): a plan-driven sprint that
    launches from a stale `.aidlc/plan.md` launches the wrong wave.
    **A wave from `.aidlc/plan.md` is scoped too.** The packer schedules the whole team's work — it has
@@ -71,7 +71,32 @@ disagreement, and is a reason to re-plan. Cap the launch at `min(N, wave size)`.
 4. Show the user the selected set + queue before launching (say which wave it is, when it came from a
    plan). Confirm once; then run hands-off.
 
-## 2 · LAUNCH — one headless run per item
+## 2 · LAUNCH — one background session per item
+
+Each item runs as a **Claude Code background session** (`claude --bg`): a full interactive session
+with no terminal attached. Unlike a `claude -p` process, it **can ask**. A plan approval, an `ask`
+verification, a security confirm or a permission prompt makes it show as *needs you* on the board,
+and the person answers from `claude agents` (Space on its row) or `claude attach <id>`. Its process
+is supervised too: a crash restarts it, and a stopped run keeps its conversation.
+
+`sprint.mjs` does the launching and the board, so the flags are always the same:
+
+```
+S="${CLAUDE_PLUGIN_ROOT}/skills/sprint/sprint.mjs"; F=<control plane>/.aidlc/sprint-<date>.json
+node "$S" launch <ID> --cwd <launch cwd> --run-file <run file path> --sprint-file "$F" \
+     --mode mono|poly [--repo <repo.name>] [--worktree <path>] --effort <pipeline.effort.headless|medium>
+node "$S" board --sprint-file "$F"            # the board, any time
+node "$S" watch --sprint-file "$F"            # one line per change, for the Monitor tool (§3)
+```
+
+`launch` prints one JSON line. `{"ok":true,…}` records the run in the sprint file. A failure names a
+`reason`:
+- `untrusted`: the launch cwd is not trusted (§2a: trust the worktree), then launch again. Do not
+  fall back, because a `-p` run in an untrusted folder would also have every allow rule ignored.
+- `bg-unavailable`: this Claude Code has no background sessions. Relaunch with `--headless` (the old
+  `claude -p` launch, detached with a log file). The board reads both kinds. Say once that those runs
+  cannot ask, so their gates take the non-interactive defaults (`aidlc:run` → *A run that cannot ask*).
+- `failed`: print its `output` verbatim and stop.
 
 Resolve each item's **target repo** first (`aidlc:work-items` → *Repos & routing*). **How the run is
 launched depends on the layout** — this is not cosmetic, it decides whether the run can start at all.
@@ -100,7 +125,8 @@ per-repo worktrees add contention risk without adding isolation.
 
 ```
 # POLY — cwd stays at the control plane; the pipeline routes into repo.path itself
-claude -p "/aidlc:run {ID}" --permission-mode acceptEdits --effort <pipeline.effort.headless|medium>    # background; capture PID + log file
+node "$S" launch {ID} --cwd <control plane> --mode poly --repo {repo.name} \
+     --run-file <control plane>/{repo.path}/.aidlc/runs/{ID}.md --sprint-file "$F" --effort <level>
 ```
 
 ```
@@ -108,17 +134,23 @@ claude -p "/aidlc:run {ID}" --permission-mode acceptEdits --effort <pipeline.eff
 git worktree add ../{repo.name}-wt-{ID} -b <branch> {remote}/<base>
 # <branch>: the repo's branchPattern, rendered per aidlc:git-workflow → Branching (type map included)
 # <base>:   the repo's integrationBranch when it declares one (GitFlow `develop`), else defaultBranch
-cd ../{repo.name}-wt-{ID}
-claude -p "/aidlc:run {ID}" --permission-mode acceptEdits --effort <pipeline.effort.headless|medium>    # background; capture PID + log file
+node "$S" launch {ID} --cwd ../{repo.name}-wt-{ID} --mode mono --worktree ../{repo.name}-wt-{ID} \
+     --run-file ../{repo.name}-wt-{ID}/.aidlc/runs/{ID}.md --sprint-file "$F" --effort <level>
 ```
 
+- **AIDLC owns isolation, not Claude Code.** A background session normally moves into a worktree of
+  its own (under `.claude/worktrees/`) before its first edit. In poly that would be a worktree of the
+  control plane, which has none of the product repos in it. `sprint.mjs` therefore launches with
+  `worktree.bgIsolation: "none"` (`bg-settings.json`). The one-item-per-tree rule (§1.3) is the
+  isolation, exactly as before.
 - **`--effort` sets each background session's own thinking level** — the orchestrating main thread
   of that run, routing and bookkeeping — from `pipeline.effort.headless` (default `medium`). Its agents
   still get their per-dispatch effort from `resolve-effort.mjs`. N runs at once multiply whatever this
   costs, which is why it is a setting rather than inherited from whatever session launched them.
 - **Mono worktrees still need trusting** — a worktree is a new workspace path, and Claude Code
   ignores `.claude/settings.json` allow rules in untrusted workspaces (every git/npm command would be
-  denied). Before launching, add `projects["<worktree-path>"].hasTrustDialogAccepted: true` to
+  denied), and launched from a script, `claude --bg` there exits with `Workspace not trusted` instead of
+  asking. Before launching, add `projects["<worktree-path>"].hasTrustDialogAccepted: true` to
   `~/.claude.json` for each worktree (both slash styles on Windows), and remove those entries during
   WRAP cleanup. The control plane is already trusted (you are running in it), so poly launches skip
   this step entirely.
@@ -127,24 +159,28 @@ claude -p "/aidlc:run {ID}" --permission-mode acceptEdits --effort <pipeline.eff
   enablement or permissions live only in the local file, seed a copy into the worktree before
   launching (`enabledPlugins` + `extraKnownMarketplaces` + `permissions`), and delete it at WRAP.
   The §2b preflight is what tells you whether this applies.
-- Record `{item, repo, mode, cwd, worktree?, pid, logfile}` in `.aidlc/sprint-{date}.json` at the
-  **control plane** (workspace root).
-- Each headless run is a full pipeline: its run file lives at `<repo.path>/.aidlc/runs/{ID}.md`
+- `launch` records `{item, repo, mode, cwd, worktree, runFile, launch, session | pid+logfile}` in the
+  sprint file at the **control plane** (workspace root). The session is named `aidlc-<ID>` in agent view.
+- Each run is a full pipeline: its run file lives at `<repo.path>/.aidlc/runs/{ID}.md`
   (poly, under the control plane) or `<worktree>/.aidlc/runs/{ID}.md` (mono) and is committed to its
   branch. Hooks (guard, checkpoint) apply in both.
-- **Design-pod gate is deterministic here (F11):** a headless run can't prompt, so it applies
-  `aidlc:run` §2's **scaffold-scope gate** with no interaction — a scaffold/skeleton item in a UI repo
-  resolves to `ui: false` (skeleton-only, jury skipped), so a sprint never burns a full design-pod run
-  on an empty shell. A real UI surface still fires the pod (ambiguity errs to `ui: true`).
-  Same reasoning on a **Figma-sourced** surface: fidelity still gates, but the optional jury's default
-  `suggest` has nobody to ask, so it is skipped and the run records that the offer stands — a headless
-  sprint never silently spends a jury round on a design the client already approved.
+- **A sprint run asks at gates, not at offers** (`aidlc:run` → `--sprint`, which `launch` passes). It
+  honours `pipeline.planApproval`, the `ask` verification mode, `securityConfirm` and the local-merge
+  confirmation, because a background session can ask and the board surfaces it. Offers with a safe
+  default (the design pod's skeleton confirmation, the Figma jury offer) take the default. A run that
+  waits holds its slot, so if you want the sprint hands-off, leave `planApproval` at `off`. Only the
+  `--headless` fallback takes the non-interactive defaults at gates too.
+- **Design-pod gate is deterministic (F11):** `aidlc:run` §2's **scaffold-scope gate** applies with no
+  interaction in a sprint — a scaffold/skeleton item in a UI repo resolves to `ui: false`
+  (skeleton-only, jury skipped), so a sprint never burns a full design-pod run on an empty shell. A real
+  UI surface still fires the pod (ambiguity errs to `ui: true`).
 - Stagger launches ~30s apart so npm installs/builds don't thundering-herd the machine.
 
 ### 2b · Preflight the launch cwd — before launching anything (F42)
 
-A headless run that can't see the plugin exits **rc=0** within seconds, so exit codes prove nothing.
-Check the launch cwd deterministically first — it's a file read, not a run:
+A run that can't see the plugin ends within seconds with `Unknown command`, and its launch still
+reported success, so a launch proves nothing. Check the launch cwd deterministically first — it's a
+file read, not a run:
 
 1. `<cwd>/.claude/aidlc.config.json` exists (the run needs tracker + repo registry).
 2. The `aidlc` plugin is **enabled for that cwd** — `enabledPlugins` naming `aidlc@<marketplace>` in
@@ -152,12 +188,12 @@ Check the launch cwd deterministically first — it's a file read, not a run:
    `~/.claude/settings.json`; and the marketplace is known (`extraKnownMarketplaces` at either scope,
    or an installed plugin dir).
 3. Mono only: the worktree path is trusted in `~/.claude.json`.
-4. **The tracker is reachable headless.** A headless run cannot answer a permission prompt, so an MCP
-   tool with no allow rule simply fails. `workItems.source: ado` survives that — its adapter falls back
-   to `az boards`. **`jira` does not: `wi-jira` has no CLI tier.** For a Jira workspace, confirm the
-   settings allow the Jira MCP tools by their real ids (`aidlc:doctor` → *MCP tool names* lists them);
-   if they are not allowed, do not launch — every run would fail at its first `fetch` — and say which
-   allow rule is missing. (`markdown` needs no tool and always passes.)
+4. **The tracker is reachable without a prompt.** An MCP tool with no allow rule stops every background
+   run on a permission prompt at its first `fetch` (N prompts at once), and fails a `--headless` run
+   outright. `workItems.source: ado` survives that — its adapter falls back to `az boards`. **`jira`
+   does not: `wi-jira` has no CLI tier.** For a Jira workspace, confirm the settings allow the Jira MCP
+   tools by their real ids (`aidlc:doctor` → *MCP tool names* lists them); if they are not allowed, do
+   not launch, and say which allow rule is missing. (`markdown` needs no tool and always passes.)
 
 Any check fails → **do not launch**. Report exactly which one and where the file was expected. In poly
 this will usually mean the launch cwd is wrong (a product repo instead of the control plane).
@@ -167,39 +203,50 @@ picture — permission-rule shapes, `git -C` coverage, repo paths, settings pars
 **`/aidlc:doctor`**: a sprint that preflights clean can still have every item block on its first git
 call (F43), and that is a workspace fault worth finding before N pipelines discover it in parallel.
 
-### 2c · Verify each launch actually started — never trust rc=0 (F42)
+### 2c · Verify each launch actually started — never trust the launch line (F42)
 
-After launching, before the launch counts as started, probe within ~90s:
+After launching, before the launch counts as started, run `board` within ~90s:
 
-- **Started** — `<repo.path or worktree>/.aidlc/runs/{ID}.md` exists, or the log shows real pipeline
-  output (phase transitions, tool use) and the process is alive.
-- **Dead on arrival** — the process exited with no run file, or the log matches
-  `Unknown command|Unknown slash command|No such command|command not found`, or the log is trivially
-  small (< ~200 bytes) with no run file.
+- **Started**: the row says `running`, or `NEEDS YOU` with a phase. The run file exists, so the
+  pipeline is under way.
+- **Dead on arrival**: the row says `dead on arrival`. The session ended (or is waiting on a reply)
+  without ever writing a run file. Read why with `claude logs <session>` (or the `--headless` log
+  file). `Unknown command` there means the plugin is not enabled for the launch cwd.
+- `starting` means it is still loading. Check again shortly.
 
 **Launch the first item as a canary and confirm it started before launching the rest.** A
 dead-on-arrival launch is an environment/config fault, not an item fault — it will hit every item
 identically, so **abort the sprint**, print the canary's log verbatim, and re-check §2b rather than
-burning the remaining slots on the same failure. Never report a sprint as launched on exit codes alone.
+burning the remaining slots on the same failure. Never report a sprint as launched on the launch line
+alone.
 
 ## 3 · MONITOR
 
-Poll each run's `.aidlc/runs/{ID}.md` frontmatter (phase, fixCycles, pr) every few minutes
-(or when a process exits) — under `<repo.path>` in poly, inside the worktree in mono. Render the
-board on each change:
+Start `node "$S" watch --sprint-file "$F"` with the **Monitor** tool, at its longest timeout. It checks
+every minute and prints a line only when a run changes (its phase, a fix cycle, starting to wait on
+someone, finishing), then exits once every run is over. A monitor expires after 30 minutes: re-arm it
+while runs are still in flight. Without the Monitor tool, run `board` every few minutes instead.
+Render the board on each change, adding the plan and queue lines the script does not know:
 
 ```
-Sprint board (3 running, 1 queued):        (repo column shown in poly only)
+Sprint board — 3 runs · 3 in flight · 1 needs you
   plan wave 2 of 4 · .aidlc/plan.md        (this line only when a plan supplied the set)
-  PROJ-124  backend   verify    fix-cycle 1   feature/PROJ-124-…
-  PROJ-127  frontend  implement —             feature/PROJ-127-…
-  PROJ-130  website   pr ✔      PR #42 open
+  PROJ-124   backend    verify         fix-cycle 1  running
+  PROJ-127   frontend   design         —            NEEDS YOU · input needed
+  PROJ-130   website    done           —            PR #42 open
   queued: PROJ-131 (dependsOn PROJ-127 — starts when it lands)
+Needs you:
+  PROJ-127: input needed → `claude agents` (Space on aidlc-PROJ-127) or `claude attach 3f2a…`
 ```
 
-- A run hits `blocked` or its process dies → report immediately with the last `## Log` lines;
-  do NOT auto-retry. Launch the next queued item in the freed slot (per §1.3, a queued item may be
-  waiting on its repo's working tree, not just on `dependsOn`).
+- **`NEEDS YOU`** → tell the person at once, in one line: which run, what it waits on, and how to
+  answer (the board says). A run waiting on a person still holds its slot; it continues by itself
+  once answered. Do not answer for them, and do not message the run instead: a cross-session message
+  cannot answer an open question.
+- **`blocked` / `waiting for your review` / `dead on arrival` / `session gone`** → the run is over for
+  this sprint. Report it with the last `## Log` lines (or `claude logs`); do NOT auto-retry. Launch the
+  next queued item in the freed slot (per §1.3, a queued item may be waiting on its repo's working
+  tree, not just on `dependsOn`).
 - Never edit files inside a live item's repo checkout or worktree from the parent session.
 
 ## 4 · WRAP
@@ -218,5 +265,9 @@ assumptions). Then cleanup:
   PR), then drop its `~/.claude.json` trust entry and any seeded `settings.local.json` copy. Blocked
   items keep their worktree for resumption (`/aidlc:run {ID}` inside it) and are listed as needing
   attention.
+- **Sessions**: for each run that finished (PR open, merged, or waiting for review), `claude rm
+  <session>` removes its row from agent view. In mono, remove the git worktree **first**: `claude rm`
+  also deletes a session's worktree. Keep the session of a blocked run. `claude attach <session>`
+  reopens it with the whole conversation, which is a better resume than starting over.
 
 Delete the control-plane `.aidlc/sprint-{date}.json` last.

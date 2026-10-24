@@ -62,7 +62,7 @@ functional shell and the pod does not design an empty app.
   which is worse than an over-invoked jury. The scaffold read must be *clear* to skip.
 
 **This gate is deterministic and is the default in both modes:**
-- **Non-interactive (headless / `/aidlc:sprint`):** apply it as-is — scaffold read → skeleton-only
+- **Non-interactive (a `--sprint` run, or a `claude -p` run that cannot ask):** apply it as-is — scaffold read → skeleton-only
   with no prompt; real UI surface → full pod. A batched sprint never burns a full design-pod run on
   an empty shell.
 - **Interactive (`/aidlc:run`, standalone `/aidlc-ux:design`):** apply the **same** default, surfaced
@@ -314,8 +314,8 @@ Figma says; if the design genuinely changed, re-sync it (`/aidlc-ux:figma sync`)
 and "fixing" it toward a higher score would overwrite their decision. So on `figma` the jury does not
 gate. Read `ux.figma.jury`:
 - **`suggest` (default)** — after fidelity passes, *offer* it in one line ("the build matches the
-  design; want the jury to score it as well? advisory only"). Non-interactive (`/aidlc:sprint`,
-  headless) → skip it and record `jury: not run (figma-sourced; offer stands)`.
+  design; want the jury to score it as well? advisory only"). A `--sprint` run, or one that cannot ask
+  → skip it and record `jury: not run (figma-sourced; offer stands)`.
 - **`advisory`** — always run it, still non-gating.
 - **`off`** — never run it.
 - **`gate`** — opt-in only, for teams treating Figma as a starting point: run the full §5 jury loop

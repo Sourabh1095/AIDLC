@@ -15,8 +15,8 @@ visual/interaction/UX criteria); `ux.uiPaths` empty or pointing only at not-yet-
 the item is labeled/titled `scaffold`/`skeleton`/`bootstrap`/`init`/`wiring`. Conversely `ui: true`
 when a concrete page/route/component is named or the AC ask for visual/layout/motion/UX quality (not
 just "it renders"). **Ambiguity errs toward `ui: true`** — the scaffold read must be *clear* to skip.
-This is the **same rule in interactive and non-interactive (`/aidlc:sprint`, headless) modes**: headless
-applies it with no prompt; interactive may surface it as a confirmable *"Skeleton only [recommended] vs
+This is the **same rule in interactive and non-interactive modes**: a `--sprint` run or a run that
+cannot ask applies it with no prompt; interactive may surface it as a confirmable *"Skeleton only [recommended] vs
 Full design pod"* recommendation, but the recommendation is not the only gate. (Mirrors
 `aidlc-ux:design` → *Pod-scope gate*, the pod's own view of the same contract.)
 
@@ -75,7 +75,7 @@ spec, and then runs the **fidelity check** instead of the jury: pass is **zero b
 from the design, capped at `ux.figma.maxFidelityRounds` (default 2). Its `[open]` fidelity findings
 join `## Findings` and gate the PR exactly as jury findings do. The **jury does not gate here** — the
 design was approved outside this session, so it's offered (`ux.figma.jury: suggest`, the default) and
-skipped without prompting on a headless/sprint run; when it does run it's advisory and never triggers
+skipped without prompting on a `--sprint` run or one that cannot ask; when it does run it's advisory and never triggers
 a redesign. If the Figma MCP is unreachable or unauthenticated, the pod **blocks and says so** rather
 than inventing a design — treat it like any other blocked run (report, `## Findings`, stop); it is
 never "solved" by letting the pipeline design the screens itself.

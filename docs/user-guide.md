@@ -455,7 +455,7 @@ adaptation. Pass is *zero blocking deviations*, not a score.
 **And the jury is optional there.** Scoring someone's approved design out of 10 and then "fixing" it
 toward a 9 would overwrite their decision, so on Figma-sourced UI the jury doesn't gate — it's
 **offered** after fidelity passes ("want the jury to look at it as well?"), skipped silently on
-headless/sprint runs, and advisory when you say yes: findings that mean *the build missed the design*
+sprint runs and runs that cannot ask, and advisory when you say yes: findings that mean *the build missed the design*
 get fixed, findings that mean *the design could be better* go to you and your designer as suggestions
 and are never built. Set `ux.figma.jury` to `advisory` (always run, never gate), `off`, or `gate` if
 you treat Figma as a starting point and do want the full jury loop. Two things the pod will not do:
@@ -590,8 +590,16 @@ it, there is no contract item and no waiting at all** — both sides start immed
 ### 3c′. When several *items* are worked at once (`/aidlc:sprint`)
 
 `/aidlc:sprint 3` picks the top independent ready items — an analyst checks they don't touch the same
-code — runs each through its own headless pipeline, and shows a live board. Conflicting items queue
-automatically rather than racing. Default 3, hard cap 5.
+code — runs each through its own pipeline as a Claude Code **background session**, and shows a live
+board. Conflicting items queue automatically rather than racing. Default 3, hard cap 5.
+
+**The runs can ask you things.** A plan approval (`pipeline.planApproval`), a security confirm or a
+permission prompt shows on the board as `NEEDS YOU`, with how to answer: open `claude agents` and press
+Space on the run's row (`aidlc-<ID>`), or `claude attach <session>`. The run carries on once you answer.
+Offers with a safe default, like the design pod's "skeleton only?" confirmation, take the default
+instead of waiting. Every run also shows in `claude agents`, which works even after you close the
+sprint session. On a Claude Code without background sessions, sprint falls back to `claude -p` runs,
+which cannot ask and take each gate's non-interactive default.
 
 **How the runs are isolated depends on your layout**, and it is worth knowing which you are in:
 
@@ -733,10 +741,12 @@ contradictory AC): the run file's `## Findings` section and the work-item commen
 why. Fix the underlying issue (or amend the item), then `/aidlc:run PROJ-123` again — on
 resuming a blocked run it asks whether to retry, adjust, or abandon.
 
-**If a sprint was interrupted:** each item's run file survives independently — `/aidlc:status`
-shows them. In **mono**, resume an item inside its worktree; in **poly**, resume it with
-`/aidlc:run <ID>` from the control plane as usual (there is no worktree — the run already lives in
-its own repo checkout). Either way you can re-launch `/aidlc:sprint` to fill free slots.
+**If a sprint was interrupted:** each run is its own background session, so closing the sprint
+session does not stop them — `claude agents` lists them, and `claude attach <session>` reopens one with
+its whole conversation. Each item's run file also survives independently — `/aidlc:status` shows them.
+In **mono**, resume an item inside its worktree; in **poly**, resume it with `/aidlc:run <ID>` from the
+control plane as usual (there is no worktree — the run already lives in its own repo checkout). Either
+way you can re-launch `/aidlc:sprint` to fill free slots.
 
 ## 5. Scope changes mid-flight (the memory model at work)
 

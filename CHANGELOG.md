@@ -7,6 +7,50 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.63.0] — 2026-10-25
+
+### `/aidlc:sprint` runs are background sessions, and they can ask you things (`aidlc`, `aidlc-ux`)
+
+A sprint used to launch each item as `claude -p`. A `-p` session has no way to ask anything, so every
+gate a run reached was skipped or stalled: plan approval, the `ask` verification mode, the security
+confirm, the local-merge confirmation, any permission prompt. The board learned about it only by polling
+run files, and a run that hung looked the same as one that was working.
+
+- **Each run is now a Claude Code background session** (`claude --bg`, named `aidlc-<ID>`). When it
+  needs a person, the board says `NEEDS YOU`, what it waits on (`input needed`, `permission prompt`, a
+  reply) and how to answer: `claude agents` and Space on its row, or `claude attach <session>`. The run
+  carries on once answered. Runs show in `claude agents` even after the sprint session closes, a crashed
+  run is restarted by Claude Code's supervisor, and a blocked run keeps its whole conversation for
+  `claude attach`.
+- **`skills/sprint/sprint.mjs`** launches runs with fixed flags and builds the board from
+  `claude agents --json` plus the run files. `watch` prints one line per change for the Monitor tool and
+  exits when every run is over, so the sprint session is told instead of polling. It tells apart an open
+  question, a turn that ended on one, a run that died before writing its run file (F42's dead-on-arrival
+  case, now caught from the session state), a stopped session and a finished PR.
+- **AIDLC keeps owning isolation.** A background session normally moves into a worktree of its own before
+  its first edit. In poly that would be a control-plane worktree with none of the product repos in it.
+  Launches set `worktree.bgIsolation: "none"`, and the one-item-per-tree rule stays the isolation.
+- **`/aidlc:run --sprint`: ask at gates, not at offers.** A sprint run asks wherever a person is required
+  (plan approval, `ask` verification, `securityConfirm`, local merge). Offers with a safe default (the
+  design pod's skeleton confirmation, the Figma jury offer) take the default, so a batched run never
+  holds its slot over a suggestion. "Headless" now means only a run that cannot ask, and those keep the
+  non-interactive defaults.
+- **Runs use the same plugin code as the sprint.** From a `--plugin-dir` checkout, `launch` passes the
+  checkout on, so a contributor's sprint no longer runs the installed version underneath.
+- **Fallback:** on a Claude Code without background sessions, `launch` reports `bg-unavailable` and the
+  skill relaunches with `--headless` (the old `claude -p` launch, now detached by the script with a log
+  in `.aidlc/logs/`). An untrusted worktree is reported as `untrusted` and never falls back.
+- Verified against real sessions on Claude Code 2.1.310 (Windows):
+  - an untrusted folder is refused as `untrusted`;
+  - `/aidlc:run` in a folder with no AIDLC config shows as `dead on arrival`;
+  - an AskUserQuestion shows as `NEEDS YOU · input needed`, and a cross-session message does not answer
+    it, which is why the skill says not to try;
+  - a mono e2e run on a fixture project went `starting` → `NEEDS YOU (permission prompt)` through the
+    Monitor watch. Its transcript shows the new `--sprint` rule loaded through the passed-on
+    `--plugin-dir`. Once stopped, the watch reported it and exited.
+- `sprint.test.mjs` (37 cases) pins the launch-output parsing and every board state.
+- Versions: `aidlc` 0.62.1 → **0.63.0**, `aidlc-ux` 0.9.0 → **0.9.1**, marketplace → **0.63.0**.
+
 ## [0.62.1] — 2026-10-25
 
 ### A guard that cannot run now blocks instead of allowing (`aidlc`)

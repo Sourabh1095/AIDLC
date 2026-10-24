@@ -17,8 +17,9 @@ After green verify (the orchestrator calls this at `aidlc:run` §8), from the re
    do NOT offer the merge; it goes back through the fix cycle first.
 2. **Gate — get explicit approval** (this replaces PR review):
    - Interactive session → ask the user to confirm the local merge (AskUserQuestion where available).
-   - Non-interactive (headless/sprint) or the user declines → do NOT merge. Leave the branch as-is,
-     set phase `review-pending`, and report: `git diff <base>...<branch>` to review, then
+     A `--sprint` run in a background session asks too: this is a gate.
+   - A run that cannot ask (`claude -p`, including the sprint's `--headless` fallback) or the user
+     declines → do NOT merge. Leave the branch as-is, set phase `review-pending`, and report: `git diff <base>...<branch>` to review, then
      re-run `/aidlc:run <ID>` to integrate (or merge it yourself). This mirrors `manual` verification.
 3. **Merge** (only after approval), into **`<base>`**, honouring the repo's `mergeStrategy` — a
    squash-only project must not receive a merge commit just because that is AIDLC's default:
