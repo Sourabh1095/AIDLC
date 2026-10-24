@@ -43,6 +43,7 @@ export const KINDS = new Set([
   "release", //  a version was cut
   "blocked", //  a run stopped and needs a human
   "undo", //     a run was reversed — branch, PR and board put back
+  "share", //    a document or page was published for people outside Claude Code — what, and the link
 ]);
 
 export const journalPath = (root) => join(root, ".aidlc", "journal.md");

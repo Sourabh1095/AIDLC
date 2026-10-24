@@ -1,7 +1,7 @@
 ---
 name: insights
 description: Read-only outcome metrics for this workspace's pipeline — time to done, fix cycles, findings by source, month by month. Use when asked how the pipeline is doing, whether a change helped, where time goes, or what keeps coming back in review.
-argument-hint: "[--since YYYY-MM-DD] [--themes]"
+argument-hint: "[--since YYYY-MM-DD] [--themes] [--publish]"
 ---
 
 # /aidlc:insights $ARGUMENTS — is the pipeline getting better?
@@ -48,3 +48,13 @@ fact — `aidlc:review-feedback` → *Teach it once*) so the next run does not n
 Compare two windows with `--since` when the question is "did the change help": run it once for the
 period before the change and once after, and report the difference in one line. With fewer than ~5
 runs in a window, say the numbers are too few to mean much rather than reading trends into them.
+
+## `--publish` — the metrics as a page
+
+For someone who does not use Claude Code, publish the readings as a page on claude.ai, exactly as
+`aidlc:status` → *Step 5* describes. That means the Artifact tool's `quickstart` with intent `other`,
+a privacy note before the first publish, a `share` journal line, and the link kept in
+`.aidlc/logs/published.json` under `"insights"` so the next publish updates the same page. The data is
+`insights.mjs <root> --json` (plus `--themes --json`), shown as it is: the counts, time to done and by
+phase, findings by source, the months, the cost lines when measured, and the readings worth acting on.
+Keep the small-sample warning on the page too.

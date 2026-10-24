@@ -1,6 +1,7 @@
 ---
 name: status
 description: The AIDLC dashboard — active runs with phase, branch and PR, plus ready backlog items. Use when asked about AIDLC progress, active runs or what's next.
+argument-hint: "[--publish]"
 ---
 
 # /aidlc:status — AIDLC dashboard
@@ -171,6 +172,26 @@ End with one actionable line, e.g.:
   `done` and nothing else in this dashboard would reveal that the change is waiting on the author, not
   on the reviewer. **`changes_requested` with no local activity is the most actionable line on the
   board** — surface it above the ready-items suggestion.
+
+## Step 5 — Publish the board (`--publish` only)
+
+For someone who does not use Claude Code (a project manager, a client), publish the board as a page on
+claude.ai. This needs the Artifact tool, which a session signed in with a claude.ai account has. Without
+it (an API key, Bedrock/Vertex/Foundry, `claude -p`), say that publishing needs that sign-in and stop
+here: the board above is the answer.
+
+- Run the tool's `quickstart` with intent `other` and follow it. It names the Dashboard type where the
+  account has one. Its instructions decide how the page is built.
+- **What goes on it is what Steps 1–4 found**, and nothing they did not: the runs (phase, repo, PR,
+  blocked ones first), the sprint board when one is running (`sprint.mjs board --json`), the execution
+  plan's current wave, the backlog snapshot and the one suggestion. Each figure says where it came from
+  and when, because a page is read after the moment it describes.
+- **Republish, do not multiply.** Keep the page's link in `.aidlc/logs/published.json` (`{ "status":
+  "<link>" }`, git-ignored: the page belongs to whoever published it) and update that page next time.
+- Say before the first publish that it goes to their claude.ai account, private until they share it.
+  After it, give the link and append a `share` line to the journal (`aidlc:journal`).
+
+This writes only the page, that file and the journal line. Steps 0–4 stay read-only.
 
 ## Ground-truth reconciliation (drift detection — the audit, automated)
 

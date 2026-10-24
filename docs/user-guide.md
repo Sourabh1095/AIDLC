@@ -240,6 +240,8 @@ small co-located team on one default branch gets away with it. A real team shoul
 | Yesterday's run stopped / new session / anything interrupted | `/aidlc:run PROJ-123` (same command — it resumes) |
 | **A reviewer left comments on the PR** | `/aidlc:review-feedback PROJ-123` — pulls the unresolved threads, fixes them through the normal cycle, pushes, and replies on each. A comment you disagree with gets answered on the thread and flagged to you; nothing you didn't fix gets resolved (§3e) |
 | "Where is everything?" | `/aidlc:status` |
+| "Send the PM / the client where things stand" | `/aidlc:status --publish` (or `/aidlc:insights --publish`): a page on claude.ai, private until you share it, updated in place each time |
+| "Hand the product over" | `/aidlc:study`, then share it as a Claude Doc the client can comment on and export to Word or PDF |
 | **Several developers on one backlog** | `"team": { "mode": "shared", "me": "you@acme.com" }` — `/aidlc:next` picks only your items, grooming proposes rather than rewrites, verify checks base drift (§1c) |
 | **`/aidlc:next` says nothing is ready but the board is full** | Everything ready is assigned to someone else — that's the shared-mode answer, not a bug. Ask for one, or `/aidlc:next --any` (§1c) |
 | Backlog is messy / items missing AC / before sprint planning | `/aidlc:groom` (in shared mode: `--mine` to sweep only yours) |

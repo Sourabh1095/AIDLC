@@ -1,7 +1,7 @@
 ---
 name: study
 description: Write the business study of the product from the project brain — users, modules, flows, data, decisions, intended versus built, open questions, every claim sourced. Use when a project ends, for a handover, or when asked for a document that explains the whole product.
-argument-hint: "[--out <path>] [--refresh]"
+argument-hint: "[--out <path>] [--refresh] [--publish]"
 ---
 
 # /aidlc:study $ARGUMENTS — the business study
@@ -85,4 +85,27 @@ the file**: one giant message is where long documents get truncated.
 
 Report the file path, its length, the coverage line from §1 and the number of open questions. Offer
 two follow-ups: walk the user through §12 to turn assumptions into `[told]` lines in the brain, and
-share the study (copy it into `docs/`, or convert it to a Word document if they want one).
+share the study.
+
+## 6 · Share it
+
+A study is usually read by people who do not use Claude Code: a client, a new owner, a manager. Offer
+the ways this session can actually do it, best first, and do the one the user picks. `--publish` picks
+the first without asking.
+
+1. **A Claude Doc**, when the session can publish one (it has the Artifact tool or a Claude Docs
+   connector). This is a document on claude.ai that people can comment on and export to Word, PDF or
+   Google Docs. Run the Artifact tool's `quickstart` with intent `document` and follow what it says, or
+   the connector's own guide; their instructions decide how a doc is made. Fill it section by section
+   from the markdown file, which stays the source. Before publishing, say in one line that it goes to
+   the user's claude.ai account, private until they share it, and that a study can hold a client's
+   confidential material, so they should share it only as far as the engagement allows.
+2. **Into the repository**: copy it to `docs/` so it travels with the code.
+3. **A Word file**, when the session has a Word skill, or through the Doc's own export.
+
+After a publish: put `> Published: <link> (<date>)` as the markdown file's first line, and append a
+`share` line to the journal (`aidlc:journal`). If the file already carries a link, update that Doc
+instead of making a second one: a study that is shared twice drifts twice.
+
+No Artifact tool and no Docs connector (an API key, Bedrock/Vertex/Foundry, `claude -p`): say that
+publishing needs a session signed in with a claude.ai account, and offer 2 and 3.

@@ -7,6 +7,33 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.66.0] — 2026-10-25
+
+### Share what AIDLC knows with people who don't use Claude Code (`aidlc`)
+
+The business study is written for a client or a new owner, and the board for a project manager. Until
+now, sharing either meant a markdown file.
+
+- **`/aidlc:study` shares as a Claude Doc**, offered at the end or done directly with `--publish`: a
+  document on claude.ai the client can comment on and export to Word, PDF or Google Docs. The markdown
+  stays the source. The Doc's link goes on its first line, and publishing again updates the same Doc,
+  so the study is never shared twice and allowed to drift. Copying into `docs/` and a Word file remain
+  the other two choices.
+- **`/aidlc:status --publish` and `/aidlc:insights --publish`** put the board and the metrics on a
+  page, as the host's Dashboard type where the account has one. Each figure says where it came from and
+  when. The page's link is kept in the git-ignored `.aidlc/logs/published.json`, so the next publish
+  updates it instead of making another.
+- **AIDLC hands the building to the host.** It never hardcodes how a Doc or a page is made: it runs the
+  Artifact tool's `quickstart` and follows it. The host's types and rules change faster than this plugin.
+- **Privacy said out loud.** Before the first publish, one line says it goes to the user's claude.ai
+  account, private until they share it, and (for the study) that it may hold a client's confidential
+  material.
+- **Where it cannot publish** (an API key, Bedrock/Vertex/Foundry, `claude -p`), each command says so
+  and does what it always did.
+- New journal kind `share`, so "the study went to the client on the 25th" is remembered like any other
+  project event.
+- Versions: `aidlc` 0.65.0 → **0.66.0**, marketplace → **0.66.0**.
+
 ## [0.65.0] — 2026-10-25
 
 ### What each work item cost, by phase (`aidlc-cockpit`, `aidlc`)
