@@ -1,11 +1,29 @@
 # Changelog
 
-All notable changes to the Bee-Logical Claude AIDLC marketplace.
+All notable changes to the AIDLC marketplace.
 
 > **Rebrand note:** this project was formerly named **SDLC** (marketplace + `sdlc` plugin, `/sdlc:`
 > commands, `.sdlc/` state, `sdlc.config.json`). It was renamed to **AIDLC** (AI Development Life Cycle)
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
+
+## [0.62.0] — 2026-10-25
+
+### New home: `Sourabh1095/AIDLC`, marketplace renamed to `aidlc`
+
+- **The repository moved to <https://github.com/Sourabh1095/AIDLC>.** Links, schema `$id`s, the
+  issue templates, the security advisory link and `marketplace.repo` in the project templates point
+  there now.
+- **The marketplace is now named `aidlc`**, so plugin ids are `aidlc@aidlc`, `aidlc-stack-web@aidlc`,
+  `aidlc-ux@aidlc`, `aidlc-tracker-jira@aidlc` and `aidlc-tracker-ado@aidlc`.
+- Author, owner and copyright are **Sourabh Sudheer**. Example package and repo names in the docs and
+  templates use the neutral `@acme/dev-config` and `acme-auth-*`.
+- **Moving an existing install over:** remove the old marketplace (`/plugin marketplace list` shows its
+  name), then `/plugin marketplace add Sourabh1095/AIDLC` and `/plugin install aidlc@aidlc` plus any
+  packs you use. A project whose `.claude/settings.json` lists the old ids in `enabledPlugins` needs
+  them changed to the `@aidlc` ids.
+- Versions: `aidlc` 0.61.0 → **0.62.0**, `aidlc-stack-web` 0.14.0 → **0.14.1**, marketplace →
+  **0.62.0**.
 
 ## [0.61.0] — 2026-10-24
 
@@ -748,12 +766,12 @@ paying for it.
 
 > **⚠ MIGRATION — Jira projects must install one plugin.** Core no longer ships the Atlassian MCP
 > server. If `workItems.source` is `"jira"`, run
-> **`/plugin install aidlc-tracker-jira@bee-logical`** and re-authenticate at `/mcp`. Without it every
+> **`/plugin install aidlc-tracker-jira@aidlc`** and re-authenticate at `/mcp`. Without it every
 > tracker operation fails — `wi-jira` has no CLI fallback.
 >
 > **ADO projects are not broken and need do nothing.** The `wi-ado` adapter's tier-2 `az boards` /
 > `az rest` path covers every operation and is already what headless runs use, so an ADO project keeps
-> working on the tier it was using anyway. Install `aidlc-tracker-ado@bee-logical` if you want the
+> working on the tier it was using anyway. Install `aidlc-tracker-ado@aidlc` if you want the
 > richer interactive tier back.
 >
 > **`/aidlc:doctor` reports both**, and reports them differently — a hard failure for Jira, a warning
@@ -3181,9 +3199,8 @@ requirements read yet) what the requirements should decide.
     **`aidlc.config.json`** (+ `aidlc.config.poly.example.json`, `docs/aidlc.config.schema.json`). This
     is a **breaking change for existing projects** — an `.sdlc/`/`sdlc.config.json` project must rename
     those two paths (the D:\Authentication dogfood workspace was migrated as part of this release).
-  - The marketplace `name` stays **`bee-logical`** (the company marketplace); the repository is
-    published as **`AIDLC`**. Install: `/plugin marketplace add <owner>/AIDLC` → `/plugin install
-    aidlc@bee-logical`.
+  - The repository is published as **`AIDLC`**. Install: `/plugin marketplace add <owner>/AIDLC` →
+    `/plugin install aidlc@<marketplace>` (the marketplace is named **`aidlc`** since 0.62.0).
 - Versions: `aidlc` 0.18.1 → **0.19.0**, `aidlc-stack-web` 0.9.0 → **0.10.0**, `aidlc-ux` 0.3.0 →
   **0.4.0**, marketplace → **0.19.0**.
 
@@ -3309,7 +3326,7 @@ Versions: `aidlc` 0.17.0 → **0.18.0**, marketplace → **0.18.0** (`aidlc-stac
 ### Dogfood batch F17–F33 (Authentication / Identity Platform, Cycle 2)
 
 Seventeen findings from continued dogfooding on the same polyrepo + Azure DevOps build, now first
-exercising the **remote/PR** integration path (the six `bee-auth-*` repos flipped to `git.mode:
+exercising the **remote/PR** integration path (the six `acme-auth-*` repos flipped to `git.mode:
 remote`) plus real CI, a shared-config poly pattern, and the first security-critical design phase.
 Designed and implemented together. Versions: `aidlc` 0.14.0 → **0.15.0**, `aidlc-stack-web` 0.8.0 →
 **0.9.0**, `aidlc-ux` unchanged (**0.3.0**), marketplace → **0.15.0**. Full record:
@@ -3336,7 +3353,7 @@ Designed and implemented together. Versions: `aidlc` 0.14.0 → **0.15.0**, `aid
   it. Poly pattern documented: the shared-config repo owns the preset, the others re-export it.
 - **F26 — the three dependency-cruiser profiles set `enhancedResolveOptions`** (`exportsFields` +
   `conditionNames: [import, require]` + `mainFields`) so ESM `exports`-map subpaths (the poly
-  shared-config pattern, `@beelogical/dev-config/lint-staged`) resolve deterministically across
+  shared-config pattern, `@acme/dev-config/lint-staged`) resolve deterministically across
   versions/conditions. *Verified:* dependency-cruiser 17.4.3's defaults already resolve the common
   case, so this is a robustness/explicitness fix (requires the `>= 17` floor, F30), not a change that
   flips a reproducible failure on current versions — framed accordingly in the profile comments.

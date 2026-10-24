@@ -46,13 +46,13 @@ epic:
 ```
 Epic: Profile page                       ← spans repos
 ├─ Feature: General info                 ← spans repos
-│  ├─ Story: General-info API + schema      → bee-auth-api    (one branch/PR)
-│  │    └─ Tasks: migration · endpoints · DTOs        (all in bee-auth-api)
-│  └─ Story: General-info UI                → bee-auth-web    (one branch/PR; dependsOn the API story)
-│       └─ Tasks: form component · wire to /profile   (all in bee-auth-web)
+│  ├─ Story: General-info API + schema      → acme-auth-api    (one branch/PR)
+│  │    └─ Tasks: migration · endpoints · DTOs        (all in acme-auth-api)
+│  └─ Story: General-info UI                → acme-auth-web    (one branch/PR; dependsOn the API story)
+│       └─ Tasks: form component · wire to /profile   (all in acme-auth-web)
 └─ Feature: Notification info
-   ├─ Story: Notification-prefs API           → bee-auth-api
-   └─ Story: Notification-prefs UI            → bee-auth-web
+   ├─ Story: Notification-prefs API           → acme-auth-api
+   └─ Story: Notification-prefs UI            → acme-auth-web
 ```
 
 Each Story is one repo = one PR; Tasks are that repo's breakdown. Fits ADO's
@@ -64,9 +64,9 @@ Epic→Feature→Story→Task hierarchy natively and keeps estimates/velocity ho
 Epic: Profile page
 └─ Feature: General info
    └─ Story: General info                 ← cross-repo UMBRELLA (one unit of user value)
-      ├─ Task: API ready       → bee-auth-api   (one branch/PR)
-      ├─ Task: UI ready        → bee-auth-web   (one branch/PR)
-      └─ Task: DB migration    → bee-auth-api   (one branch/PR)
+      ├─ Task: API ready       → acme-auth-api   (one branch/PR)
+      ├─ Task: UI ready        → acme-auth-web   (one branch/PR)
+      └─ Task: DB migration    → acme-auth-api   (one branch/PR)
 ```
 
 Here you run the **Tasks** (each a single-repo run); the Story rolls up when they all complete. Natural

@@ -1,5 +1,5 @@
 /** @type {import('dependency-cruiser').IConfiguration} */
-// Bee-Logical AIDLC — Next.js App Router layering gate. `/aidlc:init` drops this
+// AIDLC — Next.js App Router layering gate. `/aidlc:init` drops this
 // as `.dependency-cruiser.cjs`; `aidlc-stack-web:ci-web` runs `depcruise src` in the PR gate.
 // Assumes the `src/` layout; if your app/ is at repo root, drop the `src/` prefix.
 module.exports = {
@@ -59,7 +59,7 @@ module.exports = {
     tsPreCompilationDeps: true,
     includeOnly: "^src/",
     // Resolve ESM `exports`-map subpaths explicitly — the poly shared-config pattern this plugin
-    // promotes (`@beelogical/dev-config/lint-staged`). enhanced-resolve's `exports`-map handling
+    // promotes (`@acme/dev-config/lint-staged`). enhanced-resolve's `exports`-map handling
     // varies by version/package shape (older defaults don't follow subpath maps at all); setting
     // these pins subpath resolution across both import/require conditions so a shared-config
     // subpath isn't false-flagged as unresolvable. Requires dependency-cruiser >= 17 (see the

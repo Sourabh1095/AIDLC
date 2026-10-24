@@ -1,4 +1,4 @@
-# Bee-Logical AIDLC — web-stack .gitignore baseline (Node + Next.js).
+# AIDLC — web-stack .gitignore baseline (Node + Next.js).
 # Cross-framework: harmless keys for a role a repo doesn't use (e.g. .next/ in a
 # Nest repo) simply never match. Merge-aware scaffold: never clobber a repo's own.
 

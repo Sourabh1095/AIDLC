@@ -29,7 +29,7 @@ const unknown = (reason) => ({ status: "unknown", reason });
 
 // ===== the reference profile =====
 const reference = () => ({
-  $schema: "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json",
+  $schema: "https://raw.githubusercontent.com/Sourabh1095/AIDLC/main/docs/adoption-profile.schema.json",
   profileVersion: 1,
   scan: {
     scannedAt: "2026-07-30T09:15:00Z",

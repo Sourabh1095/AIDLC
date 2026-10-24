@@ -1,6 +1,6 @@
 ---
 name: init
-description: Scaffold the Bee-Logical AIDLC project template into the current repository — CLAUDE.md, permissions, aidlc.config.json, rules, backlog structure, run-state folders. Use when adopting the AIDLC framework in a new or existing project.
+description: Scaffold the AIDLC project template into the current repository — CLAUDE.md, permissions, aidlc.config.json, rules, backlog structure, run-state folders. Use when adopting the AIDLC framework in a new or existing project.
 disable-model-invocation: true
 ---
 
@@ -382,7 +382,7 @@ Collect (items 4, 5, 7 are **full-path only** — the deferred path skips them):
      `"prepare": "husky || true"` (not the bare `"husky"` husky writes) — bare `husky` exits **127** on
      every `npm ci` in a CI container or a `file:../` sibling checkout that lacks husky. In **poly**,
      prefer letting the shared-config repo own the lint-staged preset and having the others re-export
-     it (`export { default } from "@beelogical/dev-config/lint-staged"`). If the user declined, skip
+     it (`export { default } from "@acme/dev-config/lint-staged"`). If the user declined, skip
      silently — the CI/merge gate still enforces the same standards.
    - Framework layer (don't replace): Next.js repos also install `eslint-config-next` and keep their
      own tsconfig `module` settings, layering the baseline's strictness on top.

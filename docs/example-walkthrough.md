@@ -1,6 +1,6 @@
 # Example Walkthrough — From an Empty Folder to a Working Todo App
 
-A complete, copy-paste-ready example of using the Bee-Logical Claude AIDLC on a brand-new
+A complete, copy-paste-ready example of using AIDLC on a brand-new
 project. Scenario: **no tracker, no tasks anywhere** — you type the requirement, the pipeline
 plans it, creates the work items, and builds it. Target app: a simple todo app with a
 **Next.js frontend, NestJS backend, and Postgres** database.
@@ -48,12 +48,12 @@ Inside the Claude Code session:
 
 ```
 /plugin marketplace add D:\AIDLC
-/plugin install aidlc@bee-logical
-/plugin install aidlc-stack-web@bee-logical
+/plugin install aidlc@aidlc
+/plugin install aidlc-stack-web@aidlc
 ```
 
 > When the marketplace repo is pushed to your org, this becomes
-> `/plugin marketplace add bee-logical/AIDLC` (or the HTTPS URL) — everything else is identical.
+> `/plugin marketplace add Sourabh1095/AIDLC` (or the HTTPS URL) — everything else is identical.
 
 The second plugin is the web stack pack — since this project is Next.js/NestJS/Postgres, you
 want its conventions active. Verify: type `/aidlc:` and you should see `init`, `intake`, `run`,
@@ -87,7 +87,7 @@ design. Then review and commit:
 
 ```
 git status          # see the scaffold: CLAUDE.md, .claude/, backlog/, .aidlc/
-git add -A && git commit -m "chore: adopt Bee-Logical AIDLC"
+git add -A && git commit -m "chore: adopt AIDLC"
 ```
 
 ## 4. Type your requirement — the pipeline plans it

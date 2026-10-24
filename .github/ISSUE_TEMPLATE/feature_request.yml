@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         **Already built this as a project-local skill or agent and proven it?** Then `/aidlc:promote`
-        is the path, not this form — see [the promotion policy](https://github.com/bee-logical/AIDLC/blob/main/docs/promotion-policy.md).
+        is the path, not this form — see [the promotion policy](https://github.com/Sourabh1095/AIDLC/blob/main/docs/promotion-policy.md).
 
         Use this form to propose something that does not exist yet, or to check an idea against the
         acceptance bar before you spend effort building it.

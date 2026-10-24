@@ -1,6 +1,6 @@
 # Adoption Guide
 
-How to use the Bee-Logical Claude AIDLC in any project — new or existing.
+How to use AIDLC in any project — new or existing.
 
 ## 1. Prerequisites
 
@@ -12,13 +12,13 @@ How to use the Bee-Logical Claude AIDLC in any project — new or existing.
 ## 2. Install the plugin (once per developer)
 
 ```
-/plugin marketplace add bee-logical/AIDLC
+/plugin marketplace add Sourabh1095/AIDLC
 
-/plugin install aidlc@bee-logical                # required — the pipeline itself
-/plugin install aidlc-tracker-jira@bee-logical   # REQUIRED if workItems.source is "jira"
-/plugin install aidlc-tracker-ado@bee-logical    # optional — ADO also works through the az CLI
-/plugin install aidlc-stack-web@bee-logical      # optional — TypeScript / Next.js / NestJS / PG / Mongo
-/plugin install aidlc-ux@bee-logical             # optional — the design pod
+/plugin install aidlc@aidlc                # required — the pipeline itself
+/plugin install aidlc-tracker-jira@aidlc   # REQUIRED if workItems.source is "jira"
+/plugin install aidlc-tracker-ado@aidlc    # optional — ADO also works through the az CLI
+/plugin install aidlc-stack-web@aidlc      # optional — TypeScript / Next.js / NestJS / PG / Mongo
+/plugin install aidlc-ux@aidlc             # optional — the design pod
 ```
 
 `aidlc`, `aidlc-stack-web` and `aidlc-ux` carry `defaultEnabled: true`, so adding the marketplace is

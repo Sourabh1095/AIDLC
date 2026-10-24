@@ -1,5 +1,5 @@
 {
-  "$comment": "Bee-Logical AIDLC — strict TypeScript baseline (strictness flags only; NO module/target/lib/paths so it layers cleanly under any framework tsconfig). Use it: in your tsconfig.json add \"extends\": \"./tsconfig.base.json\" and set module/target/lib/paths there. exactOptionalPropertyTypes is deliberately strict — relax it if a dependency forces it.",
+  "$comment": "AIDLC — strict TypeScript baseline (strictness flags only; NO module/target/lib/paths so it layers cleanly under any framework tsconfig). Use it: in your tsconfig.json add \"extends\": \"./tsconfig.base.json\" and set module/target/lib/paths there. exactOptionalPropertyTypes is deliberately strict — relax it if a dependency forces it.",
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,

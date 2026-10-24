@@ -88,15 +88,15 @@ const TEMPLATE = perms({
 // --- Nothing outside `permissions` is touched -------------------------------------------------------
 {
   const current = {
-    enabledPlugins: { "aidlc@bee-logical": true },
-    extraKnownMarketplaces: { "bee-logical": { source: "x" } },
+    enabledPlugins: { "aidlc@aidlc": true },
+    extraKnownMarketplaces: { "aidlc": { source: "x" } },
     env: { FOO: "bar" },
     statusLine: { type: "command", command: "x" },
     permissions: { allow: [] },
   };
   const r = planSettings(current, TEMPLATE);
-  check("enabledPlugins is preserved", r.settings.enabledPlugins["aidlc@bee-logical"] === true);
-  check("extraKnownMarketplaces is preserved", r.settings.extraKnownMarketplaces["bee-logical"].source === "x");
+  check("enabledPlugins is preserved", r.settings.enabledPlugins["aidlc@aidlc"] === true);
+  check("extraKnownMarketplaces is preserved", r.settings.extraKnownMarketplaces["aidlc"].source === "x");
   check("env is preserved", r.settings.env.FOO === "bar");
   check("statusLine is preserved", r.settings.statusLine.command === "x");
   check("the input object is not mutated", current.permissions.allow.length === 0);

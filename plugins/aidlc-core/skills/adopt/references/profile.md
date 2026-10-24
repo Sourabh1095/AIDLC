@@ -8,7 +8,7 @@ above. This is the shape — every leaf fact is one of the three `fact` forms, a
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json",
+  "$schema": "https://raw.githubusercontent.com/Sourabh1095/AIDLC/main/docs/adoption-profile.schema.json",
   "profileVersion": 1,
   "scan": {
     "scannedAt": "<UTC ISO-8601>", "aidlcVersion": "<plugin version>", "depth": "standard",

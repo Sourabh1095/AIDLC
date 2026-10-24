@@ -1,5 +1,5 @@
 // @ts-check
-// Bee-Logical AIDLC — web-stack ESLint baseline (flat config, type-aware).
+// AIDLC — web-stack ESLint baseline (flat config, type-aware).
 //
 // This is the DEFAULT strict baseline scaffolded by `/aidlc:init` for a TypeScript
 // repo. The project's own rules win where they disagree — edit freely afterwards.

@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 **Do not open a public issue.** Report privately through
-[Security Advisories](https://github.com/bee-logical/AIDLC/security/advisories/new).
+[Security Advisories](https://github.com/Sourabh1095/AIDLC/security/advisories/new).
 
 This is a solo-maintained project. Expect a first response within a few days, and please allow
 reasonable time to ship a fix before public disclosure.

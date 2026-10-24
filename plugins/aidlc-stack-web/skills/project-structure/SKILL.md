@@ -124,7 +124,7 @@ one and `aidlc-stack-web:ci-web` runs `depcruise` in the gate. The rules:
 
 ## Cross-repo dependencies (poly — the shared-package pattern) (F28)
 
-A poly workspace often has one repo own a package the others consume — a shared `@beelogical/dev-config`
+A poly workspace often has one repo own a package the others consume — a shared `@acme/dev-config`
 (eslint/prettier/tsconfig/lint-staged/depcruise presets), a shared `sdk`, shared types. **How the
 consumer resolves that dependency is a design decision, because CI checks out ONE repo.** An
 unpublished **`file:../sibling`** link is the natural local-dev choice and resolves in the multi-repo
@@ -132,7 +132,7 @@ workspace — but it is **local-only and fails isolated single-repo CI** (`Canno
 one, up front:
 
 - **Publish** (Azure Artifacts / a private registry) and consume by version. This is the config's
-  usual stated intent ("published `@beelogical/dev-config`"), and it is **required** for a
+  usual stated intent ("published `@acme/dev-config`"), and it is **required** for a
   **transitive/built** cross-repo dep — a repo that consumes a *built* sibling (a compiled SDK it
   type-checks against), not just flat config files. Multi-checkout degrades badly there (multiple
   sibling checkouts + building the sibling).

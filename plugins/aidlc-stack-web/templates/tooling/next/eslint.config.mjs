@@ -1,5 +1,5 @@
 // @ts-check
-// Bee-Logical AIDLC — Next.js ESLint overlay (flat config; ESLint 10 + Turbopack).
+// AIDLC — Next.js ESLint overlay (flat config; ESLint 10 + Turbopack).
 //
 // Use THIS file as a Next.js repo's `eslint.config.mjs` INSTEAD of the plain
 // `templates/tooling/eslint.config.mjs` baseline. It composes the SAME strict
@@ -16,7 +16,7 @@
 //                        # (16.2.10 verified 2026-07-12; peerDep eslint >= 9). It brings
 //                        # eslint-plugin-react (^7.37.0) transitively — see README.
 //
-// If you consume the baseline as the published `@beelogical/dev-config` package,
+// If you consume the baseline as the published `@acme/dev-config` package,
 // import its re-exported config instead of re-listing js/tseslint/prettier here.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";

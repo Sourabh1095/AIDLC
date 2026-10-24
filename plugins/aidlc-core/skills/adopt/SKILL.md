@@ -24,7 +24,7 @@ items, no branch, no commit. Turning the profile into configuration is a **separ
 deliberate: it makes this command safe to run on first contact, with nothing to undo.
 
 The profile's full contract is `adoption-profile.schema.json`, published at
-`https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json`. **Do not
+`https://raw.githubusercontent.com/Sourabh1095/AIDLC/main/docs/adoption-profile.schema.json`. **Do not
 fetch it** — this skill makes no network calls. Read it only if a local copy is at hand (an AIDLC clone
 in the workspace); otherwise §10's skeleton is the contract you must satisfy, and it is sufficient.
 

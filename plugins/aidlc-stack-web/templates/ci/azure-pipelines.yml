@@ -1,4 +1,4 @@
-# Bee-Logical AIDLC — Azure Pipelines PR gate (web-stack baseline).
+# AIDLC — Azure Pipelines PR gate (web-stack baseline).
 #
 # Runs the SAME deterministic gate the local `/aidlc:run` runs — typecheck, lint, format,
 # boundaries, build, test — so a remote-mode repo's PRs are enforced by CI, not just by a
@@ -99,9 +99,9 @@ steps:
     displayName: "Test"
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# POLY + a cross-repo package dependency (e.g. a shared `@beelogical/dev-config`)?
+# POLY + a cross-repo package dependency (e.g. a shared `@acme/dev-config`)?
 # CI checks out ONE repo, so an unpublished `file:../sibling` link is ABSENT here and every config
-# it sources fails ("Cannot find package '@beelogical/dev-config'"). Two supported fixes (see
+# it sources fails ("Cannot find package '@acme/dev-config'"). Two supported fixes (see
 # `aidlc-stack-web:project-structure` → cross-repo dependencies and `aidlc-stack-web:ci-web`):
 #
 #   (A) PUBLISH the shared package (Azure Artifacts / private registry) and consume it by version.

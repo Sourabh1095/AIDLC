@@ -1,4 +1,4 @@
-# Bee-Logical AIDLC — web-stack .gitattributes baseline (line-ending normalization).
+# AIDLC — web-stack .gitattributes baseline (line-ending normalization).
 #
 # On Windows (core.autocrlf=true) working-tree endings churn against the LF-committed
 # blob on every file touch, and agents/tools misattribute genuine or phantom format

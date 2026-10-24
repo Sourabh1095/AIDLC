@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/aidlc.config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/Sourabh1095/AIDLC/main/docs/aidlc.config.schema.json",
   "$comment": "POLYREPO EXAMPLE. Copy the workspace+repos shape into your aidlc.config.json when the workspace holds several git repos. In poly mode the top-level git/stack/ux blocks are ignored — each repo carries its own. The ONE exception is ux.figma.designSystem with scope=workspace: one brand has one design system, so it is declared once at the top level and every frontend derives from it. This file lives at the WORKSPACE ROOT (the control plane); the product repos are subfolders under workspace.root.",
   "project": {
     "key": "PROJ",
@@ -229,7 +229,7 @@
     }
   },
   "marketplace": {
-    "repo": "bee-logical/AIDLC",
+    "repo": "Sourabh1095/AIDLC",
     "promotionBranchPrefix": "promote/"
   }
 }

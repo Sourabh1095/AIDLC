@@ -1,4 +1,4 @@
-# Bee-Logical Claude AIDLC
+# AIDLC
 
 An **AI Development Life Cycle** for [Claude Code](https://claude.com/claude-code): you point it at a
 work item — or just describe what you want — and it takes the change from requirements to an open pull
@@ -70,13 +70,13 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 Per developer, once:
 
 ```
-/plugin marketplace add bee-logical/AIDLC     # or a local path / Azure Repos URL
+/plugin marketplace add Sourabh1095/AIDLC     # or a local path / Azure Repos URL
 
-/plugin install aidlc@bee-logical                # required — the pipeline itself
-/plugin install aidlc-tracker-jira@bee-logical   # required IF your tracker is Jira
-/plugin install aidlc-tracker-ado@bee-logical    # optional — ADO also works via the az CLI
-/plugin install aidlc-stack-web@bee-logical      # optional — TypeScript/Next.js/NestJS/Postgres/Mongo
-/plugin install aidlc-ux@bee-logical             # optional — the design pod (only fires on UI items)
+/plugin install aidlc@aidlc                # required — the pipeline itself
+/plugin install aidlc-tracker-jira@aidlc   # required IF your tracker is Jira
+/plugin install aidlc-tracker-ado@aidlc    # optional — ADO also works via the az CLI
+/plugin install aidlc-stack-web@aidlc      # optional — TypeScript/Next.js/NestJS/Postgres/Mongo
+/plugin install aidlc-ux@aidlc             # optional — the design pod (only fires on UI items)
 ```
 
 | Plugin | What it adds | Install it when |
@@ -341,4 +341,4 @@ to contribute — it is cheaper than finding out afterwards. Security policy: [`
 
 ## License
 
-[MIT](LICENSE) — © 2026 Bee-Logical.
+[MIT](LICENSE) — © 2026 [Sourabh Sudheer](https://github.com/Sourabh1095).

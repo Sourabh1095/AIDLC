@@ -1,6 +1,6 @@
 # Web-stack tooling baseline
 
-The deterministic half of the Bee-Logical quality bar. `coding-standards-ts` says *what good
+The deterministic half of the AIDLC quality bar. `coding-standards-ts` says *what good
 looks like*; these configs make a machine **reject** most violations on every commit and in CI, so
 quality doesn't depend on a reviewer noticing. `/aidlc:init` scaffolds them into a TypeScript repo
 (merge-aware — it never clobbers configs you already have).
@@ -112,7 +112,7 @@ stub) is the usual way it ends up non-executable.
 (Equivalent guards: skip when `CI` is set, or when there's no `.git`. Husky also honors `HUSKY=0`.)
 
 **Poly:** let the shared-config repo own the lint-staged preset and have the others re-export it —
-`export { default } from "@beelogical/dev-config/lint-staged";` (an `exports`-map subpath; the shipped
+`export { default } from "@acme/dev-config/lint-staged";` (an `exports`-map subpath; the shipped
 depcruise profiles set `enhancedResolveOptions` so that resolves). One preset, six repos.
 
 ## Relaxing

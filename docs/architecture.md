@@ -1,4 +1,4 @@
-# Architecture — Bee-Logical Claude AIDLC
+# Architecture — AIDLC
 
 **Status:** all planned phases implemented, plus polyrepo, team mode, brownfield adoption and wave
 re-planning. This document is the **design rationale** — the decisions and why they were made. For what

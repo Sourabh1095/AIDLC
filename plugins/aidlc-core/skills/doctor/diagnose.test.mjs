@@ -63,7 +63,7 @@ function check(label, root, id, status, home) {
 }
 
 const BASE_CONFIG = { project: { key: "PROJ", name: "P" }, workItems: { source: "markdown" } };
-const GOOD_SETTINGS = { enabledPlugins: { "aidlc@bee-logical": true }, extraKnownMarketplaces: { "bee-logical": {} }, permissions: { allow: [], deny: [], ask: [] } };
+const GOOD_SETTINGS = { enabledPlugins: { "aidlc@aidlc": true }, extraKnownMarketplaces: { "aidlc": {} }, permissions: { allow: [], deny: [], ask: [] } };
 
 // --- Config ---------------------------------------------------------------------------
 check("missing config fails", workspace({}), "config", "fail");
@@ -233,13 +233,13 @@ check(
 check("aidlc enabled with a known marketplace passes", workspace({ config: BASE_CONFIG, settings: GOOD_SETTINGS }), "plugin-enabled", "ok");
 check(
   "enabled but unknown marketplace warns",
-  workspace({ config: BASE_CONFIG, settings: { enabledPlugins: { "aidlc@bee-logical": true } } }),
+  workspace({ config: BASE_CONFIG, settings: { enabledPlugins: { "aidlc@aidlc": true } } }),
   "plugin-enabled",
   "warn",
 );
 check(
   "an explicitly disabled plugin does not count as enabled",
-  workspace({ config: BASE_CONFIG, settings: { enabledPlugins: { "aidlc@bee-logical": false } } }),
+  workspace({ config: BASE_CONFIG, settings: { enabledPlugins: { "aidlc@aidlc": false } } }),
   "plugin-enabled",
   "fail",
 );
@@ -247,8 +247,8 @@ check(
 // --- Tracker MCP plugin (0.49 split) ------------------------------------------------------------
 // Asymmetric on purpose: Jira has no CLI fallback, ADO does.
 const withPlugins = (...names) => ({
-  enabledPlugins: Object.fromEntries(names.map((n) => [`${n}@bee-logical`, true])),
-  extraKnownMarketplaces: { "bee-logical": {} },
+  enabledPlugins: Object.fromEntries(names.map((n) => [`${n}@aidlc`, true])),
+  extraKnownMarketplaces: { "aidlc": {} },
   permissions: { allow: [], deny: [], ask: [] },
 });
 const src = (s) => ({ ...BASE_CONFIG, workItems: { source: s } });
@@ -292,7 +292,7 @@ check(
   "installed-but-disabled is reported as such, not as 'not installed'",
   workspace({
     config: src("ado"),
-    settings: { ...withPlugins("aidlc"), enabledPlugins: { "aidlc@bee-logical": true, "aidlc-tracker-ado@bee-logical": false } },
+    settings: { ...withPlugins("aidlc"), enabledPlugins: { "aidlc@aidlc": true, "aidlc-tracker-ado@aidlc": false } },
   }),
   "tracker-plugin",
   "warn",
@@ -301,7 +301,7 @@ check(
   "an explicitly disabled tracker plugin does not count",
   workspace({
     config: src("jira"),
-    settings: { ...withPlugins("aidlc"), enabledPlugins: { "aidlc@bee-logical": true, "aidlc-tracker-jira@bee-logical": false } },
+    settings: { ...withPlugins("aidlc"), enabledPlugins: { "aidlc@aidlc": true, "aidlc-tracker-jira@aidlc": false } },
   }),
   "tracker-plugin",
   "fail",

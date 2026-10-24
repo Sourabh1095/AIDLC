@@ -1,4 +1,4 @@
-# Bee-Logical AIDLC — repo gate.
+# AIDLC — repo gate.
 #
 # This repo is not an application: `plugins/**` executes on other people's machines,
 # against repos none of us can see. Two consequences shape this file.

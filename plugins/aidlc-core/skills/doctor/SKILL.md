@@ -97,7 +97,7 @@ One board, failures first, each with its remedy. End with the single most useful
 AIDLC doctor — <workspace>            2 failing · 3 warnings · 14 ok
 
 FAIL  plugin enablement    no `aidlc@…` in enabledPlugins (project or user scope)
-      → /plugin install aidlc@bee-logical. Until then this workspace has no /aidlc:*
+      → /plugin install aidlc@aidlc. Until then this workspace has no /aidlc:*
         commands, and a headless run exits rc=0 — the failure reads as success.
 FAIL  poly git permissions  repos[] declared, no `Bash(git -C …)` allow rule
       → re-run /aidlc:init to stage the current template's rules (F43).

@@ -1,6 +1,6 @@
 ---
 name: coding-standards-ts
-description: Bee-Logical TypeScript coding standards — typing discipline, error handling, naming, module structure and async rules. Load when writing or reviewing TypeScript/JavaScript code in any project on the web stack.
+description: TypeScript coding standards — typing discipline, error handling, naming, module structure and async rules. Load when writing or reviewing TypeScript/JavaScript code in any project on the web stack.
 user-invocable: false
 ---
 

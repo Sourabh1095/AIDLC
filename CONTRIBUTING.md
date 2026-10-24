@@ -1,6 +1,6 @@
 # Contributing to AIDLC
 
-Thanks for helping improve the Bee-Logical AIDLC marketplace.
+Thanks for helping improve the AIDLC marketplace.
 
 Read this first, because one thing here is unusual: **this repo is not an application — it is a
 plugin other people install and point at their own codebases.** A merged change reaches every

@@ -1,4 +1,4 @@
-# Bee-Logical AIDLC — GitHub Actions PR gate (web-stack baseline).
+# AIDLC — GitHub Actions PR gate (web-stack baseline).
 #
 # Runs the SAME deterministic gate as the local `/aidlc:run` — typecheck, lint, format, boundaries,
 # build, test — so a remote-mode repo's PRs are enforced by CI. Drop this at `.github/workflows/ci.yml`.
@@ -67,7 +67,7 @@ jobs:
         name: Test
 
   # ───────────────────────────────────────────────────────────────────────────────────────────
-  # POLY + a cross-repo package dependency (shared `@beelogical/dev-config`)? CI checks out ONE
+  # POLY + a cross-repo package dependency (shared `@acme/dev-config`)? CI checks out ONE
   # repo, so an unpublished `file:../sibling` link is ABSENT and every config it sources fails.
   # Fix: (A) PUBLISH the shared package (GitHub Packages / registry) — REQUIRED for transitive/built
   # deps; or (B) MULTI-REPO CHECKOUT — add a second `actions/checkout` with `repository:` +

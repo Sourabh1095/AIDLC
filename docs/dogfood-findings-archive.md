@@ -12,13 +12,13 @@
 
 ## Context
 
-Dogfooding the AIDLC plugin end-to-end on the **Bee Logical Identity Platform** (a real, ambitious
+Dogfooding the AIDLC plugin end-to-end on an **identity platform** (a real, ambitious
 build):
 
-- **Layout:** polyrepo — 5 repos: `bee-auth-api` (NestJS IdP), `bee-auth-web` (Next.js login),
-  `bee-auth-admin` (Next.js admin), `bee-auth-sdk-nest`, `bee-auth-sdk-next`. Control plane at
+- **Layout:** polyrepo — 5 repos: `acme-auth-api` (NestJS IdP), `acme-auth-web` (Next.js login),
+  `acme-auth-admin` (Next.js admin), `acme-auth-sdk-nest`, `acme-auth-sdk-next`. Control plane at
   `D:\Authentication`.
-- **Work items:** Azure DevOps — org `BeeLogical-APP`, project `Dashboard Test`, Agile template.
+- **Work items:** Azure DevOps — a test org, project `Dashboard Test`, Agile template.
   7 epics / 27 features / ~37 stories / ~79 tasks (150 items).
 - **Git mode:** local (no remotes yet). **Verification:** economical (reviewer/QA on-demand,
   security per-epic + confirm).
@@ -32,7 +32,7 @@ build):
 
 ### F1 🔴 — Poly: a cross-repo "workspace-bootstrap" story has no clean home
 **Symptom.** Story 8416 "Scaffold platform as separate repos" legitimately spans all 5 repos + a
-shared `@beelogical/dev-config` package + a workspace README. On `/aidlc:run 8416` the orchestrator
+shared `@acme/dev-config` package + a workspace README. On `/aidlc:run 8416` the orchestrator
 correctly *detected* the conflict with the poly invariant (1 story = 1 repo = 1 branch) and offered
 to decompose into per-repo child stories — but only ad-hoc, at run time.
 **Root cause.** Poly models cross-repo work only at the **epic** level (fan out to per-repo child
@@ -56,7 +56,7 @@ and the backlog authored this as a single story.
 poly logic working as designed — the gap is authoring guidance + a first-class story-level split.
 
 ### F2 🔴 — Poly: work references an *undeclared* repo (shared lib / new product)
-**Symptom.** The scaffold work references `@beelogical/dev-config` (a shared config package every
+**Symptom.** The scaffold work references `@acme/dev-config` (a shared config package every
 repo extends) that was never declared in `repos[]`. Decomposition has nowhere clean to route it.
 **Root cause.** `repos[]` is fixed at init, but real work references repos that don't exist yet
 (shared libs, future products — e.g. Epic 7's five SaaS apps).
@@ -116,9 +116,9 @@ populate `statusMap` from them (mapping canonical → detected), instead of assu
 it empty. `wi-ado` self-healed at run time — but init should get it right up front.
 
 ### F10 🟡 — Guidance gap: shared/base tsconfig should be strictness-only (module resolution per-repo)
-**Symptom.** The generated `@beelogical/dev-config` shared `tsconfig.base.json` set
+**Symptom.** The generated `@acme/dev-config` shared `tsconfig.base.json` set
 `moduleResolution:"node"` + `baseUrl`, which **TypeScript 6.0.3 deprecates**. Every consumer
-(`bee-auth-api`, and the siblings to come) inherits it and must patch per-repo with
+(`acme-auth-api`, and the siblings to come) inherits it and must patch per-repo with
 `ignoreDeprecations:"6.0"` — a workaround that won't survive a TS7 migration.
 **Root cause.** The implementer put module-resolution settings in the **shared base**. Our stack-web
 tooling-baseline *template* deliberately keeps `tsconfig.base.json` **strictness-only** (no
@@ -128,15 +128,15 @@ config drifted.
 **Proposed modification.** State explicitly in `coding-standards-ts` (and/or `project-structure`):
 a shared/base tsconfig is **strictness-only**; `moduleResolution`, `baseUrl`/`paths`, and `target`
 belong in each repo's own tsconfig (matching what the template already does).
-**Project-side follow-up (not plugin):** fix `bee-auth-dev-config`'s base to strictness-only and drop
+**Project-side follow-up (not plugin):** fix `acme-auth-dev-config`'s base to strictness-only and drop
 the per-repo `ignoreDeprecations` — before the siblings replicate the workaround, and before any TS7 move.
 **Proven clean fix (from AUTH-8566):** leave `moduleResolution` **unset** (don't use `"node"` *or*
 `"node10"` — both deprecated) and use **no `baseUrl`** → zero deprecation suppression needed. That's
 the config the shared base should ship; empirically validated on a tsc-built CJS repo.
 
 ### F9 🟡 — Scaffold applied the structure *layout* but omitted the *boundary-gate config*
-**Symptom.** `bee-auth-api` (AUTH-8565) was scaffolded with the correct NestJS layout
-(`modules/`, `common/`, `config/`) and tooling (eslint/prettier/tsconfig via `@beelogical/dev-config`),
+**Symptom.** `acme-auth-api` (AUTH-8565) was scaffolded with the correct NestJS layout
+(`modules/`, `common/`, `config/`) and tooling (eslint/prettier/tsconfig via `@acme/dev-config`),
 but **no `.dependency-cruiser.cjs`** — so the `project-structure` boundary check (v0.11.0) has no config
 to run and is silently inert.
 **Root cause.** The implementer applied the structure *layout* from `aidlc-stack-web:project-structure`
@@ -148,7 +148,7 @@ pipeline scaffolds a repo per `project-structure`, it should drop the matching
 (Low priority: no CI under local mode yet, but it should be present for the remote flip.)
 
 ### F11 🟡 — Design pod scope-gating is correct interactively, but the non-interactive default is unclear
-**Symptom (positive core).** On `/aidlc:run 8568` (`bee-auth-web`, a Next.js *scaffold* task), the
+**Symptom (positive core).** On `/aidlc:run 8568` (`acme-auth-web`, a Next.js *scaffold* task), the
 orchestrator did **not** blindly fire the `aidlc-ux` design pod just because the repo is a frontend/UI
 repo. It **detected the scaffold-vs-UI scope mismatch** ("minimal shell" scope, functional-only DoD)
 and surfaced a choice — *Skeleton only (`ui:false`, skip jury) [recommended]* vs *Full design pod* —
@@ -165,8 +165,8 @@ scaffold, and any future scaffold story). If it defaults to skeleton-only, that 
 guess. Keep the interactive prompt as the confirmation, not the only gate.
 
 ### F12 🟠 — stack-web tooling baseline has no Next.js overlay; every Next repo re-derives the same 4 workarounds
-**Symptom.** Scaffolding `bee-auth-web` (AUTH-8568) required **4 config-level workarounds** to reconcile
-the shared strict flat ESLint config (`@beelogical/dev-config` → typescript-eslint `strictTypeChecked`)
+**Symptom.** Scaffolding `acme-auth-web` (AUTH-8568) required **4 config-level workarounds** to reconcile
+the shared strict flat ESLint config (`@acme/dev-config` → typescript-eslint `strictTypeChecked`)
 with `eslint-config-next` on **ESLint 10** + **Turbopack** + a `file:../` monorepo. Gates stayed green
 and no rules were weakened, but the reconciliation was hand-authored per-repo:
 1. **Duplicate `@typescript-eslint` plugin registration** — both the shared config *and*
@@ -185,7 +185,7 @@ bundler (Turbopack) that don't compose with a strict shared flat config out of t
 so **every** frontend repo re-derives the same 4 fixes by hand (8569 admin will hit all four again).
 **Proposed modification.** Ship a **Next.js tooling overlay** in `aidlc-stack-web/templates/tooling/`
 (+ state it in the `nextjs` / `coding-standards-ts` skills): a ready `eslint.config.mjs` fragment that
-composes `@beelogical/dev-config` + `eslint-config-next` with all four reconciliations **pre-solved**
+composes `@acme/dev-config` + `eslint-config-next` with all four reconciliations **pre-solved**
 (dedupe the typescript-eslint plugin, pin `react.version`, parser mapping for `.js/.cjs/.mjs`,
 `turbopack.root` for monorepo `file:../`). **Pin `eslint-config-next` / `eslint-plugin-react` to
 ESLint-10-compatible versions** (workarounds #2/#3 are ESLint-10 breakages the ecosystem hasn't fully
@@ -203,7 +203,7 @@ overlay we ship can safely encode all four. Workaround **#4** (`turbopack.root` 
 `file:../` siblings-under-parent and not cleanly narrowable today — the overlay should ship it with a
 "revisit as the workspace matures" note.
 **Carried-lore reuse validated (AUTH-8569).** The admin scaffold reused all 4 workarounds + the
-`env.ts` guard + every config file **verbatim** from bee-auth-web (only the port/package/clientId/route
+`env.ts` guard + every config file **verbatim** from acme-auth-web (only the port/package/clientId/route
 differed) — **no re-derivation**. So *within an epic* the orchestrator's carried lore self-mitigates
 F12: the second Next repo doesn't rediscover the fixes. **But** the lore is **epic-run-scoped memory**,
 not persistent — a fresh Next repo in a different epic/project (or a cold start) would re-derive from
@@ -212,7 +212,7 @@ zero. So F12's fix still stands, refined to: **make the lore persistent** by shi
 not). In-epic *urgency* downgraded; the durable fix is unchanged.
 
 ### F13 🟡 — `ux.renderBaseUrl` isn't synced to the scaffold's actual dev-server port (jury renders the wrong server)
-**Symptom.** `aidlc.config.json` → `repos[bee-auth-web].ux.renderBaseUrl` = `http://localhost:3000`, but
+**Symptom.** `aidlc.config.json` → `repos[acme-auth-web].ux.renderBaseUrl` = `http://localhost:3000`, but
 the scaffolded web app runs on **:3100** (the scaffold picked :3100 to avoid colliding with the API on
 :3000). :3000 is in fact the **API repo's** port — so when the deferred Epic 2 design-pod UX story runs,
 the jury would render against the **API** (JSON / 404), not the web UI, and silently score the wrong
@@ -234,8 +234,8 @@ So F13 is systemic, not a one-off: every UX repo picks its dev port ad-hoc and n
 to config. Reinforces the fix — scaffold owns the port, so scaffold should write `ux.renderBaseUrl`.
 
 ### F14 🟡 — Scaffolded `.gitignore` doesn't harden `.env*` (secret-hygiene gap across every repo)
-**Symptom.** The epic security consolidation (AUTH-8416) flagged that `bee-auth-web`, `bee-auth-admin`,
-**and** `bee-auth-api` `.gitignore` should be tightened to ignore `.env*` with a `!.env.example`
+**Symptom.** The epic security consolidation (AUTH-8416) flagged that `acme-auth-web`, `acme-auth-admin`,
+**and** `acme-auth-api` `.gitignore` should be tightened to ignore `.env*` with a `!.env.example`
 allow-exception (defense-in-depth — no live leak, but the pattern wasn't there by default). Flagged
 across all three code repos ⇒ template-level, not a one-off.
 **Root cause.** The tooling/structure scaffold doesn't ship a hardened `.gitignore` (or ships a
@@ -296,7 +296,7 @@ board matches reality. Requirements leak and the board silently diverges.
 **Severity 🟠** (silent requirement loss + board drift; a correctness gap in the decompose/close flow,
 mitigated only by a manual audit — arguably 🔴 precisely *because* it was silent). Extends F1.
 **Project-side (not plugin):** husky+lint-staged carved out to a high-priority follow-up task (wire in
-`@beelogical/dev-config` `prepare` → inherited by all repos); 8418 closed with a linked carve-out note;
+`@acme/dev-config` `prepare` → inherited by all repos); 8418 closed with a linked carve-out note;
 8417/8419/8416 reconciled to done.
 
 ### F16 🟠 — Tracker transitions can silently fail; the adapter doesn't read-back-verify (durable record ≠ board)
@@ -365,7 +365,7 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   project code, not a plugin finding.)
 - ✅ **On-demand reviewer skips correctly on routine work (v0.13.0) — validated on AUTH-8569 (the
   *other* direction of the cadence):** where 8568 *spent* the reviewer on genuine novelty (4 new config
-  deviations), 8569 was a **verbatim mirror** of the already-approved bee-auth-web (only port/package/
+  deviations), 8569 was a **verbatim mirror** of the already-approved acme-auth-web (only port/package/
   clientId/route differed, green dev-smoke on both routes), so a fresh review was correctly **skipped**
   — the mechanical diffs are fully covered by the deterministic gates, and admin authz is deferred to
   the epic security pass. Spend-when-novel + skip-when-routine both observed ⇒ the economical model
@@ -375,7 +375,7 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   and recommended skeleton-only (`ui:false`, skip jury), reserving the pod for real UI surfaces. The
   only gap is the *non-interactive* default (logged as F11) — the interactive behavior is correct.
 - ✅ **Dependency policy (v0.12.0) — verified live against the npm registry (2026-07-12):** the
-  `bee-auth-dev-config` scaffold (AUTH-8564) pinned current, mutually-compatible versions — eslint
+  `acme-auth-dev-config` scaffold (AUTH-8564) pinned current, mutually-compatible versions — eslint
   10.7.0, @eslint/js 10.0.1, typescript-eslint 8.63.0, @types/node 26.1.1, prettier 3.9.5,
   eslint-config-prettier 10.1.8 — and, crucially, TypeScript **6.0.3 instead of the latest 7.0.2**,
   because `typescript-eslint@8.63` caps TS at `<6.1.0` and no tseslint 9 exists yet. "Latest stable
@@ -408,7 +408,7 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
 ## Append log
 - 2026-07-11 — initial findings F1–F6 from `/aidlc:init` + first `/aidlc:run 8416` on the poly ADO setup.
 - 2026-07-11 — F1 & F2 confirmed live during 8416 decomposition: orchestrator prompted for the
-  cross-repo split (F1) and asked where the undeclared `bee-auth-dev-config` should live (F2 → new
+  cross-repo split (F1) and asked where the undeclared `acme-auth-dev-config` should live (F2 → new
   repo). Added F7 (ADO statusMap auto-detect), F8 (control-plane routing target), and an F1 note on
   the ADO Story→Story hierarchy constraint (children became Tasks 8564–8570).
 - 2026-07-12 — AUTH-8564 (dev-config) scaffolded + locally merged. Reviewed its package.json;
@@ -445,7 +445,7 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
   rollup so **8569 won't rediscover it** — a claim to test directly on 8569 (does it reuse, or
   re-derive? bears on F12 severity). Next: **8569 (admin, Next twin of 8568)**, then **8570**
   (control-plane README — the F8 case).
-- 2026-07-12 — AUTH-8569 (admin) merge gate: **verbatim mirror** of reviewer-approved bee-auth-web (only
+- 2026-07-12 — AUTH-8569 (admin) merge gate: **verbatim mirror** of reviewer-approved acme-auth-web (only
   port :3001 / package / clientId / `/dashboard` route differed), gates green incl. dev-smoke both
   routes. **Carried lore worked** (no re-derivation) → updated F12 (in-epic self-mitigation confirmed;
   durable fix = persistent template overlay, not run-scoped memory). **F13 replication confirmed**
@@ -508,8 +508,8 @@ assumptions on the run), i.e. ad-hoc, not first-class. So F8's behavior didn't b
 > implemented together through the branch → version → merge flow. Version bumps: `aidlc` 0.14.0 →
 > **0.15.0**, `aidlc-stack-web` 0.8.0 → **0.9.0**, `aidlc-ux` unchanged (**0.3.0**), marketplace →
 > **0.15.0**. See the CHANGELOG `[0.15.0]` entry for the per-finding change list. This cycle came from
-> first exercising the **remote/PR** integration path (the six `bee-auth-*` repos flipped to
-> `git.mode: remote`), real Azure CI, a poly shared-config (`bee-auth-dev-config`, `file:../`-consumed)
+> first exercising the **remote/PR** integration path (the six `acme-auth-*` repos flipped to
+> `git.mode: remote`), real Azure CI, a poly shared-config (`acme-auth-dev-config`, `file:../`-consumed)
 > pattern, and the first security-critical design phase (AUTH-8425/8426 OIDC). F26/F27 were verified in a
 > real eslint9 + dependency-cruiser@17 harness (F27 proven load-bearing; F26 shipped as a
 > robustness/explicitness fix since depcruise 17.4.3 defaults already resolve `exports` maps). The
@@ -633,7 +633,7 @@ if run files are pure AIDLC metadata. Decide at implementation. See `skills/run/
 `skills/run-state/SKILL.md`.
 
 ### F24 🟠 — Remote mode implies PR-gated merges, but the plugin neither scaffolds a CI gate nor warns when none exists — repos operate silently ungated
-**Symptom.** All six `bee-auth-*` repos ran on `git.mode: remote` yet had **no CI**, so AUTH-8669's six
+**Symptom.** All six `acme-auth-*` repos ran on `git.mode: remote` yet had **no CI**, so AUTH-8669's six
 PRs merged with the deterministic gate (lint/type/test/dependency-boundaries) having run **only locally
 during each run** — never as a required PR check. The gap surfaced by luck (an agent aside *after* the
 merges), not from any plugin warning.
@@ -675,7 +675,7 @@ proposed CI template should carry the pool choice).
 **Symptom.** The shipped depcruise profiles false-positived on ESM `exports`-map subpaths; the analyst
 had to add `enhancedResolveOptions: { exportsFields: ["exports"], conditionNames: ["import"] }` centrally.
 This bites the **poly shared-package pattern the plugin itself promotes** (consumers importing e.g.
-`@beelogical/dev-config/lint-staged` via an `exports` subpath).
+`@acme/dev-config/lint-staged` via an `exports` subpath).
 **Root cause.** All three shipped configs (`.dependency-cruiser.{nestjs,next-app,rtk-spa}.cjs`) set
 `doNotFollow`/`tsConfig`/`includeOnly` but **no `enhancedResolveOptions`** (verified — the option string
 appears nowhere in `plugins/`), so dependency-cruiser's enhanced-resolve can't follow `exports`-map
@@ -702,10 +702,10 @@ depcruise `.cjs` configs against the baseline — they must pass. See
 `aidlc-stack-web/templates/tooling/eslint.config.mjs`.
 
 ### F28 🔴 — Poly shared-package dependency (`file:../sibling`) doesn't resolve in isolated CI, and the shared-repo pilot never exercises it (false-green pilot)
-**Symptom.** All five consumers (8679–8683) consume the shared config via `file:../bee-auth-dev-config`
+**Symptom.** All five consumers (8679–8683) consume the shared config via `file:../acme-auth-dev-config`
 — an unpublished sibling-directory link. It resolves in the local multi-repo workspace, but **CI checks
 out only one repo**, so the sibling is absent and every dev-config-sourced config (eslint, prettier,
-tsconfig, lint-staged, depcruise) fails: `Cannot find package '@beelogical/dev-config'`. Blocks 8679–8683
+tsconfig, lint-staged, depcruise) fails: `Cannot find package '@acme/dev-config'`. Blocks 8679–8683
 → therefore 8425. **Worse:** the 8678 pilot went green because dev-config validates *itself* via relative
 imports — it **never exercises the `file:` dependency** the consumers rely on, so "pilot proven" was false
 confidence for the fan-out.
@@ -719,7 +719,7 @@ shared repo first, then fan out"** guidance has a blind spot: piloting the *depe
 the *consumers'* resolution path, so it green-lights a broken pattern.
 **Proposed modification.** (a) **Consumption guidance** in `project-structure`/`ci-cd`: in poly+remote a
 cross-repo dependency must be either **published** (private registry / Azure Artifacts — matches the
-config's stated "published @beelogical/dev-config" intent) **or** resolved via **multi-repo checkout**
+config's stated "published @acme/dev-config" intent) **or** resolved via **multi-repo checkout**
 (`resources.repositories` + a second `checkout:`); flag that unpublished `file:` sibling links are
 **local-only** and fail isolated CI. (b) The CI template (F24/F25) should support a **multi-repo-checkout
 parameter** as a first-class option — and note it must **`npm ci` the checked-out sibling** (its exported
@@ -864,14 +864,14 @@ it. See `aidlc-stack-web/skills/nestjs/SKILL.md`.
 - 2026-07-12 — Cycle 2 opened. From AUTH-8420 (identity schema, first non-scaffold story): logged
   **F17** (missing `.gitattributes`/eol → CRLF mis-diagnosis) and **F18** (scaffold merged
   prettier-dirty). Deferred per-epic security = working-as-designed (not a finding). Separately: the six
-  `bee-auth-*` repos were pushed to Azure Repos and the workspace flipped to `git.mode: remote` — the
+  `acme-auth-*` repos were pushed to Azure Repos and the workspace flipped to `git.mode: remote` — the
   remote/PR integration path is now first under test (watch the next `/aidlc:run` for remote-mode
   findings).
 - 2026-07-12 — From an Authentication `/aidlc:status`: logged **F19** (parent Feature/Epic not rolled up
   to in_progress at first-child-start; drift caught only by F15 status reconciliation). F15 detecting +
   proposing the rollup = working-as-designed; F19 is the proactive complement. Unsized-backlog flag from
   the same status = `/aidlc:groom` working correctly, not a finding.
-- 2026-07-13 — From the AUTH-8669 pilot (bee-auth-dev-config / PR #1754): logged **F20** (flat statusMap
+- 2026-07-13 — From the AUTH-8669 pilot (acme-auth-dev-config / PR #1754): logged **F20** (flat statusMap
   vs per-type ADO working-state names — Epic "In Progress" ≠ Story/Feature "Development in Progress";
   F7 self-heal isn't type-aware) and **F21** (scaffold ships no husky/lint-staged pre-commit layer;
   sibling to F18). Validated working-as-designed: poly predecessor-link gating paused fan-out before the
@@ -953,7 +953,7 @@ it. See `aidlc-stack-web/skills/nestjs/SKILL.md`.
 
 ## Context
 
-Continued dogfooding on the **Bee Logical Identity Platform** (poly + Azure DevOps + remote/PR). Where
+Continued dogfooding on the same **identity platform** (poly + Azure DevOps + remote/PR). Where
 Cycle 2 first exercised the remote/CI path, Cycle 3's findings are about the **reliability of the
 pipeline itself** — trustworthy subagent hand-offs, no silently-truncated backlog sweeps, a clean
 grooming-approval path, a coherent run-file archival story in remote/poly, an encoded CI-parity recipe,

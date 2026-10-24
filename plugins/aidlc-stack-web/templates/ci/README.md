@@ -56,7 +56,7 @@ and let the assertion catch a regression.
 
 CI checks out **one** repo. An unpublished `file:../shared-config` sibling link resolves in the local
 multi-repo workspace but is **absent** under isolated single-repo checkout, so every config it sources
-fails (`Cannot find package '@beelogical/dev-config'`). Two supported resolutions:
+fails (`Cannot find package '@acme/dev-config'`). Two supported resolutions:
 
 1. **Publish** the shared package (Azure Artifacts / GitHub Packages / private registry) and consume
    it by version. **Required** for transitive/**built** cross-repo deps (a repo that needs a *built*

@@ -2,10 +2,10 @@
   "name": "aidlc",
   "displayName": "AIDLC Core",
   "description": "AIDLC (AI Development Life Cycle) orchestrator: reads work items (Jira/ADO/markdown), routes them through requirements, planning, implementation, review, QA and PR — end to end.",
-  "version": "0.61.0",
+  "version": "0.62.0",
   "author": {
-    "name": "Bee-Logical",
-    "email": "sourabh@bee-logical.com"
+    "name": "Sourabh Sudheer",
+    "url": "https://github.com/Sourabh1095"
   },
   "license": "MIT",
   "keywords": ["aidlc", "orchestration", "agile", "work-items", "automation"],

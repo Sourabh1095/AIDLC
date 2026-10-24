@@ -37,8 +37,8 @@ So we scan first.
 ## 0 · Install, and open the workspace
 
 ```
-/plugin marketplace add bee-logical/AIDLC
-/plugin install aidlc@bee-logical
+/plugin marketplace add Sourabh1095/AIDLC
+/plugin install aidlc@aidlc
 ```
 
 Open the **workspace file**, not one of the repos — `code D:\work\acme\acme.code-workspace` — then start

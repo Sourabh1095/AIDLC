@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/bee-logical/AIDLC/main/docs/adoption-profile.schema.json",
+  "$id": "https://raw.githubusercontent.com/Sourabh1095/AIDLC/main/docs/adoption-profile.schema.json",
   "title": "AIDLC adoption profile",
   "description": "The machine-readable output of /aidlc:adopt — an evidence-backed profile of an existing workspace, written to .aidlc/adoption/profile.json. This file is the CONTRACT the later adoption stories read (config writing, gate derivation, convention adoption, drift detection); it is not itself configuration and nothing in the pipeline is steered by it until a human has approved a step that reads it. Every derived fact is a `fact` object carrying evidence and confidence, or is recorded absent/unknown — a value without evidence is a schema violation, not a guess. See docs/brownfield-adoption.md (ADOPT-2) and the aidlc:adopt skill.",
   "type": "object",
