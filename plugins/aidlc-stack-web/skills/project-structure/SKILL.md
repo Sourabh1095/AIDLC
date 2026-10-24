@@ -106,6 +106,10 @@ src/
 - **Custom hooks** wrap RTK Query hooks + selectors for a feature (`use-current-user.ts`); components
   call the hook, not the store directly. **`ui/` components never import the store** — they take
   props; only `features/*` and route components wire to state.
+- **Features compose `ui/`; they never re-implement it.** A button, input, table, modal or card inside
+  `features/*` is the `ui/` primitive with props — a raw `<button className=…>` there is a second design
+  system starting. Something two features need moves *up* (to `ui/`, `hooks/` or `lib/`), never sideways
+  by copy. `aidlc:reuse` lists what each of these folders already holds.
 
 ## Boundary rules (the CI gate enforces these)
 

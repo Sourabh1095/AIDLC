@@ -93,11 +93,8 @@ order nobody holds any more. So close the sweep with a cheap check of the execut
 no writes, and it ends in a handoff rather than an action:
 
 1. **Is there a plan?** `.aidlc/plan.md` at the control plane is the active execution overlay
-   (`aidlc:replan`). If it exists, run its freshness check against the board you just swept:
-
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
-   ```
+   (`aidlc:replan`). If it exists, run its freshness check (`aidlc:replan` → *The freshness check*)
+   against the board you just swept — a full sweep, so pass `--complete`.
 
    **Grooming is the single most likely cause of breaking drift**: a split, a re-decomposition, a
    repo-routing fix or a supersession each change a field the wave packing depends on. If this pass

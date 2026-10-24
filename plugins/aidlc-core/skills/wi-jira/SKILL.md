@@ -126,7 +126,10 @@ type whose real statuses differ.
 
 - **fetch(id)** — get the issue, map fields as above. Include the last ~5 comments in `sourceRaw` context when refining requirements.
 - **query(filter)** — JQL:
-  `project = {project} AND statusCategory = "To Do" AND issuetype IN (Story, Task, Bug, Spike) ORDER BY priority DESC, rank ASC`
+  `project = {project} AND statusCategory = "To Do" AND issuetype IN ({leafTypes}) ORDER BY priority DESC, rank ASC`
+  where **`{leafTypes}` is the project's non-container issue types from the discovery probe** (tier 3 lists
+  every type) — never a literal list. `IN (Story, Task, Bug, Spike)` named a type many sites do not have,
+  which makes the whole JQL invalid, and it never matched a site's own types (`Improvement`, `Defect`).
   (+ `AND labels = {label}` when filtered). **`assignee` filter** (see `aidlc:work-items` → *Ownership*):
   `"me"` → **`AND assignee = currentUser()`** — prefer this over resolving an id, since the MCP is
   OAuth'd as that person and JQL evaluates it server-side; unassigned → `AND assignee IS EMPTY`; both

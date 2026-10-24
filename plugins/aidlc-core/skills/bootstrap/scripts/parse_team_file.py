@@ -160,7 +160,11 @@ def read_csv(filepath):
     # Detect delimiter
     with open(filepath, "r", encoding="utf-8-sig") as f:
         sample = f.read(2048)
+    try:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except csv.Error:
+        # A single-column file has no delimiter to detect; the sniffer raises rather than guessing.
+        dialect = csv.excel_tab if filepath.lower().endswith(".tsv") else csv.excel
 
     rows = []
     with open(filepath, "r", encoding="utf-8-sig") as f:
@@ -192,13 +196,21 @@ def read_csv(filepath):
 
 
 def read_excel(filepath):
-    """Read team data from an Excel file (.xlsx, .xls)."""
+    """Read team data from an Excel workbook (.xlsx)."""
+    # Never install anything from here. This used to run `pip install openpyxl
+    # --break-system-packages` through os.system: an unpinned, unvetted install that the
+    # dependency gate never saw (it only sees `python3 parse_team_file.py`), overriding the
+    # system's PEP 668 protection without asking. A missing reader is the user's decision.
     try:
         import openpyxl
     except ImportError:
-        print("Installing openpyxl...", file=sys.stderr)
-        os.system(f"{sys.executable} -m pip install openpyxl --break-system-packages -q")
-        import openpyxl
+        print(
+            "ERROR: reading .xlsx needs the openpyxl package, which is not installed. Either save the "
+            "sheet as .csv and pass that (no dependency needed), or install openpyxl yourself "
+            "(e.g. in a virtualenv: pip install openpyxl) and re-run.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
     ws = wb.active
@@ -252,10 +264,14 @@ def main():
 
     if ext in (".csv", ".tsv", ".txt"):
         rows, found_fields = read_csv(filepath)
-    elif ext in (".xlsx", ".xls"):
+    elif ext == ".xlsx":
         rows, found_fields = read_excel(filepath)
+    elif ext == ".xls":
+        # openpyxl reads only the .xlsx format; the old binary .xls was accepted and then failed.
+        print("ERROR: legacy .xls files cannot be read. Save the sheet as .xlsx or .csv and pass that.", file=sys.stderr)
+        sys.exit(1)
     else:
-        print(f"ERROR: Unsupported file type '{ext}'. Use .csv, .tsv, .xlsx, or .xls", file=sys.stderr)
+        print(f"ERROR: Unsupported file type '{ext}'. Use .csv, .tsv or .xlsx", file=sys.stderr)
         sys.exit(1)
 
     # Ensure all standard fields exist (fill missing with defaults)

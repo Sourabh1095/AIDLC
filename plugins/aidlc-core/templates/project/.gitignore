@@ -30,6 +30,7 @@ desktop.ini
 .aidlc/sprint-*.json
 .aidlc/staged-claude/
 .aidlc/logs/
+.aidlc/catalog/
 
 # --- tooling ---
 node_modules/

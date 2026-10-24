@@ -15,6 +15,10 @@
 
 {{ASSUMPTIONS — from the run file; delete section if none}}
 
+## Reuse
+
+{{REUSE — the implementer's three lines: reused · extended · new shared (and where), plus the reuse-check result (`dup-check` / `similar` clean, or what was fixed). Keep it even when every line is `none` — it tells the reviewer the question was asked}}
+
 ## Test evidence
 
 {{TESTS_RUN — suites executed, pass counts, new tests added}}

@@ -1,6 +1,6 @@
 // The env-file access switch, shared by the two hooks that enforce it:
-//   env-guard.mjs — the Read|Edit|Write TOOL path (the governed path)
-//   guard.mjs     — the Bash path (the backstop: a shell command bypasses the tools)
+//   env-guard.mjs — the Read/Edit/Write/Grep/NotebookEdit TOOL path (the governed path)
+//   guard.mjs     — the shell path (the backstop: a shell command bypasses the tools)
 //
 // Two hooks are needed because they sit on different tool events; ONE resolver is
 // needed because a switch that means different things on the two paths is not a
@@ -10,8 +10,8 @@
 // and can never be relaxed at runtime, so a user-flippable switch has to live where
 // its value can be read. Fails CLOSED — no config found, unreadable, or any value
 // other than the exact string "ask" is "deny".
-import { readFileSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { findConfig } from "./config.mjs";
 
 // The env-file family, by BASENAME, anywhere in the tree (mono root, poly product
 // subfolders, monorepo apps/*). Matches `.env`, `.env.example`, `.env.local`,
@@ -33,8 +33,6 @@ export function isEnvFile(pathOrToken) {
   return /^\.env(\.|$)/i.test(base);
 }
 
-const _cache = new Map();
-
 // Resolve the switch by walking UP from `startDir` to the nearest
 // .claude/aidlc.config.json. The FIRST config found governs, opted-in or not.
 //
@@ -44,26 +42,8 @@ const _cache = new Map();
 // whose cwd was a product subrepo found no config there and fell back to deny,
 // hard-blocking env writes in a workspace that HAD opted in (F50).
 export function envFileAccess(startDir) {
-  if (_cache.has(startDir)) return _cache.get(startDir);
-  let access = "deny";
-  let dir = startDir;
-  for (;;) {
-    const cfgPath = join(dir, ".claude", "aidlc.config.json");
-    if (existsSync(cfgPath)) {
-      try {
-        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-        if (cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask") access = "ask";
-      } catch {
-        /* present but unreadable/malformed → keep deny */
-      }
-      break; // nearest config governs
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break; // filesystem root, no config found
-    dir = parent;
-  }
-  _cache.set(startDir, access);
-  return access;
+  const { cfg } = findConfig(startDir);
+  return cfg && cfg.pipeline && cfg.pipeline.envFileAccess === "ask" ? "ask" : "deny";
 }
 
 // Access for a specific env path, resolved from that path's OWN directory (relative

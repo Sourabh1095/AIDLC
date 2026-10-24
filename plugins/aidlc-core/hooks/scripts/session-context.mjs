@@ -23,18 +23,18 @@
 // file cannot cost the others.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { frontmatter, readRuns } from "./lib/run-files.mjs";
+import { frontmatter, readRuns, WAITING_ON_HUMAN } from "./lib/run-files.mjs";
+import { readInput, cwdOf } from "./lib/hook-io.mjs";
 import { tail, latest } from "../../skills/journal/journal.mjs";
 
-const MAX_LINES = 14;
+const MAX_LINES = 15;
 
-let data = {};
-try {
-  data = JSON.parse(readFileSync(0, "utf8"));
-} catch {
-  /* fall through with empty */
-}
-const cwd = data.cwd || process.cwd();
+const data = readInput() ?? {};
+const cwd = cwdOf(data);
+// SessionStart also fires after a compaction (matcher `compact`). This hook is the only point at
+// which anything can be put back into the model's context then: PreCompact and Stop hook output goes
+// to the debug log, never to the model, so the old "flush before compaction" reminder was never seen.
+const afterCompaction = data.source === "compact" || data.trigger === "compact";
 
 const lines = [];
 const section = (fn) => {
@@ -54,19 +54,25 @@ section(() => {
 section(() => {
   const runs = readRuns(cwd, (r) => r.phase && r.phase !== "done");
   if (!runs.length) return;
-  const blocked = runs.filter((r) => r.phase === "blocked");
-  const active = runs.filter((r) => r.phase !== "blocked");
+  // Blocked and review-pending both wait on a person; everything else waits on the pipeline.
+  const blocked = runs.filter((r) => WAITING_ON_HUMAN.has(r.phase));
+  const active = runs.filter((r) => !WAITING_ON_HUMAN.has(r.phase));
   const fmt = (r) =>
     `- ${r.item} [${r.phase}]${r.repo && r.repo !== "null" ? ` repo=${r.repo}` : ""}` +
     `${r.branch ? ` branch=${r.branch}` : ""}${r.pr && r.pr !== "null" ? ` pr=${r.pr}` : ""}`;
   if (blocked.length) {
-    lines.push(`⛔ Blocked — needs you (${blocked.length}):`);
+    lines.push(`⛔ Needs you — blocked or awaiting review (${blocked.length}):`);
     for (const r of blocked.slice(0, 3)) lines.push(fmt(r));
   }
   if (active.length) {
     lines.push(`Active AIDLC runs (${active.length}):`);
     for (const r of active.slice(0, 3)) lines.push(fmt(r));
     if (active.length > 3) lines.push(`  …and ${active.length - 3} more — /aidlc:status`);
+    lines.push(
+      afterCompaction
+        ? "Context was just compacted: re-read each active run's .aidlc/runs/<ID>.md before continuing — anything not written there is gone."
+        : "Run files are the memory: re-read .aidlc/runs/<ID>.md before continuing a run, and write progress there as you go.",
+    );
   }
 });
 

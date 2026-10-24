@@ -7,6 +7,117 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.54.0] — 2026-10-24
+
+Three fixes in one release, in priority order: the guardrails had real holes, the pipeline had no way
+to reuse what a project already has, and several pipeline steps failed without any error.
+`aidlc` 0.54.0 · `aidlc-stack-web` 0.14.0 · `aidlc-ux` 0.8.0.
+
+### The guard hooks had gaps you could drive a force-push through (`aidlc`)
+
+A probe that fed the hook scripts crafted inputs found these, each one a silent allow:
+
+- **The PowerShell tool reached no hook.** `hooks.json` matched `Bash` only. On Windows Claude Code also
+  exposes `PowerShell`, and without Git Bash it registers *only* that one — so no guard, no dependency
+  gate, nothing. Both shell hooks now match `Bash|PowerShell`, and the parser compares command names
+  case-insensitively (`GET-CONTENT .env` is `Get-Content .env`), strips `.exe`, decodes
+  `-EncodedCommand`, and accepts PowerShell's parameter prefixes (`-r` for `-Recurse`, `-COMMAND`).
+- **Pushes to main from a feature branch** with `feat:refs/heads/main`, `--mirror`, `--all`, a wildcard
+  refspec, an inline `-c alias.p=push`, or a configured git alias. Fully-qualified refs are normalised,
+  the all-branch forms are blocked, aliases are resolved (shell aliases included) and checked, and the
+  protected set now includes the config's `defaultBranch`, `integrationBranch` and `longLivedBranches`.
+- **Shell grammar hid the real command**: `then git push --force`, `(cd x && git push --force)`,
+  `f() { …; }`, `$(…)`/backticks/`<(…)`, and prefixes like `nohup`, `timeout 5`, `nice`, `bash -lc`.
+- **The guardrails could be rewritten from the shell** (`echo {} > .claude/settings.json`,
+  `cp x <plugin>/hooks/scripts/guard.mjs`, `>> .git/hooks/pre-commit`), and the tool path matched
+  case-sensitively, so `.Claude\settings.json` walked past it on Windows and macOS. What is protected is
+  now defined once (`lib/protected-paths.mjs`) and enforced on both paths. It protects the hooks that
+  are **running** — this plugin's own folder and anything under a `.claude/` directory — rather than
+  any path containing `aidlc-core`, which blocked maintainers editing the source in this repo.
+- **`.env` was readable** through `grep`, `sed`, `awk`, `source`, `< .env`, `Select-String`, a .NET file
+  API, `cp .env /tmp`, and the Grep tool (not in the env-guard matcher). Search tools skip their
+  *pattern* operand, so `grep -rn ".env" src/` is not mistaken for a read. Changing
+  `pipeline.envFileAccess` through Edit/Write now asks — the pipeline cannot widen its own access.
+- **A crashing hook let the call through** (exit 1 is a non-blocking error). Every security hook now
+  runs inside `lib/hook-io.mjs` → `runGuard`: unreadable input or any thrown error becomes a permission
+  *ask*, never a silent allow, never a session-bricking deny.
+- **dep-vet** missed `pnpm add -w`, `bun add -d`, `npm --registry X install`, `python -m pip`,
+  `uv pip`, `cargo install`, and every fetch-and-run (`npx`, `pnpm dlx`, `yarn dlx`, `bunx`, `uvx`,
+  `pipx run`). `npx`/`bunx` of a tool already in `node_modules/.bin` stays ungated; local paths
+  (`pip install -e .`, `npm i ../shared`) are not registry fetches.
+- **`rm -rf /d/app/dist` from `D:\app`** (Git Bash drive form) was blocked as "outside the project";
+  `rd /s /q C:\…` was not seen as recursive at all.
+
+New suites: `guard-shells.test.mjs`, `protect-paths.test.mjs` (it had none), `hooks.test.mjs` (pins
+which tool reaches which hook — the script tests could never see a matcher gap), plus new rows in the
+env-guard and dep-vet suites.
+
+### Reuse first — the pipeline now knows what the project already has (`aidlc`, `aidlc-stack-web`, `aidlc-ux`)
+
+The one reuse instruction in the pipeline was a clause in the implementer's prompt, with nothing to
+reuse *from*, no plan step that asked, and no check afterwards — the default cadence runs no reviewer.
+Architecture **D13** records the design; the new skill is **`aidlc:reuse`**.
+
+- **`catalog.mjs`** lists every exported symbol in a repo's shared areas (components, hooks, lib/utils,
+  clients, types, validators, errors, test fixtures/factories, monorepo packages) with signature,
+  location and doc line, across TS/JS, Python, Go, Java/Kotlin, C#, Rust, PHP and Ruby, and answers
+  ranked, synonym-aware queries (`pager` finds `usePagination`). Generated on demand, never committed.
+- **Every plan opens with `### Reuse`** — uses, extends, new shared, rejected — at every size (small
+  items skip the architect, and were planned from "a quick look"). Task lines carry `reuses:`.
+- **Look-alike tasks get their shared piece first.** `resolve-fanout.mjs` now warns when a parallel
+  window applies one treatment N times with no `foundation` task before it — N implementers who cannot
+  see each other were writing N copies.
+- **The implementer** gets the catalog hits for each task in its brief, climbs reuse → extend →
+  extract → create-in-the-shared-area, self-checks before reporting, and reports reused / extended /
+  new shared. Its prompt no longer hard-codes conventional commits or CLAUDE.md's commands.
+- **Every item is checked, whatever the cadence.** `dup-check.mjs` compares the branch's *added* lines
+  against the repo (literals folded, braces/imports/comments ignored, data tables excluded) and
+  `catalog.mjs similar` flags new exports that resemble existing ones. A copy of existing product code,
+  or a block written twice in one change, is a `MAJOR` finding; `reuse.duplication` tunes it.
+- **Review**: a *Reuse & duplication* checklist item, and the PR body gains a *Reuse* section.
+- **Stack pack**: *Writing for reuse* in `coding-standards-ts`; `project-structure` states that features
+  compose `ui/` primitives and never re-implement them.
+- **Design pod**: the audit runs whenever code exists and inventories existing components from the
+  catalog; builds compose from that inventory and add new primitives once, to the shared UI folder.
+  Core's "greenfield" test now also requires no theme/tokens in code — it had classed every app the pod
+  had never seen as greenfield, and the pod built a second design system beside the existing one. The
+  jury gains a **product** profile (usability 30%, consistency 25%, creativity 5%) chosen automatically
+  for non-marketing screens, an accessibility floor (AA contrast, focus, keyboard reach) that no
+  composite can override, per-juror report files, and the signature moment becomes optional on
+  product screens.
+
+### Pipeline steps that failed without an error (`aidlc`)
+
+- **`/aidlc:replan` was almost always ignored.** The plan snapshots every unfinished item; `next`
+  compared it with its top five `todo` items, so everything else read as deleted and the plan was
+  discarded. `--freshness` now takes `--complete` only when the caller fetched every snapshot id, and
+  reports the rest as `unverified`. It reads `plan.md` directly (`--snapshot-ids`), and the procedure is
+  stated once, in `replan`, instead of five times.
+- **Runs in a repo given by absolute path** (another drive) and **runs in sprint worktrees** never
+  appeared in the session snapshot; `run-files.mjs` resolves paths and lists worktrees, and doctor now
+  shares it. `review-pending` is in the phase list, and counts as waiting on a human.
+- **The PreCompact/Stop hook never reached the model** — their output goes to the debug log. The
+  hook is removed; SessionStart (which also fires after a compaction) now tells the model to re-read the
+  run file.
+- **Markdown backlog + sprint handed out duplicate ids** (each worktree had its own `.sequence`).
+  `wi-markdown/next-id.mjs` allocates in the main worktree under a lock and never reissues an id.
+- **Tracker queries hard-coded vendor defaults** that the adapters' own discovery sections forbid
+  (`State IN ('New','To Do','Approved')`, `issuetype IN (Story, Task, Bug, Spike)`); both now use the
+  discovered `Proposed`/`To Do`-category states and leaf types.
+- **Adopting an existing repo kept init's template defaults** (`main` on a `master` repo): init's adopt
+  path writes `adoption.status: "pending"`, and adopt-apply defaults placeholders to *replace*.
+- **Init's git check** used `--is-inside-work-tree`, which answers yes inside any ancestor repo.
+- **`review-feedback`** read only the first 100 threads and re-ingested disputed threads every round.
+- **The jury's round cap** filed `MAJOR` findings that sent core into code fix cycles that never re-ran
+  the jury; it now files `MINOR` for a human.
+- **`/aidlc:sprint` on Jira** cannot approve MCP prompts headless and has no CLI fallback — the
+  preflight and doctor now say so instead of launching runs that fail.
+- **Sprint worktrees** branched from `main` with a fixed name, ignoring `branchPattern` and GitFlow's
+  `integrationBranch`.
+- **`parse_team_file.py`** ran `pip install --break-system-packages` silently; it now tells the user
+  what to install, rejects legacy `.xls` up front, and survives single-column CSVs.
+- The design-system and motion agents were told to use Context7 without having its tools.
+
 ## [0.53.0] — 2026-08-13
 
 ### `/aidlc:bootstrap` had read the requirements but never the codebase (`aidlc` 0.53.0)

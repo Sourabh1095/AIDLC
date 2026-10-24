@@ -180,7 +180,12 @@ apply the tag fallback and comment what happened.
 
 - **fetch(id)** — `az boards work-item show --id {n} --expand relations -o json` (or MCP equivalent); map as above.
 - **query(filter)** — WIQL:
-  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ('New','To Do','Approved') AND [System.WorkItemType] NOT IN ('Epic','Feature') ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
+  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}' AND [System.State] IN ({todoStates}) AND [System.WorkItemType] IN ({leafTypes}) ORDER BY [Microsoft.VSTS.Common.Priority] ASC, [System.Id] ASC`
+  where **`{todoStates}` is every state name whose category is `Proposed`** across the leaf types, and
+  **`{leafTypes}` is the process's backlog-level types below Feature** — both from the states probe
+  above (*Status map*), never the Agile/Scrum defaults. The literal `('New','To Do','Approved')` this used
+  to carry contradicted that section: a customized board's `Proposed` state (`Ready`, `Groomed`,
+  `Backlog`) was never returned, and `/aidlc:next` reported nothing ready on a full board.
   via `az boards query --wiql "..."`. **`assignee` filter** (see `aidlc:work-items` → *Ownership*):
   `"me"` → **`AND [System.AssignedTo] = @Me`** — prefer the macro over a literal, it resolves to the
   authenticated identity server-side and sidesteps UPN-vs-display-name entirely; unassigned →

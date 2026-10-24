@@ -43,6 +43,15 @@ Each choice below must name the narrative line or inspiration direction it satis
 Buttons, inputs, cards, nav: default / hover / focus-visible / active / disabled — each state
 references tokens. Focus states are mandatory and visible (accessibility, not optional).
 
+### Component inventory — build screens from these
+
+<!-- Seeded from the audit's Components table; every new shared primitive is added here in the same
+     change that creates it. A screen needing something not listed gets it built ONCE in the shared UI
+     folder, with its variants as props — never inline in the screen. -->
+
+| Component | Path | Variants / props | Notes |
+|---|---|---|---|
+
 ## Token export
 
 - File(s) written: {{path to tokens.css / tailwind.config / tokens.ts}}

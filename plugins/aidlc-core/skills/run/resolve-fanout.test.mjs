@@ -6,7 +6,7 @@
 // cannot prove disjointness, the expected answer is SERIAL.
 import {
   resolveFanout, pathsOverlap, globToRegExp, sharedHit, fanoutSettings, scheduleSummary,
-  DEFAULT_SHARED_PATTERNS,
+  DEFAULT_SHARED_PATTERNS, lookAlikeTasks,
 } from "./resolve-fanout.mjs";
 
 let n = 0, fails = 0;
@@ -140,5 +140,30 @@ check("a single task is serial (nothing to pair with)", shape(resolveFanout([t("
 check("a plan object with a tasks[] array is accepted", shape(resolveFanout({ tasks: [t("1", ["a.ts"]), t("2", ["b.ts"])] }, {})), [["1", "2"]]);
 check("missing ids fall back to 1-based position", resolveFanout([{ paths: ["a.ts"] }, { paths: ["b.ts"] }], {}).tasks.map((x) => x.id), ["1", "2"]);
 
+
+// ---------------------------------------------------------------- look-alike parallel tasks
+// The fan-out's flagship case — the same treatment on N screens — is also how N copies of one helper
+// get written: parallel implementers cannot see each other. The resolver warns; it never reschedules.
+const tt = (id, title, paths, extra = {}) => ({ id, title, paths, ...extra });
+const screens = [
+  tt("1", "Add pagination to the users screen", ["src/screens/users.tsx"]),
+  tt("2", "Add pagination to the orders screen", ["src/screens/orders.tsx"]),
+  tt("3", "Add pagination to the invoices screen", ["src/screens/invoices.tsx"]),
+];
+const warnOf = (r) => r.warnings.filter((w) => /look like the same treatment/.test(w));
+check("same treatment on N screens is recognised", lookAlikeTasks(screens).map((x) => x.id), ["1", "2", "3"]);
+check("unrelated titles are not", lookAlikeTasks([tt("1", "Add avatar upload endpoint", []), tt("2", "Fix header typo", [])]).length, 0);
+check("look-alike parallel window with no foundation warns", warnOf(resolveFanout(screens, {})).length, 1);
+check("the warning never changes the schedule", shape(resolveFanout(screens, {})), [["1", "2", "3"]]);
+check(
+  "a foundation task before them silences it",
+  warnOf(resolveFanout([tt("0", "Create usePagination hook", ["src/hooks/use-pagination.ts"], { foundation: true }), ...screens], {})).length,
+  0,
+);
+check(
+  "tasks that declare reuses: are consuming a shared piece — no warning",
+  warnOf(resolveFanout(screens.map((x) => ({ ...x, reuses: ["src/hooks/use-pagination.ts:usePagination"] })), {})).length,
+  0,
+);
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 if (fails) process.exit(1);

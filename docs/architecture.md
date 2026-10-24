@@ -30,8 +30,10 @@ instruction rather than the model's discretion, and that is the property worth h
 the deliberately open front door: it grounds first, routes second, and creates nothing on its own.
 
 **D2 — Run files are the single source of truth.** `.aidlc/runs/<ID>.md` records phase, plan,
-assumptions, findings and log. It survives compaction (PreCompact hook forces a flush),
-session restarts (SessionStart hook re-injects a snapshot), and crashes (`/aidlc:run` resumes
+assumptions, findings and log. It survives compaction and session restarts (the SessionStart hook,
+which also fires after a compaction, re-injects a snapshot and tells the model to re-read the run file
+— PreCompact and Stop hook output reaches only the debug log, so a "flush before compacting" hook could
+never work and was removed), and crashes (`/aidlc:run` resumes
 from the recorded phase). It's committed to the feature branch, so every PR carries its own
 audit trail. Tracker comments are the *external* progress signal; the run file is the
 *internal* machine state; the run file wins on conflict.
@@ -361,6 +363,34 @@ read the working tree, so two branches cut from one base both produced `0012`, b
 (neither diff shows the other), both merged, and `superseded-by-0012` became permanently ambiguous with
 no error anywhere. Numbers are now reserved from the integration branch plus open PRs.
 
+**D13 — Reuse is an input to planning and a check on the result, not an exhortation.** The pipeline
+used to ask for reuse in one clause of the implementer's prompt — *"reuse existing utilities before
+writing new ones"* — and gave it nothing to reuse *from*. Nothing upstream knew what the project already
+had (the adoption profile records stack, gates and conventions, never components or helpers), nothing
+required a plan to say what it would reuse, nothing downstream checked, and the default verification
+cadence runs no reviewer at all. The parallel fan-out made it structural: its flagship case, the same
+treatment on six screens, gives six implementers that cannot see each other six chances to write the
+same helper. The result is the most common complaint about AI-written code — it re-writes what was
+already there.
+
+`aidlc:reuse` closes it at both ends with two deterministic, dependency-free tools:
+
+- **The catalog** (`catalog.mjs`) lists every exported symbol in the repo's shared areas — components,
+  hooks, lib/utils, clients, types, validators, test fixtures — with signature, location and doc line,
+  across the common languages, and answers ranked queries. Every plan, at every size, opens with a
+  `### Reuse` block written from it; the implementer's brief quotes it per task; the design pod's audit
+  takes its component inventory from it. It is regenerated on demand, never committed — derived data
+  in git is churn on every branch.
+- **The checks** (`dup-check.mjs`, `catalog.mjs similar`) measure what *this branch* duplicated —
+  added lines only, so a legacy codebase is not failed on day one — and run on every item regardless
+  of cadence, because they cost seconds. A copy of existing product code, or a block written twice in
+  one change, is a `MAJOR` finding fixed by reuse or extraction (`reuse.duplication` tunes it).
+
+Planning gains one structural rule: look-alike tasks get a `foundation` task that builds their shared
+piece first, and `resolve-fanout.mjs` warns when a parallel window is missing one. The counterweight is
+stated as firmly: **one caller is not a pattern** — the second caller earns the extraction, and a
+speculative abstraction is a finding too.
+
 ## 2. What is implemented
 
 ### Pipeline
@@ -414,7 +444,7 @@ Commands: `do`, `run`, `next`, `sprint`, `status`, `doctor`, `init`, `bootstrap`
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
 `promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
 `run-state`, `journal`, `facts`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
-Playbooks: `ceremony`, `requirements`, `planning`, `architecture`, `code-review`, `testing`,
+Playbooks: `ceremony`, `requirements`, `planning`, `reuse`, `architecture`, `code-review`, `testing`,
 `debugging`, `security`, `ci-cd`, `docs-writing`, `research`, `maintenance`. Stack pack
 (`aidlc-stack-web` plugin): `coding-standards-ts`, `project-structure`, `nextjs`, `nestjs`,
 `postgres`, `mongodb`, `db-migrations`, `docker`, `api-design`, `ci-web`. UX pod (`aidlc-ux`
@@ -446,11 +476,21 @@ upstream.
 
 ### Hooks (Node, cross-platform)
 
-**Core** (`aidlc`): `guard.mjs` (PreToolUse Bash) · `dep-vet.mjs` (PreToolUse Bash — gates
-package-add commands, across every supported ecosystem, to vet the dependency before install) ·
-`protect-paths.mjs` (PreToolUse Edit/Write) · `env-guard.mjs` (PreToolUse Read/Edit/Write) ·
-`session-context.mjs` (SessionStart) · `checkpoint.mjs` (PreCompact + Stop). Shared helpers live in
-`hooks/scripts/lib/`.
+**Core** (`aidlc`): `guard.mjs` (PreToolUse Bash|PowerShell) · `dep-vet.mjs` (PreToolUse
+Bash|PowerShell — gates package-add and fetch-and-run commands, across every supported ecosystem, to
+vet the dependency before install) · `protect-paths.mjs` (PreToolUse Edit/Write/MultiEdit/NotebookEdit)
+· `env-guard.mjs` (PreToolUse Read/Edit/Write/MultiEdit/NotebookEdit/Grep) · `session-context.mjs`
+(SessionStart, including after a compaction). Shared helpers live in `hooks/scripts/lib/`,
+and `hooks.test.mjs` pins which tool reaches which hook.
+
+**Both shell tools are guarded, and a guard that fails asks.** On Windows Claude Code also exposes a
+`PowerShell` tool, and without Git Bash it registers *only* that one — so a `Bash`-only matcher meant
+no guard ran at all. And a hook that crashed exited 1, which Claude Code treats as a non-blocking
+error: the call proceeded. Every security hook now runs inside `lib/hook-io.mjs` → `runGuard`, which
+turns unreadable input or any thrown error into a permission *ask* — never a silent allow, never a
+session-bricking deny. What counts as a guardrail (permission settings, the **running** hooks, git
+config and hooks, CI files) is defined once in `lib/protected-paths.mjs` and enforced on both the tool
+path and the shell path.
 
 **Stack pack** (`aidlc-stack-web`): `format.mjs` (PostToolUse Edit/Write) — Prettier is a JavaScript
 tool, so the hook that runs it ships with the JavaScript pack. Core installs no formatting hook; a

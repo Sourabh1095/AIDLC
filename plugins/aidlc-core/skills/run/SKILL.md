@@ -143,8 +143,12 @@ available AND `ux.enabled` is true AND
   something (not a pure API/DB/infra change).
 When true, also resolve and record on the run file:
 - **scope** — a specific page/route/component named by the item, else the whole app;
-- **mode** — `greenfield` if no `design/design-system.md` exists yet, else `retrofit` for a scoped
-  surface or `redesign` if the item asks to redo the whole app;
+- **mode** — `greenfield` only when the frontend has **no established system at all**: no
+  `design/design-system.md` **and** no theme/tokens/component library in code (a Tailwind theme, CSS
+  variables, a `components/ui` folder — `aidlc:reuse` → `catalog.mjs query <repo> component ui theme`
+  shows it). Otherwise `retrofit` for a scoped surface, or `redesign` if the item asks to redo the whole
+  app. Reading only for the design file classed every app that had never met the pod as greenfield, and
+  the pod then built a second design system beside the one already in the code;
 - **brand** — whether `ux.brand` config or `design/brand/` holds anchors to honor;
 - **designSource** — `figma` when the screens already exist in Figma (the resolved repo/package has
   `ux.figma.enabled` with a `fileKey`, OR the item/AC/attachments carry a `figma.com/design/…` URL,
@@ -385,9 +389,16 @@ Estimate size (item's `estimate`, else analyst's sizing). If size ≥ config
 `pipeline.architectThreshold` OR the item is labeled `architecture`: dispatch
 **Agent → aidlc-architect** to explore the codebase and write `## Plan` (+ ADR when the
 decision is hard to reverse). It reports `MIS-SCOPED` → treat as blocked: comment, notify, stop.
-Otherwise YOU write a short ordered plan (3–8 checkbox tasks) into `## Plan` — grounded in a
-quick look at the relevant code, not guesswork. Items whose plan touches infra/CI/Docker only →
+Otherwise YOU write a short ordered plan (3–8 checkbox tasks) into `## Plan` — grounded in the
+relevant code, not guesswork. Items whose plan touches infra/CI/Docker only →
 route the implement phase to **aidlc-devops** instead of the implementer.
+
+**Every plan opens with a `### Reuse` block, at every size** (`aidlc:reuse` → *Planning*). Query the
+catalog for the item's nouns before writing a task — `node "${CLAUDE_PLUGIN_ROOT}/skills/reuse/catalog.mjs"
+query <repo-path> <words…>` — and record what the plan uses, extends and newly shares, or
+`none found (queried: …)`. Small items are where this matters most: they skip the architect, they are
+most of the work, and an orchestrator planning from "a quick look" is exactly how a second date
+formatter gets written next to the first. Pass the architect the same instruction; it is in its brief.
 
 **Every plan task declares the paths it will touch** — `- [ ] <task>  ·  paths: src/screens/users.tsx`.
 This is not bookkeeping: §6 uses it to decide what can be implemented concurrently, and a task with no
@@ -402,6 +413,9 @@ apply, both about **ordering, which paths cannot express**:
   strictly ordered; nothing can infer that from the file lists, so if you omit it the two will be run
   side by side. When in doubt, declare the edge — a needless edge costs a little wall-clock, a missing
   one costs a broken build nobody can attribute.
+- `reuses: <path:symbol>` — what the task consumes from the `### Reuse` block. The implementer brief
+  names it, and a parallel window whose look-alike tasks all declare it is consuming one shared piece
+  rather than each writing its own.
 
 Prefer paths that are **files**, not directories or globs: two globs cannot be proven disjoint, so the
 resolver assumes they collide and serializes both.
@@ -516,14 +530,29 @@ Record `fanout: <schedule summary>` on the run file (e.g. `1 -> [2|3|4] -> 5`), 
 what ran concurrently. If the resolver is unavailable, **run everything serially** — the fan-out is an
 optimization and losing it costs time; guessing disjointness by eye costs code.
 
+**A look-alike warning is a plan defect — fix the plan before dispatching.** When the resolver says
+tasks "look like the same treatment" with no foundation task, N parallel implementers are about to write
+N copies of the same helper, because none of them can see the others. Add the `foundation: true` task
+that builds the shared piece, point the rest at it with `reuses:`, re-run the resolver. If the tasks
+genuinely share nothing, say so in `## Log` and continue.
+
 ### The implementer brief
 
 Dispatch **Agent → aidlc-implementer** with brief: run-file path, `## Plan`, AC list, stack
-config, **the resolved gate** (below), **the runtime constraints** (next paragraph), and: implement per
-plan, tick plan checkboxes as completed, commits per logical unit in the project's own commit style
-(`aidlc:git-workflow` → *Commits*), **run the resolved gate before finishing**, append a summary line to
-`## Log`. (In a parallel window, the commit and gate instructions are replaced by the fan-out contract
-above — the agent neither commits nor runs the full gate.)
+config, **the resolved gate** (below), **the runtime constraints** (next paragraph), **the project's
+commit style** (`commitStyle` on the resolved repo, else the top-level `git` block — the implementer does
+not assume conventional commits), **the reuse context** (below), and: implement per plan, tick plan checkboxes as completed,
+commits per logical unit in that style (`aidlc:git-workflow` → *Commits*), **run the resolved gate
+before finishing**, append a summary line to `## Log`. (In a parallel window, the commit and gate
+instructions are replaced by the fan-out contract above — the agent neither commits nor runs the full
+gate.)
+
+**The reuse context** is the plan's `### Reuse` block plus, for each task, the top catalog hits for its
+title (`catalog.mjs query <repo> <task title words>`, ~5 lines each) — quoted, so the implementer
+starts from the list of what exists rather than from a search it may or may not run. For a UI task, add
+`design/design-system.md` when it exists: the components and tokens it names are the vocabulary the
+screen is built from. Tell it to follow `aidlc:reuse` → *Implementing* and to report reused / extended /
+new shared.
 
 **Where a plan line carries a `wi:` binding (§5), its commit trailer names both IDs** — `Refs: <leaf>,
 <task>` — the leaf for the PR, the Task for the effort. Put that in the brief with the plan; the
@@ -737,6 +766,23 @@ repo's `saas` block **before** reading cadence, and record each trigger that fir
 None of these fire when the corresponding `saas` field is absent — the pipeline never invents a
 constraint the scan did not evidence.
 
+### Reuse checks — every item, whatever the cadence
+
+Right after the gate, from the repo's checkout:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/reuse/dup-check.mjs" . --base <remote>/<base> --min-lines <reuse.minCloneLines|8>
+node "${CLAUDE_PLUGIN_ROOT}/skills/reuse/catalog.mjs" similar . --base <remote>/<base> --config <control-plane>/.claude/aidlc.config.json
+```
+
+Turn the output into `## Findings` per `aidlc:reuse` → *Verifying* (a copy of existing product code or a
+block written twice in this change is `MAJOR` under the default `reuse.duplication: block`; test-code
+copies and look-alike names are `MINOR`). These are deterministic, take seconds and need no agent, so
+they run on every item — the default cadence runs no reviewer, and without this nothing would notice
+that the change re-wrote something the project already had. Record the result on the run file even when
+clean (`reuse: dup-check clean · similar clean`), and copy the implementer's reused / extended / new
+shared lines into the PR body's *Reuse* section.
+
 ### Agent cadence
 
 Read `pipeline.verification`. Defaults are **economical**: `mode` `auto`; `reviewer` `on-demand`;
@@ -777,7 +823,8 @@ requested review/QA/security, or `## Findings` carries user-supplied issues to r
   - **Nothing due** (the default per-item case — reviewer/qa on-demand, security per-epic) **and no
     risk trigger fired**: add
     `[NOTE] no automated verification this item (cadence) — CI gate + human PR review are the gate`
-    to `## Findings` and go to §8. This is expected, not a failure. If a risk trigger *did* fire, the
+    to `## Findings`, then apply the open-findings rule below rather than going straight to §8 — the
+    reuse checks may have filed a `MAJOR` even though no agent ran. This is expected, not a failure. If a risk trigger *did* fire, the
     agents it named run even though the cadence says nothing is due — that is the whole point of the
     override, and the `## Findings` line names which trigger caused it.
 

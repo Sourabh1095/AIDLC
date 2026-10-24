@@ -12,9 +12,10 @@ user-invocable: false
 2. **Correctness** — off-by-one, null/undefined paths, error handling (swallowed errors, unhandled rejections), async races, transaction boundaries.
 3. **Regression risk** — changed signatures/contracts, altered shared utilities, DB schema impacts, API response shape changes.
 4. **Security quick pass** — unsanitized input → SQL/NoSQL/command/HTML sinks; secrets/tokens in diff; missing authn/authz on new endpoints; overly broad CORS/permissions. (Deep security review is a separate phase/agent.)
-5. **Standards** — project naming/idioms, loaded coding-standards skills, dead code, TODOs without item refs, commit hygiene (conventional format, `Refs:` line).
-6. **Tests** — new behavior has tests that would FAIL if the behavior broke; boundary cases from the AC covered; no assertion-free tests.
-7. **Performance sanity** — N+1 queries, unbounded loops over user data, missing indexes for new queries, large payloads unpaginated. Flag only concrete risks, not hypotheticals.
+5. **Reuse & duplication** — read the run file's `reuse:` results (`aidlc:reuse` → *Verifying*: `dup-check` + `catalog similar`, already filed as findings) and judge what a matcher cannot: logic copied with renamed variables (`dup-check --fuzzy`), a new component that is an existing one with one prop changed, a hand-rolled helper the project or one of its dependencies already provides, generic code buried in a feature folder, an "extension" that broke an existing caller. Re-implementing something the catalog lists = `MAJOR`; a speculative abstraction with a single caller = `MINOR`.
+6. **Standards** — project naming/idioms, loaded coding-standards skills, dead code, TODOs without item refs, commit hygiene (the project's `commitStyle`, `Refs:` line).
+7. **Tests** — new behavior has tests that would FAIL if the behavior broke; boundary cases from the AC covered; no assertion-free tests.
+8. **Performance sanity** — N+1 queries, unbounded loops over user data, missing indexes for new queries, large payloads unpaginated. Flag only concrete risks, not hypotheticals.
 
 ## Severity taxonomy
 

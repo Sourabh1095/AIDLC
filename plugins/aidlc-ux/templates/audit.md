@@ -16,11 +16,20 @@ Sibling screens reviewed (for "consistent with the rest"): {{list}}
 | Typography | | | |
 | Spacing | | | |
 | Radius / elevation | | | |
-| Components | | | |
+
+## Components already in the code
+
+<!-- From `aidlc:reuse` → catalog.mjs (components, ui, hooks, icons). This is the vocabulary every
+     later phase builds screens from: a screen uses these, extended with a prop or variant when needed,
+     and never a fresh copy. -->
+
+| Component | Path | For | Variants / props | Keep? |
+|---|---|---|---|---|
 
 ## Inconsistencies & debt
 
-- {{same role → different values, off-scale spacing, hardcoded hex, duplicated components…}}
+- {{same role → different values, off-scale spacing, hardcoded hex, the same component built twice under
+  different names (name both — merging them is debt worth an item)…}}
 
 ## Recommendation
 

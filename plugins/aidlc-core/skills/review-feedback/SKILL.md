@@ -58,14 +58,19 @@ dependabot) are not review feedback and drown the real ones.
 
 ```bash
 gh pr view <pr> --json reviews,reviewDecision,state,mergeable
-gh api graphql -f query='
-  query($owner:String!,$repo:String!,$pr:Int!){
+gh api graphql --paginate -f query='
+  query($owner:String!,$repo:String!,$pr:Int!,$endCursor:String){
     repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
-      reviewThreads(first:100){ nodes{
+      reviewThreads(first:100, after:$endCursor){ pageInfo{ hasNextPage endCursor } nodes{
         id isResolved isOutdated path line
-        comments(first:20){ nodes{ author{login} body createdAt } } } } } } }' \
+        comments(first:50){ totalCount nodes{ author{login} body createdAt } } } } } } }' \
   -F owner=<owner> -F repo=<repo> -F pr=<n>
 ```
+
+**Read every page.** `--paginate` follows `endCursor` until `hasNextPage` is false; one `first:100` call
+silently dropped thread 101 onward on a large review, and those comments were never answered. Where a
+thread's `comments.totalCount` exceeds what came back, fetch the rest of that thread before acting on it
+— the latest reply is usually the one that matters.
 
 `reviewThreads` is the one that matters — `--json comments` returns only top-level PR conversation and
 misses every inline code comment, which is where review feedback actually lives. Keep each thread's `id`
@@ -92,7 +97,11 @@ finding even when no thread explains it; record it and ask what they wanted rath
 
 ## 2 · RECORD THEM AS FINDINGS
 
-Append to the run file's `## Findings`, one line per thread, **attributed and addressable**:
+Append to the run file's `## Findings`, one line per thread, **attributed and addressable** — and
+**once per thread**: a thread whose `thread:<id>` is already in `## Findings` is not added again. Update
+that line when the thread has comments newer than the last round (the reviewer answered you), skip it
+when it has none. Disputed and answered threads stay unresolved by design, so without this every round
+re-ingested them as new findings, and a resumed round re-posted the same replies.
 
 ```
 - [MAJOR][open] review(@priya) src/api/avatar.ts:42 — validate content-type before trusting the extension · thread:PRRT_kwDO

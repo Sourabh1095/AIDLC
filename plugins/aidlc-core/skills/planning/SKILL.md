@@ -8,6 +8,9 @@ user-invocable: false
 
 ## Writing a plan (run file `## Plan`)
 
+- **Open with `### Reuse`** — what the plan uses, extends and newly shares, from a catalog query, or
+  `none found (queried: …)`. The procedure and format live in `aidlc:reuse` → *Planning*; this is
+  the step that stops a plan from re-writing what the project already has, and it applies at every size.
 - 3–8 ordered checkbox tasks; each one commit-sized (a reviewable logical unit). **This bound governs a
   plan you author.** When the board already carries child Tasks they *are* the breakdown and you adopt
   them at whatever length they come (`aidlc:run` §5) — but a leaf arriving with ~15+ is a sizing signal
@@ -22,6 +25,9 @@ user-invocable: false
   these to decide which tasks can be implemented concurrently, and a task with no declared paths is
   always held serial. Prefer specific files over directories or globs (two globs cannot be proven
   disjoint, so both get serialized).
+- **Build the shared piece before the tasks that share it.** Two or more tasks applying the same
+  treatment to different targets get a first task that extracts what they share (`foundation: true`),
+  and each of them names it with `reuses:` — otherwise parallel implementers each write their own copy.
 - **Mark ordering that the paths cannot show.** A task whose output later tasks build on is
   `foundation: true`; a narrower edge is `dependsOn: <task ids>`. Declare one whenever a later task
   imports, calls or renders what an earlier one produces — those tasks touch different files and are

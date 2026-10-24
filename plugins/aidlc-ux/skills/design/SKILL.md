@@ -181,14 +181,25 @@ Every phase that renders the built UI uses the **shared render protocol** in `ai
 `renderBaseUrl` as a fallback, and stop rather than render the wrong server. It is stated once there;
 the phases below just say when to render.
 
-**0 · AUDIT** *(existing surfaces only — skip for greenfield)*. Render the current target at the
-**resolved render URL** via the Playwright MCP (start the dev server if needed) and screenshot it to
-`design/audit/`; also screenshot 1–2 sibling pages so you know what "consistent with the rest"
-means. Dispatch **Agent → aidlc-design-system** in **audit mode** with those shots + the code: it
-extracts the *current* design language (colors/type/spacing actually in use + where they live),
-flags inconsistencies, and recommends **conform / elevate-in-place / replace**. If a scoped
-retrofit's own established system is already below bar, surface that to the user — full redesign is
-their call. Save the audit to `design/audit.md`.
+**0 · AUDIT** *(whenever the frontend has code — skip only for a true greenfield)*. Two inventories,
+because a screen is built from components as much as from colors:
+
+1. **What the code already provides.** Run `node "<aidlc plugin>/skills/reuse/catalog.mjs" build <repo>
+   --name <repo> --out .aidlc/catalog` (core's `aidlc:reuse`) and take its `components`, `ui`, `hooks`
+   and icon entries. These fill the audit's **Components** table — name, path, what it is for, its
+   variants/props — and they are the vocabulary every later phase builds with. A screen that needs a
+   button, table, modal, form field or empty state uses the listed one, extended with a prop or variant
+   if needed, and never a fresh copy.
+2. **What the UI looks like.** Render the current target at the **resolved render URL** via the
+   Playwright MCP (start the dev server if needed) and screenshot it to `design/audit/`; also screenshot
+   1–2 sibling pages so you know what "consistent with the rest" means. Dispatch **Agent →
+   aidlc-design-system** in **audit mode** with those shots, the code and the component inventory: it
+   extracts the *current* design language (colors/type/spacing actually in use + where they live),
+   flags inconsistencies — including components that exist twice under different names — and
+   recommends **conform / elevate-in-place / replace**.
+
+If a scoped retrofit's own established system is already below bar, surface that to the user — full
+redesign is their call. Save the audit to `design/audit.md`.
 
 **1 · NARRATIVE.** Dispatch **Agent → aidlc-ux-writer** → `design/narrative.md`. Brief includes the
 mode, scope, brand anchors, and (for existing) the audit. On retrofit, the narrative must respect
@@ -227,7 +238,13 @@ corrected, recorded with both ratios, and reported to the designer as a system b
 - Standalone retrofit/redesign: the change is *editing existing screens* onto the system —
   dispatch the implementer to refactor components onto tokens + apply the new layout, then
   aidlc-motion; or aidlc-motion alone when only motion is being elevated.
-Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from the established system.
+
+Every implementer brief from this phase carries `design/design-system.md` and the audit's
+**Components** table. Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from the
+established system — and screens MUST be composed from the listed components. A primitive the screen
+needs and the inventory lacks is built **once, in the shared UI folder** (`components/ui/` or the
+project's equivalent), with its variants as props, and added to `design/design-system.md` → *Component
+conventions* so the next screen finds it; it is never built inline in the screen that first needed it.
 
 **5 · JURY LOOP.** `round = 1`.
 1. Ensure the app renders at the **resolved render URL** (shared protocol, above). Start the dev
@@ -246,8 +263,12 @@ Components MUST consume tokens — no ad-hoc colors/spacing, and no drift from t
    (**aidlc-design-system** / **aidlc-motion** / implementer) in one batch scoped to ONLY those
    defects; re-run this loop (re-render, re-judge fresh). Never regress the "what's working" list.
 5. Below AT `maxJuryRounds` → **stop iterating** (cost guardrail). Keep the highest-scoring round,
-   attach the remaining critique to `## Findings` as `[MAJOR][open] jury: …`, flag for human. Do NOT
-   loop past the cap; NEVER escalate any agent to a larger model to chase the score.
+   attach the remaining critique to `## Findings` as `[MINOR][open] jury (round cap — for a human):
+   …`, and name it in the PR body for the reviewer. Do NOT loop past the cap; NEVER escalate any agent
+   to a larger model to chase the score. **MINOR, not MAJOR, on purpose:** an open MAJOR sends core's
+   verify phase into a code fix cycle that never re-runs the jury, so it could not pass — the run burned
+   its fix cycles chasing an aesthetic critique and ended `blocked`. Past the cap, the score is a human's
+   judgement, and the PR is where a human makes it.
 
 ## The Figma track (`designSource: figma`)
 

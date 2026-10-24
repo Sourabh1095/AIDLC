@@ -471,14 +471,23 @@ export function planFingerprint(items) {
  *                just no longer complete. Warn, keep going, suggest a replan.
  *   `breaking` — a planned item vanished, was re-typed, re-routed or re-wired. The packing may now be
  *                wrong, and a wrong packing is the silent failure this whole module exists to prevent.
+ *
+ * `complete` says whether `currentItems` is the WHOLE board the plan covers. Only then does a planned
+ * item missing from it mean "vanished". The callers passed what they had just queried — `/aidlc:next`
+ * its top five `todo` items — while the snapshot holds every unfinished item and epic, so every
+ * in-flight item, every container and everything past the page read as deleted, and the plan was
+ * thrown away on nearly every pick. With `complete: false` a missing item is `unverified` (class none)
+ * and listed, so the caller can fetch exactly those and re-check.
  */
-export function checkFreshness(planItems, currentItems) {
+export function checkFreshness(planItems, currentItems, { complete = true } = {}) {
   const before = new Map((planItems ?? []).map((it) => [norm(it.id), it]));
   const after = new Map((currentItems ?? []).map((it) => [norm(it.id), it]));
   const drift = [];
+  const unverified = [];
 
   for (const [id, was] of before) {
     const now = after.get(id);
+    if (!now && !complete) { unverified.push(id); continue; }
     if (!now) { drift.push({ id, kind: "vanished", class: "breaking", detail: "no longer on the board (deleted, superseded or re-decomposed)" }); continue; }
     if (lower(was.type) !== lower(now.type)) drift.push({ id, kind: "retyped", class: "breaking", detail: `type ${lower(was.type)} → ${lower(now.type)}` });
     if ((norm(was.repo) ?? "") !== (norm(now.repo) ?? "")) drift.push({ id, kind: "rerouted", class: "breaking", detail: `repo ${was.repo ?? "null"} → ${now.repo ?? "null"}` });
@@ -499,30 +508,72 @@ export function checkFreshness(planItems, currentItems) {
   const cls = drift.some((d) => d.class === "breaking") ? "breaking"
     : drift.some((d) => d.class === "additive") ? "additive"
       : "none";
-  return { class: cls, drift, fresh: cls !== "breaking" };
+  return { class: cls, drift, fresh: cls !== "breaking", unverified };
+}
+
+/**
+ * The `## Item snapshot` JSON of a plan.md, or null. The freshness check used to need the model to
+ * copy this block out of the markdown into a temp file by hand; reading the plan directly removes a
+ * transcription step that could only ever introduce errors.
+ */
+export function planSnapshot(planMarkdown) {
+  const m = String(planMarkdown).match(/##\s*Item snapshot[\s\S]*?```json\s*\r?\n([\s\S]*?)\r?\n```/);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[1]);
+    return Array.isArray(j) ? j : j?.items ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ---- cli ---------------------------------------------------------------------------------------
 const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 const USAGE = "usage: node resolve-waves.mjs <items.json> [aidlc.config.json]\n" +
-              "       node resolve-waves.mjs --freshness <plan-snapshot.json> <items-now.json>";
+              "       node resolve-waves.mjs --snapshot-ids <plan.md>\n" +
+              "       node resolve-waves.mjs --freshness <plan.md | plan-snapshot.json> <items-now.json> [--complete]";
 
 const readJson = (p) => {
   try { return JSON.parse(readFileSync(p, "utf8")); }
   catch (e) { console.error(`cannot read ${p}: ${e.message}`); process.exit(2); }
 };
 
+// The plan's item snapshot, from plan.md itself or from an extracted JSON file.
+const readSnapshot = (p) => {
+  if (/\.md$/i.test(p)) {
+    let text;
+    try { text = readFileSync(p, "utf8"); } catch (e) { console.error(`cannot read ${p}: ${e.message}`); process.exit(2); }
+    const snap = planSnapshot(text);
+    if (!snap) { console.error(`${p} has no readable \`## Item snapshot\` JSON block`); process.exit(2); }
+    return snap;
+  }
+  const j = readJson(p);
+  return Array.isArray(j) ? j : (j?.items ?? []);
+};
+
+// The ids a freshness check must see on the board, so a caller fetches exactly those.
+if (isMain && process.argv[2] === "--snapshot-ids") {
+  const p = process.argv[3];
+  if (!p) { console.error(USAGE); process.exit(2); }
+  console.log(readSnapshot(p).map((it) => it.id).filter(Boolean).join(" "));
+  process.exit(0);
+}
+
 if (isMain && process.argv[2] === "--freshness") {
-  const [snapPath, nowPath] = process.argv.slice(3);
+  const args = process.argv.slice(3);
+  const complete = args.includes("--complete");
+  const [snapPath, nowPath] = args.filter((a) => a !== "--complete");
   if (!snapPath || !nowPath) { console.error(USAGE); process.exit(2); }
-  const planned = readJson(snapPath), now = readJson(nowPath);
-  const f = checkFreshness(Array.isArray(planned) ? planned : (planned?.items ?? []),
-    Array.isArray(now) ? now : (now?.items ?? []));
+  const planned = readSnapshot(snapPath), nowRaw = readJson(nowPath);
+  const now = Array.isArray(nowRaw) ? nowRaw : (nowRaw?.items ?? []);
+  const f = checkFreshness(planned, now, { complete });
 
   // The class is the whole verdict: `none` follow silently, `additive` follow and say what is missing,
   // `breaking` do NOT follow — announce it and fall back to priority order.
   console.log(`class: ${f.class}   follow-the-plan: ${f.fresh ? "yes" : "NO — fall back to priority order"}`);
   console.log(`planned fingerprint: ${planFingerprint(planned)}   now: ${planFingerprint(now)}`);
+  if (f.unverified.length)
+    console.log(`\nunverified (planned, not in the items passed — fetch these and re-run with --complete to know whether they vanished):\n  ${f.unverified.join(" ")}`);
   if (!f.drift.length) console.log("\nno drift");
   for (const cls of ["breaking", "additive", "none"]) {
     const rows = f.drift.filter((d) => d.class === cls);

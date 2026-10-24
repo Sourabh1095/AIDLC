@@ -41,8 +41,15 @@ Work the checklist in this order (highest value first):
    - **Flagged delivery** — where flags are the release mechanism, is the user-visible change behind one?
    - **Message shapes** — a changed queue/event payload with unnamed consumers is at least a `MAJOR`.
    Constraints absent from your brief do not apply; do not invent them.
-6. **Standards** — project conventions, loaded coding-standards skills, commit message format.
-7. **Tests** — do the added tests actually assert the new behavior (not just execute it)?
+6. **Reuse & duplication** — the deterministic checks already ran (`reuse:` lines in the run file); go
+   past them. Does the diff re-implement something the project has (`node
+   "${CLAUDE_PLUGIN_ROOT}/skills/reuse/catalog.mjs" query <repo> <words>` for anything new it adds)? Is
+   there logic copied with renamed variables (`dup-check.mjs <repo> --base <base> --fuzzy`)? A component
+   that is an existing one with one prop changed? Generic code buried in a feature folder? Re-implementing
+   what exists = `MAJOR`, with the existing symbol named in the fix (`aidlc:code-review` item 5).
+7. **Standards** — project conventions, loaded coding-standards skills, commit message format (the
+   project's `commitStyle`, not an assumed one).
+8. **Tests** — do the added tests actually assert the new behavior (not just execute it)?
 
 ## Severity taxonomy (use exactly these)
 

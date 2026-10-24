@@ -161,9 +161,31 @@ function depClosure(tasks) {
   return { closure, direct };
 }
 
+// Words that carry no "what is being done" signal in a plan task title.
+const STOP_WORDS = new Set(["a", "an", "the", "to", "of", "in", "on", "for", "and", "with", "from", "into", "by", "at", "its", "their"]);
+const titleWords = (t) =>
+  new Set(String(t.title ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOP_WORDS.has(w)));
+
+// Tasks in a group whose titles describe the same change to different targets — "Add pagination to
+// the users screen" / "… orders screen": word overlap (Jaccard) of at least one half. Deliberately a
+// cheap signal, and only ever a WARNING: it tells the planner to look, it never changes the schedule.
+export function lookAlikeTasks(group) {
+  const words = group.map(titleWords);
+  const alike = new Set();
+  for (let i = 0; i < group.length; i++)
+    for (let j = i + 1; j < group.length; j++) {
+      const a = words[i], b = words[j];
+      if (!a.size || !b.size) continue;
+      const inter = [...a].filter((w) => b.has(w)).length;
+      if (inter / (a.size + b.size - inter) >= 0.5) { alike.add(i); alike.add(j); }
+    }
+  return group.filter((_, i) => alike.has(i));
+}
+
 export function resolveFanout(plan, config) {
   const tasks = (Array.isArray(plan) ? plan : plan?.tasks ?? []).map((t, i) => ({
     ...t, _i: i, id: t.id ?? String(i + 1), paths: (t.paths ?? []).map(norm).filter(Boolean),
+    reuses: (Array.isArray(t.reuses) ? t.reuses : t.reuses ? [t.reuses] : []).filter(Boolean),
   }));
   const s = fanoutSettings(config);
   const schedule = [], serialReasons = {}, warnings = [];
@@ -214,6 +236,22 @@ export function resolveFanout(plan, config) {
     win.push(t);
   }
   flush();
+
+  // Parallel implementers cannot see each other, and each may touch only its own files. So when a
+  // window holds the SAME treatment applied N times — the case this whole module exists for — and
+  // nothing earlier in the plan built the shared piece, every implementer writes its own copy of it:
+  // six screens, six paginations. The schedule is still correct; the plan is what is missing a step.
+  for (const g of schedule) {
+    if (g.kind !== "parallel") continue;
+    const alike = lookAlikeTasks(g.tasks).filter((t) => !(t.reuses ?? []).length);
+    const hasFoundation = tasks.some((t) => t.foundation && t._i < g.tasks[0]._i);
+    if (alike.length >= 2 && !hasFoundation)
+      warnings.push(
+        `tasks ${alike.map((t) => t.id).join(", ")} look like the same treatment and run in parallel with no ` +
+          `foundation task before them and no \`reuses:\` — if they share logic, extract it first ` +
+          `(\`foundation: true\`) and have them consume it, or each implementer will write its own copy`,
+      );
+  }
 
   const parallelTasks = schedule.filter((g) => g.kind === "parallel").reduce((n, g) => n + g.tasks.length, 0);
   return {

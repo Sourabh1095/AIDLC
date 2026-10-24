@@ -47,8 +47,13 @@ Order by numeric id ascending: a local backlog has no board rank, and creation o
 honest stand-in for one. No match ⇒ `[]`, which is a normal answer, not an error.
 
 ### create(item)
-1. Read `backlog/.sequence` → n. Write back n+1 immediately (before creating the file).
-2. Id = `{PROJECT_KEY}-{n}` (key from `.claude/aidlc.config.json`).
+1. **Allocate the id with the script, never by hand:**
+   `node "${CLAUDE_PLUGIN_ROOT}/skills/wi-markdown/next-id.mjs" <workspace-root> {PROJECT_KEY}` → `PROJ-42`
+   (key from `.claude/aidlc.config.json`). It allocates in the **main worktree** under a lock and never
+   reissues an id that already exists as a file. A hand read-then-write of `backlog/.sequence` handed out
+   duplicate ids under `/aidlc:sprint`, where every item runs in its own worktree with its own stale copy.
+2. Create the item file **where the script allocated** — it names the main worktree on stderr when that
+   differs from where you are. A new item belongs to the shared backlog, not to one run's branch.
 3. Instantiate `${CLAUDE_PLUGIN_ROOT}/templates/backlog-item.md` with the item's fields,
    slugify the title (lowercase, hyphens, ≤5 words) for the filename. Fill `repo:` (the routed
    repo name, or blank for epics/unrouted), `dependsOn:` (comma-separated IDs, or blank) and

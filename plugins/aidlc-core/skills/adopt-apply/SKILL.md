@@ -124,6 +124,7 @@ Stamp `configVersion` and `aidlcVersion` on every write from here on, upgrade or
 | File/key absent | Propose the derived value, with its evidence. |
 | Present and equal to the derived value | **No diff.** Say nothing; this is what idempotency looks like. |
 | Present and **different** | A conflict. Surface it as `detected X (evidence) · configured Y — keep / replace / merge` and **default to keep**. |
+| Config has `adoption.status: "pending"` (written by `/aidlc:init`'s adopt path) and the value **equals the shipped template's default** (`git.defaultBranch: "main"`, the default `branchPattern`, `ux.enabled`, the seeded `securityReviewPaths`) | A **placeholder**, not a decision. Propose the derived value as a replacement and **default to replace** — show it in the diff like any change. A value that differs from the template default was edited by a human after init: treat it as hand-authored (next row). |
 | Present, and `conventionsSource: "human"` / `saas.source: "human"`, or the config has no `adoption` block | Treat every existing value as hand-authored. Conflicts default to keep, and say why. |
 | An **array** a human may have added to (`pipeline.securityReviewPaths`, `labels`) | **Union, never replace.** Add what is missing, keep what is there, and show each addition as its own line. Replacing an array silently deletes a human's entries while the diff looks like a normal change. |
 | Derived fact has `confidence: low` | Ask it as a question. Never pre-fill it as a proposal. |
@@ -352,7 +353,8 @@ Two consequences to state explicitly in the summary, because they change how run
 
 ### 3.5 · Provenance, and the manifest that makes removal possible
 
-Write the `adoption` block: `scannedAt`, `commit`, `profileVersion`, `profilePath`, `depth`, `appliedAt`,
+Write the `adoption` block — replacing init's `status: "pending"` marker with `status: "applied"` — with
+`scannedAt`, `commit`, `profileVersion`, `profilePath`, `depth`, `appliedAt`,
 `only[]` and `unmanaged[]` for a partial adoption, `upgrades[]` from §2.1, and **`seeded`** from §3.3 —
 the record of what adoption contributed to each union-merged array, without which the next apply cannot
 tell a path the team removed from one it never saw. This is what makes the next

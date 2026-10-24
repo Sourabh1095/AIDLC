@@ -275,9 +275,23 @@ a git question, so shared mode answers it with the control-plane freshness check
 commits behind origin may be holding a superseded schedule, and `cutBy:` says whose. Report both, then
 proceed — a stale-file warning is information, not a blocker.
 
+### The freshness check — one procedure, every reader (`next`, `sprint`, `status`, `groom`)
+
+```bash
+W="${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs"
+node "$W" --snapshot-ids .aidlc/plan.md            # the ids the plan was packed from
+# fetch those ids (adapter fetch, or one query by id) + the todo items you already queried → items-now.json
+node "$W" --freshness .aidlc/plan.md items-now.json --complete
 ```
-checkFreshness(plan["## Item snapshot"], <items queried now>)   // resolve-waves.mjs
-```
+
+It reads the snapshot straight out of `plan.md` — never copy the JSON block by hand. **Pass
+`--complete` only when items-now.json holds every snapshot id's current state**: a planned item missing
+from a *complete* list has vanished from the board (breaking); missing from a partial list it is merely
+unknown. Without `--complete` such items are printed as `unverified` and never count as breaking — so a
+caller that only ran its top-five `todo` query gets an honest "unverified" rather than a false
+"breaking". That false breaking is what every reader produced before: the snapshot holds every
+unfinished item and epic, the readers passed a page of `todo`, and the plan was discarded on almost
+every pick. If anything comes back `unverified`, fetch those ids and run once more with `--complete`.
 
 | Drift class | What it means | What next/sprint do |
 |---|---|---|

@@ -28,6 +28,7 @@ import { execSync } from "node:child_process";
 import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { PHASES as RUN_PHASES, frontmatter, runDirs } from "../../hooks/scripts/lib/run-files.mjs";
 import { lintPermissionRules, lintSettingsText } from "./lint-rules.mjs";
 import { list, stale } from "../facts/facts.mjs";
 
@@ -485,21 +486,22 @@ if (cfg?.repos?.length) {
 
 // --- 9. Run files -------------------------------------------------------------------------
 {
-  const PHASES = new Set(["start", "requirements", "design", "implement", "verify", "pr", "docs", "done", "blocked", "review-pending"]);
-  const dirs = [join(ROOT, ".aidlc", "runs")];
-  for (const r of cfg?.repos ?? []) if (r?.path) dirs.push(resolve(ROOT, cfg.workspace?.root ?? ".", r.path, ".aidlc", "runs"));
+  // One definition of the phases and of where run files live, shared with the session hooks
+  // (hooks/scripts/lib/run-files.mjs) — this check had its own copy of both.
+  const PHASES = new Set(RUN_PHASES);
+  const dirs = runDirs(ROOT);
   let total = 0;
   const bad = [];
   const blocked = [];
-  for (const d of dirs.filter((x) => existsSync(x) && statSync(x).isDirectory())) {
+  for (const d of dirs.filter((x) => statSync(x).isDirectory())) {
     for (const f of readdirSync(d).filter((x) => x.endsWith(".md"))) {
       total++;
-      const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(join(d, f), "utf8"));
-      if (!m) {
+      const fm = frontmatter(join(d, f));
+      if (!fm) {
         bad.push(`${f} (no frontmatter)`);
         continue;
       }
-      const phase = /^phase:\s*(\S+)/m.exec(m[1])?.[1];
+      const phase = fm.phase || undefined;
       if (!phase || !PHASES.has(phase)) bad.push(`${f} (phase: ${phase ?? "absent"})`);
       else if (phase === "blocked") blocked.push(f.replace(/\.md$/, ""));
     }

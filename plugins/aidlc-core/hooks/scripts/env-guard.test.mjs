@@ -141,5 +141,45 @@ try {
     rmSync(d, { recursive: true, force: true });
 }
 
+// ===== Grep and NotebookEdit: reads and writes the matcher never saw =====
+// A Grep whose path is an env file prints its matching lines — the values.
+function checkInput(input, cwd, expected, label) {
+  n++;
+  let got = "allow";
+  try {
+    const out = execFileSync("node", [GUARD], { input: JSON.stringify({ ...input, cwd }), stdio: ["pipe", "pipe", "pipe"] }).toString();
+    if (out.includes('"ask"')) got = "ask";
+  } catch (e) {
+    got = e.status === 2 ? "block" : `exit${e.status}`;
+  }
+  if (got !== expected) {
+    fails++;
+    console.log(`FAIL [${label}] expected=${expected} got=${got}`);
+  } else console.log(`ok   [${label}] ${expected}`);
+}
+{
+  const d = workspace("deny");
+  const a = workspace("ask");
+  checkInput({ tool_name: "Grep", tool_input: { pattern: "KEY", path: ".env" } }, d, "block", "grep: path .env, deny");
+  checkInput({ tool_name: "Grep", tool_input: { pattern: "KEY", path: ".env" } }, a, "ask", "grep: path .env, ask");
+  checkInput({ tool_name: "Grep", tool_input: { pattern: "KEY", glob: ".env*" } }, d, "block", "grep: glob .env*");
+  checkInput({ tool_name: "Grep", tool_input: { pattern: "KEY", path: "src", glob: "*.ts" } }, d, "allow", "grep: ordinary search");
+  checkInput({ tool_name: "NotebookEdit", tool_input: { notebook_path: ".env" } }, d, "block", "notebook: env path");
+  checkInput({ tool_name: "Read", tool_input: { file_path: 42 } }, d, "allow", "non-string path is no path (no crash)");
+  rmSync(d, { recursive: true, force: true });
+  rmSync(a, { recursive: true, force: true });
+}
+{
+  n++;
+  let out = "";
+  try {
+    out = execFileSync("node", [GUARD], { input: "not json", stdio: ["pipe", "pipe", "pipe"] }).toString();
+  } catch {}
+  if (!out.includes('"ask"')) {
+    fails++;
+    console.log("FAIL [unreadable input asks]");
+  } else console.log("ok   [unreadable input asks] ask");
+}
+
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

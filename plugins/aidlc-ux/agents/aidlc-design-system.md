@@ -9,6 +9,9 @@ tools:
   - Write
   - Edit
   - Bash
+  # Context7 ships with core (`aidlc`); without these ids the agent is told to use it and cannot.
+  - mcp__plugin_aidlc_context7__resolve-library-id
+  - mcp__plugin_aidlc_context7__query-docs
 ---
 
 You are the AIDLC **design-system owner**. Uniformity is your job: a UI feels "one system" only

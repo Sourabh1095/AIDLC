@@ -19,8 +19,12 @@ can't be traced to a line in here, it's unjustified. Keep it short enough to hol
 - **The journey, including the unhappy path.** Landing/first-paint, the primary action and its
   reward, transitions/feedback, and — non-negotiable — empty / loading / error. Award-tier work is
   judged partly on how gracefully the "boring" states are handled.
-- **Exactly one signature moment.** The single interaction that makes the surface memorable.
-  Describe it vividly in words (motion will realize it). More than one "signature" = none.
+- **At most one signature moment.** The single interaction that makes the surface memorable.
+  Describe it vividly in words (motion will realize it). More than one "signature" = none. On a
+  showcase surface (landing, launch, campaign) it is required. On a **product** screen — a settings
+  page, a table, a form people use every day — it is optional and usually absent: there the memorable
+  thing is that it is fast, familiar and consistent with every other screen, and a flourish that
+  departs from the system is a cost (`aidlc-ux:design-jury` → *Rubric*, product profile).
 - **Anti-goals.** Name the clichés and over-animation traps to avoid, so downstream agents don't
   reach for them.
 

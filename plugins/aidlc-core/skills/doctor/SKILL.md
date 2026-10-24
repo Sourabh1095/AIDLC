@@ -60,8 +60,10 @@ Skip this whole section on `--quick`. Each item names its home rather than resta
    `azure-repos`, once per distinct host in the repo registry. This is where a run discovers it cannot
    open a PR, and it discovers it *after* branching, implementing and verifying.
 3. **MCP tool names** (F47) — list the actual `mcp__*` tool ids available this session. A headless run
-   with no `mcp__*` allow entry falls back to the `az`/`gh` CLI tier **by design**, so report that as
-   working, not gated. Never guess a prefix: a bare `mcp__*` allow rule is skipped with a warning and
+   with no `mcp__*` allow entry falls back to the `az`/`gh` CLI tier **by design** — but only where
+   the adapter has one. Report ADO and markdown as working; report **Jira** as `fail` for headless runs
+   (`/aidlc:sprint`), because `wi-jira` has no CLI tier and an unallowed MCP tool cannot be approved
+   by a session nobody is watching. Never guess a prefix: a bare `mcp__*` allow rule is skipped with a warning and
    grants nothing, and guessing permission patterns unverified is exactly what caused F43 and F45.
 4. **CI actually gates the PRs** — follow `aidlc:status` → *Remote-repo gate check* per `mode: remote`
    repo. A remote repo with no required check merges ungated, which silently voids remote mode's whole

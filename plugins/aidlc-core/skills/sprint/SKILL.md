@@ -18,11 +18,8 @@ set — computed against the same three constraints this section checks by hand
 (`dependsOn`, one item per working tree, width cap). So when a fresh plan exists, **the candidate set is
 the earliest wave with open items**, and §1.1's priority query is skipped.
 
-Check it is trustworthy first (the plan's `## Item snapshot` vs the board now):
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
-```
+Check it is trustworthy first — the freshness check exactly as `aidlc:replan` → *The freshness check*
+states it (snapshot ids → fetch them → `--freshness .aidlc/plan.md items-now.json --complete`).
 
 **none** → use the wave silently; **additive** → use it, and say in one line what is unscheduled;
 **breaking** → **do not use it**, name the drift, fall back to §1.1–1.3 below, and suggest
@@ -108,7 +105,9 @@ claude -p "/aidlc:run {ID}" --permission-mode acceptEdits    # background; captu
 
 ```
 # MONO — the repo IS the AIDLC workspace, so a worktree of it carries .claude/ + backlog/
-git worktree add ../{repo.name}-wt-{ID} -b {type}/{ID}-{slug} {remote}/{defaultBranch}
+git worktree add ../{repo.name}-wt-{ID} -b <branch> {remote}/<base>
+# <branch>: the repo's branchPattern, rendered per aidlc:git-workflow → Branching (type map included)
+# <base>:   the repo's integrationBranch when it declares one (GitFlow `develop`), else defaultBranch
 cd ../{repo.name}-wt-{ID}
 claude -p "/aidlc:run {ID}" --permission-mode acceptEdits    # background; capture PID + log file
 ```
@@ -149,6 +148,12 @@ Check the launch cwd deterministically first — it's a file read, not a run:
    `~/.claude/settings.json`; and the marketplace is known (`extraKnownMarketplaces` at either scope,
    or an installed plugin dir).
 3. Mono only: the worktree path is trusted in `~/.claude.json`.
+4. **The tracker is reachable headless.** A headless run cannot answer a permission prompt, so an MCP
+   tool with no allow rule simply fails. `workItems.source: ado` survives that — its adapter falls back
+   to `az boards`. **`jira` does not: `wi-jira` has no CLI tier.** For a Jira workspace, confirm the
+   settings allow the Jira MCP tools by their real ids (`aidlc:doctor` → *MCP tool names* lists them);
+   if they are not allowed, do not launch — every run would fail at its first `fetch` — and say which
+   allow rule is missing. (`markdown` needs no tool and always passes.)
 
 Any check fails → **do not launch**. Report exactly which one and where the file was expected. In poly
 this will usually mean the launch cwd is wrong (a product repo instead of the control plane).

@@ -7,7 +7,7 @@
 // answer is HELD.
 import {
   resolveWaves, replanSettings, isContainer, rankOf, waveSummary, stageSummary,
-  planFingerprint, checkFreshness, fingerprintFields, stageOf, stageLabels, UNSTAGED,
+  planFingerprint, checkFreshness, planSnapshot, fingerprintFields, stageOf, stageLabels, UNSTAGED,
   CONTAINER_TYPES, LEAF_TYPES, REPLAN_DEFAULTS,
 } from "./resolve-waves.mjs";
 
@@ -368,6 +368,26 @@ check("an empty backlog resolves to an empty schedule, not an error",
 
 // ---------------------------------------------------------------- exported vocabulary
 check("container and leaf types do not overlap", CONTAINER_TYPES.some((t) => LEAF_TYPES.includes(t)), false);
+
+// ---------------------------------------------------------------- freshness against a PARTIAL board
+// The callers pass what they just queried (next: top five todo items) while the snapshot holds every
+// unfinished item — so "missing from my list" read as "vanished", and the plan was discarded on almost
+// every pick. Partial input reports the missing ones as unverified and never calls them breaking.
+{
+  const it2 = (id, extra = {}) => ({ id, type: "story", status: "todo", repo: "backend", priority: "P2", dependsOn: [], ...extra });
+  const planned = [it2("A"), it2("B", { status: "in_progress" }), it2("C"), it2("E", { type: "epic" })];
+  const topFive = [it2("A"), it2("C")];
+  const partial = checkFreshness(planned, topFive, { complete: false });
+  check("partial: missing items are not 'vanished'", partial.class, "none");
+  check("partial: they are listed as unverified", partial.unverified, ["B", "E"]);
+  check("complete: a genuinely missing item is still breaking", checkFreshness(planned, topFive, { complete: true }).class, "breaking");
+  check("default stays complete (replan's own full sweep)", checkFreshness(planned, topFive).class, "breaking");
+  check("partial: real drift on a passed item still breaks", checkFreshness(planned, [it2("A", { repo: "web" })], { complete: false }).class, "breaking");
+  const fence = "`".repeat(3);
+  const md = ["---", "plan: x", "---", "", "## Item snapshot", "", "<!-- note -->", "", fence + "json", JSON.stringify(planned), fence, "", "## Log", ""].join("\n");
+  check("planSnapshot reads the JSON block out of plan.md", (planSnapshot(md) || []).map((x) => x.id), ["A", "B", "C", "E"]);
+  check("planSnapshot: no block → null", planSnapshot("## Waves\nnothing"), null);
+}
 
 console.log(`\n${n - fails}/${n} passed`);
 process.exit(fails ? 1 : 0);

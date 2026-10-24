@@ -108,14 +108,9 @@ Plan (2026-07-31, cut by priya@acme.com, "client wants checkout live before sear
 Show `cutBy:` in shared mode — a plan you did not cut, on a control plane that is behind (Step 0), is
 the case where "the pipeline picked a strange item" has an answer nobody would otherwise find.
 
-The current wave is the earliest one with open items. Then run the freshness check against the items
-from Step 2 —
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
-```
-
-— and report the class, because it decides what the other commands
+The current wave is the earliest one with open items. Then run the freshness check — exactly as
+`aidlc:replan` → *The freshness check* states it, with Step 2's items plus the snapshot ids fetched —
+and report the class, because it decides what the other commands
 will do: **none** (silent), **additive** → `plan is additively stale: 3 new items unscheduled`,
 **breaking** → `⚠ plan is stale (PROJ-127 was re-decomposed) — next/sprint will ignore it and fall
 back to priority order · /aidlc:replan`. This is read-only like the rest of `status`; it never re-cuts

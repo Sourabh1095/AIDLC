@@ -217,6 +217,12 @@ escalation triggers override it, each naming something you cannot fix by noticin
 tenant-isolation paths, a destructive migration, a declared API contract, code an in-flight run owns,
 and an explicit pipeline request.
 
+**Reuse first, checked.** Before planning, AIDLC lists what your code already has — components, hooks,
+helpers, clients, fixtures — and every plan starts by saying what it will reuse, extend or newly share.
+After implementing, a deterministic check flags code the branch duplicated, whether from existing code
+or from itself, and a copy goes back through a fix cycle. Parallel implementers get the shared piece
+built first, so six screens don't get six pagination hooks.
+
 **Your gate, not an assumed one.** Verification runs the commands your project actually declares —
 `pytest`, `mvn -B verify`, `cargo test`, npm scripts — resolved per repo and per package. A gate your
 project doesn't have is reported as a coverage hole, never silently replaced with a default.

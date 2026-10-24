@@ -110,5 +110,65 @@ check("env CI=1 npm i lodash", "gate", "env wrapper before an add");
 check('bash -c "npm ci"', "allow", "nested: lockfile install stays ungated");
 check('bash -c "npm run build"', "allow", "nested: unrelated script stays ungated");
 
+// --- Per-tool option arity: the same letter means different things per tool ---
+// One shared value-flag list made `-w`/`-d` swallow the package for pnpm and bun.
+check("pnpm add -w lodash", "gate", "pnpm -w is a boolean (--workspace-root)");
+check("bun add -d zod", "gate", "bun -d is --dev, a boolean");
+check("npm i -w web lodash", "gate", "npm -w takes a workspace name");
+check("npm --registry https://r.example install evil", "gate", "unknown global option with a value");
+check("npm --userconfig f install evil", "gate", "another global option with a value");
+check("npm --verbose install evil", "gate", "boolean global option before the subcommand");
+
+// --- Spellings that reach pip without typing `pip` ---
+check("python -m pip install requests", "gate", "python -m pip");
+check("py -m pip install requests", "gate", "py launcher -m pip");
+check("uv pip install requests", "gate", "uv pip install");
+check("pip install -e .", "allow", "editable install of the project itself");
+check("pip install -e git+https://github.com/x/y", "gate", "editable install from a remote");
+check("npm i ../shared", "allow", "local path is not a registry fetch");
+
+// --- Fetch-and-run: executing an unvetted package is the same decision ---
+check("pnpm dlx create-vite", "gate", "pnpm dlx");
+check("yarn dlx cowsay", "gate", "yarn dlx");
+check("uvx ruff check .", "gate", "uvx");
+check("pipx run black .", "gate", "pipx run");
+check("npx create-next-app@latest web", "gate", "npx with a version always fetches");
+check("npx -p left-pad node -e 1", "gate", "npx --package");
+check("cargo install ripgrep", "gate", "cargo install");
+check("cargo install --path .", "allow", "cargo install of the local crate");
+
+// npx/bunx of a tool the project already has runs the locked local copy — not gated.
+{
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const proj = mkdtempSync(join(tmpdir(), "depvet-"));
+  mkdirSync(join(proj, "web", "node_modules", ".bin"), { recursive: true });
+  writeFileSync(join(proj, "web", "node_modules", ".bin", "prettier"), "");
+  const at = (command, cwd, expected, label) => {
+    n++;
+    const out = execFileSync("node", [HOOK], { input: JSON.stringify({ tool_input: { command }, cwd }), encoding: "utf8" });
+    const got = out.includes('"ask"') ? "gate" : "allow";
+    if (got !== expected) {
+      fails++;
+      console.log(`FAIL [${label}] expected=${expected} got=${got}\n       cmd: ${command}`);
+    } else console.log(`ok   [${label}] ${expected}`);
+  };
+  at("npx prettier --check .", join(proj, "web"), "allow", "npx of a local bin");
+  at("cd web && npx prettier --check .", proj, "allow", "npx after cd into the package");
+  at("npx prettier --check .", proj, "gate", "npx with no local bin fetches");
+  at("bunx prettier .", join(proj, "web"), "allow", "bunx of a local bin");
+  rmSync(proj, { recursive: true, force: true });
+}
+
+// --- Failure handling: never a silent pass ---
+{
+  n++;
+  const out = execFileSync("node", [HOOK], { input: "not json", encoding: "utf8" });
+  if (!out.includes('"ask"')) {
+    fails++;
+    console.log("FAIL [unreadable input asks] got allow");
+  } else console.log("ok   [unreadable input asks] ask");
+}
+
 console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

@@ -128,6 +128,7 @@
       "description": "Provenance for configuration DERIVED FROM AN EXISTING CODEBASE. Written by /aidlc:adopt-apply when it applies an approved profile; absent on a greenfield project. It is what makes adoption idempotent and drift detectable: re-running against the same commit must propose no changes, and a later scan compares itself against these values rather than rewriting the file. Never hand-edit it — it describes what a scan actually saw.",
       "additionalProperties": true,
       "properties": {
+        "status": { "enum": ["pending", "applied"], "description": "pending: written by /aidlc:init's adopt path before any scan — the config's remaining template values are placeholders, and /aidlc:adopt-apply defaults to replacing any that still equal the shipped template's default. applied: written by /aidlc:adopt-apply." },
         "scannedAt": { "type": "string", "format": "date-time", "description": "UTC ISO-8601 timestamp of the scan this configuration came from (profile.scan.scannedAt)." },
         "commit": { "type": "string", "description": "The commit the scan ran against. A re-scan at the same commit proposes nothing; at a different commit, the diff is the project's drift, not a rewrite." },
         "profileVersion": { "type": "integer", "description": "Contract version of the profile that was applied. A consumer that does not recognise it must say so and stop rather than read the file optimistically." },
@@ -207,6 +208,7 @@
         }
       }
     },
+    "reuse": { "$ref": "#/definitions/reuse" },
     "repos": {
       "type": "array",
       "description": "Declared git repos. Empty (or omitted) means mono — a single repo synthesized from the top-level git/stack/ux blocks. Non-empty means poly. When architecture.status=pending these are placeholders until /aidlc:bootstrap resolves them.",
@@ -225,6 +227,7 @@
           "remote": { "type": "string", "default": "origin" },
           "defaultBranch": { "type": "string", "default": "main" },
           "branchPattern": { "type": "string", "default": "{type}/{id}-{slug}" },
+          "reuse": { "$ref": "#/definitions/reuse", "description": "This repo's reuse settings; each key overrides the top-level reuse block." },
           "stack": {
             "type": "object",
             "properties": {
@@ -438,7 +441,8 @@
       "type": "object",
       "description": "Mono-mode / default UX config. In poly, each frontend repo may carry its own ux block.",
       "properties": {
-        "figma": { "$ref": "#/definitions/uxFigma" }
+        "figma": { "$ref": "#/definitions/uxFigma" },
+        "juryProfile": { "enum": ["auto", "product", "showcase"], "default": "auto", "description": "Which rubric weighting the design jury scores with (aidlc-ux:design-jury → Rubric). product weights usability and consistency — the screens people work in, built from the project's existing components. showcase weights aesthetics, creativity and motion — landing, launch and campaign pages. auto (default) picks showcase only for a marketing/brand surface and product otherwise." }
       }
     },
     "marketplace": {
@@ -458,6 +462,16 @@
     }
   },
   "definitions": {
+    "reuse": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Reuse-first settings read by aidlc:reuse (catalog.mjs, dup-check.mjs) and by the verify phase's always-on reuse checks.",
+      "properties": {
+        "sharedPaths": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Folders (relative to the repo root) that hold shared code, beyond the built-in names (components, ui, hooks, lib, utils, helpers, services, clients, api, types, validators, errors, middleware, store, fixtures, factories, packages, …). Everything under them is catalogued." },
+        "minCloneLines": { "type": "integer", "minimum": 4, "default": 8, "description": "Smallest run of significant (non-blank, non-brace, non-import, non-comment) lines dup-check reports as duplicated." },
+        "duplication": { "enum": ["block", "warn", "off"], "default": "block", "description": "block: duplicated product code added by a branch is a MAJOR finding and goes through the fix cycle. warn: MINOR. off: the check is skipped, and the run says so in ## Findings." }
+      }
+    },
     "uxFigma": {
       "type": "object",
       "description": "Figma wiring for this repo/package, on two independent axes. SCREENS (url/fileKey/screens): when the mockups exist, the design pod switches from inventing a design to implementing the existing one — extract the spec and variables through the Figma MCP, build to the spec, and gate on fidelity instead of a jury score. SYSTEM (designSystem): when the brand's design system lives in Figma, its variables and components become the project's token layer and component vocabulary, while the pod still designs the screens within it. Either, both, or neither. Screen files are per repo/package because different apps have different mockups; a workspace-scoped designSystem is declared once at the top level because one brand has one system.",

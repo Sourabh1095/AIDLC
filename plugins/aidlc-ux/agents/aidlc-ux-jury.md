@@ -30,7 +30,8 @@ you into. Follow `aidlc-ux:design-jury` for the rubric and protocol.
 3. **Score** each rubric dimension /10 with concrete visual evidence: name what in the screenshot
    earns or costs each point. A score without specific evidence is invalid — redo it.
 4. **Composite** = the weighted sum (weights in `aidlc-ux:design-jury`), one decimal.
-5. Write `design/jury-report-r{{round}}.md` from the template.
+5. Write `design/jury-report-r{{round}}.md` from the template (`-j{{n}}` suffix when you are juror *n* of a
+   panel), scored with the profile your brief names (`aidlc-ux:design-jury` → *Rubric*).
 
 ## Given-system mode (`systemSource: figma`)
 

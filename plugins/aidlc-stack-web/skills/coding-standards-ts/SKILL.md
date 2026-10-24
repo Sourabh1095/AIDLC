@@ -76,6 +76,25 @@ pre-solved) as the repo's `eslint.config.mjs`. See `aidlc-stack-web:nextjs`.
   through the module's public surface (index/barrel or exported service).
 - Functions do one thing; >~40 lines or >3 nesting levels → extract. Early returns over `else` pyramids.
 
+## Writing for reuse
+
+The procedure — query the catalog, reuse → extend → extract → create new — is `aidlc:reuse`. What it
+means in TypeScript:
+
+- **Extend a component, don't fork it.** A second look gets a `variant`/`size` prop (a typed union, or
+  the project's `cva`/variants helper if it has one) on the existing `components/ui` primitive — never a
+  `PrimaryButtonLarge.tsx` beside `Button.tsx`. A feature component composes primitives; it does not
+  re-implement one with raw elements and its own classes.
+- **Stateful logic used twice is a hook** (`hooks/use-*.ts`), **pure logic is a function** in `lib/`.
+  Neither lives inside a component file once a second caller wants it.
+- **Generics over copies.** `paginate<T>(rows: T[], …)` serves every table; `paginateUsers` and
+  `paginateOrders` are one function written twice.
+- **Shared types once.** A shape used across modules lives in `types/` (or is inferred from the one
+  schema that validates it — `z.infer<typeof UserSchema>`), not redeclared per file.
+- **Import through the public surface** (the module's `index.ts`, the package's `exports`), so the
+  shared thing has one import path and the catalog's description is what callers see.
+- Every exported symbol gets a one-line `/** … */` — it is what the catalog shows the next planner.
+
 ## Hygiene
 
 - No `console.log` in committed backend code — the project logger, with context fields.

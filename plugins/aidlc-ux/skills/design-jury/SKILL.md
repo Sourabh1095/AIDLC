@@ -54,14 +54,24 @@ jury's evidence rules; the fidelity checker's equivalent is in `aidlc-ux:figma-h
 
 ## Rubric (score each /10; composite = weighted sum, one decimal)
 
-| Dimension | Weight | What earns a high score |
-|---|---|---|
-| **Design / aesthetics** | 25% | Clear visual hierarchy; confident typography; deliberate color & gradient; spacing/whitespace that breathes; a distinct point of view. |
-| **Usability / UX** | 20% | Obvious primary action; legible; predictable; graceful empty/loading/error; nothing sacrificed to style. |
-| **Creativity / originality** | 15% | A memorable idea executed with restraint; not a template; the signature moment lands. |
-| **Motion & interaction craft** | 20% | Purposeful, smooth (60fps, no jank); coherent easing; tasteful sequencing; `prefers-reduced-motion` respected; no over-animation. |
-| **Consistency / uniformity** | 12% | One-system feel; tokens honored across all screens; no off-system color/spacing; repeated components identical. **When brand anchors were supplied, they're honored exactly. On a scoped redesign, the target is consistent with the sibling screens — not a lone island in a different style. When a design system was *given* (`systemSource: figma`), this dimension is judged against it — see below.** |
-| **Polish & states** | 8% | Pixel precision; every interactive state designed; AA contrast; no visual bugs at the edges. |
+Two weightings, because a dashboard and a launch page are good in different ways. Use the one the brief
+names (`ux.juryProfile`); on `auto` (the default) use **showcase** only when the surface is a marketing
+or brand page — a landing, home, pricing, launch, campaign or portfolio page, or the item says so — and
+**product** for everything else: the screens people work in.
+
+| Dimension | product | showcase | What earns a high score |
+|---|---|---|---|
+| **Design / aesthetics** | 20% | 25% | Clear visual hierarchy; confident typography; deliberate color & gradient; spacing/whitespace that breathes; a distinct point of view. |
+| **Usability / UX** | 30% | 20% | Obvious primary action; legible; predictable; graceful empty/loading/error; nothing sacrificed to style. |
+| **Creativity / originality** | 5% | 15% | A memorable idea executed with restraint; not a template; the signature moment lands (showcase). On product, originality that costs familiarity is a defect, not a strength. |
+| **Motion & interaction craft** | 10% | 20% | Purposeful, smooth; coherent easing; tasteful sequencing; `prefers-reduced-motion` respected; no over-animation. |
+| **Consistency / uniformity** | 25% | 12% | One-system feel; tokens honored across all screens; no off-system color/spacing; **repeated components identical, and taken from the audit's Components inventory** — a hand-rolled table, modal or button beside one the project already has is a defect even when it looks fine. **When brand anchors were supplied, they're honored exactly. On a scoped redesign, the target is consistent with the sibling screens — not a lone island in a different style. When a design system was *given* (`systemSource: figma`), this dimension is judged against it — see below.** |
+| **Polish & states** | 10% | 8% | Pixel precision; every interactive state designed; no visual bugs at the edges. |
+
+**Accessibility is a floor, not a weight.** Any text failing WCAG AA contrast, an interactive element
+with no visible focus state, or a control reachable only by pointer is an automatic `ITERATE` whatever
+the composite — list each as a required fix. A weighted 8% let a screen with failing contrast pass at
+9.2; an inaccessible screen is not shippable at any score.
 
 Composite is out of 10. Gate = `juryThreshold` (default 9).
 
@@ -115,4 +125,6 @@ Everything else — independence, evidence, no directional bias — holds exactl
 
 ## Output
 
-`design/jury-report-r{{round}}.md` from the template. You never edit product code — you only judge.
+`design/jury-report-r{{round}}.md` from the template — `design/jury-report-r{{round}}-j{{n}}.md` when you are juror *n* of a
+panel (`ux.juryPanelSize` > 1), so parallel jurors never overwrite each other's report. Name the profile you
+scored with on the first line. You never edit product code — you only judge.

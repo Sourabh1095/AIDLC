@@ -57,6 +57,7 @@
     "enabled": true,
     "target": "desktop-web",
     "juryThreshold": 9,
+    "juryProfile": "auto",
     "maxJuryRounds": 3,
     "juryPanelSize": 1,
     "renderBaseUrl": "http://localhost:3000",

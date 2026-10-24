@@ -16,10 +16,9 @@ runs against their codebase. Several hooks execute **automatically**, with no us
 | Hook | Plugin | Trigger | When it runs |
 |------|--------|---------|--------------|
 | `session-context.mjs` | core | `SessionStart` | Every session start — no command, no approval |
-| `guard.mjs`, `dep-vet.mjs` | core | `PreToolUse` (Bash) | Before every Bash command |
-| `protect-paths.mjs` | core | `PreToolUse` (Edit/Write) | Before every file write |
-| `env-guard.mjs` | core | `PreToolUse` (Read/Edit/Write) | Before every file read or write |
-| `checkpoint.mjs` | core | `Stop`, `PreCompact` | Automatically |
+| `guard.mjs`, `dep-vet.mjs` | core | `PreToolUse` (Bash, PowerShell) | Before every shell command |
+| `protect-paths.mjs` | core | `PreToolUse` (Edit/Write/MultiEdit/NotebookEdit) | Before every file write |
+| `env-guard.mjs` | core | `PreToolUse` (Read/Edit/Write/MultiEdit/NotebookEdit/Grep) | Before every file read, search or write |
 | `format.mjs` | `aidlc-stack-web` | `PostToolUse` (Edit/Write) | After every file write |
 
 Anything merged here reaches every consumer on their next `/plugin marketplace update`. There is no

@@ -28,8 +28,13 @@ improvise replacement files: the permission posture and rules must be the review
 
 ## Step 2 — Pre-flight checks
 
-1. Confirm cwd is a git repository (`git rev-parse --is-inside-work-tree`). If not, ask the user whether to
-   `git init`. **When you `git init` (or on an existing repo), normalize the control-plane branch to the
+1. Confirm cwd is **the root of** a git repository — `<cwd>/.git` exists (a directory, or a file for a
+   worktree), or `git rev-parse --show-toplevel` resolves to cwd itself. **Not**
+   `git rev-parse --is-inside-work-tree`: git searches parent folders, so it answers "yes" for any folder
+   that merely sits inside some other repo (a home directory under git is common), and init then commits
+   the control plane into that ancestor (`aidlc:adopt` → *VCS state* documents the same trap). If cwd is
+   inside an ancestor repo but not its root, say which repo, and ask whether to `git init` here or to run
+   init at that repo's root instead. If it is not in any repo, ask the user whether to `git init`. **When you `git init` (or on an existing repo), normalize the control-plane branch to the
    configured default** (`git init -b <defaultBranch>`, or `git branch -m master <defaultBranch>` /
    `git symbolic-ref HEAD refs/heads/<defaultBranch>` on an empty repo) so it matches
    `git.defaultBranch` — don't leave a `master` control plane while every repo config says `main` (F6).
@@ -102,8 +107,14 @@ improvise replacement files: the permission posture and rules must be the review
      **`/aidlc:adopt-adr`** (records the decisions the code already embodies as ADRs, rationale left for a
      human — so `docs/adr/` is not empty on a project that has been making decisions for years) and
      optionally **`/aidlc:adopt-backlog`** (files the debt the scan found as tracked items). Write the config with
-     `"architecture": { "status": "pending", "resolvedBy": "/aidlc:adopt" }` and leave the `{{*_CMD}}`
-     placeholders as "tbd" — same deferral mechanism as the bootstrap path, different resolver.
+     `"architecture": { "status": "pending", "resolvedBy": "/aidlc:adopt" }` **and
+     `"adoption": { "status": "pending" }`**, blank the `stack` exactly as the bootstrap path does, set
+     `ux.enabled: false` until the scan finds a frontend, and leave the `{{*_CMD}}` placeholders and
+     `{{DEFAULT_BRANCH}}` as "tbd" — same deferral mechanism as the bootstrap path, different resolver.
+     The pending marker is what tells `/aidlc:adopt-apply` that the remaining template values
+     (`git.defaultBranch: "main"`, the branch pattern, the seeded review paths) are placeholders init
+     wrote, not choices a human made — without it adopt-apply treated them as hand-authored, defaulted
+     every conflict to *keep*, and a `master` or GitFlow repo stayed configured as `main`.
      **Skip Step 4.5–4.7's stack scaffolding**: an existing project already has its tooling, structure and
      CI, and the merge-aware baseline is adopt's business, not a fresh scaffold's. **Skip item 7 too** —
      adopt detects the project's existing hook manager (husky / pre-commit / lefthook) and records it so the

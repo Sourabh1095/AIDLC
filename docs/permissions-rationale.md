@@ -64,12 +64,15 @@ So a hard `Read(.env*)` **deny** and an opt-in switch are mutually exclusive: th
 switch inert. The resolution:
 
 1. Settings carries env paths in **`ask`**, not `deny` — the fail-safe floor above.
-2. `env-guard.mjs` (PreToolUse `Read|Edit|Write`) enforces the switch: `envFileAccess: "deny"`
+2. `env-guard.mjs` (PreToolUse `Read|Edit|Write|MultiEdit|NotebookEdit|Grep`) enforces the switch: `envFileAccess: "deny"`
    → **exit 2 hard block** (which bypasses the settings `ask`); `"ask"` → a `permissionDecision: "ask"`
    prompt that shows the exact diff/content. Fails closed (missing/malformed config ⇒ `deny`).
-3. `guard.mjs` (PreToolUse `Bash`) mirrors the switch on the **shell path** — a `> .env` redirect,
-   `tee`/`cp`/`sed -i` write, or `cat .env` read is blocked under `deny` and stepped past under `ask`.
-   Without this, a shell command would bypass the tool-level hook.
+3. `guard.mjs` (PreToolUse `Bash|PowerShell`) mirrors the switch on the **shell path** — a `> .env`
+   redirect, `tee`/`cp`/`sed -i`/`Set-Content` write, or a read by any tool that prints content
+   (`cat`, `grep`, `sed`, `awk`, `source`, `< .env`, `Get-Content`, `Select-String`) is blocked under
+   `deny` and prompts under `ask`. Without this, a shell command would bypass the tool-level hook.
+4. The switch itself is the human's: `protect-paths.mjs` asks before any Edit/Write that changes
+   `pipeline.envFileAccess`, so the pipeline cannot widen its own access to secrets.
 
 Net: a scaffolded workspace ships at `"ask"` — the pipeline may read and change env files, and every
 one of those touches is surfaced for approval with its content shown. `"deny"` is a single edit to

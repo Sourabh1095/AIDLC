@@ -10,21 +10,34 @@ make the plan real.
 
 ## How you work
 
-1. Read the run file's `## Plan` and `## Item snapshot` first. Then read the code you'll touch —
-   match the project's existing patterns, naming, and idioms; reuse existing utilities before writing new ones.
-2. Work plan-task by plan-task, in order. After each logical unit:
-   - run the project's test + lint commands (from CLAUDE.md);
-   - commit with a conventional message (`feat|fix|refactor|test(scope): msg`, body `Refs: <ID>`). If
-     the plan line carries a `wi: <task id>` binding, **the trailer names both** —
-     `Refs: <ID>, <task id>` — the item for the PR, the tracker Task for the effort;
+1. Read the run file's `## Plan` (its `### Reuse` block first) and `## Item snapshot`. Then read the
+   code you'll touch — match the project's existing patterns, naming, and idioms.
+2. **Reuse before you write** — follow `aidlc:reuse`. Your brief quotes what the catalog already has
+   for each task; start from it. Before creating any exported function, hook, component, class, type,
+   client or test fixture, query the catalog for its purpose
+   (`node "${CLAUDE_PLUGIN_ROOT}/skills/reuse/catalog.mjs" query <repo> <words…>`) and climb the ladder:
+   reuse → extend (a parameter, a prop, a variant — existing callers keep working) → extract into the
+   shared area → only then create new, **in the shared area it belongs to**, with a one-sentence doc
+   comment. Never copy a block from a sibling file and edit it: that is the duplication the verify phase
+   blocks on.
+3. Work plan-task by plan-task, in order. After each logical unit:
+   - run **the resolved gate from your brief** (fall back to CLAUDE.md's commands only when the brief
+     has none);
+   - commit in **the project's commit style from your brief** (conventional, id-prefixed or freeform —
+     do not assume `feat(scope):`), body `Refs: <ID>`. If the plan line carries a `wi: <task id>`
+     binding, **the trailer names both** — `Refs: <ID>, <task id>` — the item for the PR, the tracker
+     Task for the effort;
    - tick the task's checkbox in the run file's `## Plan`.
 
    **Never call the tracker yourself.** Ticking the checkbox is the whole signal: the orchestrator reads
    it at its next checkpoint and transitions the bound Task. The board has one writer for the same
    reason git does in fan-out mode.
-3. Write tests alongside code for new behavior (the QA agent extends coverage later — you still
-   ship the obvious unit tests).
-4. If loaded skills for the stack exist (`aidlc-stack-web:nextjs`, `aidlc-stack-web:nestjs`, `aidlc-stack-web:postgres`,
+4. Write tests alongside code for new behavior (the QA agent extends coverage later — you still
+   ship the obvious unit tests), using the project's existing fixtures and factories (they are in the
+   catalog) rather than building test data inline.
+5. Before reporting, run `catalog.mjs similar` and `dup-check.mjs` (`aidlc:reuse` → *The two tools*) on
+   your branch and fix what they find — or say in your report why a flagged copy is intentional.
+6. If loaded skills for the stack exist (`aidlc-stack-web:nextjs`, `aidlc-stack-web:nestjs`, `aidlc-stack-web:postgres`,
    `aidlc-stack-web:mongodb`, `aidlc-stack-web:project-structure`, coding standards — plus
    `aidlc-stack-web:docker` for any Dockerfile or compose file you touch), follow them. Use Context7
    for current library APIs instead of guessing.
@@ -57,7 +70,9 @@ Everything else — patterns, reuse, tests alongside code, the runtime constrain
 
 When your brief contains reviewer/QA findings instead of a plan: fix ONLY the listed findings.
 No opportunistic refactoring. Mark each finding `[resolved]` in the run file's `## Findings`
-with a one-line note of the fix, commit per finding or per coherent group.
+with a one-line note of the fix, commit per finding or per coherent group. A `reuse:` finding is fixed
+by the ladder in `aidlc:reuse` — call or extend the existing code, or extract one shared piece used by
+both places — never by an edit that merely stops the duplicate from matching.
 
 ## Runtime constraints (when your brief carries them)
 
@@ -113,4 +128,6 @@ uncommitted-and-unmentioned is lost work.
 
 Append one `## Log` line to the run file (`- <UTC> implementer: <summary, N commits>`).
 Your final message to the orchestrator: verdict (`COMPLETE` | `BLOCKED: <why>`), commits made,
-plan tasks done/remaining, anything the reviewer should look at closely. ≤10 lines.
+plan tasks done/remaining, anything the reviewer should look at closely, and three reuse lines —
+`reused:` (what you called), `extended:` (what you changed, and that its old callers still pass),
+`new shared:` (what you added, and where) — each `none` when empty. ≤12 lines.

@@ -44,12 +44,10 @@ argument-hint: "[--mine | --unassigned | --any — override the ownership scope,
 2a. **An execution plan overrides raw priority order.** If `.aidlc/plan.md` exists at the control
    plane, it is an active wave schedule (`aidlc:replan`) and the pick comes from **the earliest wave
    that still has open items**, highest-ranked first — not from the top of the priority query. Check it
-   is still trustworthy first — write the plan's `## Item snapshot` and the items you just queried to
-   two temp JSON files and run:
-
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/replan/resolve-waves.mjs" --freshness <plan-snapshot.json> <items-now.json>
-   ```
+   is still trustworthy first — run the freshness check exactly as `aidlc:replan` → *The freshness
+   check* states it (snapshot ids → fetch them → `--freshness .aidlc/plan.md items-now.json --complete`).
+   The five items you just queried are a partial list; checked alone they make every other planned item
+   look deleted.
    - **none** → follow the plan silently.
    - **additive** (new items, or a **board priority changed**) → follow the plan and say so in one line,
      naming what is unscheduled. A board priority change is the signal to re-plan, not a reason to ignore
