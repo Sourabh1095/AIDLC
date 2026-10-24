@@ -42,6 +42,7 @@ export const KINDS = new Set([
   "upgrade", //  the project caught up with a plugin version
   "release", //  a version was cut
   "blocked", //  a run stopped and needs a human
+  "undo", //     a run was reversed — branch, PR and board put back
 ]);
 
 export const journalPath = (root) => join(root, ".aidlc", "journal.md");

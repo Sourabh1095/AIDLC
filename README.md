@@ -60,6 +60,7 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Record why the code is the way it is | ADRs, written by the architect or `/aidlc:adopt-adr` |
 | Cut a release | `/aidlc:release` |
 | Catch an old project up after `/plugin marketplace update` | `/aidlc:upgrade` |
+| Reverse a run that should not have happened | `/aidlc:undo PROJ-123` — closes the PR or opens a revert PR, puts the board back; never rewrites history |
 | Leave cleanly | `/aidlc:remove` |
 
 ---
@@ -196,6 +197,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:upgrade` | Catch a project up with the installed plugin: config shape migrations, permission-rule migrations, rules drift. Every change shown first; `settings.json` is staged, never written |
 | `/aidlc:sync` | Reconcile local extensions after plugin updates |
 | `/aidlc:dogfood` | Log friction with the plugin itself to a local feedback inbox |
+| `/aidlc:undo <ID>` | Reverse one run: close its PR and delete its branch, or open a revert PR if it merged; put the item, its Tasks and its parent back. Shows the plan first; never force-pushes or deletes an item |
 | `/aidlc:remove` | Remove AIDLC from the project: deletes its own files, reverts only what it merged, keeps everything you authored |
 
 ---

@@ -11,7 +11,7 @@ inline beside `lib/date.ts`, a second pagination hook, a table copied from the s
 cause is almost never carelessness — it is not knowing what exists. So this skill hands every planner
 and implementer **the list**, and checks the result deterministically. It is stack-agnostic.
 
-## The two tools
+## The tools
 
 ```bash
 R="${CLAUDE_PLUGIN_ROOT}/skills/reuse"
@@ -19,7 +19,16 @@ node "$R/catalog.mjs" query   <repo> <words…>      # what already exists for t
 node "$R/catalog.mjs" build   <repo> --out .aidlc/catalog --name <repo>   # full list → .aidlc/catalog/<repo>.md
 node "$R/catalog.mjs" similar <repo> [--base <ref>]  # new exports on this branch that resemble existing ones
 node "$R/dup-check.mjs"       <repo> [--base <ref>]  # code this branch duplicated (existing or within itself)
+node "$R/exemplars.mjs" show  <repo> <kind>         # the golden path: how THIS project adds an endpoint,
+                                                    #   page, migration, component, job or test
 ```
+
+**Golden paths** answer the question the catalog cannot: not *what* exists, but *how this project does a
+kind of change*. For each kind, `exemplars.mjs` takes the project's most recent example and asks git
+which commit added it and what else that commit touched — a NestJS endpoint here might be a controller,
+a service, a DTO, a module registration and a spec; a page might be a route folder with its own loading
+state. That file set is the recipe a new change of the same kind should follow. A kind the project does
+not have yet is reported absent: the first change of that kind establishes it.
 
 The catalog covers the repo's **shared areas** — `components`, `ui`, `hooks`, `lib`/`utils`/`helpers`,
 `services`/`clients`/`api`, `types`, `validators`/`schemas`, `errors`, `middleware`/`guards`, `store`,
@@ -48,6 +57,12 @@ second caller is what earns the extraction (step 3). A speculative "generic" hel
 four options nobody asked for is as much a cost as a copy.
 
 ## Planning (the architect, or the orchestrator for a small item)
+
+**Follow the house pattern.** When a task adds something of a known kind (endpoint, page, migration,
+component, job, test), read its golden path first (`exemplars.mjs show <repo> <kind>`) and plan the same
+file set and structure — the task's `paths:` list mirrors the recipe, adapted to the new name. Diverge
+only on purpose, and say why in the task line; an unexplained second way of doing the same thing is the
+structural version of a duplicated helper.
 
 Before writing `## Plan`, query the catalog with the item's nouns and verbs (`pagination users table`,
 `avatar upload validation`) for each repo/package the plan touches. Then write a `### Reuse` block at the

@@ -13,11 +13,10 @@
 // contracts, config, docs, bookkeeping), order logic by size, and flag what touches a path the config
 // marks as risky. The orchestrator adds the judgement half — one line on WHY each start-here file
 // matters, and "try it" steps from the acceptance criteria.
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
+import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
 
 const GROUPS = [
   ["bookkeeping", /(^|\/)\.aidlc\//],
@@ -124,32 +123,22 @@ function changedFiles(root, base) {
 }
 
 if (isEntry(import.meta.url)) {
-  const argv = process.argv.slice(2);
-  const flag = (n) => {
-    const i = argv.indexOf(`--${n}`);
-    return i >= 0 ? argv[i + 1] : undefined;
-  };
-  const root = argv[0] && !argv[0].startsWith("--") ? resolve(argv[0]) : null;
+  const { flags, positional } = parseArgs(process.argv.slice(2), ["--base", "--config", "--repo"]);
+  const root = positional[0] ? resolve(positional[0]) : null;
   if (!root || !existsSync(root)) {
     console.error("usage: node pr-guide.mjs <repoRoot> [--base <ref>] [--config <aidlc.config.json>] [--repo <name>] [--json]");
     process.exit(2);
   }
-  let config = {};
-  if (flag("config")) {
-    try {
-      config = JSON.parse(readFileSync(flag("config"), "utf8"));
-    } catch {
-      /* no config → no risk paths, still a useful ordering */
-    }
-  }
+  // No config → no risk paths, and the ordering is still useful.
+  const config = (flags["--config"] && tryJson(flags["--config"])) || {};
   let files;
   try {
-    files = changedFiles(root, flag("base") || "origin/HEAD");
+    files = changedFiles(root, flags["--base"] || "origin/HEAD");
   } catch {
     console.error("pr-guide: cannot diff against the base — pass --base <ref>");
     process.exit(2);
   }
-  const g = guide(files, { config, repoName: flag("repo") });
-  if (argv.includes("--json")) console.log(JSON.stringify(g, null, 2));
+  const g = guide(files, { config, repoName: flags["--repo"] });
+  if (flags["--json"]) console.log(JSON.stringify(g, null, 2));
   else process.stdout.write(renderGuide(g));
 }

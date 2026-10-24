@@ -1,15 +1,8 @@
 // Tests for json-edit.mjs — patching a JSON file's text so only what changed changes. Run:
 // `node json-edit.test.mjs`. Pins F55: a two-key config migration must be a two-line diff.
 import { patchJsonText } from "./json-edit.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 // Lines that differ between two texts (a crude line diff — enough to measure "how big is the diff").
 const changedLines = (a, b) => {
   const A = a.split(/\r?\n/), B = b.split(/\r?\n/);
@@ -109,5 +102,4 @@ const config = `{
 check("unparseable input falls back to a full serialization", patchJsonText("{ not json", { a: 1 }).trim(), '{\n  "a": 1\n}');
 check("no change is no change", patchJsonText(config, JSON.parse(config)), config);
 
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

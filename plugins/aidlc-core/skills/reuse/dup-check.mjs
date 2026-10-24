@@ -28,8 +28,7 @@
 import { readFileSync, statSync, existsSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
+import { isMain as isEntry, parseArgs } from "../../hooks/scripts/lib/cli.mjs";
 
 const SOURCE_EXT = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte", ".py", ".go", ".java", ".kt",
@@ -226,24 +225,20 @@ export function describe(c) {
 
 const isMain = isEntry(import.meta.url);
 if (isMain) {
-  const argv = process.argv.slice(2);
-  const flag = (n) => {
-    const i = argv.indexOf(`--${n}`);
-    return i >= 0 ? argv[i + 1] : undefined;
-  };
-  const root = argv[0] && !argv[0].startsWith("--") ? resolve(argv[0]) : null;
+  const { flags, positional } = parseArgs(process.argv.slice(2), ["--base", "--min-lines"]);
+  const root = positional[0] ? resolve(positional[0]) : null;
   if (!root || !existsSync(root)) {
     console.error("usage: node dup-check.mjs <repoRoot> [--base <ref>] [--min-lines 8] [--fuzzy] [--json]");
     process.exit(2);
   }
-  const base = mergeBase(root, flag("base"));
+  const base = mergeBase(root, flags["--base"]);
   if (!base) {
     console.error("dup-check: cannot find a base to compare against — pass --base <ref>");
     process.exit(2);
   }
-  const minLines = Math.max(4, Number(flag("min-lines")) || 8);
-  const clones = findClones(root, base, { minLines, fuzzy: argv.includes("--fuzzy") });
-  if (argv.includes("--json")) console.log(JSON.stringify({ base, minLines, clones }, null, 2));
+  const minLines = Math.max(4, Number(flags["--min-lines"]) || 8);
+  const clones = findClones(root, base, { minLines, fuzzy: !!flags["--fuzzy"] });
+  if (flags["--json"]) console.log(JSON.stringify({ base, minLines, clones }, null, 2));
   else if (!clones.length) console.log(`dup-check: no duplicated code added (≥${minLines} lines) against ${base.slice(0, 10)}`);
   else {
     console.log(`dup-check: ${clones.length} duplicated block(s) added against ${base.slice(0, 10)}`);

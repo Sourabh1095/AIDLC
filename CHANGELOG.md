@@ -7,6 +7,47 @@ All notable changes to the Bee-Logical Claude AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.57.0] — 2026-10-24
+
+Golden paths, a clean way back from a run, and nothing that needs an API key. `aidlc` 0.57.0.
+
+### Golden paths — how this project does each kind of change (`aidlc`)
+
+The reuse catalog says *what* exists; it cannot say *how the project does a kind of change* — that an
+endpoint here is a controller, a service, a DTO, a module registration and a spec, or that a page is a
+route folder with its own loading state. A plan that does not know the house pattern invents a second
+one. `skills/reuse/exemplars.mjs` reads it from git: for each kind (endpoint, page, migration,
+component, job, test) it takes the project's most recent focused example and lists every file the commit
+that added it touched. Plans mirror that file set (`aidlc:reuse` → *Planning*), the architect follows it,
+and the implementer's brief carries it for each task of a known kind. Bulk-import commits are skipped
+in favour of a focused one, and `--follow` is deliberately not used — its similarity matching hands a
+small file a stranger's history.
+
+### `/aidlc:undo <ID>` — put things back the way the run found them (`aidlc`)
+
+Reads what the run did — branch, PR, merge, the item's transitions, bound Tasks, a parent rollup, items
+intake created — shows the plan, and reverses exactly that on approval: close the PR and delete the
+branch, or, for a change that already merged, open a **revert PR** for a human to merge. It never
+rewrites history, never force-pushes, never deletes a tracker item, and leaves anything unsafe (someone
+else's commits on the branch, uncommitted changes) for a human. Runs gain a terminal `abandoned` phase
+and the journal an `undo` kind; the session snapshot and `/aidlc:insights` treat an undone run as over.
+
+### No API key, anywhere (`aidlc`)
+
+The on-demand evals CI workflow added in 0.55.0 needed an `ANTHROPIC_API_KEY` secret, and AIDLC's users
+are on Claude plans using Claude Code — they should never need a separate API top-up. It is removed.
+The behavioural evals run locally on the user's own Claude login (`claude auth status` →
+`authMethod: claude.ai`); the cost the eval CLI prints is a cost-equivalent estimate against plan usage,
+not a charge.
+
+### One test kit, and a branch with nothing duplicated (`aidlc`)
+
+`hooks/scripts/lib/testkit.mjs` — `check`, `done`, and `hookOutcome` (run a PreToolUse hook on a payload
+and classify block / ask / allow / crash). Twelve suites carried a byte-identical copy of the harness and
+three hook suites a copy of the outcome classifier; they import it now. `pr-guide`, `dup-check`,
+`catalog` and `resolve-effort` dropped their own argument parsers and JSON readers for `lib/cli.mjs`.
+`dup-check.mjs` run across this whole release branch now reports **no duplicated code added**.
+
 ## [0.56.0] — 2026-10-24
 
 Effort as a second dial beside the model tier, lighter prompts, and the script plumbing made one thing.

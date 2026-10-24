@@ -32,7 +32,7 @@ type: story
 repo: backend          # poly: the routed repo (§2.5). null/absent in mono; `control-plane` for workspace work
 package: null          # monorepo: the resolved package inside that repo — scopes the plan and the gate
 branch: feature/PROJ-123-user-avatar-upload
-phase: implement       # start|requirements|design|implement|verify|pr|docs|done|blocked|review-pending
+phase: implement       # start|requirements|design|implement|verify|pr|docs|done|blocked|review-pending|abandoned
                        # (the canonical list is PHASES in hooks/scripts/lib/run-files.mjs — doctor and the hooks read it)
 fixCycles: 0
 reviewRounds: 0        # human PR-feedback rounds (aidlc:review-feedback) — its own budget, not fixCycles'

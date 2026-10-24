@@ -8,15 +8,8 @@ import {
   resolveFanout, pathsOverlap, globToRegExp, sharedHit, fanoutSettings, scheduleSummary,
   DEFAULT_SHARED_PATTERNS, lookAlikeTasks,
 } from "./resolve-fanout.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 
 const t = (id, paths, extra = {}) => ({ id, title: `task ${id}`, paths, ...extra });
 const shape = (r) => r.schedule.map((g) => (g.kind === "parallel" ? g.tasks.map((x) => x.id) : g.tasks[0].id));
@@ -165,5 +158,4 @@ check(
   warnOf(resolveFanout(screens.map((x) => ({ ...x, reuses: ["src/hooks/use-pagination.ts:usePagination"] })), {})).length,
   0,
 );
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-if (fails) process.exit(1);
+done();

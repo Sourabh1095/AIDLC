@@ -1,11 +1,11 @@
 // Tests for protect-paths.mjs — the Edit/Write/NotebookEdit guard on the pipeline's own
 // guardrails. Run: `node protect-paths.test.mjs`. It had no tests before; the probe that
 // found its case-sensitivity gap is the first row of each group.
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hookOutcome } from "./lib/testkit.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HERE, "protect-paths.mjs");
@@ -16,22 +16,8 @@ writeFileSync(join(ws, ".claude", "settings.json"), "{}");
 writeFileSync(join(ws, ".claude", "aidlc.config.json"), JSON.stringify({ pipeline: { envFileAccess: "deny" } }));
 const fresh = mkdtempSync(join(tmpdir(), "protect-fresh-"));
 
-function run(toolName, toolInput, cwd = ws) {
-  let code = 0;
-  let out = "";
-  try {
-    out = execFileSync("node", [HOOK], {
-      input: typeof toolInput === "string" ? toolInput : JSON.stringify({ tool_name: toolName, tool_input: toolInput, cwd }),
-      stdio: ["pipe", "pipe", "pipe"],
-    }).toString();
-  } catch (e) {
-    code = typeof e.status === "number" ? e.status : -1;
-    out = (e.stdout || "").toString();
-  }
-  if (code === 2) return "block";
-  if (code !== 0) return `exit${code}`;
-  return out.includes('"ask"') ? "ask" : "allow";
-}
+const run = (toolName, toolInput, cwd = ws) =>
+  hookOutcome(HOOK, typeof toolInput === "string" ? toolInput : { tool_name: toolName, tool_input: toolInput, cwd });
 
 let fails = 0;
 let n = 0;

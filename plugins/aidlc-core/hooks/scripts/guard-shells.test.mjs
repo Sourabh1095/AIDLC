@@ -10,6 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hookOutcome } from "./lib/testkit.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GUARD = join(HERE, "guard.mjs");
@@ -38,27 +39,8 @@ g("git config alias.p push");
 execFileSync("git", ["config", "alias.yolo", "!git push --force"], { cwd: repo });
 
 // "block" (exit 2) | "ask" | "allow" | "exitN"
-function run(command, toolName = "Bash", input) {
-  let code = 0;
-  let out = "";
-  try {
-    out = execFileSync("node", [GUARD], {
-      input: input ?? JSON.stringify({ tool_name: toolName, tool_input: { command }, cwd: repo }),
-      stdio: ["pipe", "pipe", "pipe"],
-    }).toString();
-  } catch (e) {
-    code = typeof e.status === "number" ? e.status : -1;
-    out = (e.stdout || "").toString();
-  }
-  if (code === 2) return "block";
-  if (code !== 0) return `exit${code}`;
-  try {
-    if (JSON.parse(out)?.hookSpecificOutput?.permissionDecision === "ask") return "ask";
-  } catch {
-    /* no JSON → allow */
-  }
-  return "allow";
-}
+const run = (command, toolName = "Bash", input) =>
+  hookOutcome(GUARD, input ?? { tool_name: toolName, tool_input: { command }, cwd: repo });
 
 let fails = 0;
 let n = 0;

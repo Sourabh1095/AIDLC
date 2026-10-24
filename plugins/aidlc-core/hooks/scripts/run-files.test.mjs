@@ -6,15 +6,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readRuns, frontmatter, PHASES, WAITING_ON_HUMAN } from "./lib/run-files.mjs";
+import { check, done } from "./lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 
 const run = (dir, item, phase) => {
   mkdirSync(join(dir, ".aidlc", "runs"), { recursive: true });
@@ -55,5 +48,4 @@ check("review-pending is a phase", PHASES.includes("review-pending"), true);
 check("blocked and review-pending wait on a human", [WAITING_ON_HUMAN.has("blocked"), WAITING_ON_HUMAN.has("review-pending"), WAITING_ON_HUMAN.has("verify")], [true, true, false]);
 
 for (const d of [ws, elsewhere, repo, join(wt, "..")]) rmSync(d, { recursive: true, force: true });
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

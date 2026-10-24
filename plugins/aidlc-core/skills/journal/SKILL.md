@@ -66,6 +66,7 @@ stays greppable and the SessionStart reader can prioritise.
 | `adopt` | `aidlc:adopt-apply` | a profile is applied — what changed |
 | `upgrade` | `aidlc:upgrade` | the project catches up with a plugin version |
 | `release` | `aidlc:release` | a version is cut — repo, version, tag |
+| `undo` | `aidlc:undo` | a run is reversed — item, what was put back, and anything left for a human |
 
 **`board` is how a snapshot reaches a Jira or ADO session at all.** SessionStart cannot query a
 tracker — it is a hook, with no tools and no network budget — so before this, everything except the

@@ -28,8 +28,13 @@ initialised before a rule file shipped, which is why the reuse instruction lives
 
 None of them grant a shell tool. That is deliberate: Claude Code only runs a shell-granting eval inside
 an OS sandbox, which Windows does not have, and these cases should run on the machine the plugin is
-developed on. Cases that need the full pipeline (git, the gate, `/aidlc:run`) belong in CI on Linux or
-macOS, granted `Bash` there.
+developed on. Cases that need the full pipeline (git, the gate, `/aidlc:run`) need `Bash`, so they run
+on a machine with a sandbox — macOS, Linux or WSL — the same way, on the same login.
+
+**They run on your Claude login, not an API key.** `claude plugin eval` copies your own credentials into
+each run (`claude auth status` shows `authMethod: claude.ai` on a plan), so a run draws on your plan's
+usage like any session. The `costUsd` it reports is a cost-equivalent estimate, not a charge. Nothing in
+AIDLC needs `ANTHROPIC_API_KEY`, and there is deliberately no CI workflow that would.
 
 ## Running
 
@@ -38,7 +43,7 @@ From `plugins/aidlc-core`:
 ```bash
 claude plugin eval . --trust-plugin --scaffold --no-publish \
   --allow-tools Write Edit --disallow-tools Agent TaskStop \
-  --model sonnet --runs 3 --threshold 0.67 --max-cost-usd 10
+  --model sonnet --runs 3 --threshold 0.67
 ```
 
 - `--scaffold` runs the cases' `scaffold.sh` (it is ours; it only copies the fixture and runs git/node).
@@ -46,12 +51,10 @@ claude plugin eval . --trust-plugin --scaffold --no-publish \
   every file grader fails.
 - `--disallow-tools Agent TaskStop` keeps a run to the main session — cheaper, and the cases test the
   skills, not subagent dispatch.
-- `--case reuse-plan --runs 1` for a quick check. One full pass (3 cases × 3 runs × 2 arms) costs a few
-  dollars with Sonnet; the report lands in `evals/results/<timestamp>/report.html` (gitignored).
+- `--case reuse-plan --runs 1` for a quick check. One full pass is 3 cases × 3 runs × 2 arms = 18 Sonnet
+  sessions of a few turns each; the report lands in `evals/results/<timestamp>/report.html` (gitignored).
 - `--ablation none` skips the baseline arm when you only want the plugin's score.
 
 Read the **delta** column, not only the score: a case the baseline also passes is not evidence that the
 plugin helped. The reuse cases are the ones to watch when changing `aidlc:reuse`, `aidlc:planning` or
 the implementer prompt — run them before and after.
-
-`.github/workflows/evals.yml` runs the suite on demand in CI (it needs an `ANTHROPIC_API_KEY` secret).

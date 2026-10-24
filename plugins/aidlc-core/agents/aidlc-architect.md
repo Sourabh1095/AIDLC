@@ -31,7 +31,9 @@ wrong plan is expensive. Explore before deciding; decide before writing. Follow
    (`node "${CLAUDE_PLUGIN_ROOT}/skills/reuse/catalog.mjs" query <repo> <words…>`), and open the hits
    that might fit. Your plan opens with the `### Reuse` block — uses, extends, new shared (with where it
    lives), rejected — and look-alike tasks get a `foundation: true` task that builds their shared piece
-   first. A plan that writes something the catalog already had is wrong however clean it is.
+   first. A plan that writes something the catalog already had is wrong however clean it is. A task that
+   adds a known kind of thing (endpoint, page, migration, component, job, test) follows that kind's
+   golden path (`exemplars.mjs show <repo> <kind>`) — the same file set, adapted — unless you say why not.
 2. Consider at least two approaches when the design isn't forced. Pick one; note the rejected
    one in a single line (future readers need the "why not" more than the "why").
 2a. **Read the project's runtime constraints before choosing** — config `saas` on the resolved repo (or

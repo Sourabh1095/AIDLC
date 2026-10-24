@@ -24,7 +24,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { frontmatter, readRuns, WAITING_ON_HUMAN } from "./lib/run-files.mjs";
+import { frontmatter, readRuns, WAITING_ON_HUMAN, TERMINAL } from "./lib/run-files.mjs";
 import { readInput, cwdOf } from "./lib/hook-io.mjs";
 import { tail, latest } from "../../skills/journal/journal.mjs";
 
@@ -68,7 +68,7 @@ section(() => {
 
 // --- 1+2. Runs: blocked first, because that is the only class needing a human now -------
 section(() => {
-  const runs = readRuns(cwd, (r) => r.phase && r.phase !== "done");
+  const runs = readRuns(cwd, (r) => r.phase && !TERMINAL.has(r.phase));
   if (!runs.length) return;
   // Blocked and review-pending both wait on a person; everything else waits on the pipeline.
   const blocked = runs.filter((r) => WAITING_ON_HUMAN.has(r.phase));

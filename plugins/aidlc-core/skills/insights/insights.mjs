@@ -140,6 +140,7 @@ export function summarize(runs, { since } = {}) {
   const sinceDate = since ? toDate(since + "T00:00:00Z") : null;
   const rs = runs.filter((r) => !sinceDate || (r.started && r.started >= sinceDate));
   const done = rs.filter((r) => r.phase === "done");
+  const abandoned = rs.filter((r) => r.phase === "abandoned");
   const blocked = rs.filter((r) => r.phase === "blocked");
   const waiting = rs.filter((r) => WAITING_ON_HUMAN.has(r.phase) && r.phase !== "blocked");
   const byCategory = {};
@@ -172,7 +173,8 @@ export function summarize(runs, { since } = {}) {
     done: done.length,
     blocked: blocked.length,
     awaitingReview: waiting.length,
-    inFlight: rs.length - done.length - blocked.length - waiting.length,
+    abandoned: abandoned.length,
+    inFlight: rs.length - done.length - abandoned.length - blocked.length - waiting.length,
     medianHoursToDone: round(median(done.map((r) => r.hours))),
     meanFixCycles: round(rs.length ? rs.reduce((n, r) => n + r.fixCycles, 0) / rs.length : null, 2),
     runsNeedingAFixCycle: rs.filter((r) => r.fixCycles > 0).length,
@@ -266,7 +268,7 @@ export function renderThemes(themes) {
 
 export function render(s) {
   const lines = [];
-  lines.push(`AIDLC insights — ${s.runs} run(s): ${s.done} done · ${s.awaitingReview} awaiting review · ${s.blocked} blocked · ${s.inFlight} in flight`);
+  lines.push(`AIDLC insights — ${s.runs} run(s): ${s.done} done · ${s.awaitingReview} awaiting review · ${s.blocked} blocked · ${s.inFlight} in flight${s.abandoned ? ` · ${s.abandoned} undone` : ""}`);
   if (!s.runs) return lines.join("\n") + "\n";
   lines.push(`  median time to done: ${s.medianHoursToDone ?? "?"} h · fix cycles/run: ${s.meanFixCycles} (${s.runsNeedingAFixCycle} needed one) · human review rounds: ${s.reviewRounds}`);
   const ph = Object.entries(s.medianHoursByPhase);

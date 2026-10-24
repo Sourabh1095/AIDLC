@@ -36,7 +36,7 @@ make the plan real.
 4. Write tests alongside code for new behavior (the QA agent extends coverage later — you still
    ship the obvious unit tests), using the project's existing fixtures and factories (they are in the
    catalog) rather than building test data inline.
-5. Before reporting, run `catalog.mjs similar` and `dup-check.mjs` (`aidlc:reuse` → *The two tools*) on
+5. Before reporting, run `catalog.mjs similar` and `dup-check.mjs` (`aidlc:reuse` → *The tools*) on
    your branch and fix what they find — or say in your report why a flagged copy is intentional.
 6. If loaded skills for the stack exist (`aidlc-stack-web:nextjs`, `aidlc-stack-web:nestjs`, `aidlc-stack-web:postgres`,
    `aidlc-stack-web:mongodb`, `aidlc-stack-web:project-structure`, coding standards — plus

@@ -4,15 +4,8 @@
 // only the narrowest step list made a Python package inside a TypeScript monorepo lose the
 // repo-wide lint gate, silently. Every case below is a way that can happen again.
 import { resolveGate, coverageHoles, environmentDependent, notApplicable, runnableSteps } from "./resolve-gate.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 const names = (r) => r.steps.map((s) => s.name);
 const cmds = (r) => r.steps.map((s) => s.cmd ?? null);
 
@@ -166,5 +159,4 @@ check("not-applicable steps are separately identifiable for the run file",
 check("a present step is neither a hole nor not-applicable",
   notApplicable(resolveGate(naCfg, "api").steps).some((s) => s.name === "lint"), false);
 
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

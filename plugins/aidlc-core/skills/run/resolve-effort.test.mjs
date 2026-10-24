@@ -3,15 +3,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveEffort, effortTable, effortSettings, BASELINE, LEVELS } from "./resolve-effort.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 const lvl = (ctx, cfg = {}) => resolveEffort(ctx, cfg).level;
 
 // ---- role baselines
@@ -65,5 +58,4 @@ for (const plugin of ["aidlc-core", "aidlc-ux"]) {
   }
 }
 
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

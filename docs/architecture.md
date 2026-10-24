@@ -20,7 +20,7 @@ A subagent has no channel to the user, so as a subagent each of those would sile
 
 Being in the main session is *reach*, not *permission*, so entry is gated separately: `run` carries
 **`disable-model-invocation: true`**, like every other command that writes (`init`, `adopt*`, `sprint`,
-`sync`, `repo`, `promote`, `remove`, `bootstrap`, `review-feedback`). It is the most side-effectful command in the
+`sync`, `repo`, `promote`, `remove`, `undo`, `bootstrap`, `review-feedback`). It is the most side-effectful command in the
 framework — branch, commit, push, PR — and must never be entered because a prompt merely *sounded* like
 work. Its three doors are all a human choosing it: a typed `/aidlc:run`, a headless
 `claude -p "/aidlc:run {ID}"` from `sprint`, or an explicit handoff from `next`/`do`/`intake` after the
@@ -455,7 +455,7 @@ silently crippled by a guessed tool id.
 
 Commands: `do`, `run`, `next`, `sprint`, `status`, `insights`, `doctor`, `init`, `bootstrap`, `intake`, `adopt`,
 `adopt-apply`, `adopt-adr`, `adopt-backlog`, `groom`, `replan`, `review-feedback`, `release`, `repo`,
-`promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `remove`. Infrastructure:
+`promote`, `sync`, `upgrade`, `scaffold-skill`, `scaffold-agent`, `dogfood`, `undo`, `remove`. Infrastructure:
 `run-state`, `journal`, `facts`, `work-items`, `wi-markdown`, `wi-jira`, `wi-ado`, `git-workflow`, `agent-contract`.
 Playbooks: `ceremony`, `requirements`, `planning`, `reuse`, `architecture`, `code-review`, `testing`,
 `debugging`, `security`, `ci-cd`, `docs-writing`, `research`, `maintenance`. Stack pack

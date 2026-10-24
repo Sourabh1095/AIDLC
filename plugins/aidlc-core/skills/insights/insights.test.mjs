@@ -3,15 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { categoryOf, parseRun, collectRuns, summarize, render, reviewThemes } from "./insights.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 
 check("categories", ["reuse", "review(@priya) src/a.ts", "reviewer", "qa", "security", "jury (round cap", "coverage hole"].map(categoryOf),
   ["reuse", "human review", "agent review", "qa", "security", "design", "gate hole"]);
@@ -95,5 +88,4 @@ check("an empty workspace renders one line", render(summarize([])).trim().split(
 }
 
 rmSync(ws, { recursive: true, force: true });
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

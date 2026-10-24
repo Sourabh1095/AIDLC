@@ -342,9 +342,11 @@ gate.)
 
 **The reuse context** is the plan's `### Reuse` block plus, for each task, the top catalog hits for its
 title (`catalog.mjs query <repo> <task title words>`, ~5 lines each) — quoted, so the implementer
-starts from the list of what exists rather than from a search it may or may not run. For a UI task, add
-`design/design-system.md` when it exists: the components and tokens it names are the vocabulary the
-screen is built from. Tell it to follow `aidlc:reuse` → *Implementing* and to report reused / extended /
+starts from the list of what exists rather than from a search it may or may not run. A task that adds
+something of a known kind (endpoint, page, migration, component, job, test) also gets that kind's golden
+path (`exemplars.mjs show <repo> <kind>`): the file set this project's last change of that kind touched.
+For a UI task, add `design/design-system.md` when it exists: the components and tokens it names are the
+vocabulary the screen is built from. Tell it to follow `aidlc:reuse` → *Implementing* and to report reused / extended /
 new shared.
 
 **Where a plan line carries a `wi:` binding (§5), its commit trailer names both IDs** — `Refs: <leaf>,

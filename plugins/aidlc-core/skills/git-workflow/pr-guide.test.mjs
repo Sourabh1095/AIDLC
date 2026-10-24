@@ -1,14 +1,7 @@
 // Tests for pr-guide.mjs — the "How to review this PR" skeleton. Run: `node pr-guide.test.mjs`.
 import { guide, renderGuide } from "./pr-guide.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 const paths = (rows) => rows.map((r) => r.path);
 
 const files = [
@@ -49,5 +42,4 @@ check("rendered guide asks for the why and the try-it steps", [md.includes("{{WH
 check("rendered guide skips bookkeeping in one line", md.includes("*Skip:* 1 AIDLC run-state file(s)"), true);
 check("no config still orders the files", paths(guide(files, {}).start).length, 3);
 
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

@@ -10,15 +10,8 @@ import {
   planFingerprint, checkFreshness, planSnapshot, fingerprintFields, stageOf, stageLabels, UNSTAGED,
   CONTAINER_TYPES, LEAF_TYPES, REPLAN_DEFAULTS,
 } from "./resolve-waves.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 
 // An item, with the fields the packer actually reads. Defaults to a ready single-repo story.
 const it = (id, extra = {}) => ({ id, type: "story", status: "todo", priority: "P2", repo: "backend", title: `item ${id}`, ...extra });
@@ -389,5 +382,4 @@ check("container and leaf types do not overlap", CONTAINER_TYPES.some((t) => LEA
   check("planSnapshot: no block → null", planSnapshot("## Waves\nnothing"), null);
 }
 
-console.log(`\n${n - fails}/${n} passed`);
-process.exit(fails ? 1 : 0);
+done();

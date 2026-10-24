@@ -1,10 +1,10 @@
 // Regression tests for env-guard.mjs. Run: `node env-guard.test.mjs` (tests the
 // sibling env-guard.mjs) or `node env-guard.test.mjs <path-to-env-guard.mjs>`.
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hookOutcome } from "./lib/testkit.mjs";
 
 const GUARD = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), "env-guard.mjs");
 
@@ -25,28 +25,7 @@ function workspace(access) {
 }
 
 // Returns "block" (exit 2) | "ask" (exit 0 + permissionDecision:ask) | "allow" (exit 0, no decision).
-function run(toolName, filePath, cwd) {
-  let code = 0;
-  let out = "";
-  try {
-    out = execFileSync("node", [GUARD], {
-      input: JSON.stringify({ tool_name: toolName, tool_input: { file_path: filePath }, cwd }),
-      stdio: ["pipe", "pipe", "pipe"],
-    }).toString();
-  } catch (e) {
-    code = typeof e.status === "number" ? e.status : -1;
-    out = (e.stdout || "").toString();
-  }
-  if (code === 2) return "block";
-  if (code !== 0) return `exit${code}`;
-  try {
-    const j = JSON.parse(out);
-    if (j?.hookSpecificOutput?.permissionDecision === "ask") return "ask";
-  } catch {
-    /* not JSON → allow */
-  }
-  return "allow";
-}
+const run = (toolName, filePath, cwd) => hookOutcome(GUARD, { tool_name: toolName, tool_input: { file_path: filePath }, cwd });
 
 let fails = 0;
 let n = 0;
@@ -145,13 +124,7 @@ try {
 // A Grep whose path is an env file prints its matching lines — the values.
 function checkInput(input, cwd, expected, label) {
   n++;
-  let got = "allow";
-  try {
-    const out = execFileSync("node", [GUARD], { input: JSON.stringify({ ...input, cwd }), stdio: ["pipe", "pipe", "pipe"] }).toString();
-    if (out.includes('"ask"')) got = "ask";
-  } catch (e) {
-    got = e.status === 2 ? "block" : `exit${e.status}`;
-  }
+  const got = hookOutcome(GUARD, { ...input, cwd });
   if (got !== expected) {
     fails++;
     console.log(`FAIL [${label}] expected=${expected} got=${got}`);
@@ -171,11 +144,7 @@ function checkInput(input, cwd, expected, label) {
 }
 {
   n++;
-  let out = "";
-  try {
-    out = execFileSync("node", [GUARD], { input: "not json", stdio: ["pipe", "pipe", "pipe"] }).toString();
-  } catch {}
-  if (!out.includes('"ask"')) {
+  if (hookOutcome(GUARD, "not json") !== "ask") {
     fails++;
     console.log("FAIL [unreadable input asks]");
   } else console.log("ok   [unreadable input asks] ask");

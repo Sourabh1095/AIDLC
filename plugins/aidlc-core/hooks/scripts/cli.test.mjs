@@ -9,18 +9,11 @@ import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib/cli.mjs";
+import { check, done } from "./lib/testkit.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SKILLS = resolve(HERE, "..", "..", "skills");
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 
 // A resolver run with no arguments prints its usage line on stderr and exits 2 — IF it recognised
 // itself as the entry point. A script that did not would exit 0 and print nothing.
@@ -58,5 +51,4 @@ check("parseArgs: value flags, bare flags, = form, positionals", p, {
   positional: ["root", "extra"],
 });
 
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();

@@ -13,7 +13,10 @@ import { execFileSync } from "node:child_process";
 // Every phase a run file can be in (`aidlc:run-state` → Format). `review-pending` was used by five
 // skills and accepted by doctor, but missing from the documented list — so readers disagreed about
 // whether a run parked for human review was "active".
-export const PHASES = ["start", "requirements", "design", "implement", "verify", "pr", "docs", "done", "blocked", "review-pending"];
+export const PHASES = ["start", "requirements", "design", "implement", "verify", "pr", "docs", "done", "blocked", "review-pending", "abandoned"];
+
+// Phases that are over: nothing more will happen to the run. `abandoned` is a run reversed by /aidlc:undo.
+export const TERMINAL = new Set(["done", "abandoned"]);
 
 // Phases where the run is waiting on a person, not on the pipeline.
 export const WAITING_ON_HUMAN = new Set(["blocked", "review-pending"]);
@@ -99,6 +102,6 @@ export function readRuns(cwd, keep) {
 //   node run-files.mjs <workspace-root> [--all]   → one line per non-done run (or every run)
 if (process.argv[1] && /run-files\.mjs$/.test(process.argv[1])) {
   const [root = process.cwd(), flag] = process.argv.slice(2);
-  for (const r of readRuns(resolve(root), (x) => x.phase && (flag === "--all" || x.phase !== "done")))
+  for (const r of readRuns(resolve(root), (x) => x.phase && (flag === "--all" || !TERMINAL.has(x.phase))))
     console.log(`${r.item}\t${r.phase}\t${r.repo && r.repo !== "null" ? r.repo : "-"}\t${r.branch || "-"}`);
 }

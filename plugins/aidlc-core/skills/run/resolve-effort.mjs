@@ -20,8 +20,7 @@
 // Order of application: role baseline → size → risk → retry → budget shift → per-agent override → cap.
 // Claude Code then applies its own: a level above the model's maximum is clamped, a `maxEffortLevel`
 // setting caps it again, and CLAUDE_CODE_EFFORT_LEVEL overrides everything (doctor warns when set).
-import { readFileSync } from "node:fs";
-import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
+import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
 
 export const LEVELS = ["low", "medium", "high", "xhigh", "max"];
 const idx = (l) => LEVELS.indexOf(l);
@@ -140,30 +139,16 @@ export function effortTable(ctx, config, agents = Object.keys(BASELINE).filter((
   return agents.map((agent) => ({ agent, ...resolveEffort({ ...ctx, agent }, config) }));
 }
 
-function parse(argv) {
-  const out = { flags: {}, pos: [] };
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--")) {
-      const k = argv[i].slice(2);
-      out.flags[k] = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : true;
-    } else out.pos.push(argv[i]);
-  }
-  return out;
-}
-
 if (isEntry(import.meta.url)) {
-  const { flags, pos } = parse(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2), ["--size", "--type", "--risk", "--phase", "--fix-cycle"]);
+  const pos = parsed.positional;
+  const flags = Object.fromEntries(Object.entries(parsed.flags).map(([k, v]) => [k.slice(2), v]));
   const [cfgPath, agent] = pos;
   if (!cfgPath || (!agent && !flags.table)) {
     console.error("usage: node resolve-effort.mjs <aidlc.config.json> <agent> [--size S|M|L|XL] [--type …] [--risk a,b] [--phase …] [--fix-cycle N]\n       node resolve-effort.mjs <aidlc.config.json> --table [--size …] [--type …] [--risk …]");
     process.exit(2);
   }
-  let config = {};
-  try {
-    config = JSON.parse(readFileSync(cfgPath, "utf8"));
-  } catch {
-    /* no config → defaults */
-  }
+  const config = tryJson(cfgPath) || {}; // no config → the defaults
   const ctx = {
     size: flags.size,
     type: flags.type,

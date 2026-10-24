@@ -30,7 +30,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSy
 import { join, relative, resolve, extname, basename, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
+import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
 
 // Directories never worth reading.
 export const IGNORED_DIRS = new Set([
@@ -221,13 +221,8 @@ export function extractExports(text, file) {
 // ---------------------------------------------------------------------------------------------
 // Build
 
-export function readConfig(configPath) {
-  try {
-    return configPath ? JSON.parse(readFileSync(configPath, "utf8")) : {};
-  } catch {
-    return {};
-  }
-}
+// The config at `configPath`, or {} when there is none or it cannot be read.
+export const readConfig = (configPath) => (configPath && tryJson(configPath)) || {};
 
 // Narrowest-wins: a repo entry's `reuse` block overrides the top-level one.
 export function reuseSettings(config, repoName) {
@@ -499,20 +494,12 @@ export function similarOnBranch(root, base, { config, name, placement = false } 
 // ---------------------------------------------------------------------------------------------
 // CLI
 
-function parseArgs(argv) {
-  const flags = {};
-  const pos = [];
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--")) flags[argv[i].slice(2)] = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : true;
-    else pos.push(argv[i]);
-  }
-  return { flags, pos };
-}
-
 const isMain = isEntry(import.meta.url);
 if (isMain) {
   const [cmd, ...rest] = process.argv.slice(2);
-  const { flags, pos } = parseArgs(rest);
+  const parsed = parseArgs(rest, ["--name", "--out", "--config", "--base", "--limit"]);
+  const pos = parsed.positional;
+  const flags = Object.fromEntries(Object.entries(parsed.flags).map(([k, v]) => [k.slice(2), v]));
   const root = pos[0] ? resolve(pos[0]) : null;
   if (!cmd || !root || !existsSync(root)) {
     console.error(

@@ -12,15 +12,8 @@ import {
   extractExports, buildCatalog, queryCatalog, renderMarkdown, namesAlike, isSharedFile, similarOnBranch, canonical, stem,
 } from "./catalog.mjs";
 import { findClones, normalizeLine, mergeBase } from "./dup-check.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 const names = (xs) => xs.map((x) => x.name);
 
 // ---------------------------------------------------------------- extraction, per language
@@ -153,5 +146,4 @@ check("dup-check: braces and imports are not significant", [normalizeLine("  });
 check("dup-check: fuzzy folds identifiers", normalizeLine("const users = load(id);", true), normalizeLine("const orders = fetch(key);", true));
 
 rmSync(repo, { recursive: true, force: true });
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-if (fails) process.exit(1);
+done();

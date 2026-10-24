@@ -6,15 +6,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { allocate, highestExisting } from "./next-id.mjs";
+import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 
-let n = 0, fails = 0;
-function check(label, actual, expected) {
-  n++;
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a === e) { console.log(`ok    ${label}`); return; }
-  fails++;
-  console.log(`FAIL  ${label}\n      expected ${e}\n      actual   ${a}`);
-}
 
 const repo = mkdtempSync(join(tmpdir(), "nextid-"));
 const git = (...a) => execFileSync("git", a, { cwd: repo, stdio: ["ignore", "pipe", "ignore"] });
@@ -46,5 +39,4 @@ check("a lagging sequence jumps past existing ids", allocate(repo, "PROJ").id, "
 
 rmSync(repo, { recursive: true, force: true });
 rmSync(join(wt, ".."), { recursive: true, force: true });
-console.log(`\n${n - fails}/${n} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);
+done();
