@@ -39,6 +39,7 @@ removing a promoted skill. This file does not restate them — that document is 
 | `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator, 9 agents, skills, guard hooks, project template. **Stack-agnostic** — no language or package manager assumed |
 | `plugins/aidlc-stack-web/` | Stack pack: TS standards, project structure, Next.js, NestJS, Postgres, Mongo, Docker, the Node CI half, the Prettier format hook |
 | `plugins/aidlc-ux/` | The design pod: 7 agents (narrative, research, design system, motion, Figma, fidelity, jury) + the Figma and Playwright MCP servers |
+| `plugins/aidlc-cockpit/` | The cockpit mod. Its logic lives in `hooks/view.mjs` (node tests, in CI); the mod's own tests run with `claude plugin test plugins/aidlc-cockpit` |
 | `docs/` | Architecture, adoption + user guides, walkthroughs, promotion policy, permissions rationale, schemas |
 
 **Where a change belongs** is the first review question. Anything that assumes a package manager, a

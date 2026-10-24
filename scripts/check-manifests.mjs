@@ -86,8 +86,14 @@ for (const entry of marketplace.plugins ?? []) {
       r.error(hooksPath, `does not parse: ${e.message}`);
       continue;
     }
+    // A mod's hooks.json names its code under `modules` instead of declaring settings-hook events.
+    // Each module must exist: a missing one is a mod that loads nothing and says so only in a debug log.
+    for (const mod of hooks.modules ?? []) {
+      const abs = join(ROOT, src, "hooks", mod);
+      r.assert(existsSync(abs) && statSync(abs).isFile(), hooksPath, `module '${mod}' does not exist — the mod loads nothing`);
+    }
     const events = Object.entries(hooks.hooks ?? {});
-    r.assert(events.length > 0, hooksPath, "declares no hook events");
+    r.assert(events.length > 0 || (hooks.modules ?? []).length > 0, hooksPath, "declares no hook events and no modules");
     for (const [event, matchers] of events) {
       for (const m of matchers ?? []) {
         for (const h of m.hooks ?? []) {

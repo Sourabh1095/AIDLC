@@ -104,9 +104,13 @@ export function readRuns(cwd, keep) {
 }
 
 // CLI, so skills can ask the same question the hooks do instead of re-describing the scan:
-//   node run-files.mjs <workspace-root> [--all]   → one line per non-done run (or every run)
+//   node run-files.mjs <workspace-root> [--all] [--json]
+//     → one line per non-done run (or every run); `--json` prints the parsed frontmatter of each, which
+//       is what the aidlc-cockpit mod draws from instead of keeping its own copy of this scan.
 if (process.argv[1] && /run-files\.mjs$/.test(process.argv[1])) {
-  const [root = process.cwd(), flag] = process.argv.slice(2);
-  for (const r of readRuns(resolve(root), (x) => x.phase && (flag === "--all" || !TERMINAL.has(x.phase))))
-    console.log(`${r.item}\t${r.phase}\t${r.repo && r.repo !== "null" ? r.repo : "-"}\t${r.branch || "-"}`);
+  const args = process.argv.slice(2);
+  const root = args.find((a) => !a.startsWith("--")) ?? process.cwd();
+  const runs = readRuns(resolve(root), (x) => x.phase && (args.includes("--all") || !TERMINAL.has(x.phase)));
+  if (args.includes("--json")) console.log(JSON.stringify(runs));
+  else for (const r of runs) console.log(`${r.item}\t${r.phase}\t${r.repo && r.repo !== "null" ? r.repo : "-"}\t${r.branch || "-"}`);
 }

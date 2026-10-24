@@ -29,6 +29,7 @@ const BUDGET = {
   "aidlc-ux": 3100,
   "aidlc-stack-web": 2100,
   "aidlc-tracker-jira": 0,
+  "aidlc-cockpit": 0, // a mod: no skills or agents, so nothing listed to the model
   "aidlc-tracker-ado": 0,
 };
 const MAX_DESCRIPTION = 340;

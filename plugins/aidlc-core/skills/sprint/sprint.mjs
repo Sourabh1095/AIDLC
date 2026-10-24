@@ -124,7 +124,15 @@ export function prLabel(pr) {
 // headless runs only.
 export function rowFor(entry, { agent, fm, alive }) {
   const phase = fm?.phase ?? null;
-  const base = { item: entry.item, repo: entry.repo ?? null, phase, fixCycles: fm?.fixCycles ?? null, branch: fm?.branch ?? null };
+  const base = {
+    item: entry.item,
+    repo: entry.repo ?? null,
+    phase,
+    fixCycles: fm?.fixCycles ?? null,
+    branch: fm?.branch ?? null,
+    pr: fm?.pr && fm.pr !== "null" ? fm.pr : null,
+    session: entry.session ?? null,
+  };
   const howToAnswer =
     entry.launch === "bg" ? `\`claude agents\` (Space on ${entry.name ?? entry.session}) or \`claude attach ${entry.session}\`` : `\`/aidlc:run ${entry.item}\``;
 

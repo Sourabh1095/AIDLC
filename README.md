@@ -77,6 +77,7 @@ Per developer, once:
 /plugin install aidlc-tracker-ado@aidlc    # optional — ADO also works via the az CLI
 /plugin install aidlc-stack-web@aidlc      # optional — TypeScript/Next.js/NestJS/Postgres/Mongo
 /plugin install aidlc-ux@aidlc             # optional — the design pod (only fires on UI items)
+/plugin install aidlc-cockpit@aidlc        # optional — AIDLC beside the chat (a mod, Claude Code 2.1.287+)
 ```
 
 | Plugin | What it adds | Install it when |
@@ -86,6 +87,7 @@ Per developer, once:
 | **`aidlc-tracker-ado`** | The Azure DevOps MCP server. Optional — the adapter's `az boards`/`az rest` tier covers every operation and is what headless runs already use. | You want the richer interactive tier on ADO |
 | **`aidlc-stack-web`** | TypeScript standards, enterprise project structure, Next.js/NestJS/Postgres/Mongo conventions, migrations, Docker, API design, the Node CI half, the Prettier format hook. | Your project is TypeScript/Node |
 | **`aidlc-ux`** | 7 design agents, the Figma and Playwright MCP servers, and a design pipeline that gates on either a jury score or fidelity to a Figma design. | Your project has a UI worth judging |
+| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, and a desktop notification when a sprint run needs you. Read-only, calls no model. | You want to see the pipeline without asking for it |
 
 Developing this repo itself: `claude --plugin-dir <your-clone>/plugins/aidlc-core`
 
@@ -295,6 +297,7 @@ Full schema: [`docs/aidlc.config.schema.json`](docs/aidlc.config.schema.json).
 | `plugins/aidlc-core/` | The `aidlc` plugin: orchestrator skills, 9 agents, hooks, tracker adapters, MCP config |
 | `plugins/aidlc-stack-web/` | Web stack pack: skills, the tooling/structure/CI templates, the format hook |
 | `plugins/aidlc-ux/` | UX pod: 7 design agents, design skills, artifact templates, Figma + Playwright MCP |
+| `plugins/aidlc-cockpit/` | The cockpit mod: `hooks/register.tsx` draws, `hooks/view.mjs` decides what to show (tested with node) |
 | `plugins/aidlc-core/templates/project/` | The project template `/aidlc:init` scaffolds |
 | `docs/` | Guides, walkthroughs, architecture, schemas, rationale |
 

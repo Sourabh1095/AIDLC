@@ -458,6 +458,18 @@ that touch what cannot be fixed by noticing later spend more. The two dials stay
 **the model never changes at runtime** (no escalation to work around a failure), while effort is
 expected to. Every dispatch is logged with its level, so `/aidlc:insights` shows where the budget goes.
 
+**D15 — A mod is a view, never a dependency.** Claude Code mods (2.1.287) run inside Claude Code and can
+draw beside the chat, which is what a pipeline that runs for an hour needs: what is in flight, and who it
+is waiting on, without asking. They also arrive with three properties that decide how AIDLC uses them.
+An organization can allow only its own mods (`allowManagedModsOnly`). Nothing a mod draws appears in
+`claude -p` or a cloud session. And the API is early access. So `aidlc-cockpit` is a **separate,
+optional plugin** that only reads: it gates no tool call and rewrites no prompt. Every guard stays a
+settings hook in core, which works everywhere. And it computes nothing itself: the runs come from
+`run-files.mjs --json` and the sprint board from `sprint.mjs board --json`, so the cockpit cannot
+disagree with `/aidlc:status` or `/aidlc:sprint`. What to show is decided in plain `view.mjs` so CI tests
+it on every OS. The mod file only gathers and draws. It never calls a model, and it polls only while a
+surface is drawing, so an unattended background run pays nothing for it.
+
 ## 2. What is implemented
 
 ### Pipeline

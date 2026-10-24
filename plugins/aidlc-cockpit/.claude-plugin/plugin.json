@@ -1,0 +1,14 @@
+{
+  "name": "aidlc-cockpit",
+  "displayName": "AIDLC Cockpit",
+  "description": "A mod that shows AIDLC beside the chat: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, /aidlc-board with no model turn, and a desktop notification when a sprint run needs you. Read-only; it draws what core's scripts report.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Sourabh Sudheer",
+    "url": "https://github.com/Sourabh1095"
+  },
+  "license": "MIT",
+  "keywords": ["aidlc", "mod", "dashboard", "sprint"],
+  "dependencies": ["aidlc"],
+  "types": "./types/index.d.ts"
+}

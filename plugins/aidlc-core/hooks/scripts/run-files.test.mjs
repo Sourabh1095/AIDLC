@@ -4,7 +4,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readRuns, frontmatter, PHASES, WAITING_ON_HUMAN } from "./lib/run-files.mjs";
 import { check, done } from "./lib/testkit.mjs";
 
@@ -28,6 +29,13 @@ run(elsewhere, "API-1", "blocked");
 
 const items = (keep = () => true) => readRuns(ws, keep).map((r) => r.item).sort();
 check("control plane, nested repo AND absolute-path repo are all scanned", items(), ["API-1", "CP-1", "WEB-1"]);
+
+// The CLI's --json form is what the aidlc-cockpit mod reads, so its shape is a contract.
+const cli = (...a) => execFileSync("node", [join(dirname(fileURLToPath(import.meta.url)), "lib", "run-files.mjs"), ...a], { encoding: "utf8" });
+const fromCli = JSON.parse(cli(ws, "--json"));
+check("--json lists the same runs as parsed frontmatter", fromCli.map((r) => `${r.item}:${r.phase}`).sort(), ["API-1:blocked", "CP-1:implement", "WEB-1:verify"]);
+check("the root may follow the flag", JSON.parse(cli("--json", ws)).length, 3);
+check("without --json it stays one tab-separated line per run", cli(ws).trim().split("\n").length, 3);
 check("a trailing # comment is not part of the value", frontmatter(join(ws, ".aidlc", "runs", "CP-1.md")).phase, "implement");
 
 // A mono sprint runs each item in its own worktree; its run file lives on that worktree's branch.

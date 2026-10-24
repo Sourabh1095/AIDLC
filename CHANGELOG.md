@@ -7,6 +7,40 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.64.0] — 2026-10-25
+
+### `aidlc-cockpit`: AIDLC beside the chat (new plugin, a Claude Code mod)
+
+A run takes an hour and a sprint runs several at once, and the only way to see either was to ask.
+Claude Code 2.1.287 added mods: code that runs inside Claude Code and can draw beside the chat.
+`aidlc-cockpit` uses that to show the pipeline without being asked.
+
+- **A line above the prompt** with the runs in flight, the ones waiting on a person first, each with
+  how to resume. While a sprint runs, it takes the line: runs, how many need you, and the
+  `claude attach` command for each that does.
+- **`/aidlc-board`** opens a pane with every run and the sprint board, plus a button that copies a
+  waiting run's attach command. It runs with no model turn, so it costs no tokens.
+- **A desktop notification** (your own notification setting) when a sprint run starts waiting on you
+  or finishes. The first board of a session notifies nothing.
+- **Read-only, and optional by design** (architecture.md → D15). It gates no tool call, rewrites no
+  prompt and never calls a model. It computes nothing itself: runs come from `run-files.mjs --json`,
+  the sprint from `sprint.mjs board --json`. It polls every 30 seconds only while a surface is
+  drawing, so an unattended background sprint run pays nothing for it. Every guard stays a settings hook
+  in core, so an organization that allows only its own mods loses nothing but the view.
+  `claude plugin validate plugins/aidlc-cockpit` lists every call it makes.
+- Tested three ways:
+  - `view.mjs` (what to show) by node in CI, 25 cases;
+  - the mod by `claude plugin test plugins/aidlc-cockpit`, 5 cases (the line on three surfaces, the
+    sprint view and attach-copy button, the notification, Hide, silence outside an AIDLC project);
+  - `tsc --strict` against Claude Code 2.1.310's own typings.
+
+### Core additions the cockpit reads (`aidlc`)
+
+- `run-files.mjs --json` prints each run's parsed frontmatter (the root may come before or after flags).
+- Sprint board rows carry `session` and `pr`.
+- `check-manifests.mjs` understands a mod's `hooks.json` (`modules`) and checks each module exists.
+- Versions: `aidlc` 0.63.1 → **0.64.0**, new `aidlc-cockpit` **0.1.0**, marketplace → **0.64.0**.
+
 ## [0.63.1] — 2026-10-25
 
 ### Every session carries about 40% less of AIDLC (`aidlc`, `aidlc-ux`, `aidlc-stack-web`)

@@ -624,6 +624,22 @@ That is ownership filtering, not the plan going stale, and it is reported as suc
 already has parallelism across people — a sprint multiplies *your* share of it, and it multiplies
 mistakes too.
 
+### 3c″. Seeing it without asking: the cockpit (optional)
+
+Install `aidlc-cockpit@aidlc` (a Claude Code mod, 2.1.287 or later) and AIDLC shows itself beside the
+chat in the terminal, the desktop app and VS Code:
+
+- **A line above the prompt** with the runs in flight, the ones waiting on you first (`PROJ-124 ·
+  blocked → /aidlc:run PROJ-124`). While a sprint runs, it takes the line: how many runs, how many need
+  you, and the `claude attach` command for each one that does.
+- **`/aidlc-board`** opens a board pane with every run and the sprint, with a button that copies a
+  waiting run's attach command. It answers with no model turn, so it costs nothing.
+- **A desktop notification** when a sprint run starts waiting on you or finishes.
+
+It only reads what `/aidlc:status` and `/aidlc:sprint` already know, calls no model and blocks nothing.
+**Hide** on the line puts it away for the session. AIDLC works the same without it. If your organization
+allows only its own mods, it simply does not load.
+
 ### 3d. Tasks: the tier your effort is counted in
 
 A Story is what gets a branch and a PR. That is a fact about **git** — a branch and a PR are one per
