@@ -32,6 +32,15 @@ Print the script's output as it is, then add **at most three lines** of interpre
 | blocked runs share a cause | an environment or permission problem, not the code | `/aidlc:doctor` |
 | gate holes recurring | the project cannot verify something on every run | name the missing gate; adding it is a small item worth filing |
 
+**Cost** appears when the `aidlc-cockpit` mod is installed: what the items in the window cost, the
+median per done item, the share by phase and the costliest items. It is Claude Code's own `/cost`
+figure, an API-equivalent estimate. On a Claude plan it is not a bill, but it is the best measure of how
+much of the plan an item used. It is per machine, from the cockpit's ledger in `.aidlc/logs/costs/`
+(`node "${CLAUDE_PLUGIN_ROOT}/skills/insights/costs.mjs" <root>` lists it by item). Without the
+cockpit there is no cost line. Say that it was not measured, never that it was free. A phase taking
+most of the cost is the place to look first: `pipeline.effort` and `pipeline.verification` are the
+dials.
+
 **`--themes`** lists what human reviewers keep asking for — words that recur in review comments across
 several runs, with the comments. Each is a convention worth writing down once (a rule, a lint rule or a
 fact — `aidlc:review-feedback` → *Teach it once*) so the next run does not need a person to repeat it.

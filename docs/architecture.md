@@ -463,12 +463,22 @@ draw beside the chat, which is what a pipeline that runs for an hour needs: what
 is waiting on, without asking. They also arrive with three properties that decide how AIDLC uses them.
 An organization can allow only its own mods (`allowManagedModsOnly`). Nothing a mod draws appears in
 `claude -p` or a cloud session. And the API is early access. So `aidlc-cockpit` is a **separate,
-optional plugin** that only reads: it gates no tool call and rewrites no prompt. Every guard stays a
+optional plugin** that gates no tool call and rewrites no prompt. The one thing it writes is its own
+cost ledger, git-ignored under `.aidlc/logs/costs/`. Every guard stays a
 settings hook in core, which works everywhere. And it computes nothing itself: the runs come from
 `run-files.mjs --json` and the sprint board from `sprint.mjs board --json`, so the cockpit cannot
 disagree with `/aidlc:status` or `/aidlc:sprint`. What to show is decided in plain `view.mjs` so CI tests
 it on every OS. The mod file only gathers and draws. It never calls a model, and it polls only while a
 surface is drawing, so an unattended background run pays nothing for it.
+
+**Cost is measured where it is spent, and charged where the pipeline says it is.** Only a mod can see
+what a session costs: Claude Code hands it the running `/cost` figure, subagents included. And only the
+run file says which item and phase that money went to. So the cockpit charges the difference in session
+cost to the phase that just ended, whenever a run file's `phase:` moves. It does not care which door
+the run came in by. It writes one file per item per session, so parallel sprint runs never contend.
+The files live in the main checkout, so a sprint worktree's ledger outlives the worktree. Core's
+`costs.mjs` defines the format and reads it, and `/aidlc:insights` reports it. Without the cockpit
+there is no ledger, and every reader says "not measured" rather than showing $0.
 
 ## 2. What is implemented
 

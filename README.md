@@ -87,7 +87,7 @@ Per developer, once:
 | **`aidlc-tracker-ado`** | The Azure DevOps MCP server. Optional — the adapter's `az boards`/`az rest` tier covers every operation and is what headless runs already use. | You want the richer interactive tier on ADO |
 | **`aidlc-stack-web`** | TypeScript standards, enterprise project structure, Next.js/NestJS/Postgres/Mongo conventions, migrations, Docker, API design, the Node CI half, the Prettier format hook. | Your project is TypeScript/Node |
 | **`aidlc-ux`** | 7 design agents, the Figma and Playwright MCP servers, and a design pipeline that gates on either a jury score or fidelity to a Figma design. | Your project has a UI worth judging |
-| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, and a desktop notification when a sprint run needs you. Read-only, calls no model. | You want to see the pipeline without asking for it |
+| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, a desktop notification when a sprint run needs you, and what each work item cost by phase (feeds `/aidlc:insights`). Calls no model, gates nothing. | You want to see the pipeline without asking for it, or know what an item costs |
 
 Developing this repo itself: `claude --plugin-dir <your-clone>/plugins/aidlc-core`
 
@@ -170,7 +170,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:sprint N` | Run N independent items in parallel as background sessions, with a live board that says which run needs you and how to answer (mono: worktrees · poly: per-repo) |
 | `/aidlc:review-feedback <ID>` | Pull unresolved PR threads, fix them through the normal cycle, push, reply on each. A comment you disagree with gets answered on the thread — and nothing you didn't fix gets resolved |
 | `/aidlc:status` | Dashboard: active runs, blockers, backlog snapshot, drift |
-| `/aidlc:insights` | Is the pipeline getting better? Time to done and per phase, fix cycles, findings by source (duplication, agent vs human review, QA, security), month by month — read-only |
+| `/aidlc:insights` | Is the pipeline getting better? Time to done and per phase, fix cycles, findings by source (duplication, agent vs human review, QA, security), month by month, and — with `aidlc-cockpit` — what items cost and in which phase — read-only |
 | `/aidlc:study` | **The business study**, written from your project brain: the product, every user type and what it can do, every module, the end-to-end flows, data, integrations, decisions, delivery history, intended vs built. Assumptions are kept apart as questions, and anything not covered is said |
 | `/aidlc:learn [module \| --stale]` | Grow your **project brain** (`.aidlc/brain/`, private to you): map the product's modules, read one deeply — purpose, user types, business rules, data, flows, gaps — or refresh the pages the code has moved past, including changes teammates made without AIDLC |
 | `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |

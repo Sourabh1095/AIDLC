@@ -7,6 +7,35 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.65.0] — 2026-10-25
+
+### What each work item cost, by phase (`aidlc-cockpit`, `aidlc`)
+
+`/aidlc:insights` could say how long items took and how often they cycled, but not what they cost. And
+only a mod can see what a session costs.
+
+- **The cockpit keeps a cost ledger.** Claude Code hands a mod the session's running `/cost` figure,
+  subagents included. Whenever a run file's `phase:` moves, the cockpit charges what was spent since the
+  last change to the phase that just ended. It works whichever way the run started (`/aidlc:run`,
+  `/aidlc:next`, `/aidlc:do`, a sprint). A typed `/aidlc:run <ID>` is charged from its first turn. The
+  ledger is settled after every main turn, every two minutes and at session end, so a crash loses little.
+- **One file per item per session** under the main checkout's git-ignored `.aidlc/logs/costs/`.
+  Parallel sprint runs never write the same file, and a sprint worktree's ledger outlives the worktree.
+- **`/aidlc:insights` reports it**: cost over the window, the median per done item, the share by phase,
+  the costliest items and cost by month, plus a signal when one phase takes most of it. The new
+  `skills/insights/costs.mjs` defines the format and reads it, and lists cost by item on its own.
+  Without the cockpit there is no cost line. It reports "not measured", never $0. A sub-cent amount
+  reads `<$0.01`, not `$0.00`.
+- **The run line and the board show it**: `PROJ-123 · verify · $1.84`, including what the current
+  phase has spent so far.
+- The figure is Claude Code's own, an API-equivalent estimate. On a Claude plan it measures usage; it is
+  not a bill. It uses your organization's contracted rates where it sets them.
+- Verified in a real Claude Code 2.1.310 session. A run file written at `implement` and moved to
+  `verify` produced a ledger with both phases charged, which `costs.mjs` then read.
+- Tests: `costs.test.mjs` (10), cost cases in `insights.test.mjs` (now 28), the ledger logic in
+  `view.test.mjs` (now 44), and a mod test (now 6) that charges a phase through a real hook chain.
+- Versions: `aidlc` 0.64.0 → **0.65.0**, `aidlc-cockpit` 0.1.0 → **0.2.0**, marketplace → **0.65.0**.
+
 ## [0.64.0] — 2026-10-25
 
 ### `aidlc-cockpit`: AIDLC beside the chat (new plugin, a Claude Code mod)

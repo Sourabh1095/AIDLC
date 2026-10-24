@@ -71,6 +71,27 @@ check("--since filters by start", summarize(runs, { since: "2026-10-01" }).runs,
 check("render leads with the counts", render(s).split("\n")[0], "AIDLC insights — 3 run(s): 1 done · 0 awaiting review · 1 blocked · 1 in flight");
 check("an empty workspace renders one line", render(summarize([])).trim().split("\n").length, 1);
 
+// ---- cost, from the aidlc-cockpit ledger (costs.mjs)
+{
+  check("no ledger → no cost line, never $0", [s.cost, render(s).includes("cost (")], [null, false]);
+  const costs = {
+    measured: true,
+    totalUsd: 9,
+    byItem: {
+      "PROJ-1": { usd: 4, phases: { implement: 3, verify: 1 }, sessions: 1, started: "2026-09-01T09:00:00Z" },
+      "PROJ-2": { usd: 3, phases: { verify: 3 }, sessions: 2, started: "2026-10-02T09:00:00Z" },
+      "PROJ-9": { usd: 2, phases: { design: 2 }, sessions: 1, started: "2026-10-05T09:00:00Z" }, // not a run here
+    },
+  };
+  const sc = summarize(runs, { costs });
+  check("cost counts only the runs in the window", [sc.cost.items, sc.cost.totalUsd], [2, 7]);
+  check("median per done item", sc.cost.medianUsdPerDoneItem, 4);
+  check("phase share, largest first", sc.cost.phaseShare, { verify: 57, implement: 43 });
+  check("cost by month", sc.cost.byMonth, { "2026-09": 4, "2026-10": 3 });
+  check("render shows the cost lines", [/cost \(API-equivalent, measured by aidlc-cockpit\): \$7\.00 over 2 item\(s\) · median per done item \$4\.00/.test(render(sc)), /cost by phase: verify 57% · implement 43%/.test(render(sc))], [true, true]);
+  check("--since narrows the cost too", summarize(runs, { since: "2026-10-01", costs }).cost.totalUsd, 3);
+}
+
 // ---- what human reviewers keep asking for
 {
   const fake = (item, texts) => ({ item, findings: texts.map((t) => ({ category: "human review", text: t })) });

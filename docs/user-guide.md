@@ -635,8 +635,14 @@ chat in the terminal, the desktop app and VS Code:
 - **`/aidlc-board`** opens a board pane with every run and the sprint, with a button that copies a
   waiting run's attach command. It answers with no model turn, so it costs nothing.
 - **A desktop notification** when a sprint run starts waiting on you or finishes.
+- **What each item cost**, on its line (`PROJ-123 · verify · $1.84`) and in `/aidlc:insights`: the
+  cost per item, the median per done item, and the share by phase. It is Claude Code's own `/cost`
+  figure (an API-equivalent estimate, which on a plan is a measure of usage rather than a bill), charged
+  to the phase the run was in. It covers every way a run starts: `/aidlc:run`, `/aidlc:next`,
+  `/aidlc:do`, a sprint.
 
-It only reads what `/aidlc:status` and `/aidlc:sprint` already know, calls no model and blocks nothing.
+It shows what `/aidlc:status` and `/aidlc:sprint` already know, calls no model and blocks nothing. The
+only file it writes is its cost ledger, in the git-ignored `.aidlc/logs/costs/`.
 **Hide** on the line puts it away for the session. AIDLC works the same without it. If your organization
 allows only its own mods, it simply does not load.
 

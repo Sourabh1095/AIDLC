@@ -120,6 +120,36 @@ test('Hide gives the band back', async ($, on) => {
   await ui.unmount()
 })
 
+test('a phase change charges the phase that ended, in a file per item and session', async ($, on) => {
+  engine(on, { sprint: null })
+  // Paths arrive in the platform's spelling; key the fake disk by a normalized form.
+  const key = (p: string) => p.replace(/\\/g, '/').replace(/^[A-Za-z]:/, '')
+  const disk: Record<string, string> = { '/ws/.aidlc/runs/P-1.md': '---\nitem: P-1\nphase: implement\n---\n' }
+  let usd = 1
+  on('session.usage', () => ({ value: { startedAt: 0, context: {}, rateLimits: [], cost: { usd } } as never }))
+  on('session.id', () => ({ value: 'abcd1234-0000-0000' }))
+  on('fs.read', (_, e) => {
+    const text = disk[key(e.path)]
+    if (text === undefined) throw new Error(`ENOENT ${e.path}`)
+    return { value: text }
+  })
+  on('fs.write', (_, e) => {
+    disk[key(e.path)] = e.text
+    return { value: undefined }
+  })
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+
+  await $.tool.call({ tool: 'Write', file_path: '/ws/.aidlc/runs/P-1.md', content: 'x' })
+  usd = 3.5
+  disk['/ws/.aidlc/runs/P-1.md'] = '---\nitem: P-1\nphase: verify\n---\n'
+  await $.tool.call({ tool: 'Bash', command: "sed -i 's/implement/verify/' .aidlc/runs/P-1.md" })
+
+  const ledger = Object.entries(disk).find(([p]) => p.endsWith('/.aidlc/logs/costs/P-1--abcd1234.json'))
+  expect(ledger).toBeDefined()
+  expect(JSON.parse(ledger![1]).phases).toEqual({ implement: 2.5 })
+})
+
 test('outside an AIDLC workspace it draws nothing', async ($, on) => {
   engine(on, { config: false, sprint: null })
   await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })

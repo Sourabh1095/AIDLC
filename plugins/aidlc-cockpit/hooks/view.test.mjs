@@ -2,7 +2,7 @@
 //
 // The mod itself runs only inside Claude Code (its own tests: `claude plugin test plugins/aidlc-cockpit`).
 // Everything that decides what a person sees is here, so CI checks it on every OS.
-import { bandModel, boardText, coreCandidates, newestSprintFile, prLabel, runLine, transitions } from "./view.mjs";
+import { advance, bandModel, boardText, commandItem, coreCandidates, ledgerName, mergeLedger, newestSprintFile, phaseOf, prLabel, runFileTarget, runLine, transitions } from "./view.mjs";
 import { check, done } from "../../aidlc-core/hooks/scripts/lib/testkit.mjs";
 
 // ---- finding core
@@ -86,5 +86,40 @@ check("a run starting to wait notifies once", transitions(rows, later), [{ item:
 check("still waiting on the same thing → silence", transitions(later, later), []);
 check("waiting on something new → notify again", transitions(rows, [{ ...rows[0] }, { ...rows[1], waitingFor: "permission prompt" }, rows[2]]).map((t) => t.item), ["S-2"]);
 check("a run finishing notifies", transitions(rows, [{ ...rows[0], status: "PR #4 open", terminal: true }, rows[1], rows[2]]), [{ item: "S-1", kind: "over", text: "S-1: PR #4 open" }]);
+
+// ---- the cost ledger
+check("Write to a run file names its item", runFileTarget("Write", { file_path: String.raw`D:\ws\.aidlc\runs\PROJ-7.md` }), { item: "PROJ-7", path: String.raw`D:\ws\.aidlc\runs\PROJ-7.md` });
+check("a heredoc into a run file is a write too", runFileTarget("Bash", { command: "cat > .aidlc/runs/PROJ-1.md <<'END'\n---\nphase: start\n---\nEND" }), { item: "PROJ-1", path: ".aidlc/runs/PROJ-1.md" });
+check("a poly repo's run file keeps its folder", runFileTarget("Bash", { command: "sed -i 's/phase: design/phase: implement/' backend/.aidlc/runs/API-3.md" })?.path, "backend/.aidlc/runs/API-3.md");
+check("the archive is not a live run", runFileTarget("Bash", { command: "git mv .aidlc/runs/P-1.md .aidlc/runs/archive/P-1.md" })?.item, "P-1");
+check("…but writing inside archive/ is ignored", runFileTarget("Write", { file_path: "/ws/.aidlc/runs/archive/P-1.md" }), null);
+check("other files and tools are ignored", [runFileTarget("Write", { file_path: "/ws/src/a.ts" }), runFileTarget("Read", { file_path: "/ws/.aidlc/runs/P-1.md" })], [null, null]);
+check("phase from frontmatter, comment and all", phaseOf("---\nitem: P-1\nphase: verify      # start|…\n---\n## Log"), "verify");
+check("a typed /aidlc:run names its item", [commandItem({ name: "aidlc:run", args: "PROJ-12 --sprint" }), commandItem({ name: "aidlc:run", args: "add avatar upload" }), commandItem({ name: "aidlc:do", args: "PROJ-1" })], ["PROJ-12", null, null]);
+
+{
+  let l = { item: null, phase: null, baseline: null };
+  let r = advance(l, { item: "P-1", phase: "start" }, 2);
+  check("starting a run charges nothing", [r.charges, r.ledger], [[], { item: "P-1", phase: "start", baseline: 2 }]);
+  r = advance(r.ledger, { item: "P-1", phase: "implement" }, 2.5);
+  check("a phase change charges the phase that ended", r.charges, [{ item: "P-1", phase: "start", usd: 0.5 }]);
+  r = advance(r.ledger, { item: "P-1", phase: "implement" }, 3.5);
+  check("a flush charges so far and carries on", [r.charges, r.ledger.phase, r.ledger.baseline], [[{ item: "P-1", phase: "implement", usd: 1 }], "implement", 3.5]);
+  r = advance(r.ledger, { item: "P-1", phase: "done" }, 4);
+  check("done charges the last phase and stops", [r.charges[0].usd, r.ledger.item], [0.5, null]);
+  r = advance(r.ledger, null, 9);
+  check("spend after the run is charged to nothing", r.charges, []);
+  r = advance({ item: "P-1", phase: "verify", baseline: 5 }, { item: "P-1", phase: "verify" }, 1);
+  check("a cost that went down charges nothing and restarts", [r.charges, r.ledger.baseline], [[], 1]);
+}
+check("ledger names are path-safe", [ledgerName("PROJ-1", "1a2b3c4d-5e6f"), ledgerName("../x", "ab/cd")], ["PROJ-1--1a2b3c4d.json", ".._x--abcd.json"]);
+{
+  const first = mergeLedger(null, { item: "P-1", session: "s1", now: "2026-10-25T10:00:00Z" }, [{ item: "P-1", phase: "start", usd: 0.5 }]);
+  const second = mergeLedger(first, { item: "P-1", session: "s1", now: "2026-10-25T11:00:00Z" }, [{ item: "P-1", phase: "start", usd: 0.25 }, { item: "P-1", phase: "verify", usd: 1 }]);
+  check("charges add up per phase, started is kept", [second.phases, second.started, second.updated], [{ start: 0.75, verify: 1 }, "2026-10-25T10:00:00Z", "2026-10-25T11:00:00Z"]);
+}
+check("the band shows what a run has cost", bandModel({ runs: [{ item: "P-1", phase: "verify" }], sprint: null, costs: { "P-1": 1.84 }, at: 0, problem: null }).lines[0].text, "AIDLC  P-1 · verify · $1.84");
+check("an unmeasured run shows no price", runLine({ item: "P-1", phase: "verify" }).text, "P-1 · verify");
+check("a sub-cent run is not shown as free", runLine({ item: "P-1", phase: "verify" }, 0.0015).text, "P-1 · verify · <$0.01");
 
 done();

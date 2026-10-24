@@ -17,6 +17,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { frontmatter, runDirs, WAITING_ON_HUMAN } from "../../hooks/scripts/lib/run-files.mjs";
 import { isMain as isEntry } from "../../hooks/scripts/lib/cli.mjs";
+import { readCosts, usd } from "./costs.mjs";
 
 // Where a finding came from, from the text before its first colon. The categories are the questions
 // worth asking: is the code duplicating things, are humans catching what agents missed, is the gate
@@ -136,7 +137,40 @@ const median = (xs) => {
 };
 const round = (x, d = 1) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
 
-export function summarize(runs, { since } = {}) {
+// What the runs in this window cost, from the aidlc-cockpit ledger (costs.mjs). null when nothing was
+// measured: "not measured" must never read as "free".
+export function costSummary(rs, costs) {
+  if (!costs?.measured) return null;
+  const inWindow = rs.filter((r) => costs.byItem[r.item]);
+  if (!inWindow.length) return null;
+  const totalUsd = inWindow.reduce((n, r) => n + costs.byItem[r.item].usd, 0);
+  const byPhase = {};
+  const byMonth = {};
+  for (const r of inWindow) {
+    const it = costs.byItem[r.item];
+    for (const [p, v] of Object.entries(it.phases)) byPhase[p] = (byPhase[p] ?? 0) + v;
+    const m = (it.started ?? r.started?.toISOString() ?? "").slice(0, 7);
+    if (m) byMonth[m] = (byMonth[m] ?? 0) + it.usd;
+  }
+  const doneCosts = inWindow.filter((r) => r.phase === "done").map((r) => costs.byItem[r.item].usd);
+  return {
+    items: inWindow.length,
+    totalUsd: round(totalUsd, 2),
+    medianUsdPerDoneItem: round(median(doneCosts), 2),
+    phaseShare: Object.fromEntries(
+      Object.entries(byPhase)
+        .sort((a, b) => b[1] - a[1])
+        .map(([p, v]) => [p, Math.round((100 * v) / (totalUsd || 1))]),
+    ),
+    byMonth: Object.fromEntries(Object.entries(byMonth).sort().map(([m, v]) => [m, round(v, 2)])),
+    top: inWindow
+      .map((r) => ({ item: r.item, usd: round(costs.byItem[r.item].usd, 2) }))
+      .sort((a, b) => b.usd - a.usd)
+      .slice(0, 3),
+  };
+}
+
+export function summarize(runs, { since, costs } = {}) {
   const sinceDate = since ? toDate(since + "T00:00:00Z") : null;
   const rs = runs.filter((r) => !sinceDate || (r.started && r.started >= sinceDate));
   const done = rs.filter((r) => r.phase === "done");
@@ -192,6 +226,7 @@ export function summarize(runs, { since } = {}) {
       { byLevel: {}, byAgent: {} },
     ),
     byMonth: Object.fromEntries(Object.entries(months).sort()),
+    cost: costSummary(rs, costs),
   };
   s.signals = signals(s);
   return s;
@@ -212,6 +247,9 @@ export function signals(s) {
     out.push(`${s.meanFixCycles} fix cycles per run on average — plans may be too coarse, or the gate is catching what planning should have`);
   if (s.blocked / s.runs >= 0.2) out.push(`${s.blocked}/${s.runs} runs blocked — read their ## Findings for a common cause`);
   if (s.categories["gate hole"]) out.push(`${s.categories["gate hole"].runs} run(s) reported gate coverage holes — the project cannot verify something every time`);
+  const [topPhase, topShare] = Object.entries(s.cost?.phaseShare ?? {})[0] ?? [];
+  if (topPhase && topShare >= 50 && s.cost.items >= 3)
+    out.push(`${topPhase} takes ${topShare}% of measured cost — the first place to look when cutting spend (pipeline.effort budget, pipeline.verification cadence)`);
   return out;
 }
 
@@ -275,12 +313,20 @@ export function render(s) {
   if (ph.length) lines.push(`  median hours by phase: ${ph.map(([p, h]) => `${p} ${h}`).join(" · ")}`);
   const ef = ["low", "medium", "high", "xhigh", "max"].filter((l) => s.effort?.byLevel[l]);
   if (ef.length) lines.push(`  agent dispatches by effort: ${ef.map((l) => `${l} ${s.effort.byLevel[l]}`).join(" · ")}`);
+  if (s.cost) {
+    lines.push(
+      `  cost (API-equivalent, measured by aidlc-cockpit): ${usd(s.cost.totalUsd)} over ${s.cost.items} item(s)` +
+        (s.cost.medianUsdPerDoneItem != null ? ` · median per done item ${usd(s.cost.medianUsdPerDoneItem)}` : ""),
+    );
+    lines.push(`  cost by phase: ${Object.entries(s.cost.phaseShare).map(([p, v]) => `${p} ${v}%`).join(" · ")}`);
+    lines.push(`  costliest: ${s.cost.top.map((t) => `${t.item} ${usd(t.usd)}`).join(" · ")}`);
+  }
   lines.push("", "Findings by source:");
   for (const [k, v] of Object.entries(s.categories)) lines.push(`  ${k.padEnd(14)} ${String(v.total).padStart(4)} total · ${String(v.blockerOrMajor).padStart(3)} blocker/major · in ${v.runs} run(s)`);
   const months = Object.entries(s.byMonth);
   if (months.length > 1) {
     lines.push("", "By month (runs · fix cycles · reuse findings · human-review findings):");
-    for (const [m, v] of months) lines.push(`  ${m}  ${v.runs} · ${v.fixCycles} · ${v.reuse} · ${v.humanReview}`);
+    for (const [m, v] of months) lines.push(`  ${m}  ${v.runs} · ${v.fixCycles} · ${v.reuse} · ${v.humanReview}${s.cost?.byMonth[m] != null ? ` · ${usd(s.cost.byMonth[m])}` : ""}`);
   }
   if (s.signals.length) {
     lines.push("", "Worth acting on:");
@@ -299,7 +345,7 @@ if (isEntry(import.meta.url)) {
     if (argv.includes("--json")) console.log(JSON.stringify(themes, null, 2));
     else process.stdout.write(renderThemes(themes));
   } else {
-    const s = summarize(runs, { since: i >= 0 ? argv[i + 1] : undefined });
+    const s = summarize(runs, { since: i >= 0 ? argv[i + 1] : undefined, costs: readCosts(root) });
     if (argv.includes("--json")) console.log(JSON.stringify(s, null, 2));
     else process.stdout.write(render(s));
   }

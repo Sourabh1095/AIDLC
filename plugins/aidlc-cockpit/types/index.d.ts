@@ -29,6 +29,8 @@ export type CockpitSprint = { rows: CockpitBoardRow[]; allTerminal: boolean };
 export type CockpitSnapshot = {
   runs: CockpitRun[];
   sprint: CockpitSprint | null;
+  /** What each item has cost so far (ledger + this session's uncharged spend), when measured. */
+  costs?: Record<string, number>;
   at: number;
   problem: string | null;
 };
