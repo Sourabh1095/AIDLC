@@ -25,6 +25,7 @@ Script — `B` below: `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs" <comm
 | `index` | `index.md` regenerated |
 | `which <files…>` | the pages that cover those files, and the module a file sits in when no page does yet |
 | `links <files or folders…>` | every other module those files import from, and which of the two pages lacks the line |
+| `context <files…>` | for files being changed: each one's module, its purpose and rules, what it connects to, and what uses it (the page's list plus every import into it found in the code now) |
 | `digest` | everything a business study is assembled from (`/aidlc:study`) |
 
 **Switched off** when `aidlc.config.json` has `"brain": { "enabled": false }`. Then nothing below

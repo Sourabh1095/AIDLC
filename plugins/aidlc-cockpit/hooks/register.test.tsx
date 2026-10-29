@@ -18,7 +18,10 @@ const ROWS = [
 type World = {
   config?: boolean
   sprint?: { rows: unknown[]; allTerminal: boolean } | null
-  prs?: unknown[]
+  /** What core's brain.mjs context and work-items/tree.mjs print, and `git status -z`. */
+  context?: unknown
+  tree?: unknown
+  git?: string
   coreVersion?: string
   /** Files the fake disk holds, keyed by a normalized path. */
   disk?: Record<string, string>
@@ -32,7 +35,7 @@ function engine(on: On, world: World) {
   const seen = { notified: [] as string[], copied: [] as string[], filled: [] as string[] }
   const disk = (world.disk ??= {})
   on('fs.read', (_, e) => {
-    if (/aidlc-core[\\/]\.claude-plugin[\\/]plugin\.json$/.test(e.path)) return { value: JSON.stringify({ version: world.coreVersion ?? '0.67.0' }) }
+    if (/aidlc-core[\\/]\.claude-plugin[\\/]plugin\.json$/.test(e.path)) return { value: JSON.stringify({ version: world.coreVersion ?? '0.71.0' }) }
     const text = disk[key(e.path)]
     if (text === undefined) throw new Error(`ENOENT ${e.path}`)
     return { value: text }
@@ -71,17 +74,22 @@ function engine(on: On, world: World) {
   on('fs.list', (_, e) => ({
     value: /[\\/]ws[\\/]\.aidlc$/.test(e.path) && world.sprint ? [{ name: 'sprint-2026-10-25.json', kind: 'file', size: 1, mtimeMs: 1, isLink: false }] : [],
   }))
-  on('process.run', (_, e) => ({
-    value: {
-      exitCode: 0,
-      stdout: JSON.stringify(
-        e.argv.some(a => a.includes('run-files.mjs')) ? RUNS : e.argv.some(a => a.includes('pr-state.mjs')) ? (world.prs ?? []) : world.sprint,
-      ),
-      stderr: '',
-      isStdoutTruncated: false,
-      isStderrTruncated: false,
-    },
-  }))
+  on('process.run', (_, e) => {
+    const has = (name: string) => e.argv.some(a => a.includes(name))
+    const stdout =
+      e.argv[0] === 'git'
+        ? (world.git ?? '## main\0')
+        : JSON.stringify(
+            has('run-files.mjs')
+              ? RUNS
+              : has('brain.mjs')
+                ? (world.context ?? { modules: [], unmapped: [], partial: false })
+                : has('tree.mjs')
+                  ? (world.tree ?? null)
+                  : world.sprint,
+          )
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   return seen
 }
 
@@ -166,26 +174,100 @@ test('a phase change charges the phase that ended, in a file per item and sessio
   expect(JSON.parse(ledger![1]).phases).toEqual({ implement: 2.5 })
 })
 
-test('a pull request that needs you shows, notifies, and puts its command in the prompt', async ($, on) => {
-  const waiting = { item: 'P-7', pr: 'https://github.com/acme/web/pull/42', number: 42, host: 'github', state: 'open', review: 'review_required', unresolved: 0, checks: 'pending', next: null }
-  const world: World = { sprint: null, prs: [waiting] }
-  const seen = engine(on, world)
-  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
-  await $.command.run({ command: 'aidlc-board' })
-  expect(seen.notified).toEqual([])
+const CONTEXT = {
+  modules: [
+    {
+      name: 'bookings',
+      page: 'modules/bookings',
+      area: null,
+      title: 'Bookings',
+      purpose: 'Booking requests and their approval.',
+      rules: ['Approvals never skip the manager.'],
+      connectsTo: [],
+      usedBy: [
+        { name: 'invoices', recorded: true, live: true },
+        { name: 'reports', recorded: false, live: true },
+      ],
+      assumed: 1,
+      gaps: 0,
+      state: 'current',
+      behindFiles: 0,
+      files: ['src/bookings/a.ts'],
+    },
+  ],
+  unmapped: [],
+  partial: false,
+}
 
-  world.prs = [{ ...waiting, review: 'changes_requested', unresolved: 2, next: '2 unresolved review threads → /aidlc:review-feedback P-7' }]
+const node = (id: string, type: string, status: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  type,
+  title: `${type} ${id}`,
+  status,
+  parent: null,
+  run: null,
+  counts: { total: 0, done: 0, openBugs: 0 },
+  children: [],
+  ...extra,
+})
+const TREE = {
+  source: 'ado',
+  roots: [
+    node('10', 'epic', 'in_progress', {
+      title: 'Bookings',
+      counts: { total: 3, done: 1, openBugs: 1 },
+      children: [
+        node('11', 'story', 'done'),
+        node('12', 'story', 'in_progress', { counts: { total: 1, done: 0, openBugs: 1 }, children: [node('14', 'bug', 'todo', { title: 'Reason lost' })] }),
+      ],
+    }),
+  ],
+  loose: [],
+  hiddenDone: 0,
+}
+
+test('what the session changes leads the band: the module, what uses it, and the checks', async ($, on) => {
+  engine(on, { sprint: null, context: CONTEXT, git: '## feature/x\0 M src/bookings/a.ts\0' })
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/ws/src/bookings/a.ts', content: 'x' })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+
   const { text } = await $.command.run({ command: 'aidlc-board' })
-  expect(text).toContain('P-7 PR #42: open · changes requested · 2 unresolved · checks pending → /aidlc:review-feedback P-7')
-  expect(seen.notified).toContain('P-7 PR #42: 2 unresolved review threads → /aidlc:review-feedback P-7')
+  expect(text).toContain("You're in: Bookings")
+  expect(text).toContain('Used by: invoices, reports (1 not on its page yet)')
+  expect(text).toContain('This session · 1 file changed, 1 uncommitted')
+  expect(text).toContain('bookings: a.ts · 1 uncommitted')
 
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await band.find({ type: 'Text', text: /PR #42/ }))?.text).toBe('       P-7 PR #42: 2 unresolved review threads → /aidlc:review-feedback P-7')
+  expect((await band.find({ type: 'Text', text: /bookings/ }))?.text).toBe('AIDLC  bookings · 1 file (1 uncommitted) · used by 2 · checks passed')
   await band.unmount()
+})
+
+test("the module's open questions put /aidlc:learn in the prompt", async ($, on) => {
+  const seen = engine(on, { sprint: null, context: CONTEXT })
+  on('tool.call', () => ({ result: {} }))
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Write', file_path: '/ws/src/bookings/a.ts', content: 'x' })
+  await $.command.run({ command: 'aidlc-board' })
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await pane.press({ key: 'learn-bookings' })
+  expect(seen.filled).toEqual(['/aidlc:learn bookings'])
+  await pane.unmount()
+})
+
+test('the board draws the epics as a tree, and Open shows what is under an item', async ($, on) => {
+  engine(on, { sprint: null, tree: TREE })
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+  const { text } = await $.command.run({ command: 'aidlc-board' })
+  expect(text).toContain('Epics · 1 open')
 
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await pane.press({ key: 'pr-P-7' })
-  expect(seen.filled).toEqual(['/aidlc:review-feedback P-7'])
+  expect((await pane.find({ type: 'Text', text: /#10 epic/ }))?.text).toBe('▾ #10 epic · Bookings · in progress · 1/3 done · 1 open bug')
+  expect((await pane.find({ type: 'Text', text: /#12 story/ }))?.text).toBe('└─ ▸ #12 story · story 12 · in progress · 0/1 done · 1 open bug')
+  expect(await pane.find({ type: 'Text', text: /#14 bug/ })).toBeFalsy()
+  await pane.press({ key: 'tree-12' })
+  expect((await pane.find({ type: 'Text', text: /#14 bug/ }))?.text).toBe('   └─ #14 bug · Reason lost · to do')
   await pane.unmount()
 })
 
@@ -193,7 +275,7 @@ test('an older core is named, not shown as an empty board', async ($, on) => {
   engine(on, { sprint: null, coreVersion: '0.64.0' })
   await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
   const { text } = await $.command.run({ command: 'aidlc-board' })
-  expect(text).toContain('this cockpit needs aidlc 0.67.0 or later (found 0.64.0)')
+  expect(text).toContain('this cockpit needs aidlc 0.71.0 or later (found 0.64.0)')
 })
 
 test('outside an AIDLC workspace it draws nothing', async ($, on) => {

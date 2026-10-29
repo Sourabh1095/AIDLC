@@ -10,6 +10,7 @@
 //   node brain.mjs index   <workspace>            regenerate index.md from the pages
 //   node brain.mjs which   <workspace> <files…>   the pages (or modules without one) those files belong to
 //   node brain.mjs links   <workspace> <files…>   the modules those files import from, and whether both pages say so
+//   node brain.mjs context <workspace> <files…>   the modules being changed: what they are for, their rules, what uses them
 //   node brain.mjs digest  <workspace>            everything a business study is assembled from
 //
 // WHAT IT IS FOR. The other memories hold events (the journal), decisions (ADRs), operational truths
@@ -732,13 +733,12 @@ function names(text, name) {
   });
 }
 
-export function links(ws, inputs) {
-  const root = resolve(ws);
-  const all = pages(ws);
-  const pageOwners = all.filter((p) => p.kind === "module" && p.paths.length).map((p) => ({ name: p.id.split("/").pop(), page: p.id, file: p.file, paths: wsPaths(p) }));
+// Which module owns a workspace-relative path. A page the user drew wins over a candidate the layout
+// suggests; the longest path wins within each.
+function owners(ws, all = pages(ws)) {
+  const pageOwners = all.filter((p) => p.kind === "module" && p.paths.length).map((p) => ({ name: p.id.split("/").pop(), page: p.id, area: p.area, file: p.file, paths: wsPaths(p) }));
   let mods = null;
-  // A page the user drew wins over a candidate the layout suggests; the longest path wins within each.
-  const ownerOf = (rel) => {
+  return (rel) => {
     const longest = (list) => {
       let best = null;
       let len = -1;
@@ -747,12 +747,19 @@ export function links(ws, inputs) {
     };
     const page = longest(pageOwners);
     if (page) return page;
-    mods ??= workspaceModules(ws).map((c) => ({ name: c.name, page: null, file: null, paths: c.paths }));
+    mods ??= workspaceModules(ws).map((c) => ({ name: c.name, page: null, area: null, file: null, paths: c.paths }));
     return longest(mods);
   };
+}
+
+// Every import in `files` that reaches into another module: { from, to, file, import } with owners.
+// `limit` bounds how many files are read; `partial` says it was reached.
+function edges(root, files, ownerOf, limit = Infinity) {
   const resolve_ = resolver(root);
-  const found = new Map();
-  for (const f of codeFiles(root, inputs)) {
+  const out = [];
+  let read = 0;
+  for (const f of files) {
+    if (read >= limit) return { edges: out, partial: true };
     const rel = toPosix(relative(root, f));
     const from = ownerOf(rel);
     if (!from) continue;
@@ -762,6 +769,7 @@ export function links(ws, inputs) {
     } catch {
       continue;
     }
+    read++;
     for (const spec of importsOf(text, rel)) {
       const target = resolve_(spec, f);
       if (!target) continue;
@@ -770,9 +778,19 @@ export function links(ws, inputs) {
       // Two pages are two modules, even when two areas give them one name (`accounts/settings`,
       // `billing/settings`). A page and a layout candidate sharing a name are one module's two layers.
       if (!(from.page && to.page) && moduleKey(to.name) === moduleKey(from.name)) continue;
-      const key = `${from.page ?? from.name}→${to.page ?? to.name}`;
-      if (!found.has(key)) found.set(key, { from, to, file: rel, import: spec });
+      out.push({ from, to, file: rel, import: spec });
     }
+  }
+  return { edges: out, partial: false };
+}
+
+export function links(ws, inputs) {
+  const root = resolve(ws);
+  const all = pages(ws);
+  const found = new Map();
+  for (const e of edges(root, codeFiles(root, inputs), owners(ws, all)).edges) {
+    const key = `${e.from.page ?? e.from.name}→${e.to.page ?? e.to.name}`;
+    if (!found.has(key)) found.set(key, e);
   }
   const out = [...found.values()].map(({ from, to, file, import: spec }) => ({
     from: from.name,
@@ -799,6 +817,78 @@ export function links(ws, inputs) {
       if (hit.length) flows.push({ id: p.id, mentions: hit });
     }
   return { links: out, flows };
+}
+
+// --- Context: the module a person is changing, and what leans on it --------------------------------------------
+
+// The lead of each bullet in a section (`- Payments — charges the order. [code: x]` → `Payments`).
+const leads = (text) =>
+  String(text ?? "")
+    .split(/\r?\n/)
+    .filter((l) => /^\s*[-*]\s+\S/.test(l))
+    .map((l) => l.replace(/^\s*[-*]\s+/, "").split(/\s+[—–-]\s+|:/)[0].replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").trim())
+    .filter(Boolean);
+// A bullet as a person reads it: the line without its source tags.
+const plain = (l) => l.replace(/^\s*[-*]\s+/, "").replace(/\s*\[(code|req|told):[^\]]*\]/gi, "").replace(/\s*\|\s*$/, "").trim();
+const bullets = (text) => String(text ?? "").split(/\r?\n/).filter((l) => /^\s*[-*]\s+\S/.test(l) && !/^\s*[-*]\s+</.test(l));
+
+// For files being changed, newest first: the module each belongs to, what its page says it is for and the
+// rules it keeps, what it connects to, and what uses it. "Used by" joins the page's own list with every
+// import into the module found in the workspace now, so it answers even before the brain has a page, and
+// it shows which of them the page does not list yet. Reads at most `limit` files for that scan.
+export function context(ws, files, { limit = 6000, max = 3 } = {}) {
+  const root = resolve(ws);
+  const all = pages(ws);
+  const ownerOf = owners(ws, all);
+  const states = new Map(status(ws).map((p) => [p.id, p]));
+  const groups = new Map();
+  const unmapped = [];
+  for (const f of files) {
+    const rel = toPosix(isAbsolute(f) ? relative(root, f) : f).replace(/^\.\//, "");
+    const o = ownerOf(rel);
+    if (!o) {
+      unmapped.push(rel);
+      continue;
+    }
+    const k = o.page ?? `candidate:${o.name}`;
+    if (!groups.has(k)) groups.set(k, { owner: o, files: [] });
+    groups.get(k).files.push(rel);
+  }
+  const touched = [...groups.values()].slice(0, max);
+  // One pass over the workspace's code for the imports into any of them.
+  const scan = touched.length ? edges(root, codeFiles(root, ["."]), ownerOf, limit) : { edges: [], partial: false };
+  const modules = touched.map(({ owner, files: mine }) => {
+    const s = owner.file ? sections(owner.file) : {};
+    let text = "";
+    try {
+      text = owner.file ? readFileSync(owner.file, "utf8") : "";
+    } catch {
+      /* unreadable page: shown as no page */
+    }
+    const recorded = leads(s["Used by"]);
+    const live = [...new Set(scan.edges.filter((e) => e.to === owner).map((e) => e.from.name))];
+    const usedBy = [
+      ...recorded.map((name) => ({ name, recorded: true, live: live.some((l) => moduleKey(l) === moduleKey(name)) })),
+      ...live.filter((l) => !recorded.some((r) => moduleKey(r) === moduleKey(l))).map((name) => ({ name, recorded: false, live: true })),
+    ];
+    const st = owner.page ? states.get(owner.page) : null;
+    return {
+      name: owner.name,
+      page: owner.page,
+      area: owner.area ?? null,
+      title: owner.page ? (all.find((p) => p.id === owner.page)?.title ?? null) : null,
+      purpose: owner.page ? (all.find((p) => p.id === owner.page)?.purpose ?? null) : null,
+      rules: bullets(s["Business rules"]).slice(0, 3).map(plain),
+      connectsTo: leads(s["Connects to"]),
+      usedBy,
+      assumed: (text.match(/\[assumed\]/gi) ?? []).length,
+      gaps: bullets(s["Gaps & questions"]).length,
+      state: st?.state ?? null,
+      behindFiles: st?.changed?.length ?? 0,
+      files: mine,
+    };
+  });
+  return { modules, unmapped, partial: scan.partial };
 }
 
 // --- Digest: what a business study is assembled from ----------------------------------------------------------
@@ -907,6 +997,23 @@ if (isEntry(import.meta.url)) {
           .filter(Boolean)
           .join("\n") || "(no files given)",
       );
+    } else if (cmd === "context") {
+      const r = context(ws, positional.slice(2));
+      out(
+        r,
+        r.modules
+          .map((m) =>
+            [
+              `${m.page ?? `${m.name} (no page yet)`}${m.state && m.state !== "current" ? ` · ${m.state}` : ""}${m.purpose ? ` — ${m.purpose}` : ""}`,
+              ...m.rules.map((x) => `  rule: ${x}`),
+              m.usedBy.length ? `  used by: ${m.usedBy.map((u) => `${u.name}${u.recorded || !m.page ? "" : " (not on the page)"}`).join(", ")}` : "",
+              `  files: ${m.files.join(", ")}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          )
+          .join("\n") || "(those files are in no module)",
+      );
     } else if (cmd === "links") {
       const r = links(ws, positional.slice(2));
       const where = (name, page) => (page ? `${page}` : `${name} (no page yet)`);
@@ -933,7 +1040,7 @@ if (isEntry(import.meta.url)) {
           `${d.uncovered.length} code module(s) with no page${d.uncovered.length ? `: ${d.uncovered.map((c) => c.name).join(", ")}` : ""}`,
       );
     } else {
-      console.error("usage: brain.mjs <init|modules|status|changes|stamp|move|index|which|links|digest> <workspace> [page | files…] [--json]");
+      console.error("usage: brain.mjs <init|modules|status|changes|stamp|move|index|which|links|context|digest> <workspace> [page | files…] [--json]");
       process.exit(2);
     }
   } catch (e) {

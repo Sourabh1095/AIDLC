@@ -2,7 +2,7 @@
 //
 // The mod itself runs only inside Claude Code (its own tests: `claude plugin test plugins/aidlc-cockpit`).
 // Everything that decides what a person sees is here, so CI checks it on every OS.
-import { advance, bandModel, boardText, commandItem, coreCandidates, coreTooOld, ledgerName, mergeLedger, newestSprintFile, phaseOf, prLabel, prTransitions, runFileTarget, runLine, transitions } from "./view.mjs";
+import { advance, bandModel, boardText, checksIn, commandItem, contextModel, coreCandidates, coreTooOld, editedPath, ledgerName, makesCommit, mergeLedger, newestSprintFile, noteChecks, noteCommit, noteEdit, parseGitStatus, phaseOf, prLabel, repoOf, repoRoots, runFileTarget, runLine, sessionModel, transitions, treeModel, treeRows, workLine, workspacePath } from "./view.mjs";
 import { check, done } from "../../aidlc-core/hooks/scripts/lib/testkit.mjs";
 
 // ---- finding core
@@ -122,28 +122,78 @@ check("the band shows what a run has cost", bandModel({ runs: [{ item: "P-1", ph
 check("an unmeasured run shows no price", runLine({ item: "P-1", phase: "verify" }).text, "P-1 · verify");
 check("a sub-cent run is not shown as free", runLine({ item: "P-1", phase: "verify" }, 0.0015).text, "P-1 · verify · <$0.01");
 
-// ---- pull requests
+// ---- this session's work
+check("editing tools name their file; others do not", [editedPath("Edit", { file_path: "a.ts" }), editedPath("NotebookEdit", { notebook_path: "n.ipynb" }), editedPath("Read", { file_path: "a.ts" })], ["a.ts", "n.ipynb", null]);
+check("a workspace path, whatever the spelling", workspacePath("D:\\RTO Tool", "d:\\RTO Tool\\core-api\\src\\a.ts"), "core-api/src/a.ts");
+check("…and on posix", workspacePath("/ws", "/ws/src/a.ts"), "src/a.ts");
+check("outside the workspace, or bookkeeping, is not work", [workspacePath("/ws", "/other/a.ts"), workspacePath("/ws", "/ws/.aidlc/runs/P-1.md"), workspacePath("/ws", "/ws/api/.claude/x.json")], [null, null, null]);
+check("checks a shell line runs", checksIn("npm run lint && npm test -- --run && npx tsc --noEmit"), ["lint", "tests", "typecheck"]);
+check("…a check named in a commit message is not one", checksIn('git commit -m "add tests for lint"'), []);
+check("…nor a search for one", checksIn("grep -r test src | head"), []);
+check("python and go too", [checksIn("python -m pytest -q"), checksIn("go test ./..."), checksIn("uv run ruff check .")], [["tests"], ["tests"], ["lint"]]);
+check("a commit is spotted, a dry run is not", [makesCommit('git add -A && git commit -m "x"'), makesCommit('git -C "core api" commit -m x'), makesCommit("git commit --dry-run"), makesCommit("git status")], [true, true, false, false]);
 {
-  const prs = [
-    { item: "P-7", pr: "u7", number: 42, state: "open", review: "changes_requested", unresolved: 3, checks: "passing", next: "3 unresolved review threads → /aidlc:review-feedback P-7" },
-    { item: "P-8", pr: "u8", number: 43, state: "open", review: "review_required", unresolved: 0, checks: "pending", next: null },
-  ];
-  const band = bandModel({ runs: [], sprint: null, prs, at: 0, problem: null });
-  check("a PR that needs you gets the band on its own", band.lines.map((l) => l.text), ["AIDLC  P-7 PR #42: 3 unresolved review threads → /aidlc:review-feedback P-7"]);
-  check("…and counts as needing you", band.needsYou, 1);
-  const withRuns = bandModel({ runs: [{ item: "P-1", phase: "implement" }], sprint: null, prs, at: 0, problem: null });
-  check("PR lines follow the runs", withRuns.lines.map((l) => l.text), ["AIDLC  P-1 · implement", "       P-7 PR #42: 3 unresolved review threads → /aidlc:review-feedback P-7"]);
-  check("a PR waiting on reviewers stays off the band", bandModel({ runs: [], sprint: null, prs: [prs[1]], at: 0, problem: null }), null);
-  const text = boardText({ runs: [], sprint: null, prs: [...prs, { item: "P-9", pr: "u9", number: 44, error: "gh not signed in", next: null }], at: 0, problem: null });
-  check("the board lists every PR with its state", [/P-7 PR #42: open · changes requested · 3 unresolved · checks passing → \/aidlc:review-feedback P-7/.test(text), /P-8 PR #43: open · review required · checks pending$/m.test(text), /P-9 PR #44: gh not signed in/.test(text)], [true, true, true]);
+  let w = noteEdit(null, "src/a.ts", 1000);
+  w = noteEdit(w, "src/b.ts", 2000);
+  w = noteChecks(w, ["tests"], true, 1500);
+  w = noteChecks(w, ["lint"], false, 2500);
+  w = noteCommit(w);
+  check("work is kept as plain data", w, { files: { "src/a.ts": 1000, "src/b.ts": 2000 }, checks: { tests: { at: 1500, ok: true }, lint: { at: 2500, ok: false } }, commits: 1 });
+
+  const git = [parseGitStatus("## feature/x...origin/feature/x [ahead 2]\0 M src/a.ts\0R  src/new.ts\0src/old.ts\0?? src/c.ts\0", ".")];
+  check("git status: branch, ahead, and each changed path (a rename's new name)", git[0], { repo: ".", branch: "feature/x", ahead: 2, behind: 0, dirty: ["src/a.ts", "src/new.ts", "src/c.ts"] });
+  check("…a poly repo's paths carry its folder", parseGitStatus("## main\0 M x.ts\0", "core-api").dirty, ["core-api/x.ts"]);
+
+  const ctx = { modules: [{ name: "bookings", page: "modules/bookings", area: null, title: "Bookings", purpose: "Booking requests and their approval.", rules: ["Approvals never skip the manager."], connectsTo: ["Payments"], usedBy: [{ name: "invoices", recorded: true, live: true }, { name: "reports", recorded: false, live: true }], assumed: 2, gaps: 0, state: "behind", behindFiles: 3, files: ["src/a.ts"] }], unmapped: ["src/b.ts"], partial: false };
+  const s = sessionModel(w, git, ctx);
+  check("the session: files, uncommitted, by module", [s.title, s.lines.map((l) => l.text).filter((t) => /^(bookings|other files):/.test(t))], ["This session · 2 files changed, 1 uncommitted", ["other files: b.ts · committed", "bookings: a.ts · 1 uncommitted"]]);
+  check("…a check run before the last edit is stale; one after says how it went", s.checks.map((c) => [c.kind, c.state]), [["tests", "stale"], ["lint", "failed"]]);
+  check("the band's work line names the module, what uses it and the worst check", workLine(s, ctx), { text: "bookings · 2 files (1 uncommitted) · used by 2 · lint failed", tone: "warning" });
+  check("…and leads the band", bandModel({ runs: [{ item: "P-1", phase: "implement" }], sprint: null, context: ctx, git, at: 0, problem: null }, w).lines.map((l) => l.text), ["AIDLC  bookings · 2 files (1 uncommitted) · used by 2 · lint failed", "       P-1 · implement"]);
+  check("nothing changed → no work line", workLine(sessionModel(null, git, null), null), null);
+
+  const [here] = contextModel(ctx);
+  check("you're in: the page's title, purpose, rules and what uses it", [here.title, here.lines.map((l) => l.text).slice(0, 3)], ["You're in: Bookings", ["Booking requests and their approval.", "Rule: Approvals never skip the manager.", "Used by: invoices, reports (1 not on its page yet)"]]);
+  check("…what waits on a person, and that the page is behind, with the command that fixes it", [here.lines.some((l) => /2 assumptions waiting on a person/.test(l.text)), here.lines.some((l) => /behind the code \(3 files moved/.test(l.text)), here.learn], [true, true, "/aidlc:learn bookings"]);
+  const [bare] = contextModel({ modules: [{ ...ctx.modules[0], page: null, title: null, purpose: null, rules: [], usedBy: [], assumed: 0, state: null }], unmapped: [], partial: false });
+  check("a module with no page says how to start one", [bare.title, bare.lines.map((l) => l.text)], ["You're in: bookings", ["Nothing else in the code uses it.", "Connects to: Payments", "No brain page yet — /aidlc:learn bookings writes one."]]);
+
+  check("repo roots: declared repos first, then the workspace", repoRoots({ workspace: { root: "." }, repos: [{ path: "core-api" }, { path: "E:/elsewhere" }] }, "D:/ws"), [{ key: "core-api", dir: "D:/ws/core-api" }, { key: ".", dir: "D:/ws" }]);
+  check("…and a path's repo", [repoOf(repoRoots({ repos: [{ path: "core-api" }] }, "/ws"), "core-api/src/a.ts").key, repoOf(repoRoots({}, "/ws"), "x.ts").key], ["core-api", "."]);
 }
+
+// ---- the board as a tree
 {
-  const was = [{ item: "P-7", pr: "u7", number: 42, next: null }];
-  const now = [{ item: "P-7", pr: "u7", number: 42, next: "checks failing → /aidlc:run P-7" }];
-  check("a PR newly needing something notifies", prTransitions(was, now), [{ item: "P-7", kind: "pr", text: "P-7 PR #42: checks failing → /aidlc:run P-7" }]);
-  check("the same need again is silent", prTransitions(now, now), []);
-  check("the first look notifies nothing", prTransitions(null, now), []);
+  const leaf = (id, type, status, extra = {}) => ({ id, type, title: `${type} ${id}`, status, parent: null, run: null, counts: { total: 0, done: 0, openBugs: 0 }, children: [], ...extra });
+  const story = leaf("12", "story", "in_progress", { run: "implement", counts: { total: 2, done: 1, openBugs: 1 }, children: [leaf("13", "task", "done"), leaf("14", "bug", "todo")] });
+  const epic = leaf("10", "epic", "in_progress", { title: "Bookings", counts: { total: 4, done: 2, openBugs: 1 }, children: [leaf("11", "story", "done"), story] });
+  const later = leaf("20", "epic", "todo", { title: "Invoices", counts: { total: 1, done: 0, openBugs: 0 }, children: [leaf("21", "story", "todo")] });
+  const rows = treeRows([epic, later]);
+  check(
+    "an epic under way opens one level; children drawn as a tree",
+    rows.map((r) => r.text),
+    [
+      "▾ #10 epic · Bookings · in progress · 2/4 done · 1 open bug",
+      "├─ #11 story · story 11 · done",
+      "└─ ▸ #12 story · story 12 · in progress · run: implement · 1/2 done · 1 open bug",
+      "▸ #20 epic · Invoices · to do · 0/1 done",
+    ],
+  );
+  const opened = treeRows([epic], { 12: true });
+  check("opening a story shows its tasks and bugs, indented under it", opened.slice(-2).map((r) => r.text), ["   ├─ #13 task · task 13 · done", "   └─ #14 bug · bug 14 · to do"]);
+  check("an open bug stands out; done is green", [opened.at(-1).tone, opened[1].tone], ["warning", "success"]);
+  check("closing an open epic hides its children", treeRows([epic], { 10: false }).length, 1);
+  check("markdown ids are shown as they are", treeRows([leaf("P-3", "bug", "todo")])[0].text, "P-3 bug · bug P-3 · to do");
+
+  const m = treeModel({ source: "ado", roots: [epic], loose: [leaf("30", "bug", "todo")], hiddenDone: 2 });
+  check("the tree's title counts open and finished epics", m.title, "Epics · 1 open · 2 finished not shown");
+  check("…bugs under no epic are listed apart", m.loose.map((r) => r.text), ["#30 bug · bug 30 · to do"]);
+  check("a snapshot says how old it is and who refreshes it", treeModel({ source: "snapshot", at: "2026-10-30T09:15:00Z", note: "az not signed in (az login)", roots: [], loose: [], hiddenDone: 0 }).note, "from the snapshot of 2026-10-30 09:15 (az not signed in (az login)) — /aidlc:status refreshes it");
+  check("a board that cannot be read says why", treeModel({ error: "az not signed in (az login)" }).note, "az not signed in (az login)");
+  const text = boardText({ runs: [], sprint: null, tree: { source: "ado", roots: [epic], loose: [], hiddenDone: 0 }, at: 0, problem: null }, null, {});
+  check("the board text carries the tree", /Epics · 1 open\n  ▾ #10 epic · Bookings/.test(text), true);
 }
+
 check("core version check", [coreTooOld("0.66.0", "0.67.0"), coreTooOld("0.67.0", "0.67.0"), coreTooOld("1.0.0", "0.67.0"), coreTooOld(undefined, "0.67.0")], [true, false, false, true]);
 
 done();

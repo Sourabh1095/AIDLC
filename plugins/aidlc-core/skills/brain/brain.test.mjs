@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 import { samePath } from "../../hooks/scripts/lib/paths.mjs";
-import { init, brainDir, pages, candidateModules, workspaceModules, status, stamp, move, findPage, renderIndex, writeIndex, diffCommands, which, links, digest, enabled } from "./brain.mjs";
+import { init, brainDir, pages, candidateModules, workspaceModules, status, stamp, move, findPage, renderIndex, writeIndex, diffCommands, which, links, context, digest, enabled } from "./brain.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const tmps = [];
@@ -145,6 +145,17 @@ check("tests do not count as module code", byName.orders.files, 3);
   write(brainDir(ws), "modules/payments.md", "---\nmodule: payments\npaths: apps/api/src/payments\n---\n# Payments\n\n## Used by\n- Orders — charges an order at checkout. [code: x]\n");
   const again = links(ws, ["apps/api/src/orders/orders.service.ts"]).links.find((l) => l.to === "payments");
   check("…and once both pages say it, nothing is missing", [again.forward, again.reverse], [true, true]);
+
+  // Context: what someone changing these files is working in.
+  write(brainDir(ws), "modules/payments.md", "---\nmodule: payments\npaths: apps/api/src/payments\n---\n# Payments\n\n## Purpose\nTakes the money for an order.\n\n## Business rules\n- A refund never exceeds the charge. [code: x]\n- Cards are charged once per order. [req: P-9] [assumed]\n\n## Used by\n- Orders — charges an order at checkout. [code: x]\n- Billing — reads receipts. [code: y]\n");
+  const c = context(ws, ["apps/api/src/payments/payments.service.ts", "apps/api/src/users/users.service.ts", "README.md"]);
+  const pay = c.modules.find((m) => m.name === "payments");
+  check("context: the page's purpose and rules, without their source tags", [pay.purpose, pay.rules], ["Takes the money for an order.", ["A refund never exceeds the charge.", "Cards are charged once per order. [assumed]"]]);
+  check("…what uses it: the page's list, each marked when the code shows it too", pay.usedBy, [{ name: "Orders", recorded: true, live: true }, { name: "Billing", recorded: true, live: false }]);
+  check("…and the assumptions waiting on a person", pay.assumed, 1);
+  const users = c.modules.find((m) => m.name === "users");
+  check("a module with no page still says what uses it, from the code", [users.page, users.usedBy], [null, [{ name: "orders", recorded: false, live: true }]]);
+  check("files in no module are named apart", c.unmapped, ["README.md"]);
 }
 
 // --- Areas: related modules in a folder of their own --------------------------------------------------

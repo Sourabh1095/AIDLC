@@ -61,7 +61,8 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Record why the code is the way it is | ADRs, written by the architect or `/aidlc:adopt-adr` |
 | Cut a release | `/aidlc:release` |
 | See what's running and what's waiting on you, without asking | install `aidlc-cockpit`, then glance above the prompt or open `/aidlc-board` |
-| Know when a reviewer commented or a check went red on your PR | the cockpit watches the pipeline's PRs and tells you the command to run |
+| See which module you're changing, what else uses it, and whether the tests ran since your last edit | the cockpit's "You're in" and "This session", above the prompt and in `/aidlc-board` |
+| See each epic with its stories, tasks and bugs, and where each one stands | the cockpit's epic tree, read from your board (Azure DevOps through `az`, or the markdown backlog) |
 | Send a PM or client where things stand | `/aidlc:status --publish` — a page on claude.ai, private until you share it |
 | Hand the product over at the end of a project | `/aidlc:study` — the business study, shareable as a Claude Doc the client can comment on and export to Word or PDF |
 | Know what each work item cost | `/aidlc:insights`, with the cockpit installed |
@@ -112,7 +113,7 @@ Then add what your project needs:
 | **`aidlc-tracker-ado`** | The Azure DevOps MCP server. Optional — the adapter's `az boards`/`az rest` tier covers every operation and is what headless runs already use. | You want the richer interactive tier on ADO |
 | **`aidlc-stack-web`** | TypeScript standards, enterprise project structure, Next.js/NestJS/Postgres/Mongo conventions, migrations, Docker, API design, the Node CI half, the Prettier format hook. | Your project is TypeScript/Node |
 | **`aidlc-ux`** | 7 design agents, the Figma and Playwright MCP servers, and a design pipeline that gates on either a jury score or fidelity to a Figma design. | Your project has a UI worth judging |
-| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, a desktop notification when a sprint run needs you, your pull requests watched (review comments, red checks, merges, each with the command to run next), and what each work item cost by phase (feeds `/aidlc:insights`). Calls no model, gates nothing. | You want to see the pipeline without asking for it, or know what an item costs |
+| **`aidlc-cockpit`** | A mod: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, `/aidlc-board` with no model turn, a desktop notification when a sprint run needs you, the module you're changing (its rules, what uses it), what this session changed and whether the checks ran since, each epic as a tree of its stories, tasks and bugs with their statuses, and what each work item cost by phase (feeds `/aidlc:insights`). Calls no model, gates nothing. | You want to see the pipeline without asking for it, or know what an item costs |
 
 ### Updating
 
@@ -174,7 +175,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 ```
 /aidlc:next            # pick the top ready item and run it
 /aidlc:status          # what's in flight, what's blocked, what's next
-/aidlc-board           # with aidlc-cockpit: runs, sprint and pull requests in a pane, no tokens
+/aidlc-board           # with aidlc-cockpit: the module you're in, this session, the epic tree and runs, no tokens
 ```
 
 **Full playbook:** [`docs/user-guide.md`](docs/user-guide.md).

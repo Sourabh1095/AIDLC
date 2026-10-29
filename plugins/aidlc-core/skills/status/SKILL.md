@@ -151,6 +151,13 @@ Write it only on a **successful** query — a snapshot recorded from a failed or
 worse than none, because it carries a timestamp that makes it look current. Skip it silently when
 Step 1.5 reported the tracker unreachable.
 
+**The epic tree** (`node "${CLAUDE_PLUGIN_ROOT}/skills/work-items/tree.mjs" <ws>`) reads a markdown
+backlog live, and an Azure DevOps board itself through the `az` sign-in. A board it cannot read from
+there (Jira, or `az` signed out) falls back to `.aidlc/logs/board.json`. When `aidlc-cockpit` is enabled
+and the tree reports that fallback, write that file with Write, after a successful query of every open
+epic and everything under it: `{ "at": "<UTC>", "items": [{ "id", "type", "title", "status", "parent" }] }`,
+statuses canonical. It is git-ignored, and the cockpit's board shows its age.
+
 ## Step 3 — Local extensions (when `.aidlc/extensions.json` has entries)
 
 One line per noteworthy entry:

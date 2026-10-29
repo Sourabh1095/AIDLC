@@ -7,6 +7,46 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.71.0] — 2026-10-30
+
+### The cockpit shows what you're working in, not pull requests (`aidlc-cockpit` 0.4.0, `aidlc`)
+
+The board's pull-request view served teams running the full pipeline. For work that goes through
+`/aidlc:do`, the board was empty or PR noise. It now shows what is in front of you:
+
+- **"You're in"**: the module the session's newest edits belong to, with its purpose and rules from the
+  brain page, what it connects to, and **what uses it**. That list is the page's own **Used by**,
+  joined with every import into the module found in the code now, so it shows dependents even before
+  the brain has a page, and marks the ones the page does not list yet. It also shows unconfirmed
+  assumptions and an out-of-date page, with a button that puts `/aidlc:learn <module>` in the prompt.
+- **"This session"**: the files changed, grouped by module, which are still uncommitted, the branch
+  (and repo, in poly), the commits made, and each check (tests, typecheck, lint, build): passed,
+  failed, or not run since the last edit. The cockpit keeps this itself from the tool calls it sees.
+- **The epic tree**: each open epic with its features, stories, tasks and bugs, any depth, each with
+  its status, the run working on it, how much below it is done, and its open bugs. Epics under way
+  open one level by default, and **Open**/**Close** on any row shows or hides what is under it.
+  Open bugs stand out, and bugs under no epic are listed apart. Finished epics are counted but not
+  shown.
+- **The line above the prompt** leads with the session:
+  `bookings · 4 files (3 uncommitted) · used by 2 · tests failed`. Runs and the sprint follow when
+  there are any.
+- **Pull requests are gone from the cockpit**: no section, no notifications, no polling of GitHub or
+  Azure. `/aidlc:status` still checks them.
+
+Core gains what the cockpit reads, both usable on their own:
+
+- **`work-items/tree.mjs`**: the board as a tree. It reads a markdown backlog live, and an Azure DevOps
+  board through the `az` CLI's sign-in: a WIQL query and batch reads over the REST API, so titles keep
+  characters `az boards query` drops on Windows. It falls back to `az boards query`, then to
+  `.aidlc/logs/board.json`, which `/aidlc:status` writes for Jira when the cockpit is enabled. Found
+  while building it: the `@project` macro returns nothing through `az`, and without a project filter
+  WIQL reads the whole organization, so the project is named explicitly. It reads a 313-item board in
+  under two seconds, and the token stays in memory.
+- **`brain.mjs context <files…>`**: for files being changed, each module's purpose, rules, connections
+  and dependents. It does one import scan of the workspace, about half a second on a five-service repo.
+- Versions: `aidlc` 0.70.0 → **0.71.0**, `aidlc-cockpit` 0.3.0 → **0.4.0** (needs core 0.71.0),
+  marketplace → **0.71.0**.
+
 ## [0.70.0] — 2026-10-30
 
 ### Areas: the brain's modules grouped the way the product is (`aidlc`)

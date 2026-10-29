@@ -1,40 +1,52 @@
 // aidlc-cockpit — AIDLC beside the chat.
 //
 // It gates no tool call, rewrites no prompt and approves nothing. What it shows comes from core's
-// scripts (run-files.mjs, sprint.mjs, costs.mjs), found next to this plugin, so it can never disagree
-// with /aidlc:status, /aidlc:sprint or /aidlc:insights. What to show is decided in view.mjs; this file
-// gathers and draws.
+// scripts (run-files.mjs, sprint.mjs, costs.mjs, brain.mjs context, work-items/tree.mjs), found next to
+// this plugin, so it can never disagree with /aidlc:status, /aidlc:sprint or the brain. What this session
+// changed it keeps itself, as the tools run. What to show is decided in view.mjs; this file gathers and
+// draws.
 //
 // The one thing it writes is the cost ledger: what each work item cost, by phase, from Claude Code's own
 // session cost (view.mjs → *the cost ledger*). One file per item per session, under the main checkout's
 // git-ignored `.aidlc/logs/costs/`.
 //
-// Cost: no model calls, ever. A board refresh runs at most three short `node` processes, every 30
-// seconds and only while a surface is drawing, so an unattended background sprint run polls nothing.
+// Cost: no model calls, ever. A board refresh runs a few short `node` and `git` processes, every 30
+// seconds and only while a surface is drawing, so an unattended background sprint run polls nothing. A
+// remote board (Azure DevOps) is read every five minutes, or when the person asks with /aidlc-board.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { CockpitBoardRow, CockpitPr, CockpitRun, CockpitSnapshot, CockpitSprint } from '../types'
+import type { CockpitBoardRow, CockpitContext, CockpitGit, CockpitRun, CockpitSnapshot, CockpitSprint, CockpitTree } from '../types'
 import type { Charge, Ledger, LedgerFile } from './view.mjs'
 import {
   advance,
   bandModel,
   boardText,
   cacheDirOf,
+  checksIn,
   commandItem,
+  contextModel,
   coreCandidates,
   coreTooOld,
+  editedPath,
   ledgerName,
+  makesCommit,
   mergeLedger,
   newestSprintFile,
+  noteChecks,
+  noteCommit,
+  noteEdit,
+  parseGitStatus,
   phaseOf,
-  prLine,
-  prState,
-  prTransitions,
+  repoOf,
+  repoRoots,
   runFileTarget,
   runLine,
+  sessionModel,
   toSlash,
   transitions,
+  treeModel,
+  workspacePath,
 } from './view.mjs'
 
 const PANE = 'aidlc-board'
@@ -42,15 +54,19 @@ const COMMAND = 'aidlc-board'
 const POLL_MS = 30_000
 const FLUSH_MS = 120_000
 const MIN_GAP_MS = 5_000
-// Pull requests change on a person's time, not a turn's, and each look is a call to GitHub or Azure.
-const PR_MS = 300_000
-// The oldest core this cockpit reads correctly: pr-state.mjs (0.67), costs.mjs (0.65), run-files --json (0.64).
-const MIN_CORE = '0.67.0'
+// A remote board changes on people's time, and each look is a call to the tracker.
+const TREE_MS = 300_000
+const MAX_RECENT_FILES = 40
+// The oldest core this cockpit reads correctly: brain.mjs context and work-items/tree.mjs (0.71),
+// costs.mjs (0.65), run-files --json (0.64).
+const MIN_CORE = '0.71.0'
 
-// Change the shape tag when the snapshot's fields change: a reload keeps $.state, and the tag makes
-// the new code decline what the old code stored instead of misreading it.
-const snapshot = atom({ plugin: 'aidlc-cockpit', key: 'snapshot' } as const, null, { shape: 'snapshot-3' })
+// Change the shape tag when a value's fields change: a reload keeps $.state, and the tag makes the new
+// code decline what the old code stored instead of misreading it.
+const snapshot = atom({ plugin: 'aidlc-cockpit', key: 'snapshot' } as const, null, { shape: 'snapshot-4' })
 const hidden = atom({ plugin: 'aidlc-cockpit', key: 'hidden' } as const, false)
+const work = atom({ plugin: 'aidlc-cockpit', key: 'work' } as const, { files: {}, checks: {}, commits: 0 }, { shape: 'work-1' })
+const toggled = atom({ plugin: 'aidlc-cockpit', key: 'toggled' } as const, {} as Record<string, boolean>)
 
 const clockTime = (ms: number) => {
   const d = new Date(ms)
@@ -67,8 +83,10 @@ let ledger: Ledger = { item: null, phase: null, baseline: null }
 let costRoot: string | undefined
 let sessionId: string | undefined
 let coreVersion: string | null | undefined
-let prs: CockpitPr[] | null = null
-let prsAt = 0
+let tree: CockpitTree | null = null
+let treeAt = 0
+let context: CockpitContext | null = null
+let contextFor = ''
 
 // Claude Code traces every call a mod makes on `$`, so `$` is only ever passed to functions declared
 // at the top of this file.
@@ -180,6 +198,44 @@ async function noteRunCommand($: EngineInterface, item: string): Promise<void> {
   await track($, { item, phase })
 }
 
+async function readConfig($: EngineInterface, cwd: string): Promise<unknown> {
+  try {
+    return JSON.parse(await $.fs.read(`${cwd}/.claude/aidlc.config.json`))
+  } catch {
+    return null
+  }
+}
+
+async function gitStatus($: EngineInterface, dir: string, key: string, cwd: string): Promise<CockpitGit | null> {
+  try {
+    const r = await $.process.run(['git', '-C', dir, 'status', '--porcelain=v1', '--branch', '-z', '--untracked-files=all'], { cwd, timeoutMs: 10_000 })
+    return r.exitCode === 0 ? parseGitStatus(r.stdout, key) : null
+  } catch {
+    return null
+  }
+}
+
+// What a finished tool call changed: a file an edit wrote, a check a shell command ran and whether it
+// passed, a commit. A refused or failed edit changed nothing.
+async function noteWork(
+  $: EngineInterface,
+  call: { tool: string; file_path?: unknown; notebook_path?: unknown; command?: unknown },
+  ran: { deny?: string; isError?: true },
+): Promise<void> {
+  const edited = editedPath(call.tool, call)
+  if (ran.deny || (!edited && call.tool !== 'Bash' && call.tool !== 'PowerShell')) return
+  const now = await $.clock.now()
+  if (edited) {
+    const path = ran.isError ? null : workspacePath(toSlash(await $.session.cwd()), edited)
+    if (path) await update($, work, w => noteEdit(w, path, now))
+    return
+  }
+  const command = String(call.command ?? '')
+  const kinds = checksIn(command)
+  if (kinds.length) await update($, work, w => noteChecks(w, kinds, !ran.isError, now))
+  if (!ran.isError && makesCommit(command)) await update($, work, w => noteCommit(w))
+}
+
 async function refresh($: EngineInterface, force = false): Promise<void> {
   const now = await $.clock.now()
   if (busy || (!force && now - lastAt < MIN_GAP_MS)) return
@@ -233,19 +289,41 @@ async function refresh($: EngineInterface, force = false): Promise<void> {
     }
     lastRows = sprint?.rows ?? null
 
-    // The pipeline's pull requests: a slower cadence, since each look asks GitHub or Azure.
-    if (force || now - prsAt >= PR_MS) {
-      prsAt = now
-      const fresh = (await nodeJson($, [`${core}/skills/status/pr-state.mjs`, cwd, '--json'], cwd)) as CockpitPr[] | null
-      if (fresh) {
-        for (const t of prTransitions(prs, fresh)) {
-          void $.ui.notify(t.text, { title: 'AIDLC pull request' })
-          $.ui.toast(t.text)
-        }
-        prs = fresh
-      }
+    // What this session changed: git for each repo holding one of its files, and for the workspace.
+    const cfg = await readConfig($, cwd)
+    const w = await read($, work)
+    const recent = Object.entries(w.files)
+      .sort((a, b) => b[1] - a[1])
+      .map(([p]) => p)
+      .slice(0, MAX_RECENT_FILES)
+    const roots = repoRoots(cfg, cwd)
+    const wanted = new Map<string, { key: string; dir: string }>()
+    for (const p of recent) {
+      const r = repoOf(roots, p)
+      if (r && r.key !== '.') wanted.set(r.key, r)
     }
-    const snap: CockpitSnapshot = { runs, sprint, costs, prs: prs ?? [], at: now, problem: null }
+    const git: CockpitGit[] = []
+    for (const r of [...[...wanted.values()].slice(0, 4), roots[roots.length - 1]]) {
+      const g = await gitStatus($, r.dir, r.key, cwd)
+      if (g) git.push(g)
+    }
+
+    // The modules those files are in: looked up again only when the files change.
+    const key = recent.join('\n')
+    if (!recent.length) context = null
+    else if (force || key !== contextFor) {
+      contextFor = key
+      context = (await nodeJson($, [`${core}/skills/brain/brain.mjs`, 'context', cwd, ...recent, '--json'], cwd)) as CockpitContext | null
+    }
+
+    // The board as a tree: a markdown backlog every look, a remote board every few minutes.
+    if (force || !tree || tree.source === 'markdown' || now - treeAt >= TREE_MS) {
+      treeAt = now
+      const t = (await nodeJson($, [`${core}/skills/work-items/tree.mjs`, cwd, '--json'], cwd)) as CockpitTree | null
+      if (t) tree = t
+    }
+
+    const snap: CockpitSnapshot = { runs, sprint, costs, context, git, tree, at: now, problem: null }
     await update($, snapshot, () => snap)
   } finally {
     busy = false
@@ -301,9 +379,11 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // The pipeline writes the run file at every phase change; the call itself always goes ahead untouched.
+  // The pipeline writes the run file at every phase change, and every edit, check and commit is this
+  // session's work. The call itself always goes ahead untouched.
   on('tool.call', async ($, e, next) => {
-    const target = runFileTarget(String(e.tool), e as unknown as { command?: unknown; file_path?: unknown })
+    const call = e as unknown as { tool: string; command?: unknown; file_path?: unknown; notebook_path?: unknown }
+    const target = runFileTarget(String(e.tool), call)
     const ran = await next(e)
     if (target) {
       try {
@@ -311,6 +391,11 @@ export const register: Register = on => {
       } catch {
         // the ledger is best-effort; the tool call already happened
       }
+    }
+    try {
+      await noteWork($, { ...call, tool: String(e.tool) }, ran)
+    } catch {
+      // the board is best-effort too
     }
     return ran
   }).catch(($, e, next) => next(e))
@@ -326,12 +411,12 @@ export const register: Register = on => {
     await update($, hidden, () => false)
     await refresh($, true)
     await $.ui.open({ id: PANE, title: 'AIDLC' })
-    return { text: boardText(await read($, snapshot)) }
+    return { text: boardText(await read($, snapshot), await read($, work), await read($, toggled)) }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, hidden))) return next(e)
-    const band = bandModel(await read($, snapshot))
+    const band = bandModel(await read($, snapshot), await read($, work))
     if (!band) return next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     return (
@@ -355,15 +440,68 @@ export const register: Register = on => {
     if (!snap) return <Text dimColor>Not an AIDLC workspace: no .claude/aidlc.config.json in this folder.</Text>
     if (snap.problem) return <Text color="warning">{snap.problem}</Text>
     const rows = snap.sprint?.rows ?? []
+    const open = await read($, toggled)
+    const here = contextModel(snap.context)
+    const session = sessionModel(await read($, work), snap.git, snap.context)
+    const board = treeModel(snap.tree, open)
     return (
       <Box flexDirection="column" gap="sm">
+        {here.map(m => (
+          <Box flexDirection="column">
+            <Box flexDirection="row" gap="sm">
+              <Text weight="bold">{m.title}</Text>
+              {m.learn && (
+                <Button
+                  key={`learn-${m.name}`}
+                  label={`Put ${m.learn} in prompt`}
+                  onPress={() => void $.prompt.fill({ text: m.learn ?? '', mode: 'replace' }).catch(() => $.ui.toast(`Type ${m.learn} to run it`))}
+                />
+              )}
+            </Box>
+            {m.lines.map(l => (
+              <Text color={l.tone} wrap="truncate-end">
+                {l.text}
+              </Text>
+            ))}
+          </Box>
+        ))}
         <Box flexDirection="column">
-          <Text weight="bold">{snap.runs.length ? `Runs (${snap.runs.length})` : 'No runs in flight'}</Text>
-          {snap.runs.map(run => {
-            const line = runLine(run, snap.costs?.[run.item])
-            return <Text color={line.tone === 'warning' ? 'warning' : 'text'}>{line.text}</Text>
-          })}
+          <Text weight="bold">{session.title}</Text>
+          {session.lines.map(l => (
+            <Text color={l.tone} wrap="truncate-end">
+              {l.text}
+            </Text>
+          ))}
         </Box>
+        {board && (
+          <Box flexDirection="column">
+            <Text weight="bold">{board.title}</Text>
+            {[...board.rows, ...(board.loose.length ? [null] : []), ...board.loose].map(r =>
+              r === null ? (
+                <Text weight="bold">Not under an epic</Text>
+              ) : (
+                <Box flexDirection="row" gap="sm">
+                  <Text color={r.tone} wrap="truncate-end">
+                    {r.text}
+                  </Text>
+                  {r.expandable && (
+                    <Button key={`tree-${r.id}`} label={r.open ? 'Close' : 'Open'} onPress={() => void update($, toggled, t => ({ ...t, [r.id]: !r.open }))} />
+                  )}
+                </Box>
+              ),
+            )}
+            {board.note && <Text dimColor>{board.note}</Text>}
+          </Box>
+        )}
+        {snap.runs.length > 0 && (
+          <Box flexDirection="column">
+            <Text weight="bold">{`Runs (${snap.runs.length})`}</Text>
+            {snap.runs.map(run => {
+              const line = runLine(run, snap.costs?.[run.item])
+              return <Text color={line.tone === 'warning' ? 'warning' : 'text'}>{line.text}</Text>
+            })}
+          </Box>
+        )}
         {rows.length > 0 && (
           <Box flexDirection="column">
             <Text weight="bold">{`Sprint (${rows.length})`}</Text>
@@ -383,30 +521,7 @@ export const register: Register = on => {
             ))}
           </Box>
         )}
-        {(snap.prs ?? []).length > 0 && (
-          <Box flexDirection="column">
-            <Text weight="bold">{`Pull requests (${(snap.prs ?? []).length})`}</Text>
-            {(snap.prs ?? []).map(p => {
-              // The command to run next, put in the prompt for the person to send (never sent for them).
-              const command = p.next?.split(' → ').slice(-1)[0]
-              return (
-                <Box flexDirection="row" gap="sm">
-                  <Text color={p.next ? 'warning' : p.error ? 'subtle' : 'text'}>{p.next ? prLine(p) : `${p.item} PR #${p.number}: ${p.error ?? prState(p)}`}</Text>
-                  {command?.startsWith('/') && (
-                    <Button
-                      key={`pr-${p.item}`}
-                      label="Put in prompt"
-                      onPress={() =>
-                        void $.prompt.fill({ text: command, mode: 'replace' }).catch(() => $.ui.toast(`Type ${command} to run it`))
-                      }
-                    />
-                  )}
-                </Box>
-              )
-            })}
-          </Box>
-        )}
-        <Text dimColor>{`Updated ${clockTime(snap.at)} · costs are API-equivalent (/cost) · /${COMMAND} to refresh`}</Text>
+        <Text dimColor>{`Updated ${clockTime(snap.at)}${snap.runs.length ? ' · costs are API-equivalent (/cost)' : ''} · /${COMMAND} to refresh`}</Text>
       </Box>
     )
   })

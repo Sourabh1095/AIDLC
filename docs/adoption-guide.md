@@ -42,7 +42,7 @@ out is the per-session cost, not the tracker contract.
 | `aidlc-tracker-ado` | the Azure DevOps MCP server | you are happy on the `az boards`/`az rest` tier, which covers every operation and is what headless runs use anyway |
 | `aidlc-stack-web` | TypeScript/Next.js/NestJS/Postgres/Mongo conventions, the tooling + structure + CI templates, the Prettier format hook | the project is not Node/TypeScript — a Python or Go repo gains nothing and inherits no npm assumptions |
 | `aidlc-ux` | the 7-agent design pod, plus the Figma and Playwright MCP servers | the project has no UI worth judging — you also avoid installing a browser-automation server you never use |
-| `aidlc-cockpit` | a mod: runs, the sprint and your PRs beside the chat, notifications, and what each item cost (for `/aidlc:insights`) | your organization allows only its own mods (it will not load), or you would rather ask than be shown. AIDLC works the same without it |
+| `aidlc-cockpit` | a mod: the module you're changing and what uses it, this session's work and checks, the epic tree with its stories, tasks and bugs, runs and the sprint beside the chat, notifications, and what each item cost (for `/aidlc:insights`) | your organization allows only its own mods (it will not load), or you would rather ask than be shown. AIDLC works the same without it |
 
 The design pod only activates on UI work (backend and infra items never invoke it), so leaving it
 installed costs nothing on a mixed project. To turn it off for one project, set `ux.enabled: false` in

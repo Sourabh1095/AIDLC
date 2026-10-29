@@ -8,7 +8,6 @@
 
 const MAX_RUN_LINES = 3;
 const MAX_NEED_LINES = 2;
-const MAX_PR_LINES = 2;
 
 export const toSlash = (p) => String(p).replace(/\\/g, "/").replace(/\/+$/, "");
 const parent = (p) => {
@@ -70,17 +69,17 @@ export function runLine(run, usd) {
   return { text: bits.join(" · ") + hint, tone: waiting ? "warning" : "subtle" };
 }
 
-// One PR that needs something, as one line.
-export const prLine = (p) => `${p.item} PR #${p.number}: ${p.next}`;
-
-// The line above the prompt, or null when there is nothing worth the room. A sprint, when one is
-// running, takes the band: it is the one place several runs can each be waiting on the person. Pull
-// requests that need something (review comments, a red check, a merge to clean up) follow either.
-export function bandModel(snapshot) {
+// The line above the prompt, or null when there is nothing worth the room. What this session is changing
+// comes first: the module, how much is not committed, what leans on it, whether the checks ran since.
+// A sprint, when one is running, follows: it is the one place several runs can each be waiting on the
+// person. Otherwise the runs in flight.
+export function bandModel(snapshot, work = null) {
   if (!snapshot) return null;
   if (snapshot.problem) return { lines: [{ text: `AIDLC cockpit: ${snapshot.problem}`, tone: "subtle" }], needsYou: 0 };
   const lines = [];
   let needsYou = 0;
+  const now = workLine(sessionModel(work, snapshot.git, snapshot.context), snapshot.context);
+  if (now) lines.push(now);
   const rows = snapshot.sprint?.rows ?? [];
   if (rows.length && !snapshot.sprint.allTerminal) {
     const need = rows.filter((r) => r.needsYou && !r.terminal);
@@ -101,54 +100,314 @@ export function bandModel(snapshot) {
     if (runs.length > MAX_RUN_LINES) lines.push({ text: `+${runs.length - MAX_RUN_LINES} more — /aidlc-board`, tone: "subtle" });
     needsYou += runs.filter((r) => WAITING_PHASES.has(r.phase)).length;
   }
-  const prs = (snapshot.prs ?? []).filter((p) => p.next);
-  for (const p of prs.slice(0, MAX_PR_LINES)) lines.push({ text: prLine(p), tone: "warning" });
-  if (prs.length > MAX_PR_LINES) lines.push({ text: `+${prs.length - MAX_PR_LINES} more PRs — /aidlc-board`, tone: "subtle" });
-  needsYou += prs.length;
   if (!lines.length) return null;
   // One label for the band; the sprint header carries its own, sprint detail lines keep their indent.
   return {
-    lines: lines.map((l, i) => (i === 0 ? (l.text.startsWith("AIDLC") ? l : { ...l, text: `AIDLC  ${l.text}` }) : l.text.startsWith("  ") ? l : { ...l, text: `       ${l.text}` })),
+    lines: lines.map((l, i) => {
+      if (i === 0) return l.text.startsWith("AIDLC") ? l : { ...l, text: `AIDLC  ${l.text}` };
+      const text = l.text.replace(/^AIDLC /, "");
+      return text.startsWith("  ") ? { ...l, text } : { ...l, text: `       ${text}` };
+    }),
     needsYou,
   };
 }
 
 // The board as plain text: the /aidlc-board reply, for surfaces that draw no pane.
-export function boardText(snapshot) {
+export function boardText(snapshot, work = null, toggled = {}) {
   if (!snapshot) return "Not an AIDLC workspace (no .claude/aidlc.config.json here).";
   if (snapshot.problem) return `AIDLC cockpit: ${snapshot.problem}`;
   const out = [];
+  for (const block of contextModel(snapshot.context)) {
+    out.push(block.title);
+    for (const l of block.lines) out.push(`  ${l.text}`);
+    out.push("");
+  }
+  const s = sessionModel(work, snapshot.git, snapshot.context);
+  out.push(s.title);
+  for (const l of s.lines) out.push(`  ${l.text}`);
+  const t = treeModel(snapshot.tree, toggled);
+  if (t) {
+    out.push("", t.title);
+    for (const r of t.rows) out.push(`  ${r.text}`);
+    if (t.loose.length) out.push("  Not under an epic:", ...t.loose.map((r) => `    ${r.text}`));
+    if (t.note) out.push(`  ${t.note}`);
+  }
   const runs = snapshot.runs ?? [];
-  out.push(runs.length ? `Runs (${runs.length}):` : "No AIDLC runs in flight.");
-  for (const r of runs) out.push(`  ${runLine(r, snapshot.costs?.[r.item]).text}`);
+  if (runs.length) {
+    out.push("", `Runs (${runs.length}):`);
+    for (const r of runs) out.push(`  ${runLine(r, snapshot.costs?.[r.item]).text}`);
+  }
   const rows = snapshot.sprint?.rows ?? [];
   if (rows.length) {
     out.push("", `Sprint (${rows.length}):`);
     for (const r of rows) out.push(`  ${r.item} · ${r.phase ?? "—"} · ${r.waitingFor ? `${r.status} (${r.waitingFor})` : r.status}${r.needsYou ? ` → ${r.needsYou}` : ""}`);
   }
-  const prs = snapshot.prs ?? [];
-  if (prs.length) {
-    out.push("", `Pull requests (${prs.length}):`);
-    for (const p of prs) out.push(`  ${p.item} PR #${p.number}: ${p.error ?? prState(p)}${p.next ? ` → ${p.next.split(" → ").slice(-1)[0]}` : ""}`);
-  }
   return out.join("\n");
 }
 
-// A PR's state in words: "open · changes requested · 2 unresolved · checks failing".
-export function prState(p) {
-  const bits = [p.state + (p.draft ? " (draft)" : "")];
-  if (p.review && p.review !== "none") bits.push(p.review.replace(/_/g, " "));
-  if (p.unresolved) bits.push(`${p.unresolved} unresolved`);
-  if (p.checks && p.checks !== "none") bits.push(`checks ${p.checks}`);
-  return bits.join(" · ");
+// ---- this session's work ------------------------------------------------------------------------
+//
+// What the session changed, kept by the mod as the tools run (register.tsx → tool.call): each file an
+// edit touched and when, each check that ran (tests, typecheck, lint, build) and whether it passed, and
+// the commits made. Git says which of the files are still uncommitted.
+
+const EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+
+// The file an editing tool call writes, as the call names it, or null.
+export function editedPath(tool, input) {
+  if (!EDIT_TOOLS.has(String(tool))) return null;
+  const p = input?.file_path ?? input?.notebook_path;
+  return typeof p === "string" && p ? p : null;
 }
 
-// A PR newly needing something is worth a notification; one that needed the same thing last time is
-// not. The first look of a session notifies nothing.
-export function prTransitions(prev, now) {
-  if (!prev || !now) return [];
-  const before = new Map(prev.map((p) => [p.pr, p.next ?? null]));
-  return now.filter((p) => p.next && before.has(p.pr) && before.get(p.pr) !== p.next).map((p) => ({ item: p.item, kind: "pr", text: prLine(p) }));
+// A path as the workspace names it (`core-api/src/x.ts`), or null for one outside the workspace or in
+// AIDLC's, Claude Code's or git's own folders: bookkeeping is not work.
+export function workspacePath(cwd, path) {
+  const c = toSlash(cwd);
+  let p = toSlash(path);
+  if (/^([A-Za-z]:)?\//.test(p)) {
+    const inside = /^[A-Za-z]:/.test(c) ? p.toLowerCase().startsWith(`${c.toLowerCase()}/`) : p.startsWith(`${c}/`);
+    if (!inside) return null;
+    p = p.slice(c.length + 1);
+  }
+  p = p.replace(/^(\.\/)+/, "");
+  if (!p || p.startsWith("../") || /(^|\/)(\.aidlc|\.claude|\.git)(\/|$)/.test(p)) return null;
+  return p;
+}
+
+// The commands of a shell line, one per `&&`, `||`, `;` or `|` (quotes are not looked into: a check's
+// name inside a commit message sits in a `git` segment, which is never a check).
+const segments = (command) => String(command ?? "").split(/&&|\|\||[;|\n]/).map((s) => s.trim()).filter(Boolean);
+const RUNNERS = /^(npx|pnpm|yarn|bun|npm|node|deno|go|cargo|dotnet|mvn|\.\/mvnw|gradle|\.\/gradlew|python3?|py|pytest|uv|poetry|make|vitest|jest|eslint|tsc|ruff|mypy|pyright|biome|phpunit|rspec|bundle)\b/;
+const CHECKS = [
+  ["tests", /\b(test|tests|test:[\w:-]+|vitest|jest|pytest|mocha|playwright|phpunit|rspec)\b/],
+  ["typecheck", /\b(typecheck|type-check|tsc|vue-tsc|mypy|pyright)\b/],
+  ["lint", /\b(lint|lint:[\w:-]+|eslint|ruff|flake8|pylint|golangci-lint|biome|stylelint|format:check|prettier\s+--check)\b/],
+  ["build", /\b(build|build:[\w:-]+)\b/],
+];
+
+// Which checks a shell command runs: `npm run lint && npm test` → ["lint", "tests"].
+export function checksIn(command) {
+  const found = [];
+  for (const seg of segments(command)) {
+    if (!RUNNERS.test(seg)) continue;
+    for (const [kind, re] of CHECKS) if (re.test(seg) && !found.includes(kind)) found.push(kind);
+  }
+  return found;
+}
+
+// Does a shell command make a commit? `git commit …` or `git -C <dir> commit …`, not a dry run.
+export const makesCommit = (command) => segments(command).some((s) => /^git(\s+-C\s+("[^"]*"|\S+))?\s+commit\b/.test(s) && !/--dry-run/.test(s));
+
+const emptyWork = () => ({ files: {}, checks: {}, commits: 0 });
+export const noteEdit = (work, path, at) => ({ ...(work ?? emptyWork()), files: { ...(work?.files ?? {}), [path]: at } });
+export function noteChecks(work, kinds, ok, at) {
+  const checks = { ...(work?.checks ?? {}) };
+  for (const k of kinds) checks[k] = { at, ok };
+  return { ...(work ?? emptyWork()), checks };
+}
+export const noteCommit = (work) => ({ ...(work ?? emptyWork()), commits: (work?.commits ?? 0) + 1 });
+
+// `git status --porcelain=v1 --branch -z` → branch, ahead/behind and the changed paths, each prefixed
+// with the repo's folder in the workspace (poly) so they compare with the session's own paths.
+export function parseGitStatus(out, prefix = ".") {
+  const parts = String(out ?? "").split("\0");
+  let branch = null;
+  let ahead = 0;
+  let behind = 0;
+  const dirty = [];
+  for (let i = 0; i < parts.length; i++) {
+    const e = parts[i];
+    if (!e) continue;
+    if (e.startsWith("## ")) {
+      const h = e.slice(3);
+      branch = /^HEAD \(no branch\)/.test(h) ? "detached" : h.replace(/^No commits yet on /, "").split("...")[0].split(" ")[0];
+      ahead = Number(/ahead (\d+)/.exec(h)?.[1] ?? 0);
+      behind = Number(/behind (\d+)/.exec(h)?.[1] ?? 0);
+      continue;
+    }
+    const path = e.slice(3);
+    dirty.push(prefix && prefix !== "." ? `${prefix}/${path}` : path);
+    if (e[0] === "R" || e[0] === "C") i++; // a rename's source path comes next
+  }
+  return { repo: prefix || ".", branch, ahead, behind, dirty };
+}
+
+// The git repos of a workspace: each declared repo inside it (poly), then the workspace itself.
+export function repoRoots(cfg, cwd) {
+  const base = toSlash(cfg?.workspace?.root || ".").replace(/^\.\/?/, "");
+  const out = [];
+  for (const r of cfg?.repos ?? []) {
+    if (!r || typeof r.path !== "string" || !r.path || /^([A-Za-z]:)?[\\/]/.test(r.path)) continue;
+    const key = toSlash([base, r.path].filter(Boolean).join("/")).replace(/^\.\//, "").replace(/\/\.$/, "");
+    if (key && key !== "." && !key.startsWith("..")) out.push({ key, dir: `${toSlash(cwd)}/${key}` });
+  }
+  out.push({ key: ".", dir: toSlash(cwd) });
+  return out;
+}
+export const repoOf = (roots, path) => roots.find((r) => r.key === "." || path === r.key || path.startsWith(`${r.key}/`)) ?? null;
+
+const clock = (ms) => {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+const CHECK_ORDER = ["tests", "typecheck", "lint", "build"];
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const moduleName = (m) => (m.page ? m.page.split("/").pop() : m.name);
+
+// The session's work as the board draws it: files grouped by module, which are uncommitted, the
+// branch, and each check — passed, failed, or not run since the last edit.
+export function sessionModel(work, git, context) {
+  const files = Object.entries(work?.files ?? {}).sort((a, b) => b[1] - a[1]);
+  const dirty = new Set((git ?? []).flatMap((g) => g.dirty));
+  const lastEdit = files[0]?.[1] ?? 0;
+  const owner = new Map();
+  for (const m of context?.modules ?? []) for (const f of m.files) owner.set(f, moduleName(m));
+  const groups = new Map();
+  for (const [p] of files) {
+    const name = owner.get(p) ?? "other files";
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push({ path: p, uncommitted: dirty.has(p) });
+  }
+  const checks = CHECK_ORDER.filter((k) => work?.checks?.[k]).map((k) => {
+    const c = work.checks[k];
+    if (c.at < lastEdit) return { kind: k, state: "stale", text: `${k} not run since the last edit`, tone: "warning" };
+    return { kind: k, state: c.ok ? "passed" : "failed", text: `${k} ${c.ok ? "passed" : "failed"} at ${clock(c.at)}`, tone: c.ok ? "success" : "error" };
+  });
+  const uncommitted = files.filter(([p]) => dirty.has(p)).length;
+  const root = (git ?? []).find((g) => g.repo === ".") ?? (git ?? [])[0] ?? null;
+  const lines = [];
+  for (const g of git ?? []) {
+    if (!g.branch) continue;
+    const mine = files.filter(([p]) => g.repo === "." || p.startsWith(`${g.repo}/`)).length;
+    if (g.repo !== "." && !mine) continue;
+    lines.push({ text: `${g.repo === "." ? "" : `${g.repo}: `}on ${g.branch}${g.ahead ? ` · ${g.ahead} commit(s) not pushed` : ""}${g.behind ? ` · ${g.behind} behind` : ""}`, tone: "subtle" });
+  }
+  if (!files.length) lines.push({ text: "Nothing changed in this session yet.", tone: "subtle" });
+  for (const [name, list] of groups) {
+    const open = list.filter((f) => f.uncommitted).length;
+    lines.push({
+      text: `${name}: ${list.map((f) => f.path.split("/").pop()).slice(0, 4).join(", ")}${list.length > 4 ? ` +${list.length - 4}` : ""}${open ? ` · ${open} uncommitted` : " · committed"}`,
+      tone: open ? "text" : "success",
+    });
+  }
+  if (files.length) {
+    if (!checks.length) lines.push({ text: "No tests, typecheck or lint run yet in this session.", tone: "warning" });
+    for (const c of checks) lines.push({ text: c.text, tone: c.tone });
+  }
+  if (work?.commits) lines.push({ text: `${plural(work.commits, "commit")} made in this session`, tone: "subtle" });
+  return {
+    title: files.length ? `This session · ${plural(files.length, "file")} changed${uncommitted ? `, ${uncommitted} uncommitted` : ""}` : "This session",
+    lines,
+    files: files.length,
+    uncommitted,
+    checks,
+    branch: root?.branch ?? null,
+  };
+}
+
+// The band's first line while the session is changing things:
+// `AIDLC  bookings · 4 files (3 uncommitted) · used by 2 · tests failed`.
+export function workLine(session, context) {
+  if (!session?.files) return null;
+  const m = context?.modules?.[0];
+  const failed = session.checks.find((c) => c.state === "failed");
+  const stale = session.checks.find((c) => c.state === "stale");
+  const check = failed ? `${failed.kind} failed` : stale ? `${stale.kind} not run since edit` : session.checks.length ? "checks passed" : "not checked yet";
+  const bits = [
+    m ? moduleName(m) : null,
+    `${plural(session.files, "file")}${session.uncommitted ? ` (${session.uncommitted} uncommitted)` : ""}`,
+    m?.usedBy?.length ? `used by ${m.usedBy.length}` : null,
+    check,
+  ].filter(Boolean);
+  return { text: bits.join(" · "), tone: failed || (m?.usedBy?.length && session.uncommitted) ? "warning" : "subtle" };
+}
+
+// ---- "You're in": the module being changed --------------------------------------------------------
+//
+// From core's `brain.mjs context`: for the newest files first, each module's purpose and rules (from its
+// brain page) and what uses it (the page's list joined with the imports found in the code now).
+
+const MAX_CONTEXT_MODULES = 2;
+
+export function contextModel(context) {
+  return (context?.modules ?? []).slice(0, MAX_CONTEXT_MODULES).map((m) => {
+    const name = moduleName(m);
+    const behind = ["behind", "off-branch", "unknown-commit"].includes(m.state);
+    const lines = [];
+    if (m.purpose) lines.push({ text: m.purpose, tone: "text" });
+    for (const r of m.rules) lines.push({ text: `Rule: ${r}`, tone: "subtle" });
+    if (m.usedBy.length) {
+      const unlisted = m.page ? m.usedBy.filter((u) => !u.recorded).length : 0;
+      lines.push({
+        text: `Used by: ${m.usedBy.map((u) => u.name).join(", ")}${unlisted ? ` (${unlisted} not on its page yet)` : ""}`,
+        tone: "warning",
+      });
+    } else lines.push({ text: "Nothing else in the code uses it.", tone: "subtle" });
+    if (m.connectsTo.length) lines.push({ text: `Connects to: ${m.connectsTo.join(", ")}`, tone: "subtle" });
+    const ask = [m.assumed && plural(m.assumed, "assumption"), m.gaps && plural(m.gaps, "open question")].filter(Boolean);
+    if (!m.page) lines.push({ text: `No brain page yet — /aidlc:learn ${name} writes one.`, tone: "subtle" });
+    else if (ask.length) lines.push({ text: `${ask.join(" · ")} waiting on a person`, tone: "warning" });
+    if (behind) lines.push({ text: `Its page is behind the code (${plural(m.behindFiles, "file")} moved since it was checked).`, tone: "warning" });
+    return {
+      title: `You're in: ${m.title ?? name}${m.area ? ` (${m.area})` : ""}`,
+      name,
+      learn: !m.page || behind || ask.length ? `/aidlc:learn ${name}` : null,
+      lines,
+    };
+  });
+}
+
+// ---- the board as a tree ----------------------------------------------------------------------------
+//
+// From core's `work-items/tree.mjs`: each open epic with its children, any depth, bugs included. A node is
+// open when the person opened it, and otherwise when it is an epic already under way.
+
+const STATUS_WORDS = { todo: "to do", in_progress: "in progress", in_review: "in review", done: "done", blocked: "blocked" };
+const STATUS_TONE = { done: "success", blocked: "error", in_review: "warning", in_progress: "text", todo: "subtle" };
+const idLabel = (id) => (/^\d+$/.test(String(id)) ? `#${id}` : String(id));
+
+export function treeRows(nodes, toggled = {}) {
+  const rows = [];
+  const walk = (n, depth, lead, last) => {
+    const kids = n.children ?? [];
+    const open = kids.length > 0 && (toggled[n.id] ?? (depth === 0 && ["in_progress", "in_review", "blocked"].includes(n.status)));
+    const branch = depth === 0 ? "" : `${lead}${last ? "└─ " : "├─ "}`;
+    const marker = kids.length ? (open ? "▾ " : "▸ ") : "";
+    const c = n.counts ?? { total: 0, done: 0, openBugs: 0 };
+    const tail = [
+      STATUS_WORDS[n.status] ?? n.status,
+      n.run ? `run: ${n.run}` : null,
+      c.total ? `${c.done}/${c.total} done` : null,
+      c.openBugs ? plural(c.openBugs, "open bug") : null,
+    ].filter(Boolean);
+    rows.push({
+      id: String(n.id),
+      depth,
+      text: `${branch}${marker}${idLabel(n.id)} ${n.type} · ${n.title} · ${tail.join(" · ")}`,
+      tone: n.type === "bug" && n.status !== "done" ? (n.status === "blocked" ? "error" : "warning") : (STATUS_TONE[n.status] ?? "text"),
+      expandable: kids.length > 0,
+      open,
+    });
+    if (open) kids.forEach((k, i) => walk(k, depth + 1, depth === 0 ? "" : `${lead}${last ? "   " : "│  "}`, i === kids.length - 1));
+  };
+  for (const n of nodes ?? []) walk(n, 0, "", true);
+  return rows;
+}
+
+export function treeModel(tree, toggled = {}) {
+  if (!tree) return null;
+  if (tree.error) return { title: "Epics", rows: [], loose: [], note: tree.error };
+  const where =
+    tree.source === "snapshot"
+      ? `from the snapshot of ${tree.at ? tree.at.slice(0, 16).replace("T", " ") : "an unknown time"}${tree.note ? ` (${tree.note})` : ""} — /aidlc:status refreshes it`
+      : null;
+  return {
+    title: `Epics · ${plural(tree.roots.length, "open")}${tree.hiddenDone ? ` · ${tree.hiddenDone} finished not shown` : ""}`,
+    rows: treeRows(tree.roots, toggled),
+    loose: treeRows(tree.loose, toggled),
+    note: [where, tree.truncated ? "only the 3,000 most recently changed items were read" : null].filter(Boolean).join(" · ") || null,
+  };
 }
 
 // Is the core plugin new enough for this cockpit? Compares a.b.c numerically.
