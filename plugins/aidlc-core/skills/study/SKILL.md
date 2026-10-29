@@ -52,8 +52,9 @@ the file**: one giant message is where long documents get truncated.
 2. **The product** — the problem, the users and the value (`overview.md`, the epics).
 3. **User types** — each type and what it can do, plus a matrix of user type × module built from every
    page's *Who uses it*.
-4. **Modules** — one subsection each: purpose, capabilities, business rules, data it owns, what it
-   connects to and what uses it, entry points. Business language; code paths only as a closing *Sources*
+4. **Modules** — one subsection each, grouped under the brain's areas when it has them (each page's
+   `area` in the digest; an area opens with a line on what it covers): purpose, capabilities, business
+   rules, data it owns, what it connects to and what uses it, entry points. Business language; code paths only as a closing *Sources*
    line. Where pages disagree (one says it calls another, the other does not list it under *Used by*),
    trust the code the line cites.
 5. **End-to-end flows** — numbered steps, each naming its module. Add a Mermaid sequence diagram for

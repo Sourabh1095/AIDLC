@@ -7,6 +7,31 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.70.0] — 2026-10-30
+
+### Areas: the brain's modules grouped the way the product is (`aidlc`)
+
+Every module page sat side by side in `modules/`, so a product with 40 modules meant 40 files in one
+folder. Worse, a page someone put one folder deeper was silently ignored. It disappeared from the
+index, the out-of-date checks and the study.
+
+- **Pages are read at any depth** under `modules/` and `flows/`. A page in a subfolder belongs to that
+  area (`modules/billing/invoices.md` → area `billing`). One level is the recommended shape, and a
+  module that fits no area stays at the top. Flat brains work exactly as before.
+- **The index lists modules in no area first, then one section per area**, and says how many areas
+  there are. `/aidlc:study` groups its module chapters the same way.
+- **`brain.mjs move <page> <area | .>`** moves a page into an area, or back to the top, without touching
+  its content. It never overwrites a page or writes outside the brain, removes an area left empty, and
+  redoes the index.
+- **Names still work:** `invoices` finds `modules/billing/invoices`, and `billing/settings` picks one
+  when two areas share a name. An ambiguous bare name is refused with the pages it could mean, and a
+  module and a flow that share a name resolve to the module, as before. `links` keeps two same-named
+  modules in different areas apart.
+- **`/aidlc:learn --map` proposes areas** once there are more than about ten modules, grouped by what
+  the business calls each part, and the user confirms them. A page created later goes in the area of
+  its closest modules, and a new area is never invented for one page.
+- Versions: `aidlc` 0.69.0 → **0.70.0**, marketplace → **0.70.0**.
+
 ## [0.69.0] — 2026-10-30
 
 ### The brain records connections between modules on both sides (`aidlc`)

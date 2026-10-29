@@ -21,6 +21,7 @@ Script — `B` below: `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs" <comm
 | `status` | every page and whether its code has moved since it was checked |
 | `changes <page>` | the files that moved, and the `git diff` to read |
 | `stamp <page>` | the page marked as checked against HEAD |
+| `move <page> <area \| .>` | the page moved into an area folder, or back to the top, and the index redone |
 | `index` | `index.md` regenerated |
 | `which <files…>` | the pages that cover those files, and the module a file sits in when no page does yet |
 | `links <files or folders…>` | every other module those files import from, and which of the two pages lacks the line |
@@ -51,8 +52,17 @@ A brain page states what the business would recognise and points at code; it nev
   actors.md          user types and roles, and what each can do
   glossary.md        the domain's words, as this product uses them
   modules/<name>.md  one per module — ${CLAUDE_PLUGIN_ROOT}/templates/brain-module.md
+  modules/<area>/<name>.md   the same, grouped: an area holds related modules (billing: invoices, payments)
   flows/<name>.md    a journey across modules (signup, checkout, refund): numbered steps, each naming its module
 ```
+
+**Areas** group related modules the way the product does, so 40 modules are not 40 files in one
+folder. They are optional and one level deep: a module that belongs to no area stays at the top, and a
+small product needs none. Pages are read at any depth, so a page placed deeper is never lost. The index
+lists modules in no area first, then one section per area. A page is named by its bare name
+(`invoices`), or by `area/name` when two areas share one (`billing/settings`). Areas are for people
+finding their way: connections between pages work the same across areas. `move` changes a page's area
+without touching its content.
 
 Module frontmatter: `module`; `paths`, the comma-separated folders it covers, relative to the
 workspace (in poly they start with the repo folder, and one module may span repos:
@@ -92,8 +102,8 @@ useful one on the page.
 
 Edit in place — a delta, not a rewrite. One fact per line. A line the code no longer supports is
 corrected or removed, never contradicted by a second line. Keep a page under ~150 lines; past that,
-split the module into narrower modules with narrower `paths`. Create a page that does not exist from
-the template, then `index`.
+split the module into narrower modules with narrower `paths`, in an area named after it. Create a page
+that does not exist from the template, then `index`.
 
 **`stamp` only after reading everything `changes` listed** — it tells every later session the page
 matches the code. An edit that covered part of what moved leaves `checked` alone.
@@ -106,8 +116,10 @@ file. Never write outside `.aidlc/brain/`, and never commit it.
 The brain needs no `/aidlc:learn` to start: the first time work touches a module, that module gets a
 page. Give `B which <ws> <files…>` the files the work touched. For a file under an existing page, update
 that page. For a file in a module with no page yet (`which` names the module and its paths), `B init`,
-then create the page from `${CLAUDE_PLUGIN_ROOT}/templates/brain-module.md` with those paths. Fill only
-what this work taught you: a page that starts with three true lines beats one that guesses at ten.
+then create the page from `${CLAUDE_PLUGIN_ROOT}/templates/brain-module.md` with those paths. When the
+brain has areas, put it in the area its closest modules are in (`index.md` shows them), or at the top
+when none fits; never invent an area for one page. Fill only what this work taught you: a page that
+starts with three true lines beats one that guesses at ten.
 Files `which` leaves unmapped are shared code; the reuse catalog covers them.
 
 ## After a run

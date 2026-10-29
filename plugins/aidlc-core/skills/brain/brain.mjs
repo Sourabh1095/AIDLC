@@ -6,6 +6,7 @@
 //   node brain.mjs status  <workspace> [--json]   every page, and how far its code has moved since it was checked
 //   node brain.mjs changes <workspace> <page>     files under a page's paths changed since it was checked
 //   node brain.mjs stamp   <workspace> <page>     mark a page checked against HEAD, after refreshing it
+//   node brain.mjs move    <workspace> <page> <area>  put a page in an area folder (`.` for the top), re-index
 //   node brain.mjs index   <workspace>            regenerate index.md from the pages
 //   node brain.mjs which   <workspace> <files…>   the pages (or modules without one) those files belong to
 //   node brain.mjs links   <workspace> <files…>   the modules those files import from, and whether both pages say so
@@ -27,7 +28,7 @@
 //
 // The model writes the pages; this script does what a model does badly — enumerate, diff, stamp.
 // Never throws on a bad page: one unreadable file must not hide the others.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync, renameSync, rmdirSync } from "node:fs";
 import { join, relative, resolve, basename, dirname, isAbsolute } from "node:path";
 import { execFileSync } from "node:child_process";
 import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
@@ -81,23 +82,46 @@ function summary(file) {
   }
 }
 
-// Every page: modules/*.md, flows/*.md and the top-level ones (overview, actors, glossary…).
+// The page files under one folder: its own, then each subfolder's — an area (`modules/billing/`) groups
+// related modules the way the product does. Any depth is read, so a page is never silently dropped for
+// sitting one folder too deep; one level is what the skills recommend.
+function pageFiles(dir, rel = "") {
+  let entries;
+  try {
+    entries = readdirSync(join(dir, rel), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const sorted = entries.sort((a, b) => a.name.localeCompare(b.name));
+  return [
+    ...sorted.filter((e) => e.isFile() && e.name.endsWith(".md")).map((e) => (rel ? `${rel}/${e.name}` : e.name)),
+    ...sorted.filter((e) => e.isDirectory() && !e.name.startsWith(".")).flatMap((e) => pageFiles(dir, rel ? `${rel}/${e.name}` : e.name)),
+  ];
+}
+
+// Every page: modules/**.md, flows/**.md and the top-level ones (overview, actors, glossary…). A page in
+// an area folder carries `area` (`billing`, or `billing/payouts` deeper), null at the top.
 export function pages(ws) {
   const dir = brainDir(ws);
   const out = [];
   for (const sub of ["", ...PAGE_DIRS]) {
-    let names;
-    try {
-      names = readdirSync(join(dir, sub)).filter((f) => f.endsWith(".md") && !(sub === "" && f === "index.md"));
-    } catch {
-      continue;
-    }
-    for (const f of names.sort()) {
+    const names = sub
+      ? pageFiles(join(dir, sub))
+      : (() => {
+          try {
+            return readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "index.md").sort();
+          } catch {
+            return [];
+          }
+        })();
+    for (const f of names) {
       const file = join(dir, sub, f);
       const fm = frontmatter(file) ?? {};
+      const slash = f.lastIndexOf("/");
       out.push({
         id: sub ? `${sub}/${f.slice(0, -3)}` : f.slice(0, -3),
         kind: sub ? sub.slice(0, -1) : "page",
+        area: slash > 0 ? f.slice(0, slash) : null,
         file,
         repo: fm.repo || ".",
         paths: (fm.paths || "")
@@ -113,12 +137,27 @@ export function pages(ws) {
   return out;
 }
 
-// A page by "payments", "modules/payments" or "modules/payments.md".
-export function findPage(ws, name) {
-  const want = toPosix(String(name)).replace(/\.md$/, "").toLowerCase();
+// Pages answering to a name: the full id (`modules/billing/payments`), the id without its kind
+// (`billing/payments`), or the bare name (`payments`) when only one page has it.
+export function matchPages(ws, name) {
+  const want = toPosix(String(name)).replace(/\.md$/, "").replace(/^\/+|\/+$/g, "").toLowerCase();
   const all = pages(ws);
-  return all.find((p) => p.id.toLowerCase() === want) ?? all.find((p) => p.id.split("/").pop().toLowerCase() === want) ?? null;
+  const exact = all.filter((p) => p.id.toLowerCase() === want || p.id.toLowerCase().replace(/^[^/]+\//, "") === want);
+  const hits = exact.length ? exact : all.filter((p) => p.id.split("/").pop().toLowerCase() === want);
+  // `checkout` the module and `checkout` the flow: the name means the module, as it always has.
+  const mods = hits.filter((p) => p.kind === "module");
+  return hits.length > 1 && mods.length === 1 ? mods : hits;
 }
+export function findPage(ws, name) {
+  const hits = matchPages(ws, name);
+  return hits.length === 1 ? hits[0] : null;
+}
+const pageOrThrow = (ws, name) => {
+  const hits = matchPages(ws, name);
+  if (hits.length > 1) throw new Error(`${name} names more than one page: ${hits.map((p) => p.id).join(", ")} — give its area`);
+  if (!hits.length) throw new Error(`no page named ${name}`);
+  return hits[0];
+};
 
 // --- Freshness ---------------------------------------------------------------------------------------
 
@@ -235,8 +274,7 @@ function setFrontmatter(text, values) {
 // Mark a page checked against its repo's HEAD — only after a refresh that read everything `changes`
 // listed. Stamping after a partial edit would hide the rest of what moved.
 export function stamp(ws, name, { now = new Date() } = {}) {
-  const p = findPage(ws, name);
-  if (!p) throw new Error(`no page named ${name}`);
+  const p = pageOrThrow(ws, name);
   if (!p.paths.length) throw new Error(`${p.id} has no paths — it is dated by \`updated\`, not checked against code`);
   const root = resolve(ws);
   const heads = pathGroups(root, p, repoDirs(root)).map((g) => ({ key: g.key, head: tryGit(g.dir, ["rev-parse", "--short", "HEAD"]) }));
@@ -245,6 +283,29 @@ export function stamp(ws, name, { now = new Date() } = {}) {
   const checked = heads.length === 1 ? heads[0].head : heads.map((h) => `${h.key}@${h.head}`).join(", ");
   writeFileSync(p.file, setFrontmatter(readFileSync(p.file, "utf8"), { checked, updated: today(now) }));
   return { page: p.id, checked };
+}
+
+// --- Areas -------------------------------------------------------------------------------------------------
+
+// Move a module or flow page into an area folder (`billing`, created when missing), or back to the top
+// with "." — the page itself, unchanged. Refuses to overwrite: two pages with one name in one area are
+// two modules that need two names.
+export function move(ws, name, area) {
+  const p = pageOrThrow(ws, name);
+  if (p.kind === "page") throw new Error(`${p.id} is a product page; only module and flow pages go in areas`);
+  const clean = toPosix(String(area ?? ".")).replace(/^\/+|\/+$/g, "").toLowerCase();
+  const top = clean === "." || clean === "";
+  if (!top && !/^[\p{L}\p{N}_-]+(\/[\p{L}\p{N}_-]+)*$/u.test(clean)) throw new Error(`not an area name: ${area} — letters, digits, - and _`);
+  const base = join(brainDir(ws), `${p.kind}s`);
+  const to = top ? join(base, basename(p.file)) : join(base, clean, basename(p.file));
+  if (resolve(to) === resolve(p.file)) return { from: p.id, to: p.id };
+  if (existsSync(to)) throw new Error(`${toPosix(relative(brainDir(ws), to))} already exists`);
+  mkdirSync(dirname(to), { recursive: true });
+  renameSync(p.file, to);
+  // An area left empty by the move goes too: an empty folder reads as an area with nothing in it.
+  const old = dirname(p.file);
+  if (old !== base && !readdirSync(old).length) rmdirSync(old);
+  return { from: p.id, to: toPosix(relative(brainDir(ws), to)).replace(/\.md$/, "") };
 }
 
 // --- Index ---------------------------------------------------------------------------------------------
@@ -264,29 +325,42 @@ export function renderIndex(ws) {
   const flows = all.filter((p) => p.kind === "flow");
   const top = all.filter((p) => p.kind === "page");
   const behind = mods.filter((p) => NEEDS_REFRESH.has(p.state)).length;
+  const areas = [...new Set(mods.map((p) => p.area).filter(Boolean))].sort();
   const cell = (s) => String(s ?? "").replace(/\|/g, "\\|");
   const lines = [
     `# Project brain — ${basename(memoryRoot(resolve(ws)))}`,
     "",
     "<!-- Generated by brain.mjs index. Edit the pages, not this file. -->",
     "",
-    `${mods.length} module page(s) · ${behind} behind the code · ${flows.length} flow(s)`,
+    `${mods.length} module page(s)${areas.length ? ` in ${areas.length} area(s)` : ""} · ${behind} behind the code · ${flows.length} flow(s)`,
     "",
     "## Modules",
     "",
   ];
-  if (mods.length) {
+  const table = (list) => {
     lines.push("| Module | What it does | Code | State |", "|---|---|---|---|");
-    for (const p of mods) {
+    for (const p of list) {
       const name = p.id.split("/").pop();
       const code = wsPaths(p).join(", ");
       const state = `${STATE_LABEL[p.state] ?? p.state}${p.changed?.length ? ` — ${p.changed.length} file(s)` : ""}${p.checked ? ` @${p.checked}` : ""}`;
       lines.push(`| [${cell(p.title ?? name)}](${p.id}.md) | ${cell(p.purpose ?? "")} | ${cell(code)} | ${state} |`);
     }
-  } else lines.push("_None yet — `/aidlc:learn` maps them._");
+  };
+  if (!mods.length) lines.push("_None yet — `/aidlc:learn` maps them._");
+  else if (!areas.length) table(mods);
+  else {
+    // Modules in no area first, then one section per area — the way the product groups them.
+    const loose = mods.filter((p) => !p.area);
+    if (loose.length) table(loose);
+    for (const a of areas) {
+      if (lines.at(-1) !== "") lines.push("");
+      lines.push(`### ${a}`, "");
+      table(mods.filter((p) => p.area === a));
+    }
+  }
   if (flows.length) {
     lines.push("", "## Flows", "");
-    for (const p of flows) lines.push(`- [${p.title ?? p.id.split("/").pop()}](${p.id}.md)${p.purpose ? ` — ${p.purpose}` : ""}`);
+    for (const p of flows) lines.push(`- [${p.title ?? p.id.split("/").pop()}](${p.id}.md)${p.area ? ` (${p.area})` : ""}${p.purpose ? ` — ${p.purpose}` : ""}`);
   }
   if (top.length) {
     lines.push("", "## The product", "");
@@ -692,7 +766,10 @@ export function links(ws, inputs) {
       const target = resolve_(spec, f);
       if (!target) continue;
       const to = ownerOf(toPosix(relative(root, target)));
-      if (!to || to === from || moduleKey(to.name) === moduleKey(from.name)) continue;
+      if (!to || to === from) continue;
+      // Two pages are two modules, even when two areas give them one name (`accounts/settings`,
+      // `billing/settings`). A page and a layout candidate sharing a name are one module's two layers.
+      if (!(from.page && to.page) && moduleKey(to.name) === moduleKey(from.name)) continue;
       const key = `${from.page ?? from.name}→${to.page ?? to.name}`;
       if (!found.has(key)) found.set(key, { from, to, file: rel, import: spec });
     }
@@ -798,8 +875,8 @@ if (isEntry(import.meta.url)) {
       );
     } else if (cmd === "changes") {
       if (!name) throw new Error("usage: brain.mjs changes <workspace> <page>");
-      const p = status(ws).find((s) => s.id === findPage(ws, name)?.id);
-      if (!p) throw new Error(`no page named ${name}`);
+      const want = pageOrThrow(ws, name).id;
+      const p = status(ws).find((s) => s.id === want);
       const cmds = diffCommands(p);
       out(
         { page: p.id, state: p.state, changed: p.changed ?? [], diff: cmds },
@@ -809,6 +886,12 @@ if (isEntry(import.meta.url)) {
       if (!name) throw new Error("usage: brain.mjs stamp <workspace> <page>");
       const r = stamp(ws, name);
       out(r, `${r.page} checked @${r.checked}`);
+    } else if (cmd === "move") {
+      const area = positional[3];
+      if (!name || !area) throw new Error("usage: brain.mjs move <workspace> <page> <area | .>");
+      const r = move(ws, name, area);
+      writeIndex(ws);
+      out(r, r.from === r.to ? `${r.to} is already there` : `${r.from} → ${r.to}`);
     } else if (cmd === "index") {
       const file = writeIndex(ws);
       out({ file }, file);
@@ -850,7 +933,7 @@ if (isEntry(import.meta.url)) {
           `${d.uncovered.length} code module(s) with no page${d.uncovered.length ? `: ${d.uncovered.map((c) => c.name).join(", ")}` : ""}`,
       );
     } else {
-      console.error("usage: brain.mjs <init|modules|status|changes|stamp|index|which|links|digest> <workspace> [page | files…] [--json]");
+      console.error("usage: brain.mjs <init|modules|status|changes|stamp|move|index|which|links|digest> <workspace> [page | files…] [--json]");
       process.exit(2);
     }
   } catch (e) {

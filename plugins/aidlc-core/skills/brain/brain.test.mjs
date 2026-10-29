@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 import { samePath } from "../../hooks/scripts/lib/paths.mjs";
-import { init, brainDir, candidateModules, workspaceModules, status, stamp, findPage, renderIndex, writeIndex, diffCommands, which, links, digest, enabled } from "./brain.mjs";
+import { init, brainDir, pages, candidateModules, workspaceModules, status, stamp, move, findPage, renderIndex, writeIndex, diffCommands, which, links, digest, enabled } from "./brain.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const tmps = [];
@@ -145,6 +145,69 @@ check("tests do not count as module code", byName.orders.files, 3);
   write(brainDir(ws), "modules/payments.md", "---\nmodule: payments\npaths: apps/api/src/payments\n---\n# Payments\n\n## Used by\n- Orders — charges an order at checkout. [code: x]\n");
   const again = links(ws, ["apps/api/src/orders/orders.service.ts"]).links.find((l) => l.to === "payments");
   check("…and once both pages say it, nothing is missing", [again.forward, again.reverse], [true, true]);
+}
+
+// --- Areas: related modules in a folder of their own --------------------------------------------------
+{
+  const ws = temp("brain-areas-");
+  write(ws, ".claude/aidlc.config.json", JSON.stringify({ project: { key: "P" } }));
+  write(ws, "src/billing/invoices/invoice.ts");
+  const mod = (id, paths, title) => page(ws, id, { module: id.split("/").pop(), paths }, `# ${title}\n\n## Purpose\n${title} things.\n`);
+  mod("modules/billing/invoices", "src/billing/invoices", "Invoices");
+  mod("modules/billing/payments", "src/billing/payments", "Payments");
+  mod("modules/auth", "src/auth", "Auth");
+  mod("modules/accounts/settings", "src/accounts/settings", "Account settings");
+  mod("modules/billing/settings", "src/billing/settings", "Billing settings");
+  mod("modules/billing/payouts/schedules", "src/billing/payouts", "Payout schedules");
+  mod("modules/checkout", "src/checkout", "Checkout");
+  page(ws, "flows/checkout", {}, "# Checkout\n");
+  page(ws, "flows/billing/refund", {}, "# Refund\n");
+
+  const all = Object.fromEntries(pages(ws).map((p) => [p.id, p]));
+  check("a page in an area is read, with its area", [all["modules/billing/invoices"]?.area, all["modules/auth"]?.area], ["billing", null]);
+  check("…at any depth, so nothing is silently dropped", all["modules/billing/payouts/schedules"]?.area, "billing/payouts");
+  check("…flows too", all["flows/billing/refund"]?.area, "billing");
+  check("a bare name finds a page in an area", findPage(ws, "invoices")?.id, "modules/billing/invoices");
+  check("…and so does area/name", findPage(ws, "billing/settings")?.id, "modules/billing/settings");
+  check("a name two areas share finds nothing on its own", findPage(ws, "settings"), null);
+  let err = "";
+  try {
+    stamp(ws, "settings");
+  } catch (e) {
+    err = e.message;
+  }
+  check("…and says which pages it could mean", /modules\/accounts\/settings, modules\/billing\/settings — give its area/.test(err), true);
+  check("a module and a flow with one name: the name means the module", findPage(ws, "checkout")?.kind, "module");
+  check("which names the page in its area", which(ws, ["src/billing/invoices/invoice.ts"]).pages.map((p) => p.id), ["modules/billing/invoices"]);
+  write(ws, "src/billing/settings/currency.ts", 'import { locale } from "../../accounts/settings/locale";');
+  write(ws, "src/accounts/settings/locale.ts");
+  const l = links(ws, ["src/billing/settings"]).links;
+  check("two areas' modules with one name are still two modules to link", l.map((x) => `${x.fromPage}→${x.toPage}`), ["modules/billing/settings→modules/accounts/settings"]);
+
+  const idx = renderIndex(ws);
+  check("the index counts the areas", /7 module page\(s\) in 3 area\(s\)/.test(idx), true);
+  check("…lists modules in no area first, then one section per area", idx.indexOf("[Auth]") < idx.indexOf("### accounts") && idx.indexOf("### accounts") < idx.indexOf("### billing"), true);
+  check("…and links each page where it lives", idx.includes("(modules/billing/invoices.md)"), true);
+
+  check("move puts a page in an area", move(ws, "auth", "accounts").to, "modules/accounts/auth");
+  check("…the file is where the id says", existsSync(join(brainDir(ws), "modules", "accounts", "auth.md")), true);
+  check("…and back to the top with .", move(ws, "accounts/auth", ".").to, "modules/auth");
+  move(ws, "schedules", "billing");
+  check("an area folder left empty by a move goes too", existsSync(join(brainDir(ws), "modules", "billing", "payouts")), false);
+  let clash = "";
+  try {
+    move(ws, "accounts/settings", "billing");
+  } catch (e) {
+    clash = e.message;
+  }
+  check("a move never overwrites a page", /already exists/.test(clash), true);
+  let bad = "";
+  try {
+    move(ws, "auth", "../outside");
+  } catch (e) {
+    bad = e.message;
+  }
+  check("…nor leaves the brain", /not an area name/.test(bad), true);
 }
 
 // --- init keeps it out of git ------------------------------------------------------------------------

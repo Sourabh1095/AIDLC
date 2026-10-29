@@ -20,7 +20,7 @@ command follows them. `B` below is `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/bra
 |---|---|
 | none, and no module pages yet | §2, then offer §3 for the modules the user names, or the few with the most code |
 | none, pages exist | `B status <ws>`: say how many pages there are and which are behind, then offer `--stale` and any modules not mapped yet |
-| `--map` | §2 again. Add pages for new candidates; never delete a page |
+| `--map` | §2 again. Add pages for new candidates; never delete a page. More than about ten pages and no areas yet → offer the grouping too |
 | a module name, or a path | §3. A path no page covers gets a new page |
 | `--stale` | §4 |
 
@@ -35,10 +35,17 @@ split a merge that is wrong (several unrelated `health` endpoints are not one mo
 catalog covers shared code, and a library worth knowing about gets one line in `overview.md`. If
 `.aidlc/adoption/` holds a scan report or profile, use what it already found rather than finding it again.
 
-**Show the list to the user and adjust it.** It is their product, and they know what the team calls
-each part. Then:
-- write a stub page per module from `${CLAUDE_PLUGIN_ROOT}/templates/brain-module.md`, with `module`
-  and `paths` filled and `checked` left empty;
+**Group them into areas when there are more than about ten** (`aidlc:brain` → *Layout*): related
+modules under the product's own words for its parts (bookings, billing, accounts), one level, and a
+module that fits nowhere left at the top. Group by what the business would call a part of the product,
+not by repo or by layer: the orders screen and the orders API are one module in one area.
+
+**Show the list to the user and adjust it**, areas included. It is their product, and they know what the
+team calls each part. Then:
+- write a stub page per module from `${CLAUDE_PLUGIN_ROOT}/templates/brain-module.md` at
+  `modules/<area>/<name>.md` (or `modules/<name>.md`), with `module` and `paths` filled and `checked`
+  left empty;
+- pages that already exist move with `B move <ws> <page> <area>`, which changes nothing in them;
 - write stubs for `overview.md`, `actors.md` and `glossary.md` if they are missing;
 - run `B index <ws>`.
 
