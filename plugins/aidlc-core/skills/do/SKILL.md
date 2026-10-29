@@ -169,10 +169,11 @@ Work from what the session already holds (the diff, and what you read to make th
 nothing new for it:
 
 - **The brain** (unless `brain.enabled` is false): `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs"
-  which <ws> <the commits' files>`, then `aidlc:brain` → *After a run*, steps 2–4. Update the page of each
-  module whose behaviour changed, and give a module its first page the first time work touches it. At
-  tier 1, only when the change moved behaviour (a rule, a default, a validation, something a user sees).
-  A typo, a rename, a comment or an import teaches it nothing.
+  which <ws> <the commits' files>`, then `aidlc:brain` → *After a run*, steps 2–5. Update the page of each
+  module whose behaviour changed, write each new connection on both modules' pages, and give a module
+  its first page the first time work touches it. At tier 1, only when the change moved behaviour (a
+  rule, a default, a validation, something a user sees) or reached into another module. A typo, a
+  rename, a comment or a dead import teaches it nothing.
 - **A lesson learned the hard way** (an environment trap, a gate that lied, a code truth that cost time,
   such as an enum's casing, a dependency cycle or a formatter hook that rewrote the file) →
   `aidlc:facts` → `add`. It does not go in Claude's memory, which is for how this person likes Claude to

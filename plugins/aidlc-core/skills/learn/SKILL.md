@@ -55,8 +55,11 @@ Read with purpose — entry points first, then follow what they call. Do not rea
 2. **Business rules:** validations, guards, permission checks, state transitions and calculations.
    Write each as the business would state it, with `[code: file]`.
 3. **Data:** the entities, schemas and migrations it owns, and which other modules read them.
-4. **Connections:** imports from other modules' paths, and outbound calls (HTTP, queues, SDKs) to
-   external services.
+4. **Connections:** `B links <ws> <its paths>` lists the modules its code imports from. Write each
+   under **Connects to** here and under **Used by** on the other module's page, as `aidlc:brain` →
+   *After a run* step 3 says. Then add its outbound calls (HTTP, queues, SDKs) to external services, and
+   anything that calls it without importing it (a queue consumer, an API another repo calls), which
+   the script cannot see.
 5. **User types:** role and permission checks show who reaches each capability. Update `actors.md`.
 6. **Intent:** work items that mention the module (`aidlc:work-items` → *query*; with the markdown
    backlog, search `backlog/`) and ADRs that touch it. Add their intent as `[req: ID]`, and put every

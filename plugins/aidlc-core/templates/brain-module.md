@@ -24,6 +24,9 @@ updated:
 ## Connects to
 - <Module or external service> — <why.> [code: <path>]
 
+## Used by
+- <Module> — <what it uses here.> [code: <path in that module>]
+
 ## Entry points
 - <Route, screen, API, job or event> — <what it does.> [code: <path>]
 

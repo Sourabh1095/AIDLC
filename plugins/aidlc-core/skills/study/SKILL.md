@@ -53,7 +53,9 @@ the file**: one giant message is where long documents get truncated.
 3. **User types** — each type and what it can do, plus a matrix of user type × module built from every
    page's *Who uses it*.
 4. **Modules** — one subsection each: purpose, capabilities, business rules, data it owns, what it
-   connects to, entry points. Business language; code paths only as a closing *Sources* line.
+   connects to and what uses it, entry points. Business language; code paths only as a closing *Sources*
+   line. Where pages disagree (one says it calls another, the other does not list it under *Used by*),
+   trust the code the line cites.
 5. **End-to-end flows** — numbered steps, each naming its module. Add a Mermaid sequence diagram for
    any flow longer than six steps.
 6. **Data** — entities by the module that owns them, and who reads them.

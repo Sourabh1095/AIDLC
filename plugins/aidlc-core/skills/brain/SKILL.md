@@ -23,6 +23,7 @@ Script — `B` below: `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs" <comm
 | `stamp <page>` | the page marked as checked against HEAD |
 | `index` | `index.md` regenerated |
 | `which <files…>` | the pages that cover those files, and the module a file sits in when no page does yet |
+| `links <files or folders…>` | every other module those files import from, and which of the two pages lacks the line |
 | `digest` | everything a business study is assembled from (`/aidlc:study`) |
 
 **Switched off** when `aidlc.config.json` has `"brain": { "enabled": false }`. Then nothing below
@@ -81,7 +82,7 @@ useful one on the page.
 ## Writing it — what you learned, when you learned it
 
 - **After a change you made lands in a module:** update the capabilities, rules, data and entry points
-  it changed.
+  it changed, and the connections it made, on both pages (*After a run*, step 3).
 - **After reading code to answer a question:** add what you learned, if the page did not already say it.
 - **When the user explains intent or a rule:** write it on the module's page, tagged `[told: <date>]`,
   and not in Claude's memory. Memory holds how this person likes Claude to work; a rule about the
@@ -120,10 +121,18 @@ acceptance criteria — without reading anything new:
 2. For each page or new module: add or correct the capabilities, business rules, data and entry points
    the change moved (`[code: path]`), and a work item's acceptance criteria as intent (`[req: <ID>]`).
    One line per behaviour, not per file.
-3. **Stamp only when `B changes <ws> <page>` lists nothing but this branch's own files.** Then the page
+3. **Connections, both ways.** `B links <ws> <those files>` names every module the changed code
+   imports from, and which page is missing the line. Write what it lists: under **Connects to** on
+   the caller's page, and under **Used by** on the page of the module it calls (add the section to an
+   older page), each citing the file it gives. A module that gains a line and has no page gets one from
+   the template, with its paths and that line. A shared library (a schema, logging, a UI kit) needs only
+   the caller's line. For each flow it names, add the step if the change added one to that journey.
+   Calls to outside services (HTTP, queues, SDKs) are not imports: add those to **Connects to** yourself.
+4. **Stamp only when `B changes <ws> <page>` lists nothing but this branch's own files.** Then the page
    describes everything that moved. When a teammate's change is in the list too, leave `checked` alone:
-   that part was not read, and the page has to keep saying so.
-4. `B index <ws>`.
+   that part was not read, and the page has to keep saying so. A page that only gained a **Used by**
+   line keeps its `checked` too: its code was not read.
+5. `B index <ws>`.
 
 Re-read a page right before editing it: parallel runs in sprint worktrees share one brain.
 

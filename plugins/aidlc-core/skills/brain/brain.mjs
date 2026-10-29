@@ -7,6 +7,9 @@
 //   node brain.mjs changes <workspace> <page>     files under a page's paths changed since it was checked
 //   node brain.mjs stamp   <workspace> <page>     mark a page checked against HEAD, after refreshing it
 //   node brain.mjs index   <workspace>            regenerate index.md from the pages
+//   node brain.mjs which   <workspace> <files…>   the pages (or modules without one) those files belong to
+//   node brain.mjs links   <workspace> <files…>   the modules those files import from, and whether both pages say so
+//   node brain.mjs digest  <workspace>            everything a business study is assembled from
 //
 // WHAT IT IS FOR. The other memories hold events (the journal), decisions (ADRs), operational truths
 // (facts) and one work item at a time (run files). None of them answers "what does the payments
@@ -24,8 +27,8 @@
 //
 // The model writes the pages; this script does what a model does badly — enumerate, diff, stamp.
 // Never throws on a bad page: one unreadable file must not hide the others.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
-import { join, relative, resolve, basename, isAbsolute } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from "node:fs";
+import { join, relative, resolve, basename, dirname, isAbsolute } from "node:path";
 import { execFileSync } from "node:child_process";
 import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/cli.mjs";
 import { frontmatter } from "../../hooks/scripts/lib/run-files.mjs";
@@ -475,6 +478,252 @@ export function which(ws, files) {
   };
 }
 
+// --- Connections: which modules a module's code reaches into ---------------------------------------------------
+
+// A change that makes one module call another is a fact about both: the caller's page says what it
+// connects to, and the called module's page says what uses it. Left to the model, the first gets written
+// and the second does not, and nothing marks the second page as behind, because its own code never moved.
+// This reads the imports in the files a change touched, resolves each to the module that owns it, and
+// says which of the two lines each page is missing. Imports only: HTTP calls, queues and SDKs to outside
+// services are still the model's to read.
+const CODE_EXT = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"];
+
+export function importsOf(text, file) {
+  const out = new Set();
+  if (file.endsWith(".py")) {
+    for (const m of text.matchAll(/^[ \t]*from[ \t]+(\.+[\w.]*|[\w.]+)[ \t]+import\b/gm)) out.add(m[1]);
+    for (const m of text.matchAll(/^[ \t]*import[ \t]+([\w.]+(?:[ \t]*,[ \t]*[\w.]+)*)/gm))
+      for (const s of m[1].split(",")) out.add(s.trim());
+  } else {
+    for (const m of text.matchAll(/\bfrom\s+["']([^"'\n]+)["']/g)) out.add(m[1]);
+    for (const m of text.matchAll(/\bimport\s*\(?\s*["']([^"'\n]+)["']/g)) out.add(m[1]);
+    for (const m of text.matchAll(/\brequire\s*\(\s*["']([^"'\n]+)["']/g)) out.add(m[1]);
+  }
+  return [...out];
+}
+
+// tsconfig.json allows comments and trailing commas; JSON.parse does not.
+function readJsonc(file) {
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      out += c;
+      if (c === "\\") out += text[++i] ?? "";
+      else if (c === '"') inString = false;
+    } else if (c === '"') {
+      inString = true;
+      out += c;
+    } else if (c === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      out += "\n";
+    } else if (c === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i++;
+    } else out += c;
+  }
+  try {
+    return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
+  } catch {
+    return null;
+  }
+}
+
+function resolver(root) {
+  const aliasCache = new Map();
+  // `paths` and `baseUrl` from every tsconfig/jsconfig between a folder and the workspace root, nearest
+  // first: an app's own config, then the monorepo's base config it extends.
+  const aliases = (dir) => {
+    if (aliasCache.has(dir)) return aliasCache.get(dir);
+    const out = [];
+    for (const name of ["tsconfig.json", "tsconfig.base.json", "jsconfig.json"]) {
+      const co = readJsonc(join(dir, name))?.compilerOptions;
+      if (!co) continue;
+      const base = resolve(dir, co.baseUrl ?? ".");
+      for (const [pattern, targets] of Object.entries(co.paths ?? {}))
+        out.push({ prefix: pattern.replace(/\*$/, ""), wildcard: pattern.endsWith("*"), targets: [].concat(targets).map((t) => resolve(base, t)) });
+      if (co.baseUrl) out.push({ prefix: "", wildcard: true, targets: [join(base, "*")] });
+    }
+    const up = dirname(dir);
+    const all = [...out, ...(isWithin(up, root) && up !== dir ? aliases(up) : [])];
+    aliasCache.set(dir, all);
+    return all;
+  };
+  const MARKERS = ["package.json", "pyproject.toml", "setup.py", "setup.cfg"];
+  const packageRoot = (dir) => {
+    for (let d = dir; isWithin(d, root); d = dirname(d)) {
+      if (MARKERS.some((m) => existsSync(join(d, m)))) return d;
+      if (d === dirname(d) || d === root) break;
+    }
+    return root;
+  };
+  const exists = (p) =>
+    existsSync(p) || CODE_EXT.some((e) => existsSync(p + e)) || (/\.[cm]?js$/.test(p) && [".ts", ".tsx"].some((e) => existsSync(p.replace(/\.[cm]?js$/, e))));
+  // Packages of this workspace, by their package.json name (`@acme/shared`): each repo, and each app,
+  // package, service or lib inside one. Longest name first, so `@acme/shared-ui` is not read as `@acme/shared`.
+  let packages = null;
+  const workspacePackages = () => {
+    if (packages) return packages;
+    const dirs = new Set();
+    for (const base of repoDirs(root)) {
+      dirs.add(base);
+      for (const unit of ["apps", "packages", "services", "libs"]) for (const name of subdirs(join(base, unit))) dirs.add(join(base, unit, name));
+    }
+    packages = [...dirs]
+      .map((dir) => ({ dir, pj: tryJson(join(dir, "package.json")) }))
+      .filter((p) => typeof p.pj?.name === "string")
+      .map((p) => ({ name: p.pj.name, dir: p.dir, exports: p.pj.exports }))
+      .sort((a, b) => b.name.length - a.name.length);
+    return packages;
+  };
+  // What `exports` maps a subpath to, preferring the types entry: it sits nearest the source.
+  const exportTarget = (exp, key) => {
+    let v = typeof exp === "string" ? (key === "." ? exp : null) : exp?.[key];
+    while (v && typeof v === "object") v = v.types ?? v.import ?? v.require ?? v.default ?? null;
+    return typeof v === "string" ? v : null;
+  };
+  // A built entry (`./dist/schema/index.d.ts`) read as the source it was built from (`src/schema/index`).
+  const sourceOf = (p) => p.replace(/^\.\//, "").replace(/^(dist|build|lib)\//, "src/").replace(/(\.d)?\.[cm]?[jt]s$/, "");
+  // The file an import names, as an absolute path, or null when it is a package or cannot be found.
+  return (spec, fromFile) => {
+    const dir = dirname(fromFile);
+    if (fromFile.endsWith(".py")) {
+      const dots = /^\.*/.exec(spec)[0].length;
+      const rest = spec.slice(dots).replace(/\./g, "/");
+      if (dots) {
+        let base = dir;
+        for (let i = 1; i < dots; i++) base = dirname(base);
+        return join(base, rest);
+      }
+      const pkg = packageRoot(dir);
+      return [pkg, join(pkg, "src"), root, join(root, "src")].map((b) => join(b, rest)).find(exists) ?? null;
+    }
+    if (spec.startsWith("./") || spec.startsWith("../")) return join(dir, spec);
+    const tries = [];
+    for (const a of aliases(dir))
+      if (a.wildcard ? spec.startsWith(a.prefix) : spec === a.prefix)
+        for (const t of a.targets) tries.push(t.replace("*", a.wildcard ? spec.slice(a.prefix.length) : ""));
+    if (/^[@~]\//.test(spec)) {
+      const pkg = packageRoot(dir);
+      tries.push(join(pkg, "src", spec.slice(2)), join(pkg, spec.slice(2)));
+    }
+    const pkg = workspacePackages().find((p) => spec === p.name || spec.startsWith(p.name + "/"));
+    if (pkg) {
+      const sub = spec.slice(pkg.name.length + 1);
+      if (sub) tries.push(join(pkg.dir, "src", sub), join(pkg.dir, sub));
+      const target = exportTarget(pkg.exports, sub ? `./${sub}` : ".");
+      if (target) tries.push(join(pkg.dir, sourceOf(target)));
+      tries.push(join(pkg.dir, "src", "index"), join(pkg.dir, "index"));
+    }
+    return tries.find(exists) ?? null;
+  };
+}
+
+// The files to read: each given file, and every source file under each given folder. Tests are left out:
+// a test reaching into another module's fixtures is not a connection the product has.
+function codeFiles(root, inputs) {
+  const out = new Set();
+  for (const input of inputs) {
+    const abs = resolve(root, input);
+    let isDir = false;
+    try {
+      isDir = statSync(abs).isDirectory();
+    } catch {
+      continue;
+    }
+    for (const f of isDir ? walk(abs) : [abs]) {
+      const rel = toPosix(relative(root, f));
+      if (CODE_EXT.some((e) => rel.endsWith(e)) && !isTestFile(rel)) out.add(f);
+    }
+  }
+  return [...out];
+}
+
+// Does a page section name this module? A line's lead (`- Payments — why`) or, for a name long enough
+// not to hide inside other words, anywhere in a line.
+function names(text, name) {
+  const key = moduleKey(name);
+  if (!text || !key) return false;
+  return text.split(/\r?\n/).some((l) => {
+    const lead = l.replace(/^\s*[-*]\s*/, "").split(/\s+[—–-]\s+|:/)[0];
+    return moduleKey(lead) === key || (key.length >= 5 && moduleKey(l).includes(key));
+  });
+}
+
+export function links(ws, inputs) {
+  const root = resolve(ws);
+  const all = pages(ws);
+  const pageOwners = all.filter((p) => p.kind === "module" && p.paths.length).map((p) => ({ name: p.id.split("/").pop(), page: p.id, file: p.file, paths: wsPaths(p) }));
+  let mods = null;
+  // A page the user drew wins over a candidate the layout suggests; the longest path wins within each.
+  const ownerOf = (rel) => {
+    const longest = (list) => {
+      let best = null;
+      let len = -1;
+      for (const o of list) for (const q of o.paths) if ((rel === q || rel.startsWith(q + "/")) && q.length > len) [best, len] = [o, q.length];
+      return best;
+    };
+    const page = longest(pageOwners);
+    if (page) return page;
+    mods ??= workspaceModules(ws).map((c) => ({ name: c.name, page: null, file: null, paths: c.paths }));
+    return longest(mods);
+  };
+  const resolve_ = resolver(root);
+  const found = new Map();
+  for (const f of codeFiles(root, inputs)) {
+    const rel = toPosix(relative(root, f));
+    const from = ownerOf(rel);
+    if (!from) continue;
+    let text;
+    try {
+      text = readFileSync(f, "utf8");
+    } catch {
+      continue;
+    }
+    for (const spec of importsOf(text, rel)) {
+      const target = resolve_(spec, f);
+      if (!target) continue;
+      const to = ownerOf(toPosix(relative(root, target)));
+      if (!to || to === from || moduleKey(to.name) === moduleKey(from.name)) continue;
+      const key = `${from.page ?? from.name}→${to.page ?? to.name}`;
+      if (!found.has(key)) found.set(key, { from, to, file: rel, import: spec });
+    }
+  }
+  const out = [...found.values()].map(({ from, to, file, import: spec }) => ({
+    from: from.name,
+    fromPage: from.page,
+    to: to.name,
+    toPage: to.page,
+    file,
+    import: spec,
+    forward: !!from.file && names(sections(from.file)["Connects to"], to.name),
+    reverse: !!to.file && names(sections(to.file)["Used by"], from.name),
+  }));
+  // A new connection may add a step to a journey: the flow pages that name a module of one.
+  const fresh = [...new Set(out.filter((l) => !l.forward || !l.reverse).flatMap((l) => [l.from, l.to]))];
+  const flows = [];
+  if (fresh.length)
+    for (const p of all.filter((x) => x.kind === "flow")) {
+      let text = "";
+      try {
+        text = readFileSync(p.file, "utf8");
+      } catch {
+        continue;
+      }
+      const hit = fresh.filter((n) => names(text, n));
+      if (hit.length) flows.push({ id: p.id, mentions: hit });
+    }
+  return { links: out, flows };
+}
+
 // --- Digest: what a business study is assembled from ----------------------------------------------------------
 
 function sections(file) {
@@ -575,6 +824,23 @@ if (isEntry(import.meta.url)) {
           .filter(Boolean)
           .join("\n") || "(no files given)",
       );
+    } else if (cmd === "links") {
+      const r = links(ws, positional.slice(2));
+      const where = (name, page) => (page ? `${page}` : `${name} (no page yet)`);
+      const line = (l) => {
+        const missing = [
+          !l.forward && `${where(l.from, l.fromPage)} → add under "Connects to": ${l.to}`,
+          !l.reverse && `${where(l.to, l.toPage)} → add under "Used by": ${l.from}`,
+        ].filter(Boolean);
+        return `${l.from} → ${l.to}  [code: ${l.file}] imports ${l.import}\n  ${missing.length ? missing.join("\n  ") : "on both pages"}`;
+      };
+      out(
+        r,
+        [
+          ...r.links.map(line),
+          ...r.flows.map((f) => `check flow ${f.id} (names ${f.mentions.join(", ")}): did this add a step?`),
+        ].join("\n") || "(no imports into other modules)",
+      );
     } else if (cmd === "digest") {
       const d = digest(ws);
       out(
@@ -584,7 +850,7 @@ if (isEntry(import.meta.url)) {
           `${d.uncovered.length} code module(s) with no page${d.uncovered.length ? `: ${d.uncovered.map((c) => c.name).join(", ")}` : ""}`,
       );
     } else {
-      console.error("usage: brain.mjs <init|modules|status|changes|stamp|index|which|digest> <workspace> [page | files…] [--json]");
+      console.error("usage: brain.mjs <init|modules|status|changes|stamp|index|which|links|digest> <workspace> [page | files…] [--json]");
       process.exit(2);
     }
   } catch (e) {

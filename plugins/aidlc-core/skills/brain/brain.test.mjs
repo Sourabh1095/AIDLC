@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
 import { samePath } from "../../hooks/scripts/lib/paths.mjs";
-import { init, brainDir, candidateModules, workspaceModules, status, stamp, findPage, renderIndex, writeIndex, diffCommands, which, digest, enabled } from "./brain.mjs";
+import { init, brainDir, candidateModules, workspaceModules, status, stamp, findPage, renderIndex, writeIndex, diffCommands, which, links, digest, enabled } from "./brain.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const tmps = [];
@@ -95,6 +95,56 @@ check("tests do not count as module code", byName.orders.files, 3);
   write(flat, "src/billing/invoice.py");
   write(flat, "src/accounts/user.py");
   check("no containers: top-level source folders", candidateModules(flat).map((m) => m.name), ["accounts", "billing"]);
+}
+
+// --- Connections, both ways ----------------------------------------------------------------------------
+{
+  const ws = temp("brain-links-");
+  write(ws, ".claude/aidlc.config.json", JSON.stringify({ project: { key: "P" } }));
+  write(ws, "apps/api/package.json", "{}");
+  // Comments and a trailing comma, as tsconfig files have them.
+  write(ws, "apps/api/tsconfig.json", '{\n  // aliases\n  "compilerOptions": { "baseUrl": ".", "paths": { "@app/*": ["src/*"], }, /* end */ }\n}\n');
+  write(
+    ws,
+    "apps/api/src/orders/orders.service.ts",
+    [
+      'import { Injectable } from "@nestjs/common";',
+      'import { PaymentsService } from "../payments/payments.service";',
+      'import type { User } from "@app/users/users.service";',
+      'import { OrdersRepo } from "./orders.repo";',
+      'import { toMinor } from "@acme/shared/money";',
+    ].join("\n"),
+  );
+  write(ws, "packages/shared/package.json", JSON.stringify({ name: "@acme/shared", exports: { "./money": { types: "./dist/money/index.d.ts", require: "./dist/money/index.js" } } }));
+  write(ws, "packages/shared/src/money/index.ts");
+  write(ws, "packages/shared-ui/package.json", JSON.stringify({ name: "@acme/shared-ui" }));
+  write(ws, "packages/shared-ui/src/index.ts");
+  write(ws, "apps/api/src/orders/orders.repo.ts");
+  write(ws, "apps/api/src/orders/orders.service.spec.ts", 'import { x } from "../shipping/shipping.service";');
+  write(ws, "apps/api/src/payments/payments.service.ts");
+  write(ws, "apps/api/src/users/users.service.ts");
+  write(ws, "apps/api/src/shipping/shipping.service.ts");
+  write(ws, "services/billing/pyproject.toml", "");
+  write(ws, "services/billing/src/invoices/invoice.py", "from ..ledger.post import post\n");
+  write(ws, "services/billing/src/invoices/credit.py", "from ledger.post import post\nimport os\n");
+  write(ws, "services/billing/src/ledger/post.py", "def post(): pass\n");
+  page(ws, "modules/orders", { module: "orders", paths: "apps/api/src/orders" }, "# Orders\n\n## Connects to\n- Payments — charges the order. [code: x]\n");
+  page(ws, "modules/payments", { module: "payments", paths: "apps/api/src/payments" }, "# Payments\n\n## Used by\n");
+  page(ws, "flows/checkout", {}, "# Checkout\n\n1. The buyer places the order (orders).\n2. The card is charged (payments).\n");
+
+  const r = links(ws, ["apps/api/src/orders", "services/billing/src/invoices"]);
+  const by = Object.fromEntries(r.links.map((l) => [`${l.from}→${l.to}`, l]));
+  check("finds each module the change reaches into, and nothing inside its own module", Object.keys(by).sort(), ["invoices→ledger", "orders→payments", "orders→shared", "orders→users"]);
+  check("a workspace package by its name, through its exports map, back to its source", by["orders→shared"]?.import, "@acme/shared/money");
+  check("a relative import, already on the caller's page but not on the callee's", [by["orders→payments"].forward, by["orders→payments"].reverse], [true, false]);
+  check("an aliased import, read from a tsconfig with comments, to a module with no page", [by["orders→users"].forward, by["orders→users"].toPage], [false, null]);
+  check("python: relative and absolute imports, reported once", [by["invoices→ledger"].file.startsWith("services/billing/src/invoices/"), r.links.filter((l) => l.to === "ledger").length], [true, 1]);
+  check("tests and packages are not connections", r.links.some((l) => l.to === "shipping" || /nestjs/.test(l.import)), false);
+  check("the flow that names a newly connected module is flagged", r.flows.map((f) => f.id), ["flows/checkout"]);
+
+  write(brainDir(ws), "modules/payments.md", "---\nmodule: payments\npaths: apps/api/src/payments\n---\n# Payments\n\n## Used by\n- Orders — charges an order at checkout. [code: x]\n");
+  const again = links(ws, ["apps/api/src/orders/orders.service.ts"]).links.find((l) => l.to === "payments");
+  check("…and once both pages say it, nothing is missing", [again.forward, again.reverse], [true, true]);
 }
 
 // --- init keeps it out of git ------------------------------------------------------------------------

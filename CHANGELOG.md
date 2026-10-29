@@ -7,6 +7,32 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.69.0] — 2026-10-30
+
+### The brain records connections between modules on both sides (`aidlc`)
+
+A module page said what it connects to, but only the model kept that list, and only in one direction.
+When a new module started calling `bookings` without changing any of its files, the new page said so,
+but the `bookings` page never learned that something now depended on it. Nothing marked it out of
+date either, because its own code had not moved.
+
+- **`brain.mjs links <files or folders…>`** reads the imports in the files a change touched and finds
+  the module that owns each import's target. It reports every connection into another module and
+  which of the two pages is missing it. It handles relative imports, tsconfig/jsconfig `paths` and
+  `baseUrl` (comments and trailing commas allowed), the `@/` and `~/` shorthands, workspace packages
+  by name through their `exports` map back to their source, and Python's relative and absolute
+  imports. Tests and outside packages are left out. On a five-service workspace it takes about half
+  a second.
+- **Module pages gain a `## Used by` section** (`templates/brain-module.md`).
+- **After every run and every direct or tracked change**, `aidlc:brain` → *After a run* step 3 writes
+  the missing lines: **Connects to** on the caller's page and **Used by** on the other module's page.
+  It also flags flow pages that name a newly connected module, so a new step in a journey gets added.
+  A shared library needs only the caller's line. A page that only gained a **Used by** line keeps its
+  `checked`, because its code was not read.
+- `/aidlc:learn <module>` uses the same command for its connections step, and `/aidlc:study` covers
+  what uses each module as well as what it connects to.
+- Versions: `aidlc` 0.68.0 → **0.69.0**, marketplace → **0.69.0**.
+
 ## [0.68.0] — 2026-10-30
 
 ### The brain learns from everyday work, not only from full runs (`aidlc`)
