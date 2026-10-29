@@ -89,13 +89,20 @@ section(() => {
 });
 
 // --- 0c. The project brain --------------------------------------------------------------------------
-// Only once this person has started one. It is the read-side trigger: a session that is not told the
-// brain exists never opens it. Which pages are behind comes from one `git diff` per stamp commit, and
-// most of the change on a team where one person uses AIDLC arrives from outside it.
+// The read-side trigger: a session that is not told the brain exists never opens it. Which pages are
+// behind comes from one `git diff` per stamp commit, and most of the change on a team where one person
+// uses AIDLC arrives from outside it. Before the first page, one line says how it starts — an upgraded
+// project otherwise never hears of it. It goes once work has written a page.
 section(() => {
   if (!cfg || cfg.brain?.enabled === false) return;
   const mods = brainStatus(cwd).filter((p) => p.kind === "module");
-  if (!mods.length) return;
+  if (!mods.length) {
+    lines.push(
+      "Project brain: not started. Work adds a module's page the first time it touches the module; " +
+        "/aidlc:learn --map maps them all now (brain.enabled: false turns this line off).",
+    );
+    return;
+  }
   const behind = mods.filter((p) => NEEDS_REFRESH.has(p.state)).map((p) => p.id.split("/").pop());
   lines.push(
     `Project brain: .aidlc/brain/ — ${mods.length} module page(s), ` +
@@ -111,9 +118,18 @@ section(() => {
   // Blocked and review-pending both wait on a person; everything else waits on the pipeline.
   const blocked = runs.filter((r) => WAITING_ON_HUMAN.has(r.phase));
   const active = runs.filter((r) => !WAITING_ON_HUMAN.has(r.phase));
+  // PRs /aidlc:status has seen merged or closed. Nothing else moves a run once its PR closes unmerged,
+  // so without this the run is listed as needing you for ever.
+  let settled = {};
+  try {
+    settled = JSON.parse(readFileSync(join(cwd, ".aidlc", "logs", "pr-state.json"), "utf8"));
+  } catch {
+    /* no PR has settled yet */
+  }
   const fmt = (r) =>
     `- ${r.item} [${r.phase}]${r.repo && r.repo !== "null" ? ` repo=${r.repo}` : ""}` +
-    `${r.branch ? ` branch=${r.branch}` : ""}${r.pr && r.pr !== "null" ? ` pr=${r.pr}` : ""}`;
+    `${r.branch ? ` branch=${r.branch}` : ""}${r.pr && r.pr !== "null" ? ` pr=${r.pr}` : ""}` +
+    (settled[r.pr]?.state ? ` — PR ${settled[r.pr].state}, /aidlc:status cleans it up` : "");
   if (blocked.length) {
     lines.push(`⛔ Needs you — blocked or awaiting review (${blocked.length}):`);
     for (const r of blocked.slice(0, 3)) lines.push(fmt(r));

@@ -7,6 +7,55 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.68.0] — 2026-10-30
+
+### The brain learns from everyday work, not only from full runs (`aidlc`)
+
+Reported by a user a week after upgrading from 0.52.0 to 0.67.1. Their team works mostly through
+`/aidlc:do`: about twelve tracked changes to one full run that week. `.aidlc/brain/` still did not exist,
+`facts.md` had not been touched in six weeks, and what they had learned had gone into Claude's memory
+instead. The cause was one gap. A tracked change (tier 2) had no written procedure: `/aidlc:do` handed
+it to `/aidlc:run`, which is the full pipeline and starts by creating a tracker item. So tracked work was
+improvised, and it skipped the one step that teaches the brain, which only the full run had.
+
+- **Tracked changes are written down** (`aidlc:do` → `references/tracked.md`). `/aidlc:do` does them
+  itself: a `local-<slug>` name, a branch, a run file with `item: local-<slug>` and `source: none`,
+  commits, the gate, a journal line, and a PR only where the repo wants one. A prompt naming the
+  `local-<slug>` resumes it.
+- **After every direct or tracked commit, the change teaches the brain** (`aidlc:do` §5 → *After the
+  commit*): `brain which` on the commit's files, then the same update a full run makes. A module gets its
+  first page the first time work touches it. A typo or a rename skips this.
+- **Lessons go to facts, not to memory.** The same step records a lesson learned the hard way with
+  `facts add`. A consult that settles a rule ("by design, keep X") goes on the module's page as
+  `[told: <date>]`, as well as in the journal.
+- **`/aidlc:learn <module>` brings memory notes about the module onto its page**, tagged `[told]` with
+  their own dates, and removes them from memory on a yes, so the two cannot drift.
+- **Before the first page, the session says how the brain starts** (one line, gone once a page
+  exists), and `/aidlc:upgrade` mentions it.
+- **`/aidlc:do` reads the facts it needs**, by area, instead of the whole file.
+- **Doctor watches `facts.md`**: it warns past 200 lines, when most lines are not dated facts, and when
+  nothing has been added or re-verified for 60 days.
+
+### The module mapper understands a NestJS + Next.js monorepo (`aidlc`)
+
+- An app in `apps/` or `services/` with its own manifest and no feature folder inside (a NestJS
+  `src/<module>` layout) now gives its `src/` folders as modules, instead of one 1,400-file module.
+  Plumbing folders (`common`, `config`, `database` and the like) are left out. Libraries in
+  `packages/` stay whole.
+- Names are matched ignoring case, separators and a plain plural: `booking-approval`, `BookingApproval`
+  and `bookingApprovals` are one candidate, named `booking-approval`.
+
+### Run files that never get cleaned up (`aidlc`)
+
+- A run file with no `item:` was listed as `undefined` in the session snapshot. It is now named by its
+  file, and doctor warns about the missing field.
+- A run whose PR was closed without merging stayed at `review-pending` and was listed as needing you
+  indefinitely. The session snapshot now marks it, doctor's new `runs-settled` check names it (and a
+  merged PR whose run was never cleaned up), and `/aidlc:status` cleanup marks them `abandoned` and
+  archives them on one confirmation. `pr-state.mjs` keeps reporting a settled PR while its run file
+  is still live, where before it reported it only once.
+- Versions: `aidlc` 0.67.1 → **0.68.0**, marketplace → **0.68.0**.
+
 ## [0.67.1] — 2026-10-25
 
 ### Run files are written with Write and Edit, never the shell (`aidlc`)

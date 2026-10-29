@@ -45,7 +45,7 @@ export function prRuns(root) {
         const fm = frontmatter(join(d, f));
         const pr = fm && parsePr(fm.pr);
         if (!fm?.item || !pr || fm.phase === "abandoned") continue;
-        out.set(fm.item, { item: fm.item, phase: fm.phase, repo: fm.repo && fm.repo !== "null" ? fm.repo : null, pr });
+        out.set(fm.item, { item: fm.item, phase: fm.phase, repo: fm.repo && fm.repo !== "null" ? fm.repo : null, pr, live: d === dir });
       }
     }
   return [...out.values()];
@@ -68,7 +68,7 @@ export function checksOf(rollup) {
 export function nextStep(item, s) {
   if (s.error) return null;
   if (s.state === "merged") return `merged → /aidlc:status to clean up`;
-  if (s.state === "closed") return `closed without merging`;
+  if (s.state === "closed") return `closed without merging → /aidlc:status to close the run`;
   if (s.review === "changes_requested" || s.review === "waiting_for_author" || s.unresolved > 0)
     return `${s.unresolved > 0 ? `${s.unresolved} unresolved review thread${s.unresolved === 1 ? "" : "s"}` : "changes requested"} → /aidlc:review-feedback ${item}`;
   if (s.checks === "failing") return `checks failing → /aidlc:run ${item}`;
@@ -148,7 +148,8 @@ export function prStates(root, run = defaultRun, { cache = true } = {}) {
       known[r.pr.url] = { state: s.state, item: r.item };
       learned = true;
     }
-    return { item: r.item, repo: r.repo, phase: r.phase, pr: r.pr.url, number: r.pr.number, host: r.pr.host, ...s, next: seen ? null : nextStep(r.item, s) };
+    // A settled PR whose run file is still live (not archived) has cleanup waiting: keep saying so until it is done.
+    return { item: r.item, repo: r.repo, phase: r.phase, pr: r.pr.url, number: r.pr.number, host: r.pr.host, ...s, next: seen && !r.live ? null : nextStep(r.item, s) };
   });
   if (cache && learned) {
     try {
@@ -158,7 +159,7 @@ export function prStates(root, run = defaultRun, { cache = true } = {}) {
       // a cache that cannot be written costs a re-ask next time, nothing more
     }
   }
-  // Settled PRs are history: report them once (the look that learned it) and then leave them out.
+  // Settled PRs are history once their run is archived: reported on the look that learned it, then left out.
   return states.filter((s) => !known[s.pr] || s.next);
 }
 

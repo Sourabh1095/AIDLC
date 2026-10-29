@@ -31,7 +31,7 @@ import { isMain as isEntry, parseArgs, tryJson } from "../../hooks/scripts/lib/c
 import { frontmatter } from "../../hooks/scripts/lib/run-files.mjs";
 import { memoryRoot, keepOutOfGit } from "../../hooks/scripts/lib/memory-home.mjs";
 import { isWithin } from "../../hooks/scripts/lib/paths.mjs";
-import { walk, isTestFile, IGNORED_DIRS } from "../reuse/catalog.mjs";
+import { walk, isTestFile, IGNORED_DIRS, SHARED_DIR_NAMES } from "../reuse/catalog.mjs";
 
 export const brainDir = (ws) => join(memoryRoot(resolve(ws)), ".aidlc", "brain");
 const PAGE_DIRS = ["modules", "flows"];
@@ -310,6 +310,40 @@ const CONTAINERS = new Set(["modules", "features", "domains", "apps", "packages"
 const UNITS = new Set(["apps", "packages", "services"]);
 const LIMIT = 60;
 
+// One module, however each layer spells it: `booking-approval`, `BookingApproval` and `bookingApprovals`
+// meet on `bookingapproval`. Case, separators and a plain plural are spelling, not meaning.
+export function moduleKey(name) {
+  let k = String(name).toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  if (k.length > 5 && k.endsWith("ies")) k = `${k.slice(0, -3)}y`;
+  else if (k.length > 4 && k.endsWith("s") && !/(ss|us|is)$/.test(k)) k = k.slice(0, -1);
+  return k;
+}
+// The name a page is written under: `BookingApproval` → `booking-approval`.
+const pageName = (name) =>
+  String(name)
+    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1-$2")
+    .replace(/[\s_.]+/g, "-")
+    .toLowerCase();
+
+// A deployable app or service in a monorepo (`apps/api`, `services/billing`) is a package of its own.
+// When nothing inside it looks like a feature container, its source folder's children are its modules:
+// a NestJS app keeps them straight in `src/<module>`, and treating the whole app as one module hides
+// every one of them. Libraries under `packages/` are left whole — their folders are parts, not features.
+const MANIFESTS = ["package.json", "project.json", "pyproject.toml", "go.mod", "Cargo.toml", "pom.xml", "build.gradle", "build.gradle.kts", "composer.json"];
+const isPackage = (dir) => {
+  try {
+    return readdirSync(dir).some((f) => MANIFESTS.includes(f) || f.endsWith(".csproj"));
+  } catch {
+    return false;
+  }
+};
+// Folders in an app's source that are plumbing, not product: never offered as modules.
+const PLUMBING = new Set([
+  ...SHARED_DIR_NAMES,
+  "config", "configs", "configuration", "database", "db", "prisma", "migrations", "seeds", "test", "tests", "e2e",
+  "scripts", "assets", "static", "i18n", "locales", "generated", "dto", "dtos", "entities", "health", "logger", "logging",
+]);
+
 const sourceFiles = (dir) => {
   let n = 0;
   for (const f of walk(dir)) if (!isTestFile(toPosix(f))) n++;
@@ -329,13 +363,27 @@ const subdirs = (dir) => {
 export function candidateModules(repoRoot, { repo = ".", maxDepth = 5 } = {}) {
   const byName = new Map();
   const add = (name, abs) => {
-    const key = name.toLowerCase().replace(/^\[+|\]+$/g, "");
+    const key = moduleKey(name);
     const files = sourceFiles(abs);
     if (!files || !key) return;
-    const c = byName.get(key) ?? { name: key, repo, paths: [], files: 0 };
+    const c = byName.get(key) ?? { name: pageName(name), repo, paths: [], files: 0 };
     c.paths.push(toPosix(relative(repoRoot, abs)));
     c.files += files;
     byName.set(key, c);
+  };
+  // An app whose top level or `src/` has a feature container (`app/`, `modules/`, `features/`…) is
+  // searched as usual. One without (a flat NestJS `src/`) has its modules straight under `src/`.
+  const srcOf = (app) => ["src", "internal"].find((d) => subdirs(app).includes(d));
+  const hasContainer = (app) => {
+    const src = srcOf(app);
+    return [...subdirs(app), ...(src ? subdirs(join(app, src)) : [])].some((n) => CONTAINERS.has(n.toLowerCase()));
+  };
+  const appModules = (app) => {
+    const src = srcOf(app);
+    if (!src) return false;
+    for (const name of subdirs(join(app, src)))
+      if (!PLUMBING.has(name.toLowerCase()) && !/^[[@(]/.test(name)) add(name, join(app, src, name));
+    return true;
   };
   const container = (abs, depth, kind) => {
     for (const name of subdirs(abs)) {
@@ -346,7 +394,9 @@ export function candidateModules(repoRoot, { repo = ".", maxDepth = 5 } = {}) {
       else if (!UNITS.has(kind) && CONTAINERS.has(name.toLowerCase())) container(child, depth + 1, name.toLowerCase());
       else {
         add(name, child);
-        if (UNITS.has(kind)) visit(child, depth + 1);
+        if (!UNITS.has(kind)) continue;
+        const flatApp = kind !== "packages" && isPackage(child) && !hasContainer(child);
+        if (!(flatApp && appModules(child))) visit(child, depth + 1);
       }
     }
   };
@@ -383,11 +433,12 @@ export function workspaceModules(ws) {
   for (const dir of dirs.slice(0, -1)) {
     const key = repoKey(root, dir);
     for (const c of candidateModules(dir, { repo: key })) {
-      const m = byName.get(c.name) ?? { name: c.name, repos: [], paths: [], files: 0 };
+      const id = moduleKey(c.name);
+      const m = byName.get(id) ?? { name: c.name, repos: [], paths: [], files: 0 };
       m.repos.push(key);
       m.paths.push(...c.paths.map((q) => (key === "." ? q : `${key}/${q}`)));
       m.files += c.files;
-      byName.set(c.name, m);
+      byName.set(id, m);
     }
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));

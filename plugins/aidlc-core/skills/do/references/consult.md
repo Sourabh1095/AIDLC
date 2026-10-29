@@ -38,6 +38,12 @@ This is the prompt you would otherwise answer cold, and the whole value is the g
      "<the question>? → <the answer> (<the ADR or evidence>), confidence <level>"
    ```
 
+   **A ruling about how a module should behave goes in the brain too.** When the answer settles a
+   business rule ("by design, keep X"; "approvals never skip the manager"), add it to that module's
+   page as `[told: <today>]` (`aidlc:brain` → *Writing it*), creating the page if the module has none.
+   The journal says the question was asked; the page is where the next person working on the module
+   will look for the rule. Skip this when `brain.enabled` is false.
+
    This is the entry that earns the journal its keep. A consult ends with **no artifact** by design
    (§Rules), which is right for ceremony and wrong for memory: without this line the next session has
    no idea the question was ever asked, and will happily re-derive a different answer. The pointer is

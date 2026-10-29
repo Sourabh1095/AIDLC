@@ -39,11 +39,13 @@ try {
   run(join(runs, "archive"), "P-2", "done", "https://github.com/acme/web/pull/2");
   run(runs, "P-3", "implement", "null");
   run(runs, "P-4", "review-pending", "local-merge:abc1234");
+  run(runs, "P-5", "review-pending", "https://github.com/acme/web/pull/5");
 
   const calls = [];
   const gh = {
     1: { view: { state: "OPEN", reviewDecision: "CHANGES_REQUESTED", statusCheckRollup: [{ conclusion: "SUCCESS" }], isDraft: false }, threads: [{ isResolved: false }, { isResolved: false }, { isResolved: true }] },
     2: { view: { state: "MERGED", reviewDecision: "APPROVED", statusCheckRollup: [], isDraft: false }, threads: [] },
+    5: { view: { state: "CLOSED", reviewDecision: "", statusCheckRollup: [], isDraft: false }, threads: [] },
   };
   const fake = (argv) => {
     calls.push(argv.join(" "));
@@ -56,7 +58,8 @@ try {
   };
 
   const first = prStates(ws, fake);
-  check("only runs with a remote PR are asked about", first.map((s) => s.item).sort(), ["P-1", "P-2"]);
+  check("only runs with a remote PR are asked about", first.map((s) => s.item).sort(), ["P-1", "P-2", "P-5"]);
+  check("a PR closed without merging says how to close the run", first.find((s) => s.item === "P-5").next, "closed without merging → /aidlc:status to close the run");
   const p1 = first.find((s) => s.item === "P-1");
   check("an open PR with changes requested", [p1.state, p1.review, p1.unresolved, p1.checks, p1.next], ["open", "changes_requested", 2, "passing", "2 unresolved review threads → /aidlc:review-feedback P-1"]);
   check("an archived run's merged PR is reported once", first.find((s) => s.item === "P-2").next, "merged → /aidlc:status to clean up");
@@ -64,8 +67,8 @@ try {
 
   calls.length = 0;
   const second = prStates(ws, fake);
-  check("a settled PR is never asked about again", calls.some((c) => c.includes("/pull/2") || c.includes("pr=2")), false);
-  check("…nor reported again", second.map((s) => s.item), ["P-1"]);
+  check("a settled PR is never asked about again", calls.some((c) => /\/pull\/[25]\b|pr=[25]\b/.test(c)), false);
+  check("…nor reported again once its run is archived, but still while the run is live", second.map((s) => s.item).sort(), ["P-1", "P-5"]);
 
   const signedOut = () => ({ status: 1, stdout: "", stderr: "To get started with GitHub CLI, please run: gh auth login" });
   check("a signed-out CLI is an error, not a state", prStates(ws, signedOut, { cache: false })[0].error, "gh not signed in");

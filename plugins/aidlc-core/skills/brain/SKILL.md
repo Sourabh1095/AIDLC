@@ -83,7 +83,9 @@ useful one on the page.
 - **After a change you made lands in a module:** update the capabilities, rules, data and entry points
   it changed.
 - **After reading code to answer a question:** add what you learned, if the page did not already say it.
-- **When the user explains intent or a rule:** write it, tagged `[told: <date>]`.
+- **When the user explains intent or a rule:** write it on the module's page, tagged `[told: <date>]`,
+  and not in Claude's memory. Memory holds how this person likes Claude to work; a rule about the
+  product saved there never reaches the page, and the two drift apart.
 - **When requirements arrive** (intake, grooming, a run's acceptance criteria): add the intended
   behaviour as `[req: ID]`.
 
@@ -109,12 +111,14 @@ Files `which` leaves unmapped are shared code; the reuse catalog covers them.
 
 ## After a run
 
-The pipeline (`aidlc:run` → §10) teaches the brain what the item changed, from what it already holds —
-the branch's diff and the item's acceptance criteria — without reading anything new:
+The pipeline (`aidlc:run` → §10) and every direct or tracked change (`aidlc:do` §5 → *After the
+commit*) teach the brain what changed, from what they already hold — the diff and, for a work item, its
+acceptance criteria — without reading anything new:
 
-1. `git diff --name-only <base>...HEAD` → `B which <ws> <those files>`.
+1. `git diff --name-only <base>...HEAD` (for a direct commit, `git show --name-only --format= HEAD`)
+   → `B which <ws> <those files>`.
 2. For each page or new module: add or correct the capabilities, business rules, data and entry points
-   the item changed (`[code: path]`), and the item's acceptance criteria as intent (`[req: <ID>]`).
+   the change moved (`[code: path]`), and a work item's acceptance criteria as intent (`[req: <ID>]`).
    One line per behaviour, not per file.
 3. **Stamp only when `B changes <ws> <page>` lists nothing but this branch's own files.** Then the page
    describes everything that moved. When a teammate's change is in the list too, leave `checked` alone:

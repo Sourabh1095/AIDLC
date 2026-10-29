@@ -40,6 +40,8 @@ marketplace known (F42) · **permission-rule shapes** (F44/F45/F48, via the same
 marketplace's own CI uses) · **`git -C` coverage in poly** (F43) · each declared repo path resolving to
 a real git repo · the control-plane `.gitignore` ignoring every product repo by path (the gitlink trap)
 · every hook script the plugin registers existing on disk · every run file parsing with a valid phase
+and an `item:` · runs whose PR closed or merged but were never cleaned up · `facts.md` stale, oversized
+or silent for 60 days
 · **project memory kept inside the workspace** (`.aidlc/memory/`), any copy left in `~/.claude/projects/`
 from before the move, and project agents declaring `memory: user` · **project brain pages behind the
 code** (once a brain exists).

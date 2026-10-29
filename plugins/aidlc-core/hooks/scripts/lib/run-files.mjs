@@ -85,7 +85,8 @@ export function runDirs(cwd) {
 
 // Every run file across those dirs, parsed, deduped by item (a poly item's run file
 // lives in its repo; the control plane may also hold an epic coordination file).
-// `keep` filters on the parsed frontmatter.
+// `keep` filters on the parsed frontmatter. A file with no `item:` is named by its file name —
+// `.aidlc/runs/<ID>.md` by construction — so it never reaches a reader as `undefined`.
 export function readRuns(cwd, keep) {
   try {
     const seen = new Set();
@@ -93,7 +94,10 @@ export function readRuns(cwd, keep) {
       .flatMap((d) =>
         readdirSync(d)
           .filter((f) => f.endsWith(".md"))
-          .map((f) => frontmatter(join(d, f))),
+          .map((f) => {
+            const fm = frontmatter(join(d, f));
+            return fm && { ...fm, item: fm.item || f.slice(0, -3) };
+          }),
       )
       .filter(Boolean)
       .filter(keep)

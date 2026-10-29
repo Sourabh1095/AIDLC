@@ -448,6 +448,38 @@ check(
   "run-files",
   "warn",
 );
+check(
+  "a run file with no item: warns",
+  workspace({ config: BASE_CONFIG, settings: GOOD_SETTINGS, files: { ".aidlc/runs/local-fix-x.md": "---\nphase: implement\n---\n" } }),
+  "run-files",
+  "warn",
+);
+{
+  const PR = "https://github.com/o/r/pull/7";
+  const withPr = (phase, state) => ({
+    config: BASE_CONFIG,
+    settings: GOOD_SETTINGS,
+    files: {
+      ".aidlc/runs/PROJ-1.md": `---\nitem: PROJ-1\nphase: ${phase}\npr: ${PR}\n---\n`,
+      ".aidlc/logs/pr-state.json": { [PR]: { state, item: "PROJ-1" } },
+    },
+  });
+  check("a run whose PR closed without merging warns", workspace(withPr("review-pending", "closed")), "runs-settled", "warn");
+  check("…and a merged one left uncleaned", workspace(withPr("done", "merged")), "runs-settled", "warn");
+  check("…but an abandoned run is settled", workspace(withPr("abandoned", "closed")), "runs-settled", "<absent>");
+}
+
+// --- Facts: size and silence --------------------------------------------------------------------
+{
+  const fact = (i, date) => `- fact number ${i} about the build  ·  verified ${date}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const facts = (n, date, extra = "") => `# Project facts\n\n## environment\n${Array.from({ length: n }, (_, i) => fact(i, date)).join("\n")}\n${extra}`;
+  const ws = (text) => workspace({ config: BASE_CONFIG, settings: GOOD_SETTINGS, files: { ".aidlc/facts.md": text } });
+  check("a small, current facts file has no size warning", ws(facts(5, today)), "facts-size", "<absent>");
+  check("an oversized facts file warns", ws(facts(250, today)), "facts-size", "warn");
+  check("a facts file mostly not in the fact format warns", ws(facts(5, today, "loose note\n".repeat(60))), "facts-size", "warn");
+  check("a facts file nothing was added to for months warns", ws(facts(5, "2020-01-01")), "facts-size", "warn");
+}
 
 // --- Control-plane state committed (found by dogfooding a live workspace) -----------------
 // A real 34-wave `.aidlc/plan.md` had never been committed: not ignored, simply never added,

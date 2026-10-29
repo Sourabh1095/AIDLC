@@ -68,6 +68,9 @@ const ROOT = resolve(positional[0] || process.cwd());
 // left unexpanded — so CI reported every test repo as "not a git repo of its own".
 const canonicalPath = (p) => normPath(realPath(p));
 
+const FACTS_MAX_LINES = 200;
+const FACTS_QUIET_DAYS = 60;
+
 const checks = [];
 /** status: ok | warn | fail | skip */
 const add = (status, id, title, detail, remedy) => checks.push({ status, id, title, detail, remedy });
@@ -535,6 +538,11 @@ if (cfg?.repos?.length) {
   let total = 0;
   const bad = [];
   const blocked = [];
+  const noItem = [];
+  // PRs /aidlc:status has seen merged or closed (skills/status/pr-state.mjs caches them, git-ignored).
+  const settled = tryJson(join(ROOT, ".aidlc", "logs", "pr-state.json")) ?? {};
+  const closed = [];
+  const merged = [];
   for (const d of dirs.filter((x) => statSync(x).isDirectory())) {
     for (const f of readdirSync(d).filter((x) => x.endsWith(".md"))) {
       total++;
@@ -544,14 +552,38 @@ if (cfg?.repos?.length) {
         continue;
       }
       const phase = fm.phase || undefined;
+      const id = fm.item || f.replace(/\.md$/, "");
       if (!phase || !PHASES.has(phase)) bad.push(`${f} (phase: ${phase ?? "absent"})`);
-      else if (phase === "blocked") blocked.push(f.replace(/\.md$/, ""));
+      else {
+        if (!fm.item) noItem.push(f);
+        if (phase === "blocked") blocked.push(id);
+        if (phase !== "abandoned" && settled[fm.pr]?.state === "closed") closed.push(id);
+        else if (settled[fm.pr]?.state === "merged") merged.push(id);
+      }
     }
   }
   if (bad.length)
     add("fail", "run-files", "run files", `unreadable or invalid: ${bad.join(", ")}`, "Run state is the pipeline's single source of truth; a run file it cannot parse is a run it cannot resume.");
+  else if (noItem.length)
+    add(
+      "warn",
+      "run-files",
+      "run files",
+      `${total} found · no \`item:\` in ${noItem.join(", ")}`,
+      "Every run file names its item in `item:` — the status board, the session snapshot and resume key on it. Add it (the file name is the ID; a tracked change with no ticket uses its `local-<slug>` name).",
+    );
   else if (blocked.length) add("warn", "run-files", "run files", `${total} found · blocked: ${blocked.join(", ")}`, "A blocked run is waiting on a human. Read its `## Findings`, then /aidlc:run <ID>.");
   else add("ok", "run-files", "run files", `${total} found, all parse`);
+  // A run whose PR was closed without merging otherwise sits at review-pending for ever: nothing after
+  // the PR closes ever moves it, and the session snapshot keeps listing it as needing you.
+  if (closed.length || merged.length)
+    add(
+      "warn",
+      "runs-settled",
+      "runs with a settled PR",
+      [closed.length && `PR closed without merging: ${closed.join(", ")}`, merged.length && `PR merged, not cleaned up: ${merged.join(", ")}`].filter(Boolean).join(" · "),
+      "/aidlc:status → cleanup closes them in one confirmation: a merged PR's item goes to done and its run is archived; a closed PR's run is marked abandoned and archived.",
+    );
 }
 
 // --- 10. Stale project facts ------------------------------------------------------------------
@@ -572,6 +604,33 @@ if (cfg?.repos?.length) {
         "Re-add a fact that is still true (that refreshes its date) or delete it. A stale fact is worse than a missing one — the pipeline acts on it.",
       );
     else add("ok", "facts-stale", "project facts", `${facts.length} recorded, all verified within 90 days`);
+  }
+  // Size and silence. The pipeline reads facts while it grounds, so a file that has grown past a few
+  // screens costs every command that reads it, and lines not in the `- fact · verified <date>` shape
+  // cannot be dated or deduplicated. And a workspace in daily use that has added nothing for two months
+  // is usually putting its lessons somewhere else — most often Claude's memory.
+  let lines = 0;
+  try {
+    lines = readFileSync(join(ROOT, ".aidlc", "facts.md"), "utf8").split(/\r?\n/).length;
+  } catch {
+    /* no facts file */
+  }
+  if (lines) {
+    const loose = lines - facts.length;
+    const newest = facts.length ? Math.min(...facts.map((f) => f.ageDays)) : null;
+    const problems = [];
+    if (lines > FACTS_MAX_LINES) problems.push(`${lines} lines (keep it under ${FACTS_MAX_LINES})`);
+    if (loose > 40 && loose > facts.length) problems.push(`${loose} lines are not in the dated fact format`);
+    if (newest !== null && newest > FACTS_QUIET_DAYS) problems.push(`nothing added or re-verified for ${newest} days`);
+    if (problems.length)
+      add(
+        "warn",
+        "facts-size",
+        "project facts",
+        problems.join(" · "),
+        "Prune it: delete what stopped being true, move decisions to docs/adr/ and module rules to the brain. " +
+          "Lessons learned the hard way go in with `facts add` (aidlc:facts), not into Claude's memory — memory is for how you like Claude to work.",
+      );
   }
 }
 

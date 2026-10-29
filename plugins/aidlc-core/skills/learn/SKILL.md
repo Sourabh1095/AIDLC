@@ -27,7 +27,9 @@ command follows them. `B` below is `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/bra
 ## 2 · Map the modules
 
 `B modules <ws> --json` gives candidates from the code's layout: name, repos, paths (relative to the
-workspace, ready for a page) and file count. It is a first cut. Merge what is one product module
+workspace, ready for a page) and file count. It is a first cut. Folders that spell one name differently
+(`booking-approval`, `BookingApproval`, `bookingApprovals`) already come back as one candidate; names
+that differ in meaning (`booking-requests` next to them) are yours to merge. Merge what is one product module
 across layers and repos (the orders screen, the orders API and the orders service are one module), and
 split a merge that is wrong (several unrelated `health` endpoints are not one module). Set aside shared libraries and infrastructure: the reuse
 catalog covers shared code, and a library worth knowing about gets one line in `overview.md`. If
@@ -65,6 +67,12 @@ Read with purpose — entry points first, then follow what they call. Do not rea
 8. **Flows:** if the module is a step in a journey (signup, checkout, refund), add or update
    `flows/<name>.md`: numbered steps, each naming its module and tagged like any other line.
 9. **Vocabulary:** domain words the code uses go in `glossary.md`.
+10. **What this person already told Claude:** search the project's memory folder (`.aidlc/memory/`)
+    for the module's name, spelled as each layer spells it, and its paths. A note that states how the
+    module behaves or a rule it follows belongs on this page. List those notes and offer to bring them
+    in, each as `[told: <the note's date>]` (its `modified` frontmatter, else the file's date). On a
+    yes, write them, then remove each one from memory along with its `MEMORY.md` line, so the two
+    cannot drift. Notes about how the person likes Claude to work stay in memory.
 
 Then `B stamp <ws> <module>` and `B index <ws>`.
 

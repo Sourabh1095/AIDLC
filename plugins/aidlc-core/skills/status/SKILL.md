@@ -166,6 +166,7 @@ End with one actionable line, e.g.:
   fresh plan, name the wave: "Wave 2 is ready (PROJ-103 ‖ PROJ-104) — `/aidlc:sprint`."
 - a plan with **breaking** drift → "`.aidlc/plan.md` is stale (PROJ-127 re-decomposed) — `/aidlc:replan`"
 - done runs with merged PRs → "PROJ-120's PR merged — run cleanup: transition item to Done and archive the run file."
+- a run whose PR was closed without merging → "PROJ-131's PR was closed unmerged — close the run (marked abandoned, archived)?"
 - **a done/`in_review` run whose PR has unresolved review threads** → "PROJ-124's PR has 6 unresolved
   comments from @priya — `/aidlc:review-feedback PROJ-124`". Check every open PR this pipeline opened
   with `node "${CLAUDE_PLUGIN_ROOT}/skills/status/pr-state.mjs" <ws>`: it asks GitHub or Azure Repos,
@@ -233,4 +234,4 @@ Apply fixes only on the user's pick; every applied transition is read-back-verif
 
 ## Post-merge cleanup (only when the user confirms)
 
-For a run whose PR merged (or that merged locally), and only on the user's confirmation: transition the item to done with a comment, roll its parent up **only if every sibling is terminal** (type-aware), archive the run file per `aidlc:run-state` → *Archive*, and delete the merged local branch. **ADO does not close an item when its PR merges** — this step is required there, not tidying. In poly+remote, archiving costs one PR per repo: count and say so first. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/status/references/post-merge.md`.
+For a run whose PR merged (or that merged locally), and only on the user's confirmation: transition the item to done with a comment, roll its parent up **only if every sibling is terminal** (type-aware), archive the run file per `aidlc:run-state` → *Archive*, and delete the merged local branch. A run whose PR was **closed without merging** is marked `abandoned` and archived, the batch on one confirmation (same file). **ADO does not close an item when its PR merges** — this step is required there, not tidying. In poly+remote, archiving costs one PR per repo: count and say so first. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/status/references/post-merge.md`.

@@ -40,3 +40,17 @@ transition it when the PR merges. So a merged ADO PR leaves its item sitting at 
 indefinitely unless this cleanup runs. Treat the DONE transition + parent rollup as a **required
 post-merge step**, not optional tidying — the ground-truth reconciliation below flags "**PR merged but
 item still open**" precisely so it isn't missed.
+
+## A PR closed without merging (only when the user confirms)
+
+Nothing landed, so there is nothing to revert, but nothing else will ever move the run either: it sits
+at `review-pending` (or `done`) and the session snapshot keeps listing it as needing you. `pr-state.mjs`
+and doctor's `runs-settled` check name these runs. Offer to close them **together, on one
+confirmation**:
+
+1. `## Log` gets `- <UTC> PR closed without merging: <url>`, and `phase: abandoned`.
+2. Archive the run file per `aidlc:run-state` → *Archive*, where it lives. A run file that exists only
+   on the closed PR's branch needs nothing more.
+3. `adapter.comment(id, "PR closed without merging: <url>")`, and ask whether the item goes back to
+   `todo` or is closed. Never decide that yourself: a closed PR is sometimes a restart, sometimes a no.
+4. Offer to delete the local branch. Never the remote one.

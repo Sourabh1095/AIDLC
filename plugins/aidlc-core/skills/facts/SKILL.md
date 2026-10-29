@@ -49,7 +49,7 @@ Who reads what, and why that specific point:
   cycle chasing a missing database. A recorded fact turns that judgment into a lookup.
 - **`aidlc:run` §6, in the implementer brief** — `codebase` + `environment`, where relevant to the
   plan's paths. Cheaper than the implementer rediscovering it mid-task.
-- **`aidlc:do` §1, grounding** — the whole file is small; read it. It is the difference between
+- **`aidlc:do` §1, grounding** — the areas the prompt touches. It is the difference between
   answering *"can we add this?"* from the code and answering it from how the project actually behaves.
 - **`aidlc:debugging`** — before theorizing. A known environmental cause beats a fresh hypothesis.
 
@@ -65,7 +65,13 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/facts/facts.mjs" add <workspace-root> <area> 
 Write one **when the pipeline learns something the hard way** — a gate that failed for an
 environmental reason, a tracker that rejected a transition, a build slow enough to change how work is
 scheduled, a code truth that cost real time to find. Not every observation: a fact is something the
-*next* run would otherwise pay for again.
+*next* run would otherwise pay for again. That holds for a direct or tracked change in `/aidlc:do` as
+much as for a pipeline run (`aidlc:do` §5 → *After the commit*), and the fact goes here, not into
+Claude's memory: memory is for how one person likes Claude to work, and the pipeline never reads it.
+
+**Keep the file short.** It is read while grounding, so every line costs every command that reads it.
+`/aidlc:doctor` warns past 200 lines, when most lines are not dated facts, and when nothing has been added
+or re-verified for 60 days in a workspace in use (usually a sign that lessons are going somewhere else).
 
 **`list` the area before you add to it.** One command, an area is a handful of lines, and it is the
 only reliable defence against the duplicate the machine cannot see: the similarity check compares

@@ -8,7 +8,9 @@ user-invocable: false
 
 One run = one work item flowing through the pipeline = one file: `.aidlc/runs/{ID}.md`.
 It is committed to the feature branch, so the PR carries a full audit trail of what the
-pipeline did, assumed, found and fixed.
+pipeline did, assumed, found and fixed. A tracked change (tier 2) has no work item: its ID is
+`local-<slug>`, with `item: local-<slug>` and `source: none` (`aidlc:do` → *tracked*). `item:` is never
+left out — the status board, the session snapshot and resume all key on it.
 
 **Location (mono vs poly).** In mono the run file is `.aidlc/runs/{ID}.md` at the repo root. In
 poly a per-item run file lives in ITS target repo at `<repo.path>/.aidlc/runs/{ID}.md` (still

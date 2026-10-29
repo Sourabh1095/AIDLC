@@ -53,10 +53,11 @@ Load in this order and stop as soon as you can answer. This is a floor, not a bu
    the *why* is genuinely unknown. Cite it as the decision it is, but never quote its blank rationale
    as agreement, and never infer one; if the prompt turns on why, say the reasoning was never recorded
    and offer to ask the team.
-6. **Project facts** — `aidlc:facts` (`.aidlc/facts.md`). Small, and the whole point of this door:
-   these are the operational truths the project keeps relearning, and they are what separates an answer
-   grounded in how the project *behaves* from one grounded only in how it is *configured*. Cite the
-   `verified` date whenever you lean on one.
+6. **Project facts** — `aidlc:facts` → `list <ws> <area>` for the areas the prompt touches
+   (`environment` and `gates` for a failure, `codebase` for a change). These are the operational truths
+   the project keeps relearning, and they are what separates an answer grounded in how the project
+   *behaves* from one grounded only in how it is *configured*. Cite the `verified` date whenever you
+   lean on one.
 6b. **The project brain** — when `.aidlc/brain/` exists and the prompt is about a part of the product,
    read `index.md` and that module's page before reading code (`aidlc:brain` → *Reading it*). It is
    what this person's sessions have already understood about the module: its rules, its user types,
@@ -84,7 +85,7 @@ cleanup.
 | something small and obvious changed | **DIRECT** (§5) | the change, gated and committed on the current branch. No item, no PR. |
 | something built or changed that warrants a trail | **BUILD** (§5) | `aidlc:ceremony` tier 2 or 3 — tracked, or the full pipeline |
 | a **batch** of requirements planned — a requirements/features document, or a brief describing several features at once | **PLAN** | `/aidlc:bootstrap <doc \| brief>` — a reviewed work-breakdown, capacity-planned sprints, items created on approval. Works on an existing project too: it detects brownfield, grounds in the code, and attaches to the epics already there |
-| an existing item progressed (`{KEY}-{n}` appears) | **RESUME** | `aidlc:run <ID>`, followed verbatim |
+| an existing item progressed (`{KEY}-{n}` appears) | **RESUME** | `aidlc:run <ID>`, followed verbatim. A `local-<slug>` is a tracked change: resume it here (§5) |
 | the **order** of the work changed — a client moved priorities, an area came forward | **REPLAN** | `aidlc:replan`, which re-sequences the not-yet-started work into waves. Writes nothing to the tracker and never touches work in flight |
 | pipeline state, or what to work on next | **META** | `aidlc:status` / `aidlc:next` |
 
@@ -106,7 +107,7 @@ an implementation.
 
 ## 3 · CONSULT — the route that had no home before this door
 
-An opinion or fit question answered from **this project**, not general best practice: frame what is being judged and against which criteria (ADRs, stack, repo roles, backlog direction); ground it in architecture, backlog, stack, runtime constraints and rough cost; escalate to one agent only when a targeted read cannot answer it; answer with **one recommendation, a confidence level, the strongest argument against it and what would change your mind**; journal the conclusion (`consult` kind — the question and the answer); offer at most one next action. No artifact. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/do/references/consult.md` — read it for any consult.
+An opinion or fit question answered from **this project**, not general best practice: frame what is being judged and against which criteria (ADRs, stack, repo roles, backlog direction); ground it in architecture, backlog, stack, runtime constraints and rough cost; escalate to one agent only when a targeted read cannot answer it; answer with **one recommendation, a confidence level, the strongest argument against it and what would change your mind**; journal the conclusion (`consult` kind — the question and the answer); when the user settles how a module should behave ("by design, keep X"), write that on the module's brain page as `[told: <date>]`; offer at most one next action. No artifact. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/do/references/consult.md` — read it for any consult.
 
 ## 4 · EXPLAIN / DIAGNOSE
 
@@ -152,7 +153,32 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> 
   "<commit subject> · on <branch><, not pushed>"
 ```
 
-### BUILD (tier 2–3) — hand off, never reimplement
+Then *After the commit*, below.
+
+### TRACKED (tier 2) — a trail without a ticket, also done here
+
+Branch, run file named `local-<slug>`, commits, gate, journal, and a PR only where the repo wants one.
+`aidlc:run` would start by creating a tracker item, which is what this tier skips, so the work is done in
+this skill. Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/do/references/tracked.md` — read it for any tracked
+change.
+
+### After the commit — keep what it taught (tiers 1 and 2)
+
+Most of a project's work arrives through these two tiers, so this is where the brain and the facts grow.
+Work from what the session already holds (the diff, and what you read to make the change), and read
+nothing new for it:
+
+- **The brain** (unless `brain.enabled` is false): `node "${CLAUDE_PLUGIN_ROOT}/skills/brain/brain.mjs"
+  which <ws> <the commits' files>`, then `aidlc:brain` → *After a run*, steps 2–4. Update the page of each
+  module whose behaviour changed, and give a module its first page the first time work touches it. At
+  tier 1, only when the change moved behaviour (a rule, a default, a validation, something a user sees).
+  A typo, a rename, a comment or an import teaches it nothing.
+- **A lesson learned the hard way** (an environment trap, a gate that lied, a code truth that cost time,
+  such as an enum's casing, a dependency cycle or a formatter hook that rewrote the file) →
+  `aidlc:facts` → `add`. It does not go in Claude's memory, which is for how this person likes Claude to
+  work. Facts are how the project behaves, and the pipeline reads them.
+
+### FULL (tier 3) — hand off, never reimplement
 
 `aidlc:run` already accepts free text and routes it through intake first (`aidlc:run` §0.3), so:
 
@@ -164,9 +190,8 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/journal/journal.mjs" append <workspace-root> 
 - **This is the one route that needs the user's go-ahead first.** `run` is entered by deliberate
   choice, and on this door the choice is the user agreeing to build — a CONSULT or a diagnosis never
   slides into the pipeline on its own (see §2 *Mixed prompt* and the Rules).
-- **Write no product code on the BUILD route.** For tier 2–3 `do` is a router; the pipeline owns
-  delivery, including the branch, the verification cadence and the PR. (Tier 1 DIRECT is the exception,
-  and the only one — that work is done here by design.)
+- **Write no product code at tier 3.** There `do` is a router; the pipeline owns delivery, including the
+  branch, the verification cadence and the PR. (Tiers 1 and 2 are done here by design.)
 - **A small change is not a small pipeline run.** One item → one branch → one PR is the shape of a
   *tracked* change, not a law about every edit. A typo does not become safer by acquiring a ticket, and a
   pipeline that insists otherwise gets abandoned for the changes that genuinely needed it. Pick the tier

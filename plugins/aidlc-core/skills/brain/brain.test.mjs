@@ -63,6 +63,34 @@ check("tests do not count as module code", byName.orders.files, 3);
   check("a monorepo app gives way to its features", names, ["api", "checkout", "search", "ui"]);
 }
 {
+  // The reported layout: a NestJS API with its modules straight in src/, a Next.js web app, and one
+  // module spelled three ways across the two.
+  const ws = temp("brain-nest-");
+  write(ws, "apps/api/package.json", "{}");
+  write(ws, "apps/api/src/main.ts");
+  write(ws, "apps/api/src/app.module.ts");
+  write(ws, "apps/api/src/booking-approval/booking-approval.service.ts");
+  write(ws, "apps/api/src/booking-approval/dto/approve.dto.ts");
+  write(ws, "apps/api/src/users/users.service.ts");
+  write(ws, "apps/api/src/common/guards/auth.guard.ts");
+  write(ws, "apps/api/src/config/env.ts");
+  write(ws, "apps/web/package.json", "{}");
+  write(ws, "apps/web/src/app/booking-approval/page.tsx");
+  write(ws, "apps/web/src/app/user/page.tsx");
+  write(ws, "apps/web/src/services/BookingApproval/client.ts");
+  write(ws, "apps/web/src/components/Button.tsx");
+  write(ws, "packages/ui/package.json", "{}");
+  write(ws, "packages/ui/src/components/Card.tsx");
+  const found = Object.fromEntries(candidateModules(ws).map((m) => [m.name, m]));
+  check("a flat NestJS app gives its src/ modules, not one big module", Object.keys(found).sort().map((n) => n.replace(/s$/, "")), ["booking-approval", "ui", "user"]);
+  check(
+    "one module across case and separators",
+    found["booking-approval"].paths.sort(),
+    ["apps/api/src/booking-approval", "apps/web/src/app/booking-approval", "apps/web/src/services/BookingApproval"],
+  );
+  check("…and across a plural", (found.users ?? found.user).paths.sort(), ["apps/api/src/users", "apps/web/src/app/user"]);
+}
+{
   const flat = temp("brain-flat-");
   write(flat, "src/billing/invoice.py");
   write(flat, "src/accounts/user.py");

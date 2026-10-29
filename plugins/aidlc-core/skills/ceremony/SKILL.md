@@ -59,7 +59,8 @@ Branch + run file + commits, so the work is resumable and auditable, but no trac
 mandatory PR. This is the right tier for most real work on a solo or small-team project: a refactor, a
 non-trivial bug fix, a small feature nobody is coordinating around. Skip the requirements/analyst phase —
 the run file's `## Plan` is enough. Open a PR if the repo's convention wants one; otherwise commit to the
-branch and let the user merge.
+branch and let the user merge. `aidlc:do` does this itself, with the run file named `local-<slug>`
+(`${CLAUDE_PLUGIN_ROOT}/skills/do/references/tracked.md`).
 
 ### 3 · full — the pipeline
 

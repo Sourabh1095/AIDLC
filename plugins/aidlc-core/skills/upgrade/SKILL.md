@@ -97,6 +97,11 @@ Report these; **never apply them silently.**
 - **New commands** the project has never seen. Worth one line — a team on 0.20 has no idea
   `/aidlc:do`, `/aidlc:replan`, `/aidlc:review-feedback` or `/aidlc:doctor` exist, and no amount of
   config migration tells them.
+- **The project brain, not started** (since 0.59.0). When `brain.enabled` is not false and
+  `.aidlc/brain/modules/` holds no page, say in one line what it is and how it starts: work adds a
+  module's page the first time it touches the module, and `/aidlc:learn --map` maps them all now. If
+  `.aidlc/memory/` holds notes about how parts of the product behave, add that `/aidlc:learn <module>`
+  offers to bring them onto the module's page.
 - **Project memory left outside the workspace** (since 0.58.0). The SessionStart hook moves Claude
   Code's auto memory into `.aidlc/memory/` and copies what existed, but leaves the old folder where it
   was — doctor's `memory-leftover` check names it (`~/.claude/projects/<slug>/memory/`). List the files
