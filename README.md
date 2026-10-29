@@ -214,7 +214,7 @@ GitFlow service, from first scan through a merged PR to a drift report six weeks
 | `/aidlc:insights` | Is the pipeline getting better? Time to done and per phase, fix cycles, findings by source (duplication, agent vs human review, QA, security), month by month, and — with `aidlc-cockpit` — what items cost and in which phase — read-only |
 | `/aidlc:study` | **The business study**, written from your project brain: the product, every user type and what it can do, every module, the end-to-end flows, data, integrations, decisions, delivery history, intended vs built. Assumptions are kept apart as questions, and anything not covered is said. Shares as a Claude Doc your client can comment on and export to Word or PDF (`--publish`) |
 | `/aidlc:learn [module \| --stale]` | Grow your **project brain** (`.aidlc/brain/`, private to you): map the product's modules, read one deeply — purpose, user types, business rules, data, flows, gaps — or refresh the pages the code has moved past, including changes teammates made without AIDLC |
-| `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |
+| `/aidlc:doctor` | **Is this workspace able to run at all?** Config, settings, plugin enablement, permission rules, repo paths, hooks, tracker auth, CI gating, a facts file grown stale or too long, runs left waiting on a PR that closed — read-only, each finding with its fix. Run it first when `/aidlc:*` commands are missing or a run blocks on permissions |
 
 ### Shaping the work
 
@@ -271,9 +271,13 @@ is for, who uses it, its business rules, data, connections and open questions �
 the journeys across modules and the domain's vocabulary. Every line says where it came from (the code,
 a requirement, a person, or an assumption still to confirm). The brain is yours alone and stays out of
 git, and every page records the commit it was checked against, so a module a teammate changed without
-AIDLC shows as behind before anything relies on it. It grows as you work: each pipeline run teaches it
-the modules it changed, `/aidlc:do` adds what an explanation taught it, and intake and grooming add what
-was intended. `/aidlc:learn` reads a module in depth on demand, and *"I'm taking over payments"* through
+AIDLC shows as behind before anything relies on it. It grows as you work: every pipeline run, and every
+direct or tracked change through `/aidlc:do`, teaches it the modules it changed and gives a module its
+first page the first time work touches it. What a module connects to is written on both pages (a new
+module calling `bookings` puts a *Used by* line on the `bookings` page), from the imports in the change.
+What an explanation taught it, and a rule you settle in a consult, go on the page too, and intake and
+grooming add what was intended. Modules can be grouped into areas (`modules/billing/invoices.md`) once
+there are more than a handful. `/aidlc:learn` reads a module in depth on demand, and *"I'm taking over payments"* through
 `/aidlc:do` gives you the handoff brief. When the project ends, `/aidlc:study` writes the business study
 from it.
 
@@ -380,8 +384,9 @@ Full schema: [`docs/aidlc.config.schema.json`](docs/aidlc.config.schema.json).
 All planned phases are implemented: the core pipeline and quality gates, Jira/Azure Boards/markdown
 trackers, GitHub and Azure Repos, mono **and** multi-repo workspaces, 9 pipeline agents plus the 7-agent
 design pod, the web stack pack, parallel sprints in background sessions, wave re-planning, team mode,
-brownfield adoption, the project brain and business study, sharing to claude.ai, the cockpit (runs,
-sprint, PR watch and cost per item), and the self-extension/promotion workflow.
+brownfield adoption, the project brain and business study, sharing to claude.ai, the cockpit (the
+module you're in, this session's work, the epic tree, runs, sprint and cost per item), and the
+self-extension/promotion workflow.
 
 *Tests.* Every script ships with a test suite, run on Linux, macOS and Windows with Node 20, 22 and 24.
 Behavioural evals (`claude plugin eval`) measure the prompts against a no-plugin baseline, and the

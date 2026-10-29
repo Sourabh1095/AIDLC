@@ -97,11 +97,28 @@ stamps its pages on its feature branch, and a squash merge lands the same code a
 history calls foreign and content calls unchanged. A page from an abandoned branch still reads as
 behind, because the code it describes is not in HEAD. A refresh reads only that diff.
 
-It grows where work already happens, from what that work already holds: a pipeline run teaches it the
-modules its diff touched, using the diff and the acceptance criteria, and gives a module its first page
-the first time a run touches it. `/aidlc:do` adds what an explanation or diagnosis taught it, and
-intake and grooming add intended behaviour as `[req]` lines. A page is stamped only when everything
-that moved under it was read, so a teammate's change the run did not read keeps the page marked behind.
+It grows where work already happens, from what that work already holds: a pipeline run, and every
+direct or tracked commit through `/aidlc:do`, teaches it the modules the diff touched and gives a module
+its first page the first time work touches it. That second door matters most: on a team that works
+mostly through `/aidlc:do`, a brain fed only by full runs never started (reported by a user, fixed in
+0.68.0). `/aidlc:do` also adds what an explanation or diagnosis taught it, and a rule settled in a
+consult as `[told]`. Intake and grooming add intended behaviour as `[req]` lines. A page is stamped only
+when everything that moved under it was read, so a teammate's change the run did not read keeps the
+page marked behind.
+
+**A connection is a fact about two pages.** A module that starts calling another changes the callee's
+page too (it is now *used by* something), but nothing marks that page behind, because its own code did
+not move. So the step after a change does not leave the reverse line to the model's memory: `brain.mjs
+links` reads the imports in the changed files, resolves each to the module that owns it (relative paths,
+tsconfig aliases, workspace packages by name, Python imports), and names the line each page is missing.
+`brain.mjs context` answers the same question the other way round for the cockpit: what uses the module
+being edited, from the page and from a scan of the code. Imports are what a script can see; calls over
+HTTP or a queue stay the model's to write.
+
+**Areas are for people, not for the model.** A big product's pages can sit in area folders
+(`modules/billing/invoices.md`). Pages are read at any depth, so a page placed deeper is never silently
+dropped, and a page keeps answering to its bare name unless two areas share it. Reading cost is unchanged
+either way: the model opens `index.md` and the pages a task touches, never a folder.
 
 `/aidlc:study` writes the end-of-project business study **from** the brain (`brain.mjs digest`), not
 from a fresh read: a product of real size does not fit in one context, and the brain is that read,
@@ -292,7 +309,10 @@ too**, because people go around it for everything or uninstall it outright.
 The fix is a gradient, matching how Claude Code itself works — answer → edit → commit → PR, with the user
 choosing where to stop. Four tiers (`aidlc:ceremony`): **answer** (no artifact), **direct** (gated commit
 on the current branch, no item/PR), **tracked** (branch + run file, PR optional), **full** (the pipeline).
-`pipeline.ceremony` sets the project's floor and defaults to `direct`. Three properties make this safe
+`pipeline.ceremony` sets the project's floor and defaults to `direct`. Tracked work is done by
+`/aidlc:do` itself, under a `local-<slug>` name, not by `aidlc:run`: the pipeline starts by creating a
+tracker item, which is exactly what this tier skips. Until 0.68.0 the tier had no written procedure, so
+it was improvised, and its run files had no `item:`. Three properties make this safe
 rather than merely lenient:
 
 - **The project's gate runs at every tier.** Ceremony is what scales down; verification does not. A tier-1

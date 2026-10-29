@@ -99,6 +99,15 @@ AIDLC: Direct — no item, no branch.
   commit  fix(header): correct "Dashbaord" typo   [on feature/PROJ-140]
 ```
 
+**A tracked change is done by `/aidlc:do` itself**, not by the pipeline, which would start by making a
+ticket. It gets a name, `local-<slug>` (`local-booking-enum-casing`), which is its branch, its run file
+and what you resume it by (`/aidlc:do continue local-booking-enum-casing`).
+
+**Every direct or tracked commit keeps what it taught.** The modules it changed get their brain page
+updated, or their first page; a connection it made goes on both modules' pages; and a lesson learned the
+hard way (an environment trap, a check that lied) goes into `.aidlc/facts.md`, not into Claude's memory.
+A typo or a rename teaches nothing, and is left at that.
+
 **Overruling it, both directions.** *"just do it"* / *"no ticket"* / *"no PR"* drop the tier — they're
 instructions, and AIDLC won't try to sell you the tier you declined or ask twice. *"track this"* /
 *"make it an item"* promotes work **already done**: the item gets created and the existing commits linked,
@@ -212,6 +221,45 @@ tree, so concurrent grooms produce merge conflicts in your plan of record and `q
 branch you happen to be standing on. `/aidlc:init` and `/aidlc:adopt` warn once; it isn't blocked, and a
 small co-located team on one default branch gets away with it. A real team should be on Jira or ADO.
 
+## 1d. The project brain: what AIDLC understands about your product
+
+`.aidlc/brain/` holds what AIDLC has understood about the product: a page per module, plus the user
+types (`actors.md`), the journeys across modules (`flows/`) and the domain's words (`glossary.md`). It is
+yours alone, kept out of git, because on many teams one person uses AIDLC and the rest change the code
+some other way.
+
+**A module page** says what the module is for, who uses it, its business rules, the data it owns, what it
+**connects to** and what it is **used by**, its entry points, recent changes, and its gaps and open
+questions. Every line says where it came from: `[code: path]`, `[req: ID]`, `[told: date]` (you said so)
+or `[assumed]` (to confirm, and never written up as fact in a study).
+
+**It starts and grows by itself.** Until the first page exists, the session's opening lines say how it
+starts. After that, every pipeline run and every direct or tracked change through `/aidlc:do` updates the
+pages of the modules it changed, from the diff it already has, and gives a module its first page the
+first time work touches it. A connection the change made goes on **both** pages: a new module calling
+`bookings` writes *Connects to: bookings* on its own page and *Used by: <new module>* on `bookings`.
+A rule you settle in a consult ("by design, keep X") goes on the page as `[told]`. A typo teaches it
+nothing.
+
+**It knows when it is out of date.** Each page records the commit it was checked against. When a
+teammate changes that code without AIDLC, the page shows as behind (in the session's opening lines, in
+`/aidlc:doctor` and in the cockpit) until `/aidlc:learn --stale` reads the diff.
+
+**Areas.** On a bigger product, modules are grouped into area folders the way the product is
+(`modules/billing/invoices.md`, `modules/billing/payments.md`), one level deep. `/aidlc:learn --map`
+proposes the grouping once there are more than about ten modules, and you confirm it. A page keeps
+answering to its bare name (`invoices`) unless two areas share one (`billing/settings`).
+
+| You want | Run |
+|---|---|
+| A first map of the modules (and areas) | `/aidlc:learn --map` |
+| One module read in depth, before you take it over | `/aidlc:learn <module>` (it also offers to bring Claude's memory notes about the module onto its page) |
+| The pages the code has moved past, refreshed | `/aidlc:learn --stale` |
+| A handover brief | `/aidlc:do I'm taking over <module>` |
+| The whole product written up | `/aidlc:study` |
+
+`"brain": { "enabled": false }` in `.claude/aidlc.config.json` switches it off for a workspace.
+
 ## 2. Command cheat-sheet — which command, when
 
 | Situation | Command |
@@ -241,6 +289,8 @@ small co-located team on one default branch gets away with it. A real team shoul
 | **A reviewer left comments on the PR** | `/aidlc:review-feedback PROJ-123` — pulls the unresolved threads, fixes them through the normal cycle, pushes, and replies on each. A comment you disagree with gets answered on the thread and flagged to you; nothing you didn't fix gets resolved (§3e) |
 | "Where is everything?" | `/aidlc:status` |
 | "Send the PM / the client where things stand" | `/aidlc:status --publish` (or `/aidlc:insights --publish`): a page on claude.ai, private until you share it, updated in place each time |
+| **"I'm taking over payments"** / "how does billing work?" | `/aidlc:do I'm taking over payments` — the brief from its brain page; no page yet → `/aidlc:learn payments` writes one (§1d) |
+| Start the project brain, or group 40 modules into areas | `/aidlc:learn --map` (§1d) |
 | "Hand the product over" | `/aidlc:study`, then share it as a Claude Doc the client can comment on and export to Word or PDF |
 | **Several developers on one backlog** | `"team": { "mode": "shared", "me": "you@acme.com" }` — `/aidlc:next` picks only your items, grooming proposes rather than rewrites, verify checks base drift (§1c) |
 | **`/aidlc:next` says nothing is ready but the board is full** | Everything ready is assigned to someone else — that's the shared-mode answer, not a bug. Ask for one, or `/aidlc:next --any` (§1c) |
@@ -631,25 +681,36 @@ mistakes too.
 Install `aidlc-cockpit@aidlc` (a Claude Code mod, 2.1.287 or later) and AIDLC shows itself beside the
 chat in the terminal, the desktop app and VS Code:
 
-- **A line above the prompt** with the runs in flight, the ones waiting on you first (`PROJ-124 ·
-  blocked → /aidlc:run PROJ-124`). While a sprint runs, it takes the line: how many runs, how many need
-  you, and the `claude attach` command for each one that does.
-- **`/aidlc-board`** opens a board pane with every run and the sprint, with a button that copies a
-  waiting run's attach command. It answers with no model turn, so it costs nothing.
+- **A line above the prompt** that leads with what this session is changing: the module, how many files
+  and how many are uncommitted, what uses the module, and the worst check (`bookings · 4 files (3
+  uncommitted) · used by 2 · tests failed`). The runs in flight follow, the ones waiting on you first
+  (`PROJ-124 · blocked → /aidlc:run PROJ-124`). While a sprint runs, it shows how many runs, how many
+  need you, and the `claude attach` command for each one that does.
+- **`/aidlc-board`** opens a board pane. It answers with no model turn, so it costs nothing. It shows:
+  - **You're in**: the module your newest edits belong to, with its purpose and rules from the brain,
+    what it connects to, and **what uses it**. That list joins the module's page with every import into
+    it found in the code now, so it works before the brain has a page and marks the ones the page does
+    not list yet. Unconfirmed assumptions or a page behind the code get a button that puts
+    `/aidlc:learn <module>` in your prompt.
+  - **This session**: the files changed, grouped by module, which are uncommitted, the branch, the commits
+    made, and each check (tests, typecheck, lint, build): passed, failed, or not run since the last edit.
+  - **Epics**: each open epic as a tree of its features, stories, tasks and bugs, with each item's
+    status, the run working on it, how much below it is done and its open bugs. Epics under way open one
+    level; **Open** and **Close** on a row show or hide what is under it. Bugs under no epic are listed
+    apart, and finished epics are counted, not shown. A markdown backlog is read live. An Azure DevOps
+    board is read every five minutes through your `az` sign-in, so `az login` once. A Jira board shows the
+    snapshot `/aidlc:status` saves, with its age.
+  - The runs and the sprint, when there are any, with a button that copies a waiting run's attach command.
 - **A desktop notification** when a sprint run starts waiting on you or finishes.
-- **Your pull requests, watched.** Every few minutes it asks GitHub or Azure Repos about each PR the
-  pipeline opened, read-only. When one gets review comments or changes requested, a check goes red, or
-  it merges, the line says so with the command to run next (`P-7 PR #42: 2 unresolved review threads →
-  /aidlc:review-feedback P-7`), and you get a notification. **Put in prompt** on the board puts that
-  command in your prompt; you press Enter. It needs `gh` (or `az`) signed in, as the pipeline itself does.
 - **What each item cost**, on its line (`PROJ-123 · verify · $1.84`) and in `/aidlc:insights`: the
   cost per item, the median per done item, and the share by phase. It is Claude Code's own `/cost`
   figure (an API-equivalent estimate, which on a plan is a measure of usage rather than a bill), charged
   to the phase the run was in. It covers every way a run starts: `/aidlc:run`, `/aidlc:next`,
   `/aidlc:do`, a sprint.
 
-It shows what `/aidlc:status` and `/aidlc:sprint` already know, calls no model and blocks nothing. The
-only file it writes is its cost ledger, in the git-ignored `.aidlc/logs/costs/`.
+It shows what core's own scripts report (the runs, the sprint, the brain, the board), plus what it saw
+this session's tools do. It calls no model and blocks nothing. Pull requests are left to
+`/aidlc:status`. The only file it writes is its cost ledger, in the git-ignored `.aidlc/logs/costs/`.
 **Hide** on the line puts it away for the session. AIDLC works the same without it. If your organization
 allows only its own mods, it simply does not load.
 
@@ -812,7 +873,7 @@ its own run file and branch.
 | Delivery order (waves) | `.aidlc/plan.md` (control plane) | forever; **shared** — committed + pushed with `cutBy` | what `next`/`sprint` run and in what order |
 | Who owns an item | your tracker's assignee field | forever | AIDLC **reads** it to scope picks; it never writes it |
 | Locally grown capabilities | `.claude/skills|agents/` + `.aidlc/extensions.json` | forever; promotable to all projects | self-extension with reuse tracking |
-| What the product is and how it works — modules, user types, rules, flows | `.aidlc/brain/` — one page per module, each stamped with the commit it was checked against | per developer; ignores itself in git; pages behind the code are flagged | taking over a module; planning from understanding; the end-of-project business study |
+| What the product is and how it works — modules, user types, rules, flows | `.aidlc/brain/` — one page per module (grouped into area folders on a bigger product), each stamped with the commit it was checked against, each saying what it connects to and what uses it | per developer; ignores itself in git; pages behind the code are flagged | taking over a module; planning from understanding; the end-of-project business study |
 | Claude Code's auto memory (what it learned here, your corrections) | `.aidlc/memory/` — kept in the workspace by the SessionStart hook, not `~/.claude/projects/` | per developer; ignores itself in git | Claude remembering this project between sessions |
 
 The deliberate consequence: **the conversation context is disposable.** Anything that matters
