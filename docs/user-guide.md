@@ -697,14 +697,18 @@ chat in the terminal, the desktop app and VS Code:
     `/aidlc:learn <module>` in your prompt.
   - **This session**: the files changed, grouped by module, which are uncommitted, the branch, the commits
     made, and each check (tests, typecheck, lint, build): passed, failed, or not run since the last edit.
-  - **Epics**: each open epic as a tree of its features, stories, tasks and bugs, with each item's
-    status, the run working on it, how much below it is done and its open bugs. Epics under way open one
-    level; **Open** and **Close** on a row show or hide what is under it. Bugs under no epic are listed
-    apart, and finished epics are counted, not shown. A markdown backlog is read live. An Azure DevOps
-    board is read every five minutes, with a personal access token in `AZURE_DEVOPS_EXT_PAT` or through
-    your `az` sign-in (`az login` once). With neither, or on Jira, it shows the copy `/aidlc:status` saves
-    (run it once), with its age, and says which of the three you are missing.
-  - The runs and the sprint, when there are any: blocked and working runs listed, runs parked for review
+  - **Your work**: the items assigned to you, each under the epic and story it sits in (those shown
+    dimmed when they are someone else's), with each item's status, the run working on it, how much below
+    it is done and its open bugs. **Show everyone's** shows the whole board as a tree. Epics under way
+    open one level; **Open** and **Close** on a row show or hide what is under it. Bugs under no epic are
+    listed apart, and finished epics are counted, not shown. "Yours" is what Azure DevOps calls `@Me`
+    (whoever the connector, token or `az` is signed in as), or `team.me` in config on other boards.
+    A markdown backlog is read live. An Azure DevOps board is read every five minutes, through the first
+    of: a personal access token in `AZURE_DEVOPS_EXT_PAT`, your `az` sign-in, or the Azure DevOps MCP
+    connector your session already has (used only when its calls are allowed without a prompt). With
+    none of them, or on Jira, it shows the copy `/aidlc:status` saves (run it once), with its age.
+  - The runs and the sprint, when there are any (runs on other people's items are left out):
+    blocked and working runs listed, runs parked for review
     behind **Open** (the ones whose PR already merged or closed first, each saying what to do), and a
     button that copies a waiting sprint run's attach command.
 - **A desktop notification** when a sprint run starts waiting on you or finishes.
@@ -716,7 +720,8 @@ chat in the terminal, the desktop app and VS Code:
 
 It shows what core's own scripts report (the runs, the sprint, the brain, the board), plus what it saw
 this session's tools do. It calls no model and blocks nothing. Pull requests are left to
-`/aidlc:status`. The only file it writes is its cost ledger, in the git-ignored `.aidlc/logs/costs/`.
+`/aidlc:status`. It writes its cost ledger (`.aidlc/logs/costs/`) and, when it reads the board
+through the connector, the board copy (`.aidlc/logs/board.json`); both are git-ignored.
 **Hide** on the line puts it away for the session. AIDLC works the same without it. If your organization
 allows only its own mods, it simply does not load.
 

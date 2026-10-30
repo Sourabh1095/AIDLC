@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { check, done } from "../../hooks/scripts/lib/testkit.mjs";
-import { buildTree, canonicalStatus, kindOf, tree } from "./tree.mjs";
+import { buildTree, canonicalStatus, isMine, kindOf, tree } from "./tree.mjs";
 
 const tmps = [];
 const ws = (files) => {
@@ -88,6 +88,7 @@ check("a blocked tag wins", canonicalStatus("Task", "Active", { tags: "phase-0; 
   };
   const t = await tree(root, { run, fetchImpl, env: {} });
   check("ado: through the REST API with the az sign-in", [t.source, bodies[0].auth, bodies[0].url], ["ado", "Bearer SECRET-TOKEN-123", "https://dev.azure.com/acme/Web%20App/_apis/wit/wiql?api-version=7.1"]);
+  check("…and asks @Me which items are the signed-in person's", [bodies.some((b) => /\[System\.AssignedTo\] = @Me/.test(b.body.query ?? "")), t.mineKnown], [true, true]);
   check("…filtered to the project by name, not @project", /\[System\.TeamProject\] = 'Web App'/.test(bodies[0].body.query), true);
   check("…titles keep every character, statuses mapped", [t.roots[0].title, t.roots[0].status, t.roots[0].children[0].status], ["Checkout → payments", "in_progress", "done"]);
   check("…and the token is never written anywhere", calls.some((c) => c.includes("SECRET-TOKEN-123")), false);
@@ -118,6 +119,31 @@ check("a blocked tag wins", canonicalStatus("Task", "Active", { tags: "phase-0; 
 {
   const root = ws({ ".claude/aidlc.config.json": { workItems: { source: "jira" } } });
   check("jira with no snapshot says how to get one", /run \/aidlc:status once/.test((await tree(root)).error), true);
+}
+
+// ---- whose is whose
+check(
+  "an assignee is matched to team.me by email or by name",
+  [isMine("Sourabh Sudheer <sourabh@example.com>", "sourabh@example.com"), isMine("Priya <priya@example.com>", "sourabh@example.com"), isMine("Sourabh Sudheer", "Sourabh Sudheer"), isMine(null, "x@y.z"), isMine("a@b.c", null)],
+  [true, false, true, null, null],
+);
+{
+  const shared = ws({
+    ".claude/aidlc.config.json": { workItems: { source: "markdown" }, team: { mode: "shared", me: "me@example.com" } },
+    "backlog/epics/P-1-e.md": item({ id: "P-1", type: "epic", title: "E", status: "in_progress", assignee: "lead@example.com" }),
+    "backlog/items/P-2-mine.md": item({ id: "P-2", type: "story", title: "Mine", status: "todo", parent: "P-1", assignee: "me@example.com" }),
+    "backlog/items/P-3-theirs.md": item({ id: "P-3", type: "story", title: "Theirs", status: "todo", parent: "P-1", assignee: "them@example.com" }),
+  });
+  const t = await tree(shared);
+  check("markdown, shared: yours is what team.me is assigned", [t.mineKnown, t.roots[0].mine, t.roots[0].children.map((c) => [c.id, c.mine])], [true, false, [["P-2", true], ["P-3", false]]]);
+  const solo = ws({ ".claude/aidlc.config.json": { workItems: { source: "markdown" } }, "backlog/items/P-9-x.md": item({ id: "P-9", type: "bug", title: "X", status: "todo" }) });
+  check("markdown, solo: everything is yours", (await tree(solo)).loose[0].mine, true);
+  const snap = ws({
+    ".claude/aidlc.config.json": { workItems: { source: "jira" }, team: { me: "me@example.com" } },
+    ".aidlc/logs/board.json": { at: "2026-10-30T09:00:00Z", source: "connector", items: [{ id: 1, type: "Bug", title: "a", status: "New", mine: true }, { id: 2, type: "Bug", title: "b", status: "New", assignee: "me@example.com" }, { id: 3, type: "Bug", title: "c", status: "New" }] },
+  });
+  const s = await tree(snap);
+  check("a saved copy: its own mark first, then the assignee, else unknown", [s.savedBy, s.loose.map((l) => l.mine)], ["connector", [true, true, null]]);
 }
 
 for (const t of tmps) rmSync(t, { recursive: true, force: true });

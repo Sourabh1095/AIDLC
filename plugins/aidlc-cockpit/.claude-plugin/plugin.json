@@ -1,7 +1,7 @@
 {
   "name": "aidlc-cockpit",
   "displayName": "AIDLC Cockpit",
-  "description": "A mod that shows AIDLC beside the chat: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, /aidlc-board with no model turn, a desktop notification when a sprint run needs you, the module you're changing and what uses it, this session's files and checks, each epic as a tree of its stories, tasks and bugs, and what each work item cost by phase. It draws what core's scripts report, calls no model and gates nothing; the only file it writes is its cost ledger.",
+  "description": "A mod that shows AIDLC beside the chat: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, /aidlc-board with no model turn, a desktop notification when a sprint run needs you, the module you're changing and what uses it, this session's files and checks, each epic as a tree of its stories, tasks and bugs, and what each work item cost by phase. It draws what core's scripts report, calls no model and gates nothing; it writes only its cost ledger and, when it reads an Azure DevOps board through the connector, the board copy core reads.",
   "version": "0.4.1",
   "author": {
     "name": "Sourabh Sudheer",

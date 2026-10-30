@@ -56,6 +56,10 @@ export type CockpitTreeNode = {
   title: string;
   status: string;
   parent: string | null;
+  /** Assigned to the signed-in person; null when the board does not say. */
+  mine?: boolean | null;
+  /** Not the person's, shown only because their work sits under it. */
+  context?: boolean;
   run: string | null;
   counts: { total: number; done: number; openBugs: number };
   children: CockpitTreeNode[];
@@ -64,6 +68,10 @@ export type CockpitTree = {
   source?: string;
   tracker?: string;
   at?: string | null;
+  /** Who saved the copy a `snapshot` source drew: `connector` (the cockpit) or the status command. */
+  savedBy?: string | null;
+  /** Whether the items say whose they are; when not, the board cannot be narrowed to the person's. */
+  mineKnown?: boolean;
   note?: string | null;
   truncated?: boolean;
   roots: CockpitTreeNode[];

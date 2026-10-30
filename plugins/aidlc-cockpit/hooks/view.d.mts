@@ -16,8 +16,8 @@ export declare function prLabel(pr: string | null | undefined): string | null;
 export declare function money(usd: number | null | undefined): string | null;
 export declare function runLine(run: CockpitRun, usd?: number, settled?: 'merged' | 'closed' | null): Line;
 export declare function settledOf(run: CockpitRun, settled: CockpitSnapshot['settled'] | null | undefined): 'merged' | 'closed' | null;
-export type RunGroups = { blocked: CockpitRun[]; working: CockpitRun[]; parked: CockpitRun[]; settled: CockpitRun[] };
-export declare function runGroups(runs: readonly CockpitRun[] | null | undefined, settled?: CockpitSnapshot['settled'] | null): RunGroups;
+export type RunGroups = { blocked: CockpitRun[]; working: CockpitRun[]; parked: CockpitRun[]; settled: CockpitRun[]; others: CockpitRun[] };
+export declare function runGroups(runs: readonly CockpitRun[] | null | undefined, settled?: CockpitSnapshot['settled'] | null, tree?: CockpitTree | null): RunGroups;
 export declare function parkedLine(g: RunGroups): Line | null;
 export declare const PARKED_KEY: string;
 export declare function runsModel(
@@ -70,4 +70,21 @@ export declare function workLine(session: Session, context: CockpitContext | nul
 export declare function contextModel(context: CockpitContext | null | undefined): { title: string; name: string; learn: string | null; lines: ColoredLine[] }[];
 export type TreeRow = { id: string; depth: number; text: string; tone: ColoredLine['tone']; expandable: boolean; open: boolean };
 export declare function treeRows(nodes: readonly CockpitTreeNode[] | null | undefined, toggled?: Record<string, boolean>): TreeRow[];
-export declare function treeModel(tree: CockpitTree | null | undefined, toggled?: Record<string, boolean>): { title: string; rows: TreeRow[]; loose: TreeRow[]; note: string | null } | null;
+export declare function treeModel(
+  tree: CockpitTree | null | undefined,
+  toggled?: Record<string, boolean>,
+): { title: string; rows: TreeRow[]; loose: TreeRow[]; note: string | null; everyone: boolean; canNarrow: boolean } | null;
+
+// yours, not everyone's
+export declare const ALL_KEY: string;
+export declare function mineOnly(nodes: readonly CockpitTreeNode[] | null | undefined): CockpitTreeNode[];
+export declare function othersRun(run: CockpitRun, tree: CockpitTree | null | undefined): boolean;
+
+// the Azure DevOps connector
+export declare function connectorTools(tools: readonly { name: string; mcp?: boolean }[] | null | undefined): { query: string; batch: string } | null;
+export declare const ADO_FIELDS: string[];
+export declare function boardWiql(project: string, mine?: boolean): string;
+export declare function jsonIn(text: string | null | undefined): unknown;
+export declare function replyText(r: unknown): string;
+export type BoardItem = { id: string; type: string; title: string; status: string; parent: string | null; tags: string; assignee: string | null; mine: boolean | null };
+export declare function connectorItems(rows: readonly { id?: number | string; fields?: Record<string, unknown> }[] | null | undefined, mineIds: Set<string> | null): BoardItem[];

@@ -59,7 +59,17 @@ export function canonicalStatus(type, state, { tags = "", statusMap = null } = {
 
 // --- Sources -------------------------------------------------------------------------------------------
 
-function markdownItems(root) {
+// Is an item assigned to the person at this machine? `me` is `team.me` (an email or a name); an
+// assignee reads `Name <email>`, an email or a name. null: there is no telling.
+export function isMine(assignee, me) {
+  const a = String(assignee ?? "").trim().toLowerCase();
+  const m = String(me ?? "").trim().toLowerCase();
+  if (!a || a === "null" || !m) return null;
+  const email = /<([^>]+)>/.exec(a)?.[1] ?? (a.includes("@") ? a : null);
+  return email ? email === m || a.includes(m) : a === m || a.startsWith(`${m} <`);
+}
+
+function markdownItems(root, me) {
   const out = [];
   for (const dir of ["epics", "items"]) {
     let names = [];
@@ -77,13 +87,17 @@ function markdownItems(root) {
         title: fm.title || f.replace(/\.md$/, ""),
         status: canonicalStatus(fm.type, fm.status),
         parent: fm.parent && fm.parent !== "null" ? fm.parent : null,
+        // A solo backlog (no team.me) is all yours; in a shared one, what is assigned to you.
+        mine: me ? isMine(fm.assignee, me) === true : true,
       });
     }
   }
   return out;
 }
 
-function snapshotItems(root) {
+// The copy of the board /aidlc:status or the cockpit saved. Each item may say `mine`; else its
+// assignee is compared with team.me.
+function snapshotItems(root, { me = null, statusMap = null } = {}) {
   const snap = tryJson(join(root, ".aidlc", "logs", "board.json"));
   if (!Array.isArray(snap?.items)) return null;
   const items = snap.items
@@ -92,10 +106,11 @@ function snapshotItems(root) {
       id: String(i.id),
       type: kindOf(i.type),
       title: String(i.title ?? i.id),
-      status: canonicalStatus(i.type, i.status),
+      status: canonicalStatus(i.type, i.status, { tags: i.tags ?? "", statusMap }),
       parent: i.parent != null && i.parent !== "null" ? String(i.parent) : null,
+      mine: typeof i.mine === "boolean" ? i.mine : isMine(i.assignee, me),
     }));
-  return { items, at: typeof snap.at === "string" ? snap.at : null };
+  return { items, at: typeof snap.at === "string" ? snap.at : null, from: typeof snap.source === "string" ? snap.source : null };
 }
 
 // Where the Azure CLI lands on macOS and Linux. A process started from an editor or an app often has a
@@ -116,12 +131,16 @@ function defaultRun(argv) {
   return found ? once(found) : r;
 }
 
-const FIX = "Install the Azure CLI and run `az login`, set AZURE_DEVOPS_EXT_PAT to a personal access token, or run /aidlc:status once to save a copy of the board here.";
+const FIX = "Connect the Azure DevOps MCP server (the cockpit reads the board through it), install the Azure CLI and run `az login`, set AZURE_DEVOPS_EXT_PAT to a personal access token, or run /aidlc:status once to save a copy of the board here.";
 
 const orgUrl = (org) => (/^https?:\/\//.test(org) ? org.replace(/\/+$/, "") : `https://dev.azure.com/${org}`);
 // `@project` resolves to nothing through az, and without a project filter WIQL reads the whole org.
-const wiql = (project) =>
-  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${String(project).replace(/'/g, "''")}' AND [System.State] <> 'Removed' ORDER BY [System.ChangedDate] DESC`;
+// `mine` adds `@Me`: what is assigned to whoever the token or the az sign-in belongs to.
+const wiql = (project, { mine = false } = {}) =>
+  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${String(project).replace(/'/g, "''")}' AND [System.State] <> 'Removed'${mine ? " AND [System.AssignedTo] = @Me" : ""} ORDER BY [System.ChangedDate] DESC`;
+// Marks each item as the signed-in person's or not, from the ids an `@Me` query returned; null when that
+// query could not run, which leaves the board unfiltered rather than empty.
+const markMine = (items, mineIds) => items.map((i) => ({ ...i, mine: mineIds ? mineIds.has(i.id) : null }));
 
 const adoItem = (fields, statusMap) => {
   const type = fields["System.WorkItemType"];
@@ -150,7 +169,13 @@ async function adoItems(ado, { run = defaultRun, fetchImpl = globalThis.fetch, e
       const page = await post(`${base}/workitemsbatch?api-version=7.1`, { ids: ids.slice(i, i + 200), fields: ADO_FIELDS });
       for (const w of page.value ?? []) items.push(adoItem({ "System.Id": w.id, ...w.fields }, ado.statusMap));
     }
-    return { items, truncated: (found.workItems ?? []).length > MAX_ITEMS };
+    let mineIds = null;
+    try {
+      mineIds = new Set(((await post(`${base}/wiql?api-version=7.1`, { query: wiql(ado.project, { mine: true }) })).workItems ?? []).map((w) => String(w.id)));
+    } catch {
+      // no telling whose is whose: the board is shown whole
+    }
+    return { items: markMine(items, mineIds), truncated: (found.workItems ?? []).length > MAX_ITEMS };
   };
   // A personal access token in AZURE_DEVOPS_EXT_PAT (the variable `az devops` itself reads) needs no CLI.
   const pat = String(env?.AZURE_DEVOPS_EXT_PAT ?? "").trim();
@@ -184,12 +209,20 @@ async function adoItems(ado, { run = defaultRun, fetchImpl = globalThis.fetch, e
           : "az boards query failed";
     return { error: `Can't read the Azure DevOps board: ${why}. ${FIX}`, reason: why };
   }
+  let rows;
   try {
-    const rows = JSON.parse(q.stdout);
-    return { items: rows.slice(0, MAX_ITEMS).map((r) => adoItem(r.fields ?? {}, ado.statusMap)), truncated: rows.length > MAX_ITEMS };
+    rows = JSON.parse(q.stdout);
   } catch {
     return { error: "az boards query printed something that is not JSON" };
   }
+  const me = run(["az", "boards", "query", "--org", orgUrl(ado.org), "--project", ado.project, "--wiql", wiql(ado.project, { mine: true }), "-o", "json"]);
+  let mineIds = null;
+  try {
+    if (me.status === 0) mineIds = new Set(JSON.parse(me.stdout).map((r) => String(r.id ?? r.fields?.["System.Id"])));
+  } catch {
+    // shown whole
+  }
+  return { items: markMine(rows.slice(0, MAX_ITEMS).map((r) => adoItem(r.fields ?? {}, ado.statusMap)), mineIds), truncated: rows.length > MAX_ITEMS };
 }
 
 // --- The tree ------------------------------------------------------------------------------------------
@@ -239,25 +272,31 @@ export async function tree(ws, opts = {}) {
   const cfg = tryJson(join(root, ".claude", "aidlc.config.json"));
   if (!cfg) return { error: "no .claude/aidlc.config.json" };
   const source = cfg.workItems?.source ?? "markdown";
+  const me = cfg.team?.me ?? null;
+  const statusMap = cfg.workItems?.[source]?.statusMap ?? null;
   const runs = {};
   for (const r of readRuns(root, (x) => x.phase && !TERMINAL.has(x.phase))) runs[r.item] = r.phase;
   let got = null;
   let from = source;
   let at = null;
-  if (source === "markdown") got = { items: markdownItems(root) };
+  let savedBy = null;
+  if (source === "markdown") got = { items: markdownItems(root, me) };
   else if (source === "ado") got = await adoItems(cfg.workItems?.ado, opts);
   if (!got || got.error) {
-    const snap = snapshotItems(root);
+    const snap = snapshotItems(root, { me, statusMap });
     if (snap) {
       const reason = got?.reason ?? got?.error ?? null;
       got = { items: snap.items, note: reason };
       from = "snapshot";
       at = snap.at;
+      savedBy = snap.from;
     }
   }
   if (!got || got.error)
     return { source, error: got?.error ?? `A ${source} board is shown from a copy /aidlc:status saves (.aidlc/logs/board.json), and there is none yet: run /aidlc:status once.` };
-  return { source: from, tracker: source, at, note: got.note ?? null, truncated: !!got.truncated, ...buildTree(got.items, runs) };
+  // Whether each item says whose it is: when none does, the board cannot be narrowed to yours.
+  const mineKnown = got.items.some((i) => typeof i.mine === "boolean");
+  return { source: from, tracker: source, at, savedBy, note: got.note ?? null, truncated: !!got.truncated, mineKnown, ...buildTree(got.items, runs) };
 }
 
 // --- CLI -----------------------------------------------------------------------------------------------

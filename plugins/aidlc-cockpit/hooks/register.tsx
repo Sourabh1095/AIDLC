@@ -6,9 +6,10 @@
 // changed it keeps itself, as the tools run. What to show is decided in view.mjs; this file gathers and
 // draws.
 //
-// The one thing it writes is the cost ledger: what each work item cost, by phase, from Claude Code's own
-// session cost (view.mjs → *the cost ledger*). One file per item per session, under the main checkout's
-// git-ignored `.aidlc/logs/costs/`.
+// It writes two things. The cost ledger: what each work item cost, by phase, from Claude Code's own
+// session cost (view.mjs → *the cost ledger*), one file per item per session, under the main checkout's
+// git-ignored `.aidlc/logs/costs/`. And, where core cannot read an Azure DevOps board itself, the board
+// copy core reads (`.aidlc/logs/board.json`), filled through the session's Azure DevOps MCP connector.
 //
 // Cost: no model calls, ever. A board refresh runs a few short `node` and `git` processes, every 30
 // seconds and only while a surface is drawing, so an unattended background sprint run polls nothing. A
@@ -19,16 +20,23 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { CockpitBoardRow, CockpitContext, CockpitGit, CockpitRun, CockpitSnapshot, CockpitSprint, CockpitTree } from '../types'
 import type { Charge, Ledger, LedgerFile } from './view.mjs'
 import {
+  ADO_FIELDS,
+  ALL_KEY,
   advance,
   bandModel,
   boardText,
+  boardWiql,
   cacheDirOf,
   checksIn,
   commandItem,
+  connectorItems,
+  connectorTools,
   contextModel,
   coreCandidates,
   coreTooOld,
   editedPath,
+  jsonIn,
+  replyText,
   ledgerName,
   makesCommit,
   mergeLedger,
@@ -58,6 +66,8 @@ const MIN_GAP_MS = 5_000
 // A remote board changes on people's time, and each look is a call to the tracker.
 const TREE_MS = 300_000
 const MAX_RECENT_FILES = 40
+// The most items read from a board through the connector, newest-changed first.
+const MAX_BOARD = 3000
 // The oldest core this cockpit reads correctly: brain.mjs context and work-items/tree.mjs (0.71),
 // costs.mjs (0.65), run-files --json (0.64).
 const MIN_CORE = '0.71.0'
@@ -237,6 +247,51 @@ async function noteWork(
   if (!ran.isError && makesCommit(command)) await update($, work, w => noteCommit(w))
 }
 
+// One call to a connector tool, only when it is allowed without a prompt: a refresh never opens a dialog.
+// Returns the JSON in its reply.
+async function connectorCall($: EngineInterface, tool: string, input: Record<string, unknown>): Promise<unknown> {
+  const { decision } = await $.tool.check({ tool, input })
+  if (decision !== 'allow') throw new Error(`the Azure DevOps connector's ${tool.split('__').pop()} needs permission without a prompt`)
+  const r = await $.tool.call({ tool, ...input } as never)
+  if (r.deny) throw new Error(r.deny)
+  if (r.isError) throw new Error(`the Azure DevOps connector answered an error: ${replyText(r).slice(0, 120)}`)
+  return jsonIn(replyText(r))
+}
+
+// The Azure DevOps board through its MCP connector, for a machine with no Azure CLI or token: every item
+// of the project, which of them are the signed-in person's (`@Me`), saved as core's board copy for
+// `work-items/tree.mjs` to draw. Returns why it could not, or null.
+async function readFromConnector($: EngineInterface, cfg: unknown, cwd: string): Promise<string | null> {
+  const wi = (cfg as { workItems?: { source?: string; ado?: { project?: string } } } | null)?.workItems
+  const project = wi?.ado?.project
+  if (wi?.source !== 'ado' || !project) return 'not an Azure DevOps board'
+  const tools = connectorTools(await $.tool.list())
+  if (!tools) return 'no Azure DevOps connector in this session'
+  try {
+    const all = (await connectorCall($, tools.query, { action: 'wiql', project, wiql: boardWiql(project), top: MAX_BOARD })) as { workItems?: { id: number }[] } | null
+    const ids = (all?.workItems ?? []).map(w => w.id).slice(0, MAX_BOARD)
+    let mineIds: Set<string> | null = null
+    try {
+      const me = (await connectorCall($, tools.query, { action: 'wiql', project, wiql: boardWiql(project, true), top: MAX_BOARD })) as { workItems?: { id: number }[] } | null
+      mineIds = new Set((me?.workItems ?? []).map(w => String(w.id)))
+    } catch {
+      // no telling whose is whose: the board is shown whole
+    }
+    const rows: unknown[] = []
+    for (let i = 0; i < ids.length; i += 200) {
+      const page = (await connectorCall($, tools.batch, { action: 'get_batch', project, ids: ids.slice(i, i + 200), fields: ADO_FIELDS })) as unknown
+      const list = Array.isArray(page) ? page : ((page as { value?: unknown[] } | null)?.value ?? [])
+      rows.push(...list)
+    }
+    const at = new Date(await $.clock.now()).toISOString()
+    const items = connectorItems(rows as never, mineIds)
+    await $.fs.write(`${cwd}/.aidlc/logs/board.json`, `${JSON.stringify({ at, source: 'connector', items })}\n`)
+    return null
+  } catch (e) {
+    return e instanceof Error ? e.message : 'the Azure DevOps connector failed'
+  }
+}
+
 async function refresh($: EngineInterface, force = false): Promise<void> {
   const now = await $.clock.now()
   if (busy || (!force && now - lastAt < MIN_GAP_MS)) return
@@ -320,7 +375,15 @@ async function refresh($: EngineInterface, force = false): Promise<void> {
     // The board as a tree: a markdown backlog every look, a remote board every few minutes.
     if (force || !tree || tree.source === 'markdown' || now - treeAt >= TREE_MS) {
       treeAt = now
-      const t = (await nodeJson($, [`${core}/skills/work-items/tree.mjs`, cwd, '--json'], cwd)) as CockpitTree | null
+      const read = async () => (await nodeJson($, [`${core}/skills/work-items/tree.mjs`, cwd, '--json'], cwd)) as CockpitTree | null
+      let t = await read()
+      // Core could not read an Azure DevOps board itself (no az, no token): read it through the
+      // connector the session already has, then draw that.
+      if (t && (t.error || t.source === 'snapshot') && t.tracker !== 'markdown') {
+        const why = await readFromConnector($, cfg, cwd)
+        if (!why) t = (await read()) ?? t
+        else if (t.error && why !== 'not an Azure DevOps board') t = { ...t, error: `${t.error} (Connector: ${why}.)` }
+      }
       if (t) tree = t
     }
 
@@ -485,7 +548,16 @@ export const register: Register = on => {
         </Box>
         {board && (
           <Box flexDirection="column">
-            <Text weight="bold">{board.title}</Text>
+            <Box flexDirection="row" gap="sm">
+              <Text weight="bold">{board.title}</Text>
+              {board.canNarrow && (
+                <Button
+                  key="tree-all"
+                  label={board.everyone ? 'Show only mine' : "Show everyone's"}
+                  onPress={() => void update($, toggled, t => ({ ...t, [ALL_KEY]: !board.everyone }))}
+                />
+              )}
+            </Box>
             {[...board.rows, ...(board.loose.length ? [null] : []), ...board.loose].map(r =>
               r === null ? (
                 <Text weight="bold">Not under an epic</Text>

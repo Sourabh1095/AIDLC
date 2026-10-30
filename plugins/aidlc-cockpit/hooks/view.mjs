@@ -89,10 +89,12 @@ export const settledOf = (run, settled) => {
 // Runs in the order a person acts on them: blocked (only a person can move it), working (the pipeline
 // is on it), and parked for review. Parked runs pile up, one per open PR, and many outlive their PR, so
 // they are counted rather than listed, and the ones whose PR already merged or closed are named apart.
-export function runGroups(runs, settled = {}) {
-  const g = { blocked: [], working: [], parked: [], settled: [] };
+// With `tree`, runs on items the board says are someone else's go in `others`, which is not shown.
+export function runGroups(runs, settled = {}, tree = null) {
+  const g = { blocked: [], working: [], parked: [], settled: [], others: [] };
   for (const r of runs ?? []) {
-    if (settledOf(r, settled)) g.settled.push(r);
+    if (othersRun(r, tree)) g.others.push(r);
+    else if (settledOf(r, settled)) g.settled.push(r);
     else if (r.phase === "blocked") g.blocked.push(r);
     else if (r.phase === "review-pending") g.parked.push(r);
     else g.working.push(r);
@@ -170,7 +172,7 @@ export function bandModel(snapshot, work = null) {
   } else {
     // Blocked runs first (only a person can move them), then the ones the pipeline is working. Runs
     // parked for review are one line: thirty of them listed would bury everything else.
-    const g = runGroups(snapshot.runs, snapshot.settled);
+    const g = runGroups(snapshot.runs, snapshot.settled, snapshot.tree);
     const listed = [...g.blocked, ...g.working];
     for (const r of listed.slice(0, MAX_RUN_LINES)) lines.push(runLine(r, snapshot.costs?.[r.item]));
     if (listed.length > MAX_RUN_LINES) lines.push({ text: `+${listed.length - MAX_RUN_LINES} more — /aidlc-board`, tone: "subtle" });
@@ -230,13 +232,16 @@ export const PARKED_KEY = "runs:parked";
 export function runsModel(snapshot, toggled = {}) {
   const runs = snapshot?.runs ?? [];
   if (!runs.length) return null;
-  const g = runGroups(runs, snapshot.settled);
+  const everyone = toggled[ALL_KEY] ?? false;
+  const g = runGroups(runs, snapshot.settled, everyone ? null : snapshot.tree);
+  if (g.others.length === runs.length) return { title: `Runs · ${plural(g.others.length, "run")} on others' items not shown`, lines: [], parked: null, open: false, parkedLines: [] };
   const line = (r) => runLine(r, snapshot.costs?.[r.item], settledOf(r, snapshot.settled));
   const counts = [
     g.blocked.length && `${g.blocked.length} blocked`,
     g.working.length && `${g.working.length} working`,
     g.parked.length && `${g.parked.length} waiting for review`,
     g.settled.length && `${g.settled.length} to clean up`,
+    g.others.length && `${g.others.length} on others' items not shown`,
   ].filter(Boolean);
   const open = toggled[PARKED_KEY] ?? false;
   return {
@@ -491,7 +496,8 @@ export function treeRows(nodes, toggled = {}) {
       id: String(n.id),
       depth,
       text: `${branch}${marker}${idLabel(n.id)} ${n.type} · ${n.title} · ${tail.join(" · ")}`,
-      tone: n.type === "bug" && n.status !== "done" ? (n.status === "blocked" ? "error" : "warning") : (STATUS_TONE[n.status] ?? "text"),
+      // Someone else's item, shown because the person's work sits under it, is drawn quietly.
+      tone: n.context ? "subtle" : n.type === "bug" && n.status !== "done" ? (n.status === "blocked" ? "error" : "warning") : (STATUS_TONE[n.status] ?? "text"),
       expandable: kids.length > 0,
       open,
     });
@@ -501,20 +507,157 @@ export function treeRows(nodes, toggled = {}) {
   return rows;
 }
 
+// ---- yours, not everyone's ---------------------------------------------------------------------------
+//
+// The board shows the signed-in person's work: each item assigned to them, under the epics and stories
+// it sits in (shown for the shape, dimmed, counted as theirs only where they are). Toggle key `tree:all`
+// shows everyone's. Core marks each item `mine` (from `@Me` on Azure DevOps, `team.me` elsewhere).
+
+export const ALL_KEY = "tree:all";
+
+// The tree cut down to the person's items and what holds them, with counts over their items only.
+export function mineOnly(nodes) {
+  const keep = (n) => {
+    const kids = (n.children ?? []).map(keep).filter(Boolean);
+    if (!n.mine && !kids.length) return null;
+    const c = { total: 0, done: 0, openBugs: 0 };
+    for (const k of kids) {
+      if (k.mine) {
+        c.total += 1;
+        c.done += k.status === "done" ? 1 : 0;
+        c.openBugs += k.type === "bug" && k.status !== "done" ? 1 : 0;
+      }
+      c.total += k.counts.total;
+      c.done += k.counts.done;
+      c.openBugs += k.counts.openBugs;
+    }
+    return { ...n, children: kids, counts: c, context: !n.mine };
+  };
+  return (nodes ?? []).map(keep).filter(Boolean);
+}
+
+const countNodes = (nodes) => (nodes ?? []).reduce((s, n) => s + 1 + countNodes(n.children), 0);
+const countMine = (nodes) => (nodes ?? []).reduce((s, n) => s + (n.mine ? 1 : 0) + countMine(n.children), 0);
+
+// Is this run on someone else's item? Only when the board says so: a run whose item is not on it (a
+// tracked `local-` change, an item the board did not return) stays.
+export function othersRun(run, tree) {
+  if (!tree?.mineKnown) return false;
+  const find = (nodes) => {
+    for (const n of nodes ?? []) {
+      if (String(n.id) === String(run.item)) return n;
+      const hit = find(n.children);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const n = find([...(tree.roots ?? []), ...(tree.loose ?? [])]);
+  return n ? n.mine === false : false;
+}
+
 export function treeModel(tree, toggled = {}) {
   if (!tree) return null;
-  if (tree.error) return { title: "Epics", rows: [], loose: [], note: tree.error };
+  if (tree.error) return { title: "Epics", rows: [], loose: [], note: tree.error, everyone: false, canNarrow: false };
+  const saved = tree.savedBy === "connector" ? "read through the Azure DevOps connector" : "from the copy /aidlc:status saved";
   const where =
     tree.source === "snapshot"
-      ? `from the snapshot of ${tree.at ? tree.at.slice(0, 16).replace("T", " ") : "an unknown time"}${tree.note ? ` (${tree.note})` : ""} — /aidlc:status refreshes it`
+      ? `${saved} at ${tree.at ? tree.at.slice(0, 16).replace("T", " ") : "an unknown time"}${tree.note && tree.savedBy !== "connector" ? ` (${tree.note})` : ""}`
       : null;
+  const everyone = !tree.mineKnown || (toggled[ALL_KEY] ?? false);
+  const roots = everyone ? tree.roots : mineOnly(tree.roots);
+  const loose = everyone ? tree.loose : mineOnly(tree.loose);
+  const all = countNodes(tree.roots) + countNodes(tree.loose);
+  const mine = countMine(tree.roots) + countMine(tree.loose);
+  const title = everyone
+    ? `Epics · ${plural(tree.roots.length, "open")}${tree.hiddenDone ? ` · ${tree.hiddenDone} finished not shown` : ""}${tree.mineKnown ? " · everyone's" : ""}`
+    : `Your work · ${plural(mine, "item")} in ${plural(roots.length, "epic")}`;
   return {
-    title: `Epics · ${plural(tree.roots.length, "open")}${tree.hiddenDone ? ` · ${tree.hiddenDone} finished not shown` : ""}`,
-    rows: treeRows(tree.roots, toggled),
-    loose: treeRows(tree.loose, toggled),
-    note: [where, tree.truncated ? "only the 3,000 most recently changed items were read" : null].filter(Boolean).join(" · ") || null,
+    title,
+    rows: treeRows(roots, toggled),
+    loose: treeRows(loose, toggled),
+    note:
+      [
+        !tree.mineKnown ? "everyone's work: the board does not say whose each item is" : !everyone && all > mine ? `${all - mine} items of others not shown` : null,
+        where,
+        tree.truncated ? "only the 3,000 most recently changed items were read" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
+    everyone,
+    canNarrow: !!tree.mineKnown,
   };
 }
+
+// ---- reading Azure DevOps through its MCP connector ---------------------------------------------------
+//
+// Where the Azure CLI is missing but the person has the Azure DevOps MCP server connected, the cockpit
+// reads the board through it (register.tsx), only when the call is allowed without a prompt, and saves
+// what it read as core's board copy, `.aidlc/logs/board.json`, which `work-items/tree.mjs` then draws.
+
+// The connector's two tools, by the suffix they share across server names
+// (`mcp__azure-devops__wit_query`, `mcp__plugin_aidlc-tracker-ado_azure-devops__wit_query`).
+export function connectorTools(tools) {
+  const query = (tools ?? []).find((t) => t.mcp !== false && /__wit_query$/.test(t.name))?.name;
+  if (!query) return null;
+  const batch = `${query.slice(0, -"wit_query".length)}wit_work_item`;
+  return (tools ?? []).some((t) => t.name === batch) ? { query, batch } : null;
+}
+
+export const ADO_FIELDS = ["System.Id", "System.WorkItemType", "System.Title", "System.State", "System.Parent", "System.Tags", "System.AssignedTo"];
+
+// The board's WIQL: the project named (not `@project`), Removed left out; `mine` adds `@Me`.
+export const boardWiql = (project, mine = false) =>
+  `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${String(project).replace(/'/g, "''")}' AND [System.State] <> 'Removed'${mine ? " AND [System.AssignedTo] = @Me" : ""} ORDER BY [System.ChangedDate] DESC`;
+
+// The JSON in a tool's reply, whatever wraps it (an untrusted-content fence, a heading), or null.
+export function jsonIn(text) {
+  const s = String(text ?? "");
+  const opens = [];
+  for (let i = 0; i < s.length; i++) if (s[i] === "[" || s[i] === "{") opens.push(i);
+  // JSON starts a line; a fence's `[UNTRUSTED …]` banner does not. Try those first, then the rest.
+  const atLineStart = (i) => i === 0 || s[i - 1] === "\n";
+  for (const start of [...opens.filter(atLineStart), ...opens.filter((i) => !atLineStart(i))]) {
+    const end = s.lastIndexOf(s[start] === "[" ? "]" : "}");
+    if (end <= start) continue;
+    try {
+      return JSON.parse(s.slice(start, end + 1));
+    } catch {
+      // not this one
+    }
+  }
+  return null;
+}
+
+// A tool reply's text: what the model would read (`text`, set by Claude Code), else the tool's own
+// record: a string, MCP content blocks, or an object.
+export function replyText(r) {
+  if (typeof r?.text === "string") return r.text;
+  const res = r?.result;
+  if (typeof res === "string") return res;
+  if (Array.isArray(res) && res.every((b) => b && typeof b.text === "string")) return res.map((b) => b.text).join("\n");
+  if (Array.isArray(res?.content)) return res.content.map((b) => b?.text ?? "").join("\n");
+  return res == null ? "" : JSON.stringify(res);
+}
+
+// Rows from the connector's batch read, as the items core's board copy holds.
+export const connectorItems = (rows, mineIds) =>
+  (rows ?? [])
+    .filter((r) => r && (r.id ?? r.fields?.["System.Id"]) != null)
+    .map((r) => {
+      const f = r.fields ?? {};
+      const id = String(r.id ?? f["System.Id"]);
+      const assignee = f["System.AssignedTo"];
+      return {
+        id,
+        type: f["System.WorkItemType"] ?? "other",
+        title: f["System.Title"] ?? id,
+        status: f["System.State"] ?? "",
+        parent: f["System.Parent"] != null ? String(f["System.Parent"]) : null,
+        tags: f["System.Tags"] ?? "",
+        assignee: typeof assignee === "object" && assignee ? (assignee.uniqueName ?? assignee.displayName ?? null) : (assignee ?? null),
+        mine: mineIds ? mineIds.has(id) : null,
+      };
+    });
 
 // Is the core plugin new enough for this cockpit? Compares a.b.c numerically.
 export function coreTooOld(version, min) {

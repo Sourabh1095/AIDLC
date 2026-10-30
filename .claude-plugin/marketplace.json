@@ -66,7 +66,7 @@
       "name": "aidlc-cockpit",
       "source": "./plugins/aidlc-cockpit",
       "displayName": "AIDLC Cockpit",
-      "description": "A mod (Claude Code 2.1.287+) that shows AIDLC beside the chat: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, /aidlc-board with no model turn, a desktop notification when a sprint run needs you, the module you're changing and what uses it, this session's files and checks, each epic as a tree of its stories, tasks and bugs, and what each work item cost by phase (feeds /aidlc:insights). It draws what core's scripts report, calls no model and gates nothing; the only file it writes is its git-ignored cost ledger. Optional: AIDLC works the same without it, which matters where an organization allows only its own mods.",
+      "description": "A mod (Claude Code 2.1.287+) that shows AIDLC beside the chat: a line above the prompt with the runs in flight and anything waiting on you, a board pane for runs and the sprint, /aidlc-board with no model turn, a desktop notification when a sprint run needs you, the module you're changing and what uses it, this session's files and checks, each epic as a tree of its stories, tasks and bugs, and what each work item cost by phase (feeds /aidlc:insights). It draws what core's scripts report, calls no model and gates nothing; it writes only its git-ignored cost ledger and board copy. Optional: AIDLC works the same without it, which matters where an organization allows only its own mods.",
       "version": "0.4.1",
       "author": { "name": "Sourabh Sudheer" },
       "category": "development",

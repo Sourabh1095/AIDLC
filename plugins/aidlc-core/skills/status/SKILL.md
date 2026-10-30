@@ -156,8 +156,11 @@ backlog live, and an Azure DevOps board itself through the `az` sign-in. A board
 there (Jira, or no `az` and no `AZURE_DEVOPS_EXT_PAT`) falls back to `.aidlc/logs/board.json`. When
 `aidlc-cockpit` is enabled and `tree.mjs` cannot read the board itself (it prints `Can't read…`, or
 reports `source: snapshot`), write that file with Write, after a successful query through the adapter of
-every open epic and everything under it: `{ "at": "<UTC>", "items": [{ "id", "type", "title", "status", "parent" }] }`,
-statuses canonical. It is git-ignored, and the cockpit's board shows its age.
+every open epic and everything under it: `{ "at": "<UTC>", "items": [{ "id", "type", "title", "status", "parent",
+"assignee", "mine" }] }`, statuses canonical, `mine` true for what the signed-in person is assigned. It
+is git-ignored, and the cockpit's board shows its age. On Azure DevOps the cockpit usually fills it
+itself through the session's MCP connector, so this is the fallback for Jira and for a connector whose
+calls need a prompt.
 
 ## Step 3 — Local extensions (when `.aidlc/extensions.json` has entries)
 

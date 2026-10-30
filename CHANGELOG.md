@@ -23,11 +23,24 @@ all 37. It looked like the PR board 0.4.0 had removed. The epic tree said only `
 - **Before anything changes, the line names the item your branch is for**:
   `on #13716 story · Booking approval · in progress · 2/4 done`, from the epic tree. "This session"
   says it too.
-- **The epic tree reads Azure DevOps without the Azure CLI** when `AZURE_DEVOPS_EXT_PAT` holds a
-  personal access token (the variable `az devops` reads). It also finds an `az` installed by Homebrew
-  when the process's PATH lacks it. When it still cannot read the board, it says which piece is
-  missing and the three ways to fix it: install the Azure CLI and `az login`, set the token, or run
-  `/aidlc:status` once to save a copy.
+- **The board shows your work, not the whole team's.** By default the tree holds the items assigned to
+  you, each under the epic and story it sits in (dimmed where those are someone else's). Counts cover
+  your items, and **Show everyone's** brings back the whole board. Runs on other people's items are left
+  out of the board and the line above the prompt. "Yours" is Azure DevOps' `@Me` (whoever the
+  connector, token or `az` is signed in as), or `team.me` on a markdown or Jira board. A board that
+  cannot say whose each item is shows everything and says so.
+- **The epic tree reads Azure DevOps through the MCP connector the session already has.** That machine
+  had the Azure DevOps MCP connected and no Azure CLI, and 0.4.0 used only `az`. A mod can call a
+  connector's tools, and the cockpit does so only when `$.tool.check` says the call is allowed without a
+  prompt, so a refresh never opens a dialog. It runs one WIQL query for the board, one with `@Me` for
+  yours, and batch reads of the fields, then saves them as core's board copy (`.aidlc/logs/board.json`,
+  git-ignored), which `tree.mjs` draws. The connector's untrusted-content fence around its JSON is
+  handled.
+- **Core reads Azure DevOps without the CLI too**: with a personal access token in
+  `AZURE_DEVOPS_EXT_PAT` (the variable `az devops` reads), or with an `az` installed by Homebrew but
+  missing from the process's PATH. When nothing works, it names what is missing and the four ways to
+  fix it: the connector, the Azure CLI with `az login`, the token, or `/aidlc:status` once to save a
+  copy.
 - Versions: `aidlc` 0.71.0 → **0.71.1**, `aidlc-cockpit` 0.4.0 → **0.4.1**, marketplace → **0.71.1**.
 
 ## [0.71.0] — 2026-10-30

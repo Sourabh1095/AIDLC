@@ -483,8 +483,12 @@ draw beside the chat, which is what a pipeline that runs for an hour needs: what
 is waiting on, without asking. They also arrive with three properties that decide how AIDLC uses them.
 An organization can allow only its own mods (`allowManagedModsOnly`). Nothing a mod draws appears in
 `claude -p` or a cloud session. And the API is early access. So `aidlc-cockpit` is a **separate,
-optional plugin** that gates no tool call and rewrites no prompt. The one thing it writes is its own
-cost ledger, git-ignored under `.aidlc/logs/costs/`. Every guard stays a
+optional plugin** that gates no tool call and rewrites no prompt. What it writes is its own cost ledger,
+git-ignored under `.aidlc/logs/costs/`, and, where core cannot read an Azure DevOps board itself, the
+board copy core reads (`.aidlc/logs/board.json`), which it fills through the session's Azure DevOps MCP
+connector. A mod can call a connector's tools, and does so only when `$.tool.check` says the call is
+allowed without a prompt, so a refresh never opens a dialog. The board shows the signed-in person's
+work (WIQL `@Me`, or `team.me`), with everyone's one press away. Every guard stays a
 settings hook in core, which works everywhere. And it computes nothing itself: the runs come from
 `run-files.mjs --json`, the sprint board from `sprint.mjs board --json`, the module being changed from
 `brain.mjs context --json` and the epic tree from `work-items/tree.mjs --json`, so the cockpit cannot
