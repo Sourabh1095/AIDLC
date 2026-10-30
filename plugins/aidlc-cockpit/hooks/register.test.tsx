@@ -21,6 +21,7 @@ type World = {
   /** What core's brain.mjs context and work-items/tree.mjs print, and `git status -z`. */
   context?: unknown
   tree?: unknown
+  runs?: unknown[]
   git?: string
   coreVersion?: string
   /** Files the fake disk holds, keyed by a normalized path. */
@@ -81,7 +82,7 @@ function engine(on: On, world: World) {
         ? (world.git ?? '## main\0')
         : JSON.stringify(
             has('run-files.mjs')
-              ? RUNS
+              ? (world.runs ?? RUNS)
               : has('brain.mjs')
                 ? (world.context ?? { modules: [], unmapped: [], partial: false })
                 : has('tree.mjs')
@@ -110,7 +111,7 @@ test('the band shows the runs core reports, waiting ones first, on every surface
   engine(on, { sprint: null })
   await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
   const { text } = await $.command.run({ command: 'aidlc-board' })
-  expect(text).toContain('Runs (2):')
+  expect(text).toContain('Runs · 1 blocked · 1 working')
 
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
@@ -268,6 +269,31 @@ test('the board draws the epics as a tree, and Open shows what is under an item'
   expect(await pane.find({ type: 'Text', text: /#14 bug/ })).toBeFalsy()
   await pane.press({ key: 'tree-12' })
   expect((await pane.find({ type: 'Text', text: /#14 bug/ }))?.text).toBe('   └─ #14 bug · Reason lost · to do')
+  await pane.unmount()
+})
+
+test('runs parked for review are one line, opened on request, with the merged ones first', async ($, on) => {
+  const pr = (n: number) => `https://dev.azure.com/o/p/_git/r/pullrequest/${n}`
+  const runs = [
+    { item: '12092', phase: 'verify' },
+    ...Array.from({ length: 30 }, (_, i) => ({ item: String(13600 + i), phase: 'review-pending', pr: pr(2600 + i) })),
+  ]
+  const disk = { '/ws/.aidlc/logs/pr-state.json': JSON.stringify({ [pr(2600)]: { state: 'merged', item: '13600' } }) }
+  engine(on, { sprint: null, runs, disk })
+  await $.session.start({ cwd: '/ws', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aidlc-board' })
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await band.find({ type: 'Text', text: /waiting for review/ }))?.text).toBe(
+    '       29 runs waiting for review · 1 with a merged or closed PR → /aidlc:status cleans them up',
+  )
+  expect(await band.find({ type: 'Text', text: /13601/ })).toBeFalsy()
+  await band.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await pane.find({ type: 'Text', text: /13601/ })).toBeFalsy()
+  await pane.press({ key: 'runs-parked' })
+  expect((await pane.find({ type: 'Text', text: /13600/ }))?.text).toBe('  13600 · review-pending · PR #2600 → PR merged: /aidlc:status cleans it up')
   await pane.unmount()
 })
 

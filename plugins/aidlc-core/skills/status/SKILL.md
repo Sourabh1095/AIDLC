@@ -153,9 +153,10 @@ Step 1.5 reported the tracker unreachable.
 
 **The epic tree** (`node "${CLAUDE_PLUGIN_ROOT}/skills/work-items/tree.mjs" <ws>`) reads a markdown
 backlog live, and an Azure DevOps board itself through the `az` sign-in. A board it cannot read from
-there (Jira, or `az` signed out) falls back to `.aidlc/logs/board.json`. When `aidlc-cockpit` is enabled
-and the tree reports that fallback, write that file with Write, after a successful query of every open
-epic and everything under it: `{ "at": "<UTC>", "items": [{ "id", "type", "title", "status", "parent" }] }`,
+there (Jira, or no `az` and no `AZURE_DEVOPS_EXT_PAT`) falls back to `.aidlc/logs/board.json`. When
+`aidlc-cockpit` is enabled and `tree.mjs` cannot read the board itself (it prints `Can't read…`, or
+reports `source: snapshot`), write that file with Write, after a successful query through the adapter of
+every open epic and everything under it: `{ "at": "<UTC>", "items": [{ "id", "type", "title", "status", "parent" }] }`,
 statuses canonical. It is git-ignored, and the cockpit's board shows its age.
 
 ## Step 3 — Local extensions (when `.aidlc/extensions.json` has entries)

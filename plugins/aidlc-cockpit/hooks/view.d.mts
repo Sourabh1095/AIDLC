@@ -14,7 +14,18 @@ export declare function cacheDirOf(root: string): string;
 export declare function newestSprintFile(entries: readonly ListedEntry[] | null | undefined): string | null;
 export declare function prLabel(pr: string | null | undefined): string | null;
 export declare function money(usd: number | null | undefined): string | null;
-export declare function runLine(run: CockpitRun, usd?: number): Line;
+export declare function runLine(run: CockpitRun, usd?: number, settled?: 'merged' | 'closed' | null): Line;
+export declare function settledOf(run: CockpitRun, settled: CockpitSnapshot['settled'] | null | undefined): 'merged' | 'closed' | null;
+export type RunGroups = { blocked: CockpitRun[]; working: CockpitRun[]; parked: CockpitRun[]; settled: CockpitRun[] };
+export declare function runGroups(runs: readonly CockpitRun[] | null | undefined, settled?: CockpitSnapshot['settled'] | null): RunGroups;
+export declare function parkedLine(g: RunGroups): Line | null;
+export declare const PARKED_KEY: string;
+export declare function runsModel(
+  snapshot: CockpitSnapshot | null,
+  toggled?: Record<string, boolean>,
+): { title: string; lines: Line[]; parked: Line | null; open: boolean; parkedLines: Line[] } | null;
+export declare function branchItem(branch: string | null | undefined, tree: CockpitTree | null | undefined): CockpitTreeNode | null;
+export declare function itemLine(n: CockpitTreeNode): string;
 
 export type Ledger = { item: string | null; phase: string | null; baseline: number | null };
 export type Charge = { item: string; phase: string; usd: number };
@@ -49,7 +60,12 @@ export type Session = {
   checks: { kind: string; state: 'passed' | 'failed' | 'stale'; text: string; tone: ColoredLine['tone'] }[];
   branch: string | null;
 };
-export declare function sessionModel(work: CockpitWork | null, git: readonly CockpitGit[] | null | undefined, context: CockpitContext | null | undefined): Session;
+export declare function sessionModel(
+  work: CockpitWork | null,
+  git: readonly CockpitGit[] | null | undefined,
+  context: CockpitContext | null | undefined,
+  tree?: CockpitTree | null,
+): Session;
 export declare function workLine(session: Session, context: CockpitContext | null | undefined): Line | null;
 export declare function contextModel(context: CockpitContext | null | undefined): { title: string; name: string; learn: string | null; lines: ColoredLine[] }[];
 export type TreeRow = { id: string; depth: number; text: string; tone: ColoredLine['tone']; expandable: boolean; open: boolean };

@@ -90,6 +90,8 @@ export type CockpitSnapshot = {
   git?: CockpitGit[];
   /** The board as a tree; read every few minutes from a remote tracker, every look from a markdown one. */
   tree?: CockpitTree | null;
+  /** PRs /aidlc:status has seen merged or closed (core's `.aidlc/logs/pr-state.json`), by link. */
+  settled?: Record<string, { state: string; item?: string }>;
   at: number;
   problem: string | null;
 };

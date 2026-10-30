@@ -683,8 +683,11 @@ chat in the terminal, the desktop app and VS Code:
 
 - **A line above the prompt** that leads with what this session is changing: the module, how many files
   and how many are uncommitted, what uses the module, and the worst check (`bookings · 4 files (3
-  uncommitted) · used by 2 · tests failed`). The runs in flight follow, the ones waiting on you first
-  (`PROJ-124 · blocked → /aidlc:run PROJ-124`). While a sprint runs, it shows how many runs, how many
+  uncommitted) · used by 2 · tests failed`). Before you change anything, it names the item your branch
+  is for (`on #13716 story · Booking approval · in progress · 2/4 done`). The runs follow: blocked ones
+  first (`PROJ-124 · blocked → /aidlc:run PROJ-124`), then the ones the pipeline is working. Runs parked
+  for review are one line, however many there are (`28 runs waiting for review · 2 with a merged or
+  closed PR → /aidlc:status cleans them up`). While a sprint runs, it shows how many runs, how many
   need you, and the `claude attach` command for each one that does.
 - **`/aidlc-board`** opens a board pane. It answers with no model turn, so it costs nothing. It shows:
   - **You're in**: the module your newest edits belong to, with its purpose and rules from the brain,
@@ -698,9 +701,12 @@ chat in the terminal, the desktop app and VS Code:
     status, the run working on it, how much below it is done and its open bugs. Epics under way open one
     level; **Open** and **Close** on a row show or hide what is under it. Bugs under no epic are listed
     apart, and finished epics are counted, not shown. A markdown backlog is read live. An Azure DevOps
-    board is read every five minutes through your `az` sign-in, so `az login` once. A Jira board shows the
-    snapshot `/aidlc:status` saves, with its age.
-  - The runs and the sprint, when there are any, with a button that copies a waiting run's attach command.
+    board is read every five minutes, with a personal access token in `AZURE_DEVOPS_EXT_PAT` or through
+    your `az` sign-in (`az login` once). With neither, or on Jira, it shows the copy `/aidlc:status` saves
+    (run it once), with its age, and says which of the three you are missing.
+  - The runs and the sprint, when there are any: blocked and working runs listed, runs parked for review
+    behind **Open** (the ones whose PR already merged or closed first, each saying what to do), and a
+    button that copies a waiting sprint run's attach command.
 - **A desktop notification** when a sprint run starts waiting on you or finishes.
 - **What each item cost**, on its line (`PROJ-123 · verify · $1.84`) and in `/aidlc:insights`: the
   cost per item, the median per done item, and the share by phase. It is Claude Code's own `/cost`

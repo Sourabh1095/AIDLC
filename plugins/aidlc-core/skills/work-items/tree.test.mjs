@@ -86,24 +86,38 @@ check("a blocked tag wins", canonicalStatus("Task", "Active", { tags: "phase-0; 
       }),
     };
   };
-  const t = await tree(root, { run, fetchImpl });
+  const t = await tree(root, { run, fetchImpl, env: {} });
   check("ado: through the REST API with the az sign-in", [t.source, bodies[0].auth, bodies[0].url], ["ado", "Bearer SECRET-TOKEN-123", "https://dev.azure.com/acme/Web%20App/_apis/wit/wiql?api-version=7.1"]);
   check("…filtered to the project by name, not @project", /\[System\.TeamProject\] = 'Web App'/.test(bodies[0].body.query), true);
   check("…titles keep every character, statuses mapped", [t.roots[0].title, t.roots[0].status, t.roots[0].children[0].status], ["Checkout → payments", "in_progress", "done"]);
   check("…and the token is never written anywhere", calls.some((c) => c.includes("SECRET-TOKEN-123")), false);
 
+  // A personal access token needs no CLI at all: the Mac with no az installed.
+  bodies.length = 0;
+  calls.length = 0;
+  const noAz = () => ({ status: -1, stdout: "", stderr: "spawnSync az ENOENT" });
+  const withPat = await tree(root, { run: noAz, fetchImpl, env: { AZURE_DEVOPS_EXT_PAT: "my-pat" } });
+  check(
+    "a personal access token reads the board with no az",
+    [withPat.source, bodies[0].auth, calls.length],
+    ["ado", `Basic ${Buffer.from(":my-pat").toString("base64")}`, 0],
+  );
+
+  const missing = await tree(root, { run: noAz, fetchImpl: null, env: {} });
+  check("no az, no token, no snapshot: says what is missing and the three ways to fix it", [/az\) is not installed/.test(missing.error), /az login/.test(missing.error), /AZURE_DEVOPS_EXT_PAT/.test(missing.error), /\/aidlc:status once/.test(missing.error)], [true, true, true, true]);
+
   const signedOut = () => ({ status: 1, stdout: "", stderr: "Please run 'az login' to setup account." });
-  const none = await tree(root, { run: signedOut, fetchImpl: null });
-  check("az signed out and no snapshot: says why", none.error, "az not signed in (az login)");
+  const none = await tree(root, { run: signedOut, fetchImpl: null, env: {} });
+  check("az signed out: says so", /^Can't read the Azure DevOps board: az is not signed in\./.test(none.error), true);
 
   mkdirSync(join(root, ".aidlc", "logs"), { recursive: true });
   writeFileSync(join(root, ".aidlc", "logs", "board.json"), JSON.stringify({ at: "2026-10-30T09:00:00Z", items: [{ id: 10, type: "Epic", title: "Saved", status: "todo" }] }));
-  const snap = await tree(root, { run: signedOut, fetchImpl: null });
-  check("…with a snapshot: the snapshot, dated, and why", [snap.source, snap.at, snap.roots[0].title, snap.note], ["snapshot", "2026-10-30T09:00:00Z", "Saved", "az not signed in (az login)"]);
+  const snap = await tree(root, { run: signedOut, fetchImpl: null, env: {} });
+  check("…with a snapshot: the snapshot, dated, and the short reason", [snap.source, snap.at, snap.roots[0].title, snap.note], ["snapshot", "2026-10-30T09:00:00Z", "Saved", "az is not signed in"]);
 }
 {
   const root = ws({ ".claude/aidlc.config.json": { workItems: { source: "jira" } } });
-  check("jira with no snapshot says where one comes from", /\/aidlc:status writes/.test((await tree(root)).error), true);
+  check("jira with no snapshot says how to get one", /run \/aidlc:status once/.test((await tree(root)).error), true);
 }
 
 for (const t of tmps) rmSync(t, { recursive: true, force: true });

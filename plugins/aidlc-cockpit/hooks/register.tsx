@@ -33,6 +33,7 @@ import {
   makesCommit,
   mergeLedger,
   newestSprintFile,
+  PARKED_KEY,
   noteChecks,
   noteCommit,
   noteEdit,
@@ -41,7 +42,7 @@ import {
   repoOf,
   repoRoots,
   runFileTarget,
-  runLine,
+  runsModel,
   sessionModel,
   toSlash,
   transitions,
@@ -63,7 +64,7 @@ const MIN_CORE = '0.71.0'
 
 // Change the shape tag when a value's fields change: a reload keeps $.state, and the tag makes the new
 // code decline what the old code stored instead of misreading it.
-const snapshot = atom({ plugin: 'aidlc-cockpit', key: 'snapshot' } as const, null, { shape: 'snapshot-4' })
+const snapshot = atom({ plugin: 'aidlc-cockpit', key: 'snapshot' } as const, null, { shape: 'snapshot-5' })
 const hidden = atom({ plugin: 'aidlc-cockpit', key: 'hidden' } as const, false)
 const work = atom({ plugin: 'aidlc-cockpit', key: 'work' } as const, { files: {}, checks: {}, commits: 0 }, { shape: 'work-1' })
 const toggled = atom({ plugin: 'aidlc-cockpit', key: 'toggled' } as const, {} as Record<string, boolean>)
@@ -323,7 +324,15 @@ async function refresh($: EngineInterface, force = false): Promise<void> {
       if (t) tree = t
     }
 
-    const snap: CockpitSnapshot = { runs, sprint, costs, context, git, tree, at: now, problem: null }
+    // PRs /aidlc:status has seen merged or closed: a run still parked behind one has cleanup waiting.
+    let settled: CockpitSnapshot['settled'] = {}
+    try {
+      settled = JSON.parse(await $.fs.read(`${cwd}/.aidlc/logs/pr-state.json`)) as CockpitSnapshot['settled']
+    } catch {
+      // no PR has settled yet, or /aidlc:status has not looked
+    }
+
+    const snap: CockpitSnapshot = { runs, sprint, costs, context, git, tree, settled, at: now, problem: null }
     await update($, snapshot, () => snap)
   } finally {
     busy = false
@@ -442,8 +451,9 @@ export const register: Register = on => {
     const rows = snap.sprint?.rows ?? []
     const open = await read($, toggled)
     const here = contextModel(snap.context)
-    const session = sessionModel(await read($, work), snap.git, snap.context)
+    const session = sessionModel(await read($, work), snap.git, snap.context, snap.tree)
     const board = treeModel(snap.tree, open)
+    const runs = runsModel(snap, open)
     return (
       <Box flexDirection="column" gap="sm">
         {here.map(m => (
@@ -493,13 +503,29 @@ export const register: Register = on => {
             {board.note && <Text dimColor>{board.note}</Text>}
           </Box>
         )}
-        {snap.runs.length > 0 && (
+        {runs && (
           <Box flexDirection="column">
-            <Text weight="bold">{`Runs (${snap.runs.length})`}</Text>
-            {snap.runs.map(run => {
-              const line = runLine(run, snap.costs?.[run.item])
-              return <Text color={line.tone === 'warning' ? 'warning' : 'text'}>{line.text}</Text>
-            })}
+            <Text weight="bold">{runs.title}</Text>
+            {runs.lines.map(l => (
+              <Text color={l.tone === 'warning' ? 'warning' : 'text'} wrap="truncate-end">
+                {l.text}
+              </Text>
+            ))}
+            {runs.parked && (
+              <Box flexDirection="row" gap="sm">
+                <Text color={runs.parked.tone === 'warning' ? 'warning' : 'subtle'} wrap="truncate-end">
+                  {runs.parked.text}
+                </Text>
+                <Button key="runs-parked" label={runs.open ? 'Close' : 'Open'} onPress={() => void update($, toggled, t => ({ ...t, [PARKED_KEY]: !runs.open }))} />
+              </Box>
+            )}
+            {runs.parked &&
+              runs.open &&
+              runs.parkedLines.map(l => (
+                <Text color={l.tone === 'warning' ? 'warning' : 'subtle'} wrap="truncate-end">
+                  {`  ${l.text}`}
+                </Text>
+              ))}
           </Box>
         )}
         {rows.length > 0 && (

@@ -61,12 +61,81 @@ const repoLabel = (r) => (r && r !== "null" && r !== "control-plane" ? r : null)
 
 export const money = (usd) => (usd == null || !(usd > 0) ? null : usd >= 10 ? `$${usd.toFixed(0)}` : usd < 0.01 ? "<$0.01" : `$${usd.toFixed(2)}`);
 
-// One run, as one line. `usd` is what it has cost so far, when the ledger measured it.
-export function runLine(run, usd) {
-  const waiting = WAITING_PHASES.has(run.phase);
+// One run, as one line. `usd` is what it has cost so far, when the ledger measured it. `settled` is what
+// /aidlc:status last learned of its PR ("merged" or "closed"), when it has.
+export function runLine(run, usd, settled = null) {
+  const waiting = WAITING_PHASES.has(run.phase) || !!settled;
   const bits = [run.item, repoLabel(run.repo), run.phase, fixLabel(run.fixCycles), prLabel(run.pr), money(usd)].filter(Boolean);
-  const hint = run.phase === "blocked" ? ` → /aidlc:run ${run.item}` : run.phase === "review-pending" ? " → waiting for your review" : "";
+  const hint =
+    settled === "merged"
+      ? " → PR merged: /aidlc:status cleans it up"
+      : settled === "closed"
+        ? " → PR closed: /aidlc:status closes the run"
+        : run.phase === "blocked"
+          ? ` → /aidlc:run ${run.item}`
+          : run.phase === "review-pending"
+            ? " → waiting for review"
+            : "";
   return { text: bits.join(" · ") + hint, tone: waiting ? "warning" : "subtle" };
+}
+
+// What /aidlc:status last learned of a run's PR: "merged", "closed" or null. `settled` is core's
+// `.aidlc/logs/pr-state.json`, keyed by PR link.
+export const settledOf = (run, settled) => {
+  const s = settled?.[run?.pr];
+  return s?.state === "merged" || s?.state === "closed" ? s.state : null;
+};
+
+// Runs in the order a person acts on them: blocked (only a person can move it), working (the pipeline
+// is on it), and parked for review. Parked runs pile up, one per open PR, and many outlive their PR, so
+// they are counted rather than listed, and the ones whose PR already merged or closed are named apart.
+export function runGroups(runs, settled = {}) {
+  const g = { blocked: [], working: [], parked: [], settled: [] };
+  for (const r of runs ?? []) {
+    if (settledOf(r, settled)) g.settled.push(r);
+    else if (r.phase === "blocked") g.blocked.push(r);
+    else if (r.phase === "review-pending") g.parked.push(r);
+    else g.working.push(r);
+  }
+  return g;
+}
+
+// `32 runs waiting for review · 3 with a merged or closed PR → /aidlc:status cleans them up`, or null.
+export function parkedLine(g) {
+  if (!g.parked.length && !g.settled.length) return null;
+  const bits = [];
+  if (g.parked.length) bits.push(`${plural(g.parked.length, "run")} waiting for review`);
+  if (g.settled.length) bits.push(`${g.settled.length} with a merged or closed PR → /aidlc:status cleans them up`);
+  return { text: bits.join(" · "), tone: g.settled.length ? "warning" : "subtle" };
+}
+
+// The item the checked-out branch is for, found in the tree (`feature/13716-booking-approval` → 13716).
+export function branchItem(branch, tree) {
+  const tail = String(branch ?? "").split("/").pop();
+  const id = /^([A-Za-z][A-Za-z0-9]*-\d+|\d+)(?=-|_|$)/.exec(tail)?.[1];
+  if (!id || !tree) return null;
+  const find = (nodes) => {
+    for (const n of nodes ?? []) {
+      if (String(n.id).toLowerCase() === id.toLowerCase()) return n;
+      const hit = find(n.children);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return find([...(tree.roots ?? []), ...(tree.loose ?? [])]);
+}
+
+// The item as one line: `#13716 story · Booking approval · in progress · 2/5 done · 1 open bug`.
+export function itemLine(n) {
+  const c = n.counts ?? { total: 0, done: 0, openBugs: 0 };
+  return [
+    `${idLabel(n.id)} ${n.type} · ${n.title}`,
+    STATUS_WORDS[n.status] ?? n.status,
+    c.total ? `${c.done}/${c.total} done` : null,
+    c.openBugs ? plural(c.openBugs, "open bug") : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 // The line above the prompt, or null when there is nothing worth the room. What this session is changing
@@ -80,6 +149,12 @@ export function bandModel(snapshot, work = null) {
   let needsYou = 0;
   const now = workLine(sessionModel(work, snapshot.git, snapshot.context), snapshot.context);
   if (now) lines.push(now);
+  else {
+    // Nothing changed yet: the item this branch is for, when the board knows it.
+    const root = (snapshot.git ?? []).find((g) => g.repo === ".");
+    const item = branchItem(root?.branch, snapshot.tree);
+    if (item) lines.push({ text: `on ${itemLine(item)}`, tone: "subtle" });
+  }
   const rows = snapshot.sprint?.rows ?? [];
   if (rows.length && !snapshot.sprint.allTerminal) {
     const need = rows.filter((r) => r.needsYou && !r.terminal);
@@ -93,12 +168,15 @@ export function bandModel(snapshot, work = null) {
     if (need.length > MAX_NEED_LINES) lines.push({ text: `  +${need.length - MAX_NEED_LINES} more — /aidlc-board`, tone: "subtle" });
     needsYou += need.length;
   } else {
-    const runs = snapshot.runs ?? [];
-    // Runs waiting on the person first: they are the reason to look.
-    const ordered = [...runs].sort((a, b) => Number(WAITING_PHASES.has(b.phase)) - Number(WAITING_PHASES.has(a.phase)));
-    for (const r of ordered.slice(0, MAX_RUN_LINES)) lines.push(runLine(r, snapshot.costs?.[r.item]));
-    if (runs.length > MAX_RUN_LINES) lines.push({ text: `+${runs.length - MAX_RUN_LINES} more — /aidlc-board`, tone: "subtle" });
-    needsYou += runs.filter((r) => WAITING_PHASES.has(r.phase)).length;
+    // Blocked runs first (only a person can move them), then the ones the pipeline is working. Runs
+    // parked for review are one line: thirty of them listed would bury everything else.
+    const g = runGroups(snapshot.runs, snapshot.settled);
+    const listed = [...g.blocked, ...g.working];
+    for (const r of listed.slice(0, MAX_RUN_LINES)) lines.push(runLine(r, snapshot.costs?.[r.item]));
+    if (listed.length > MAX_RUN_LINES) lines.push({ text: `+${listed.length - MAX_RUN_LINES} more — /aidlc-board`, tone: "subtle" });
+    const parked = parkedLine(g);
+    if (parked) lines.push(parked);
+    needsYou += g.blocked.length + g.settled.length;
   }
   if (!lines.length) return null;
   // One label for the band; the sprint header carries its own, sprint detail lines keep their indent.
@@ -122,7 +200,7 @@ export function boardText(snapshot, work = null, toggled = {}) {
     for (const l of block.lines) out.push(`  ${l.text}`);
     out.push("");
   }
-  const s = sessionModel(work, snapshot.git, snapshot.context);
+  const s = sessionModel(work, snapshot.git, snapshot.context, snapshot.tree);
   out.push(s.title);
   for (const l of s.lines) out.push(`  ${l.text}`);
   const t = treeModel(snapshot.tree, toggled);
@@ -132,10 +210,11 @@ export function boardText(snapshot, work = null, toggled = {}) {
     if (t.loose.length) out.push("  Not under an epic:", ...t.loose.map((r) => `    ${r.text}`));
     if (t.note) out.push(`  ${t.note}`);
   }
-  const runs = snapshot.runs ?? [];
-  if (runs.length) {
-    out.push("", `Runs (${runs.length}):`);
-    for (const r of runs) out.push(`  ${runLine(r, snapshot.costs?.[r.item]).text}`);
+  const r = runsModel(snapshot, toggled);
+  if (r) {
+    out.push("", r.title);
+    for (const l of r.lines) out.push(`  ${l.text}`);
+    if (r.parked) out.push(`  ${r.parked.text}`, ...r.parkedLines.map((l) => `    ${l.text}`));
   }
   const rows = snapshot.sprint?.rows ?? [];
   if (rows.length) {
@@ -143,6 +222,31 @@ export function boardText(snapshot, work = null, toggled = {}) {
     for (const r of rows) out.push(`  ${r.item} · ${r.phase ?? "—"} · ${r.waitingFor ? `${r.status} (${r.waitingFor})` : r.status}${r.needsYou ? ` → ${r.needsYou}` : ""}`);
   }
   return out.join("\n");
+}
+
+// The runs as the board shows them: blocked and working ones listed, the parked ones under one line that
+// opens (toggle key `runs:parked`; the text reply lists them all).
+export const PARKED_KEY = "runs:parked";
+export function runsModel(snapshot, toggled = {}) {
+  const runs = snapshot?.runs ?? [];
+  if (!runs.length) return null;
+  const g = runGroups(runs, snapshot.settled);
+  const line = (r) => runLine(r, snapshot.costs?.[r.item], settledOf(r, snapshot.settled));
+  const counts = [
+    g.blocked.length && `${g.blocked.length} blocked`,
+    g.working.length && `${g.working.length} working`,
+    g.parked.length && `${g.parked.length} waiting for review`,
+    g.settled.length && `${g.settled.length} to clean up`,
+  ].filter(Boolean);
+  const open = toggled[PARKED_KEY] ?? false;
+  return {
+    title: `Runs · ${counts.join(" · ")}`,
+    lines: [...g.blocked, ...g.working].map(line),
+    parked: parkedLine(g),
+    open,
+    // Merged or closed first: those are the ones with something to do.
+    parkedLines: [...g.settled, ...g.parked].map(line),
+  };
 }
 
 // ---- this session's work ------------------------------------------------------------------------
@@ -257,7 +361,7 @@ const moduleName = (m) => (m.page ? m.page.split("/").pop() : m.name);
 
 // The session's work as the board draws it: files grouped by module, which are uncommitted, the
 // branch, and each check — passed, failed, or not run since the last edit.
-export function sessionModel(work, git, context) {
+export function sessionModel(work, git, context, tree = null) {
   const files = Object.entries(work?.files ?? {}).sort((a, b) => b[1] - a[1]);
   const dirty = new Set((git ?? []).flatMap((g) => g.dirty));
   const lastEdit = files[0]?.[1] ?? 0;
@@ -282,6 +386,8 @@ export function sessionModel(work, git, context) {
     const mine = files.filter(([p]) => g.repo === "." || p.startsWith(`${g.repo}/`)).length;
     if (g.repo !== "." && !mine) continue;
     lines.push({ text: `${g.repo === "." ? "" : `${g.repo}: `}on ${g.branch}${g.ahead ? ` · ${g.ahead} commit(s) not pushed` : ""}${g.behind ? ` · ${g.behind} behind` : ""}`, tone: "subtle" });
+    const item = branchItem(g.branch, tree);
+    if (item) lines.push({ text: `  for ${itemLine(item)}`, tone: STATUS_TONE[item.status] ?? "text" });
   }
   if (!files.length) lines.push({ text: "Nothing changed in this session yet.", tone: "subtle" });
   for (const [name, list] of groups) {

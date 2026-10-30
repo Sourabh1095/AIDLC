@@ -2,7 +2,7 @@
 //
 // The mod itself runs only inside Claude Code (its own tests: `claude plugin test plugins/aidlc-cockpit`).
 // Everything that decides what a person sees is here, so CI checks it on every OS.
-import { advance, bandModel, boardText, checksIn, commandItem, contextModel, coreCandidates, coreTooOld, editedPath, ledgerName, makesCommit, mergeLedger, newestSprintFile, noteChecks, noteCommit, noteEdit, parseGitStatus, phaseOf, prLabel, repoOf, repoRoots, runFileTarget, runLine, sessionModel, transitions, treeModel, treeRows, workLine, workspacePath } from "./view.mjs";
+import { advance, bandModel, boardText, branchItem, checksIn, commandItem, contextModel, PARKED_KEY, runGroups, runsModel, coreCandidates, coreTooOld, editedPath, ledgerName, makesCommit, mergeLedger, newestSprintFile, noteChecks, noteCommit, noteEdit, parseGitStatus, phaseOf, prLabel, repoOf, repoRoots, runFileTarget, runLine, sessionModel, transitions, treeModel, treeRows, workLine, workspacePath } from "./view.mjs";
 import { check, done } from "../../aidlc-core/hooks/scripts/lib/testkit.mjs";
 
 // ---- finding core
@@ -57,6 +57,41 @@ const runsBand = bandModel({
 });
 check("a run waiting on you comes first", runsBand.lines[0].text, "AIDLC  P-2 · blocked → /aidlc:run P-2");
 check("at most three runs, then a pointer to the board", [runsBand.lines.length, runsBand.lines[3].text.trim()], [4, "+1 more — /aidlc-board"]);
+
+// The workspace from the report: a handful of runs working, thirty parked at review-pending, some of
+// whose PRs merged long ago. Listing them buried everything else and read as a PR board.
+{
+  const pr = (n) => `https://dev.azure.com/o/p/_git/r/pullrequest/${n}`;
+  const runs = [
+    { item: "12092", phase: "verify" },
+    { item: "14116", phase: "design" },
+    ...Array.from({ length: 30 }, (_, i) => ({ item: String(13600 + i), phase: "review-pending", pr: i < 5 ? pr(2600 + i) : "null" })),
+  ];
+  const settled = { [pr(2600)]: { state: "merged", item: "13600" }, [pr(2601)]: { state: "closed", item: "13601" } };
+  const g = runGroups(runs, settled);
+  check("runs grouped: working, parked, and parked behind a settled PR", [g.working.length, g.parked.length, g.settled.length, g.blocked.length], [2, 28, 2, 0]);
+  const band = bandModel({ runs, sprint: null, settled, at: 0, problem: null });
+  check(
+    "the band lists the working runs and counts the parked ones in one line",
+    band.lines.map((l) => l.text),
+    ["AIDLC  12092 · verify", "       14116 · design", "       28 runs waiting for review · 2 with a merged or closed PR → /aidlc:status cleans them up"],
+  );
+  check("…and the ones to clean up count as needing you", band.needsYou, 2);
+  check("a merged PR's run says what to do", runLine(runs[2], undefined, "merged").text, "13600 · review-pending · PR #2600 → PR merged: /aidlc:status cleans it up");
+
+  const board = runsModel({ runs, settled, at: 0 }, {});
+  check("the board's runs: counts in the title, parked closed by default", [board.title, board.lines.length, board.open], ["Runs · 2 working · 28 waiting for review · 2 to clean up", 2, false]);
+  check("…opened, the ones to clean up come first", runsModel({ runs, settled, at: 0 }, { [PARKED_KEY]: true }).parkedLines[0].text, "13600 · review-pending · PR #2600 → PR merged: /aidlc:status cleans it up");
+}
+
+// The branch's item, before anything is changed.
+{
+  const tree = { source: "ado", roots: [{ id: "100", type: "epic", title: "Bookings", status: "in_progress", counts: { total: 3, done: 1, openBugs: 0 }, children: [{ id: "13716", type: "story", title: "Booking approval", status: "in_progress", counts: { total: 4, done: 2, openBugs: 1 }, children: [] }] }], loose: [], hiddenDone: 0 };
+  check("a branch names its item", [branchItem("feature/13716-booking-approval", tree)?.title, branchItem("bugfix/PROJ-12-x", { roots: [{ id: "PROJ-12", children: [] }] })?.id, branchItem("main", tree)], ["Booking approval", "PROJ-12", null]);
+  const git = [{ repo: ".", branch: "feature/13716-booking-approval", ahead: 0, behind: 0, dirty: [] }];
+  check("…and with nothing changed yet, the band says what you are on", bandModel({ runs: [], sprint: null, git, tree, at: 0, problem: null }).lines[0].text, "AIDLC  on #13716 story · Booking approval · in progress · 2/4 done · 1 open bug");
+  check("…so does the session section", sessionModel(null, git, null, tree).lines.map((l) => l.text).slice(0, 2), ["on feature/13716-booking-approval", "  for #13716 story · Booking approval · in progress · 2/4 done · 1 open bug"]);
+}
 check("the band counts what waits on you", runsBand.needsYou, 1);
 
 const rows = [
@@ -72,7 +107,7 @@ check("a problem is shown, not hidden", bandModel({ runs: [], sprint: null, at: 
 
 // ---- board text
 const text = boardText({ runs: [{ item: "P-1", phase: "implement" }], sprint: { rows, allTerminal: false }, at: 0, problem: null });
-check("board text lists runs and the sprint", [/Runs \(1\):/.test(text), /Sprint \(3\):/.test(text), /S-2 · design · NEEDS YOU \(input needed\)/.test(text)], [true, true, true]);
+check("board text lists runs and the sprint", [/Runs · 1 working/.test(text), /Sprint \(3\):/.test(text), /S-2 · design · NEEDS YOU \(input needed\)/.test(text)], [true, true, true]);
 check("board text outside a workspace says so", boardText(null).startsWith("Not an AIDLC workspace"), true);
 
 // ---- what is worth a notification

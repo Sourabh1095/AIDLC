@@ -98,13 +98,25 @@ function snapshotItems(root) {
   return { items, at: typeof snap.at === "string" ? snap.at : null };
 }
 
+// Where the Azure CLI lands on macOS and Linux. A process started from an editor or an app often has a
+// shorter PATH than a login shell, so `az` installed by Homebrew can be missing from it.
+const AZ_PATHS = ["/opt/homebrew/bin/az", "/usr/local/bin/az", "/usr/bin/az", "/home/linuxbrew/.linuxbrew/bin/az"];
+
 // az is a .cmd on Windows, which only a shell starts.
 function defaultRun(argv) {
-  const viaShell = process.platform === "win32" && argv[0] === "az";
-  const args = viaShell ? argv.slice(1).map((a) => (/[\s"&|<>^(){}'@]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv.slice(1);
-  const r = spawnSync(argv[0], args, { encoding: "utf8", shell: viaShell, timeout: 60000, windowsHide: true });
-  return { status: r.error ? -1 : r.status, stdout: r.stdout ?? "", stderr: `${r.stderr ?? ""}${r.error ? r.error.message : ""}` };
+  const once = (cmd) => {
+    const viaShell = process.platform === "win32" && cmd === "az";
+    const args = viaShell ? argv.slice(1).map((a) => (/[\s"&|<>^(){}'@]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv.slice(1);
+    const r = spawnSync(cmd, args, { encoding: "utf8", shell: viaShell, timeout: 60000, windowsHide: true });
+    return { status: r.error ? -1 : r.status, stdout: r.stdout ?? "", stderr: `${r.stderr ?? ""}${r.error ? r.error.message : ""}` };
+  };
+  const r = once(argv[0]);
+  if (argv[0] !== "az" || process.platform === "win32" || !/ENOENT|not found/i.test(r.stderr)) return r;
+  const found = AZ_PATHS.find((p) => existsSync(p));
+  return found ? once(found) : r;
 }
+
+const FIX = "Install the Azure CLI and run `az login`, set AZURE_DEVOPS_EXT_PAT to a personal access token, or run /aidlc:status once to save a copy of the board here.";
 
 const orgUrl = (org) => (/^https?:\/\//.test(org) ? org.replace(/\/+$/, "") : `https://dev.azure.com/${org}`);
 // `@project` resolves to nothing through az, and without a project filter WIQL reads the whole org.
@@ -122,26 +134,38 @@ const adoItem = (fields, statusMap) => {
   };
 };
 
-async function adoItems(ado, { run = defaultRun, fetchImpl = globalThis.fetch } = {}) {
+async function adoItems(ado, { run = defaultRun, fetchImpl = globalThis.fetch, env = process.env } = {}) {
   if (!ado?.org || !ado?.project) return { error: "workItems.ado needs org and project" };
   const base = `${orgUrl(ado.org)}/${encodeURIComponent(ado.project)}/_apis/wit`;
+  const rest = async (authorization) => {
+    const post = async (url, body) => {
+      const r = await fetchImpl(url, { method: "POST", headers: { Authorization: authorization, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    };
+    const found = await post(`${base}/wiql?api-version=7.1`, { query: wiql(ado.project) });
+    const ids = (found.workItems ?? []).map((w) => w.id).slice(0, MAX_ITEMS);
+    const items = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      const page = await post(`${base}/workitemsbatch?api-version=7.1`, { ids: ids.slice(i, i + 200), fields: ADO_FIELDS });
+      for (const w of page.value ?? []) items.push(adoItem({ "System.Id": w.id, ...w.fields }, ado.statusMap));
+    }
+    return { items, truncated: (found.workItems ?? []).length > MAX_ITEMS };
+  };
+  // A personal access token in AZURE_DEVOPS_EXT_PAT (the variable `az devops` itself reads) needs no CLI.
+  const pat = String(env?.AZURE_DEVOPS_EXT_PAT ?? "").trim();
+  if (pat && fetchImpl) {
+    try {
+      return await rest(`Basic ${Buffer.from(`:${pat}`).toString("base64")}`);
+    } catch {
+      // a token that is wrong or expired: try the az sign-in below
+    }
+  }
   const token = run(["az", "account", "get-access-token", "--resource", ADO_RESOURCE, "--query", "accessToken", "-o", "tsv"]);
   const bearer = token.status === 0 ? token.stdout.trim() : "";
   if (bearer && fetchImpl) {
     try {
-      const post = async (url, body) => {
-        const r = await fetchImpl(url, { method: "POST", headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      };
-      const found = await post(`${base}/wiql?api-version=7.1`, { query: wiql(ado.project) });
-      const ids = (found.workItems ?? []).map((w) => w.id).slice(0, MAX_ITEMS);
-      const items = [];
-      for (let i = 0; i < ids.length; i += 200) {
-        const page = await post(`${base}/workitemsbatch?api-version=7.1`, { ids: ids.slice(i, i + 200), fields: ADO_FIELDS });
-        for (const w of page.value ?? []) items.push(adoItem({ "System.Id": w.id, ...w.fields }, ado.statusMap));
-      }
-      return { items, truncated: (found.workItems ?? []).length > MAX_ITEMS };
+      return await rest(`Bearer ${bearer}`);
     } catch {
       // the token or the REST call failed: try the CLI's own query below
     }
@@ -151,8 +175,14 @@ async function adoItems(ado, { run = defaultRun, fetchImpl = globalThis.fetch } 
     "--wiql", wiql(ado.project).replace("SELECT [System.Id]", `SELECT ${ADO_FIELDS.map((f) => `[${f}]`).join(",")}`), "-o", "json",
   ]);
   if (q.status !== 0) {
-    const why = /not found|ENOENT|is not recognized/i.test(q.stderr) ? "az not installed" : /login|logged in|credential|auth/i.test(q.stderr) ? "az not signed in (az login)" : "az boards query failed";
-    return { error: why };
+    const why = /not found|ENOENT|is not recognized/i.test(q.stderr)
+      ? "the Azure CLI (az) is not installed here"
+      : /login|logged in|credential|auth/i.test(q.stderr)
+        ? "az is not signed in"
+        : /extension|boards/i.test(q.stderr)
+          ? "az has no azure-devops extension (az extension add --name azure-devops)"
+          : "az boards query failed";
+    return { error: `Can't read the Azure DevOps board: ${why}. ${FIX}`, reason: why };
   }
   try {
     const rows = JSON.parse(q.stdout);
@@ -219,14 +249,14 @@ export async function tree(ws, opts = {}) {
   if (!got || got.error) {
     const snap = snapshotItems(root);
     if (snap) {
-      const reason = got?.error ?? null;
+      const reason = got?.reason ?? got?.error ?? null;
       got = { items: snap.items, note: reason };
       from = "snapshot";
       at = snap.at;
     }
   }
   if (!got || got.error)
-    return { source, error: got?.error ?? `${source} boards are read from the snapshot /aidlc:status writes (.aidlc/logs/board.json), and there is none yet` };
+    return { source, error: got?.error ?? `A ${source} board is shown from a copy /aidlc:status saves (.aidlc/logs/board.json), and there is none yet: run /aidlc:status once.` };
   return { source: from, tracker: source, at, note: got.note ?? null, truncated: !!got.truncated, ...buildTree(got.items, runs) };
 }
 

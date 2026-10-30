@@ -62,7 +62,7 @@ says which one it picked, and honors *"just do it"* as an instruction rather tha
 | Cut a release | `/aidlc:release` |
 | See what's running and what's waiting on you, without asking | install `aidlc-cockpit`, then glance above the prompt or open `/aidlc-board` |
 | See which module you're changing, what else uses it, and whether the tests ran since your last edit | the cockpit's "You're in" and "This session", above the prompt and in `/aidlc-board` |
-| See each epic with its stories, tasks and bugs, and where each one stands | the cockpit's epic tree, read from your board (Azure DevOps through `az`, or the markdown backlog) |
+| See each epic with its stories, tasks and bugs, and where each one stands | the cockpit's epic tree, read from your board (Azure DevOps through `az` or a personal access token, or the markdown backlog) |
 | Send a PM or client where things stand | `/aidlc:status --publish` — a page on claude.ai, private until you share it |
 | Hand the product over at the end of a project | `/aidlc:study` — the business study, shareable as a Claude Doc the client can comment on and export to Word or PDF |
 | Know what each work item cost | `/aidlc:insights`, with the cockpit installed |

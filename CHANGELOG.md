@@ -7,6 +7,29 @@ All notable changes to the AIDLC marketplace.
 > in **0.19.0** — see that entry. CHANGELOG entries below 0.19.0 describe releases made under the old
 > SDLC name; the version numbers are unchanged, only the name differs.
 
+## [0.71.1] — 2026-10-30
+
+### The cockpit stops reading as a PR board (`aidlc-cockpit` 0.4.1, `aidlc`)
+
+Seen on a real workspace right after 0.4.0: 37 runs, about 30 of them parked at `review-pending`, many
+with a PR. The line above the prompt listed three of them with their PR numbers, and the board listed
+all 37. It looked like the PR board 0.4.0 had removed. The epic tree said only `az not installed`.
+
+- **Runs parked for review are one line**, on the board and above the prompt: `28 runs waiting for
+  review · 2 with a merged or closed PR → /aidlc:status cleans them up`. Blocked runs and the ones the
+  pipeline is working are still listed. On the board, **Open** lists the parked ones, those whose PR
+  already merged or closed first, each saying what to do. The cockpit learns which PRs settled from the
+  record `/aidlc:status` keeps (`.aidlc/logs/pr-state.json`), and asks GitHub and Azure nothing itself.
+- **Before anything changes, the line names the item your branch is for**:
+  `on #13716 story · Booking approval · in progress · 2/4 done`, from the epic tree. "This session"
+  says it too.
+- **The epic tree reads Azure DevOps without the Azure CLI** when `AZURE_DEVOPS_EXT_PAT` holds a
+  personal access token (the variable `az devops` reads). It also finds an `az` installed by Homebrew
+  when the process's PATH lacks it. When it still cannot read the board, it says which piece is
+  missing and the three ways to fix it: install the Azure CLI and `az login`, set the token, or run
+  `/aidlc:status` once to save a copy.
+- Versions: `aidlc` 0.71.0 → **0.71.1**, `aidlc-cockpit` 0.4.0 → **0.4.1**, marketplace → **0.71.1**.
+
 ## [0.71.0] — 2026-10-30
 
 ### The cockpit shows what you're working in, not pull requests (`aidlc-cockpit` 0.4.0, `aidlc`)
